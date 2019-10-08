@@ -1,0 +1,21 @@
+language: rust
+dist: bionic
+osx_image: xcode11
+cache: cargo
+
+notifications:
+  email: false
+
+os:
+  - linux
+  - osx
+
+rust:
+  - nightly
+  - beta
+  - stable
+
+script:
+  - cargo build
+  - cargo build --release
+  - cargo test
