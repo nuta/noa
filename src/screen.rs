@@ -17,13 +17,11 @@ impl Position {
     }
 }
 
+#[derive(Clone)]
 pub struct View {
     top_left: Position,
     cursor: Position,
     file: Rc<RefCell<File>>,
-    /// It contains the y-axis offset from `top_left.line` from which the frontnend
-    /// needs to redraw.
-    needs_redraw: Option<usize>,
 }
 
 impl View {
@@ -32,7 +30,6 @@ impl View {
             top_left: Position::new(0, 0),
             cursor: Position::new(0, 0),
             file,
-            needs_redraw: Some(0),
         }
     }
 
@@ -50,10 +47,6 @@ impl View {
 
     pub fn file_mut<'a>(&'a mut self) -> RefMut<'a, File> {
         self.file.borrow_mut()
-    }
-
-    pub fn mark_as_drawed(&mut self) {
-        self.needs_redraw = None;
     }
 
     pub fn move_cursor(&mut self, y_diff: isize, x_diff: isize) {
@@ -119,10 +112,12 @@ impl View {
         let cursor = self.cursor.clone();
         self.file_mut().buffer_mut().insert(&cursor, ch);
 
+        /* TODO:
         self.needs_redraw = match self.needs_redraw {
             Some(current) => Some(std::cmp::min(current, cursor.line)),
             None => Some(cursor.line),
         };
+        */
 
         if ch == '\n' {
             self.cursor.line += 1;
@@ -379,5 +374,25 @@ impl Screen {
 
     pub fn active_view_mut(&mut self) -> &mut View {
         self.current_panel_mut().view_mut()
+    }
+
+    pub fn split_vertically(&mut self) {
+        let current_panel = self.current_panel();
+        let view = current_panel.view();
+        let top_left = current_panel.top_left();
+        let width = current_panel.width() / 2;
+        let height = current_panel.height();
+        if width < 20 {
+            warn!("too small width!");
+            return;
+        }
+
+        let top_left2 = Position::new(top_left.line, top_left.column + width);
+        let new_left = Panel::new(top_left.clone(), height, width, view.clone());
+        let new_right = Panel::new(top_left2, height, width, view.clone());
+        self.panels.remove(self.current_panel_index);
+        self.panels.push(new_left);
+        self.panels.push(new_right);
+        self.current_panel_index = self.panels.len() - 1;
     }
 }

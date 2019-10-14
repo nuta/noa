@@ -47,6 +47,11 @@ static MANIFEST: Manifest = Manifest {
             title: "",
             hidden: true,
         },
+        CommandDefinition {
+            id: "screen.vsplit",
+            title: "screen: Split Screen Vertically",
+            hidden: false,
+        },
     ],
 };
 
@@ -59,7 +64,8 @@ impl PrimitivePlugin {
 
 impl Plugin for PrimitivePlugin {
     fn command(&mut self, editor: &mut Editor, cmd: &Command, event: &Event) {
-        let active_view = editor.screen_mut().active_view_mut();
+        let screen = editor.screen_mut();
+        let active_view = screen.active_view_mut();
         match *cmd {
             Command("buffer.insert") => {
                 if let Event::Char(ch) = event {
@@ -76,6 +82,7 @@ impl Plugin for PrimitivePlugin {
             Command("buffer.cursor_down")  => active_view.move_cursor(1, 0),
             Command("buffer.cursor_left")  => active_view.move_cursor(0, -1),
             Command("buffer.cursor_right") => active_view.move_cursor(0, 1),
+            Command("screen.vsplit")       => screen.split_vertically(),
             _ => {}
         }
     }

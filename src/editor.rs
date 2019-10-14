@@ -54,6 +54,7 @@ static DEFAULT_BINDINGS: &'static [(BindTo, Command)] = &[
     binding!(Mode::Buffer, Event::Down,      "buffer.cursor_down"),
     binding!(Mode::Buffer, Event::Left,      "buffer.cursor_left"),
     binding!(Mode::Buffer, Event::Right,     "buffer.cursor_right"),
+    binding!(Mode::Buffer, Event::Ctrl('V'), "screen.vsplit"),
 
     binding!(Mode::CommandMenu, Event::AnyChar,   "command_menu.insert"),
     binding!(Mode::CommandMenu, Event::Backspace, "command_menu.backspace"),

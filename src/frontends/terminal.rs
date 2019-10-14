@@ -143,7 +143,7 @@ impl FrontEnd for Terminal {
                     "{reset}"
                 ),
                 ' ',
-                goto = goto(panel.height() - 2, 0),
+                goto = goto(panel.height() - 2, panel.top_left().column),
                 invert = termion::style::Invert,
                 bold = termion::style::Bold,
                 name = buffer.name(),

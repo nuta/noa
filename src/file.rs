@@ -9,12 +9,17 @@ pub struct File {
     /// scratch).
     path: Option<PathBuf>,
     buffer: Rc<RefCell<Buffer>>,
+    /// It contains the y-axis offset from `top_left.line` from which the frontnend
+    /// needs to redraw.
+    /// TODO: Use this.
+    needs_redraw: Option<usize>,
 }
 
 impl File {
     pub fn pseudo_file(name: &str) -> File {
         File {
             path: None,
+            needs_redraw: Some(0),
             buffer: Rc::new(RefCell::new(Buffer::new(name))),
         }
     }
@@ -44,6 +49,7 @@ impl File {
         Ok(File {
             path: Some(path.to_owned()),
             buffer: Rc::new(RefCell::new(buffer)),
+            needs_redraw: Some(0),
         })
     }
 
@@ -69,5 +75,9 @@ impl File {
 
     pub fn buffer_mut<'a>(&'a mut self) -> RefMut<'a, Buffer> {
         self.buffer.borrow_mut()
+    }
+
+    pub fn mark_as_drawed(&mut self) {
+        self.needs_redraw = None;
     }
 }
