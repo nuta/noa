@@ -1,4 +1,4 @@
-use crate::editor::{Command, Editor};
+use crate::editor::{Command, CommandDefinition, Editor};
 use crate::plugin::{Plugin, Manifest};
 use crate::frontend::Event;
 
@@ -7,14 +7,46 @@ pub struct PrimitivePlugin {
 
 static MANIFEST: Manifest = Manifest {
     commands: &[
-        Command("buffer.insert"),
-        Command("buffer.save"),
-        Command("buffer.backspace"),
-        Command("buffer.delete"),
-        Command("buffer.cursor_up"),
-        Command("buffer.cursor_down"),
-        Command("buffer.cursor_left"),
-        Command("buffer.cursor_right"),
+        CommandDefinition {
+            id: "buffer.insert",
+            title: "",
+            hidden: true,
+        },
+        CommandDefinition {
+            id: "buffer.save",
+            title: "Save",
+            hidden: false,
+        },
+        CommandDefinition {
+            id: "buffer.backspace",
+            title: "",
+            hidden: true,
+        },
+        CommandDefinition {
+            id: "buffer.delete",
+            title: "",
+            hidden: true,
+        },
+        CommandDefinition {
+            id: "buffer.cursor_up",
+            title: "",
+            hidden: true,
+        },
+        CommandDefinition {
+            id: "buffer.cursor_down",
+            title: "",
+            hidden: true,
+        },
+        CommandDefinition {
+            id: "buffer.cursor_left",
+            title: "",
+            hidden: true,
+        },
+        CommandDefinition {
+            id: "buffer.cursor_right",
+            title: "",
+            hidden: true,
+        },
     ],
 };
 

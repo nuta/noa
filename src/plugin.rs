@@ -1,8 +1,8 @@
 use crate::frontend::Event;
-use crate::editor::{Command, Editor};
+use crate::editor::{Command, CommandDefinition, Editor};
 
 pub struct Manifest {
-    pub commands: &'static [Command<'static>],
+    pub commands: &'static [CommandDefinition],
 }
 
 pub trait Plugin {

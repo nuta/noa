@@ -1,4 +1,4 @@
-use crate::editor::{Command, Editor};
+use crate::editor::{Command, CommandDefinition, Editor};
 use crate::plugin::{Plugin, Manifest};
 use crate::frontend::Event;
 use crate::screen::Mode;
@@ -8,12 +8,36 @@ pub struct CommandMenuPlugin {
 
 static MANIFEST: Manifest = Manifest {
     commands: &[
-        Command("command_menu.open"),
-        Command("command_menu.insert"),
-        Command("command_menu.backspace"),
-        Command("command_menu.move_up"),
-        Command("command_menu.move_down"),
-        Command("command_menu.quit"),
+        CommandDefinition {
+            id: "command_menu.open",
+            title: "",
+            hidden: true,
+        },
+        CommandDefinition {
+            id: "command_menu.insert",
+            title: "",
+            hidden: true,
+        },
+        CommandDefinition {
+            id: "command_menu.backspace",
+            title: "",
+            hidden: true,
+        },
+        CommandDefinition {
+            id: "command_menu.move_up",
+            title: "",
+            hidden: true,
+        },
+        CommandDefinition {
+            id: "command_menu.move_down",
+            title: "",
+            hidden: true,
+        },
+        CommandDefinition {
+            id: "command_menu.quit",
+            title: "",
+            hidden: true,
+        },
     ]
 };
 
@@ -71,8 +95,8 @@ impl Plugin for CommandMenuPlugin {
             // We need to drop borrows here to invoke a command.
         }
 
-        if let Some(cmd_name) = selected_cmd {
-            editor.invoke_command(&Command(&cmd_name), Event::CommandMenu);
+        if let Some(cmd_def) = selected_cmd {
+            editor.invoke_command(&Command(cmd_def.id), Event::CommandMenu);
         }
     }
 

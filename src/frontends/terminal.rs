@@ -58,14 +58,14 @@ impl Terminal {
             // Results.
             let results = command_menu.filtered().iter().enumerate()
                               .take(menu_height - 1);
-            for (i, elem) in results {
+            for (i, cmd) in results {
                 write!(
                     self.stdout,
-                    "{goto}{color}{selected}{text:<menu_width$}{reset}",
+                    "{goto}{color}{selected}{title:<menu_width$}{reset}",
                     goto = goto(margin_top + 1 + i, x),
                     color = termion::color::Bg(termion::color::Magenta),
                     selected = if i == command_menu.selected() { "> " } else { "  "},
-                    text = elem,
+                    title = cmd.title,
                     menu_width = menu_width - 2,
                     reset = termion::color::Bg(termion::color::Reset)
                 ).unwrap();

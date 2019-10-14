@@ -1,8 +1,9 @@
 use std::cell::{RefCell, Ref, RefMut};
 use std::rc::Rc;
 use std::cmp::{min, max};
+use crate::editor::CommandDefinition;
 use crate::file::File;
-use crate::fuzzy::FuzzySet;
+use crate::fuzzy::{FuzzySet, FuzzySetElement};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Position {
@@ -255,15 +256,16 @@ impl TextBox {
     }
 }
 
-pub struct MenuBox {
+// TODO: Remove `Clone` requirement.
+pub struct MenuBox<T: FuzzySetElement + Clone> {
     textbox: TextBox,
-    elements: FuzzySet,
-    filtered: Vec<String>,
+    elements: FuzzySet<T>,
+    filtered: Vec<T>,
     selected: usize,
 }
 
-impl MenuBox {
-    pub fn new() -> MenuBox {
+impl<T: FuzzySetElement + Clone> MenuBox<T> {
+    pub fn new() -> MenuBox<T> {
         MenuBox {
             textbox: TextBox::new(),
             elements: FuzzySet::new(),
@@ -280,11 +282,11 @@ impl MenuBox {
         &mut self.textbox
     }
 
-    pub fn elements_mut(&mut self) -> &mut FuzzySet {
+    pub fn elements_mut(&mut self) -> &mut FuzzySet<T> {
         &mut self.elements
     }
 
-    pub fn filtered(&self) -> &[String] {
+    pub fn filtered(&self) -> &[T] {
         &self.filtered
     }
 
@@ -300,17 +302,17 @@ impl MenuBox {
         }
     }
 
-    pub fn filter(&mut self) -> &[String] {
-        self.filtered = self.elements.search(self.textbox.text());
+    pub fn filter(&mut self) {
+        self.filtered = self.elements.search(self.textbox.text())
+            .iter().map(|e| (*e).clone()).collect();
         self.selected = 0;
-        &self.filtered
     }
 
     pub fn clear(&mut self) {
         self.textbox.clear();
     }
 
-    pub fn enter(&mut self) -> Option<&str> {
+    pub fn enter(&mut self) -> Option<&T> {
         self.clear();
         if self.filtered.len() > 0 {
             Some(&self.filtered[self.selected])
@@ -326,7 +328,7 @@ pub struct Screen {
     height: usize,
     panels: Vec<Panel>,
     current_panel_index: usize,
-    command_menu: MenuBox,
+    command_menu: MenuBox<&'static CommandDefinition>,
 }
 
 impl Screen {
@@ -359,11 +361,11 @@ impl Screen {
         self.mode = mode;
     }
 
-    pub fn command_menu(&self) -> &MenuBox {
+    pub fn command_menu(&self) -> &MenuBox<&'static CommandDefinition> {
         &self.command_menu
     }
 
-    pub fn command_menu_mut(&mut self) -> &mut MenuBox {
+    pub fn command_menu_mut(&mut self) -> &mut MenuBox<&'static CommandDefinition> {
         &mut self.command_menu
     }
 

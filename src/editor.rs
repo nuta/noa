@@ -3,6 +3,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use crate::file::File;
+use crate::fuzzy::FuzzySetElement;
 use crate::screen::{Screen, Mode};
 use crate::screen::View;
 use crate::plugin::Plugin;
@@ -11,6 +12,17 @@ use crate::frontend::{FrontEnd, Event};
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct Command<'a>(pub &'a str);
 
+pub struct CommandDefinition {
+    pub id: &'static str,
+    pub title: &'static str,
+    pub hidden: bool,
+}
+
+impl FuzzySetElement for &'static CommandDefinition {
+    fn as_str(&self) -> &str {
+        self.id
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct BindTo {
@@ -63,7 +75,9 @@ pub struct Editor<'u> {
     /// Plugins.
     plugins: Vec<Rc<RefCell<dyn Plugin>>>,
     /// Commands.
-    commands: HashMap<Command<'u>, Rc<RefCell<dyn Plugin>>>,
+    commands: HashMap<Command<'u>, &'static CommandDefinition>,
+    /// Command handlers.
+    handlers: HashMap<Command<'u>, Rc<RefCell<dyn Plugin>>>,
     /// Key mappings.
     bindings: HashMap<BindTo, Command<'u>>,
     /// It's true if the editor is quitting.
@@ -93,6 +107,7 @@ impl<'u> Editor<'u> {
             files: HashMap::new(),
             plugins: Vec::new(),
             commands: HashMap::new(),
+            handlers: HashMap::new(),
             bindings,
             quit: false,
         }
@@ -128,8 +143,11 @@ impl<'u> Editor<'u> {
         let command_menu = self.screen.command_menu_mut();
         let menu_elements = command_menu.elements_mut();
         for cmd in manifest.commands {
-            self.commands.insert(*cmd, plugin_rc.clone());
-            menu_elements.insert(cmd.0.to_string());
+            self.commands.insert(Command(cmd.id), cmd);
+            self.handlers.insert(Command(cmd.id), plugin_rc.clone());
+            if !cmd.hidden {
+                menu_elements.insert(cmd);
+            }
         }
 
         self.plugins.push(plugin_rc);
@@ -154,7 +172,7 @@ impl<'u> Editor<'u> {
             return;
         }
 
-        let plugin = match self.commands.get(&cmd) {
+        let plugin = match self.handlers.get(&cmd) {
             Some(plugin) => plugin.clone(),
             None => {
                  warn!("unhandled command: {:?}", cmd);
