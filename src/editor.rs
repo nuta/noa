@@ -9,7 +9,7 @@ use crate::plugin::Plugin;
 use crate::frontend::{FrontEnd, Event};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub struct Command(pub &'static str);
+pub struct Command<'a>(pub &'a str);
 
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -24,15 +24,31 @@ impl BindTo {
     }
 }
 
+macro_rules! binding {
+    ($mode:expr, $event:expr, $command:expr) => {
+        (BindTo::new($mode, $event), Command($command))
+    };
+}
+
 static DEFAULT_BINDINGS: &'static [(BindTo, Command)] = &[
-    (BindTo::new(Mode::Buffer, Event::Ctrl('q')), Command("editor.quit")),
-    (BindTo::new(Mode::Buffer, Event::Ctrl('s')), Command("buffer.save")),
-    (BindTo::new(Mode::Buffer, Event::Backspace), Command("buffer.backspace")),
-    (BindTo::new(Mode::Buffer, Event::Delete), Command("buffer.delete")),
-    (BindTo::new(Mode::Buffer, Event::Up), Command("buffer.cursor_up")),
-    (BindTo::new(Mode::Buffer, Event::Down), Command("buffer.cursor_down")),
-    (BindTo::new(Mode::Buffer, Event::Left), Command("buffer.cursor_left")),
-    (BindTo::new(Mode::Buffer, Event::Right), Command("buffer.cursor_right")),
+    binding!(Mode::Buffer, Event::Ctrl('q'), "editor.quit"),
+    binding!(Mode::Buffer, Event::Ctrl('q'), "editor.quit"),
+    binding!(Mode::Buffer, Event::Ctrl('s'), "buffer.save"),
+    binding!(Mode::Buffer, Event::Ctrl('x'), "command_menu.open"),
+    binding!(Mode::Buffer, Event::AnyChar,   "buffer.insert"),
+    binding!(Mode::Buffer, Event::Backspace, "buffer.backspace"),
+    binding!(Mode::Buffer, Event::Delete,    "buffer.delete"),
+    binding!(Mode::Buffer, Event::Up,        "buffer.cursor_up"),
+    binding!(Mode::Buffer, Event::Down,      "buffer.cursor_down"),
+    binding!(Mode::Buffer, Event::Left,      "buffer.cursor_left"),
+    binding!(Mode::Buffer, Event::Right,     "buffer.cursor_right"),
+
+    binding!(Mode::CommandMenu, Event::AnyChar,   "command_menu.insert"),
+    binding!(Mode::CommandMenu, Event::Backspace, "command_menu.backspace"),
+    binding!(Mode::CommandMenu, Event::Up,        "command_menu.move_up"),
+    binding!(Mode::CommandMenu, Event::Down,      "command_menu.move_down"),
+    binding!(Mode::CommandMenu, Event::Esc,       "command_menu.quit"),
+    binding!(Mode::CommandMenu, Event::Ctrl('x'), "command_menu.quit"),
 ];
 
 pub struct Editor<'u> {
@@ -47,9 +63,9 @@ pub struct Editor<'u> {
     /// Plugins.
     plugins: Vec<Rc<RefCell<dyn Plugin>>>,
     /// Commands.
-    commands: HashMap<Command, Rc<RefCell<dyn Plugin>>>,
+    commands: HashMap<Command<'u>, Rc<RefCell<dyn Plugin>>>,
     /// Key mappings.
-    bindings: HashMap<BindTo, Command>,
+    bindings: HashMap<BindTo, Command<'u>>,
     /// It's true if the editor is quitting.
     quit: bool,
 }
@@ -109,13 +125,17 @@ impl<'u> Editor<'u> {
         let manifest = plugin.manifest();
         let plugin_rc = Rc::new(RefCell::new(plugin));
 
+        let command_menu = self.screen.command_menu_mut();
+        let menu_elements = command_menu.elements_mut();
         for cmd in manifest.commands {
             self.commands.insert(*cmd, plugin_rc.clone());
+            menu_elements.insert(cmd.0.to_string());
         }
+
         self.plugins.push(plugin_rc);
     }
 
-    pub fn add_binding(&mut self, bind_to: BindTo, cmd: Command) {
+    pub fn add_binding(&mut self, bind_to: BindTo, cmd: Command<'u>) {
         self.bindings.insert(bind_to, cmd);
     }
 
@@ -127,21 +147,9 @@ impl<'u> Editor<'u> {
         &mut self.screen
     }
 
-    fn process_event(&mut self, mode: Mode, event: Event) {
-        let cmd = if let Event::Char(_) = event {
-            Command("buffer.insert")
-        } else {
-            match self.bindings.get(&BindTo::new(mode, event)) {
-                Some(ev) => ev.clone(),
-                None => {
-                warn!("no keymapping for event: {:?}", event);
-                    return;
-                }
-            }
-        };
-
+    pub fn invoke_command(&mut self, cmd: &Command, event: Event) {
         trace!("command: {:?}", cmd);
-        if cmd == Command("editor.quit") {
+        if *cmd == Command("editor.quit") {
             self.quit = true;
             return;
         }
@@ -155,5 +163,22 @@ impl<'u> Editor<'u> {
         };
 
         plugin.borrow_mut().command(self, &cmd, &event);
+    }
+
+    fn process_event(&mut self, mode: Mode, event: Event) {
+        let event_key = match event {
+            Event::Char(_) => Event::AnyChar,
+            _ => event,
+        };
+
+        let cmd = match self.bindings.get(&BindTo::new(mode, event_key)) {
+            Some(ev) => ev.clone(),
+            None => {
+            warn!("no keymapping for event: {:?}", event);
+                return;
+            }
+        };
+
+        self.invoke_command(&cmd, event);
     }
 }

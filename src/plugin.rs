@@ -2,7 +2,7 @@ use crate::frontend::Event;
 use crate::editor::{Command, Editor};
 
 pub struct Manifest {
-    pub commands: &'static [Command],
+    pub commands: &'static [Command<'static>],
 }
 
 pub trait Plugin {

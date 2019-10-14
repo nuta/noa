@@ -4,6 +4,7 @@ use crate::screen::Screen;
 pub enum Event {
     Unknown,
     Char(char),
+    AnyChar,
     Ctrl(char),
     Alt(char),
     Backspace,
@@ -12,6 +13,9 @@ pub enum Event {
     Right,
     Up,
     Down,
+    Esc,
+
+    CommandMenu,
 }
 
 #[derive(Debug)]

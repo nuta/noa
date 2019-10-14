@@ -6,6 +6,7 @@ extern crate log;
 mod buffer;
 mod editor;
 mod file;
+mod fuzzy;
 mod frontend;
 mod frontends;
 mod logger;
@@ -36,7 +37,8 @@ fn main() {
     trace!("starting noa...");
     let ui = frontends::terminal::Terminal::new();
     let mut editor = editor::Editor::new(ui);
-    editor.add_plugin(plugins::primitive::PrimitivePlugin::new());
+    editor.add_plugin(plugins::PrimitivePlugin::new());
+    editor.add_plugin(plugins::CommandMenuPlugin::new());
     editor.open_file(&opt.file).unwrap();
     editor.run();
 }

@@ -1,7 +1,8 @@
 use std::cell::{RefCell, Ref, RefMut};
 use std::rc::Rc;
-use std::cmp::min;
+use std::cmp::{min, max};
 use crate::file::File;
+use crate::fuzzy::FuzzySet;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Position {
@@ -208,12 +209,124 @@ impl Panel {
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum Mode {
     Buffer,
+    CommandMenu,
+}
+
+pub struct TextBox {
+    text: String,
+    cursor: usize,
+}
+
+impl TextBox {
+    pub fn new() -> TextBox {
+        TextBox {
+            text: String::with_capacity(32),
+            cursor: 0,
+        }
+    }
+
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
+    pub fn insert(&mut self, ch: char) {
+        self.text.insert(self.cursor, ch);
+        self.cursor += 1;
+    }
+
+    pub fn backspace(&mut self) {
+        if self.cursor > 0 {
+            self.text.remove(self.cursor - 1);
+            self.cursor -= 1;
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.text.clear();
+        self.cursor = 0;
+    }
+
+    pub fn move_cursor(&mut self, diff: isize) {
+        if diff < 0 {
+            self.cursor = self.cursor.saturating_sub(diff.abs() as usize);
+        } else {
+            self.cursor = max(self.text.len(), self.cursor + diff as usize);
+        }
+    }
+}
+
+pub struct MenuBox {
+    textbox: TextBox,
+    elements: FuzzySet,
+    filtered: Vec<String>,
+    selected: usize,
+}
+
+impl MenuBox {
+    pub fn new() -> MenuBox {
+        MenuBox {
+            textbox: TextBox::new(),
+            elements: FuzzySet::new(),
+            filtered: Vec::new(),
+            selected: 0,
+        }
+    }
+
+    pub fn textbox(&self) -> &TextBox {
+        &self.textbox
+    }
+
+    pub fn textbox_mut(&mut self) -> &mut TextBox {
+        &mut self.textbox
+    }
+
+    pub fn elements_mut(&mut self) -> &mut FuzzySet {
+        &mut self.elements
+    }
+
+    pub fn filtered(&self) -> &[String] {
+        &self.filtered
+    }
+
+    pub fn selected(&self) -> usize {
+        self.selected
+    }
+
+    pub fn move_selection(&mut self, diff: isize) {
+        if diff < 0 {
+            self.selected = self.selected.saturating_sub(diff.abs() as usize);
+        } else {
+            self.selected = min(self.filtered.len(), self.selected + diff as usize);
+        }
+    }
+
+    pub fn filter(&mut self) -> &[String] {
+        self.filtered = self.elements.search(self.textbox.text());
+        self.selected = 0;
+        &self.filtered
+    }
+
+    pub fn clear(&mut self) {
+        self.textbox.clear();
+    }
+
+    pub fn enter(&mut self) -> Option<&str> {
+        self.clear();
+        if self.filtered.len() > 0 {
+            Some(&self.filtered[self.selected])
+        } else {
+            None
+        }
+    }
 }
 
 pub struct Screen {
     mode: Mode,
+    width: usize,
+    height: usize,
     panels: Vec<Panel>,
     current_panel_index: usize,
+    command_menu: MenuBox,
 }
 
 impl Screen {
@@ -222,13 +335,36 @@ impl Screen {
         let panel = Panel::new(Position::new(0, 0), height, width, views);
         Screen {
             mode: Mode::Buffer,
+            width,
+            height,
             panels: vec![panel],
             current_panel_index: 0,
+            command_menu: MenuBox::new(),
         }
+    }
+
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    pub fn height(&self) -> usize {
+        self.height
     }
 
     pub fn mode(&self) -> Mode {
         self.mode
+    }
+
+    pub fn set_mode(&mut self, mode: Mode) {
+        self.mode = mode;
+    }
+
+    pub fn command_menu(&self) -> &MenuBox {
+        &self.command_menu
+    }
+
+    pub fn command_menu_mut(&mut self) -> &mut MenuBox {
+        &mut self.command_menu
     }
 
     pub fn panels(&self) -> &[Panel] {

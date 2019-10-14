@@ -2,9 +2,10 @@ use termion;
 use termion::input::TermRead;
 use termion::event::{Key, Event as TEvent};
 use termion::raw::{IntoRawMode, RawTerminal};
+use std::cmp::max;
 use std::io::Write;
 use crate::frontend::{FrontEnd, Event, ScreenSize};
-use crate::screen::Screen;
+use crate::screen::{Screen, Mode};
 
 pub struct Terminal {
     stdin: termion::input::Events<std::io::Stdin>,
@@ -19,6 +20,56 @@ impl Terminal {
         Terminal {
             stdin,
             stdout,
+        }
+    }
+
+    fn draw_command_menu(&mut self, screen: &Screen) {
+        if screen.mode() == Mode::CommandMenu {
+            // Hard-coded preferences.
+            let menu_width = 50;
+            let margin_top = 2;
+            let margin_bottom = 2;
+            let menu_height_max = 20;
+
+            if screen.height() < margin_top + margin_bottom + 2
+                || screen.width() < menu_width {
+                warn!("too small screen to show the command menu!");
+                return;
+            }
+
+            let command_menu = screen.command_menu();
+            let menu_height = max(
+                screen.height() - (margin_top + margin_bottom),
+                menu_height_max
+            );
+            let x = screen.width() / 2 - menu_width / 2;
+
+            // Input box.
+            write!(
+                self.stdout,
+                "{goto}{color}{text:<menu_width$}{reset}",
+                goto = goto(margin_top, x),
+                color = termion::color::Bg(termion::color::Cyan),
+                text = command_menu.textbox().text(),
+                menu_width = menu_width,
+                reset = termion::color::Bg(termion::color::Reset)
+            ).unwrap();
+
+            // Results.
+            let results = command_menu.filtered().iter().enumerate()
+                              .take(menu_height - 1);
+            for (i, elem) in results {
+                write!(
+                    self.stdout,
+                    "{goto}{color}{selected}{text:<menu_width$}{reset}",
+                    goto = goto(margin_top + 1 + i, x),
+                    color = termion::color::Bg(termion::color::Magenta),
+                    selected = if i == command_menu.selected() { "> " } else { "  "},
+                    text = elem,
+                    menu_width = menu_width - 2,
+                    reset = termion::color::Bg(termion::color::Reset)
+                ).unwrap();
+            }
         }
     }
 }
@@ -113,9 +164,13 @@ impl FrontEnd for Terminal {
         let cursor_x = top_left.column + cursor.column;
         write!(self.stdout, "{}", goto(cursor_y, cursor_x)).unwrap();
 
+        // Draw the command menu.
+        self.draw_command_menu(screen);
+
         // Update the screen.
         self.stdout.flush().unwrap();
     }
+
 
     fn get_screen_size(&self) -> ScreenSize {
         let size = termion::terminal_size().unwrap();
@@ -139,6 +194,7 @@ impl FrontEnd for Terminal {
                     Key::Right => Event::Right,
                     Key::Backspace => Event::Backspace,
                     Key::Delete => Event::Delete,
+                    Key::Esc => Event::Esc,
                     _ => Event::Unknown,
                 }
             }
