@@ -25,7 +25,7 @@ impl FuzzySetElement for &'static CommandDefinition {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct BindTo {
     mode: Mode,
     event: Event,
@@ -101,7 +101,7 @@ impl<'u> Editor<'u> {
         // Register default key bindings.
         let mut bindings = HashMap::new();
         for (event, cmd) in DEFAULT_BINDINGS {
-            bindings.insert(*event, *cmd);
+            bindings.insert(event.clone(), *cmd);
         }
 
         Editor {
@@ -171,7 +171,35 @@ impl<'u> Editor<'u> {
         &mut self.screen
     }
 
-    pub fn invoke_command(&mut self, cmd: &Command, event: Event) {
+    pub fn fire_event(&mut self, event: Event) {
+        (self.event_queue.0).send(event).unwrap();
+    }
+
+    fn process_event(&mut self, mode: Mode, event: Event) {
+        let event_key = match event {
+            Event::Char(_) => Event::AnyChar,
+            _ => event.clone(),
+        };
+
+        let temp_cmd_name;
+        let temp_cmd;
+        let cmd = match event {
+            Event::CommandMenu(ref cmd_name) => {
+                temp_cmd_name = cmd_name.to_owned();
+                temp_cmd = Command(&temp_cmd_name);
+                temp_cmd
+            }
+            _ => {
+                match self.bindings.get(&BindTo::new(mode, event_key)) {
+                    Some(ev) => ev.clone(),
+                    None => {
+                        warn!("no keymapping for event: {:?}", event);
+                        return;
+                    }
+                }
+            }
+        };
+
         trace!("command: {:?}", cmd);
         let plugin = match self.handlers.get(&cmd) {
             Some(plugin) => plugin.clone(),
@@ -182,23 +210,6 @@ impl<'u> Editor<'u> {
         };
 
         plugin.borrow_mut().command(self, &cmd, &event);
-    }
-
-    fn process_event(&mut self, mode: Mode, event: Event) {
-        let event_key = match event {
-            Event::Char(_) => Event::AnyChar,
-            _ => event,
-        };
-
-        let cmd = match self.bindings.get(&BindTo::new(mode, event_key)) {
-            Some(ev) => ev.clone(),
-            None => {
-            warn!("no keymapping for event: {:?}", event);
-                return;
-            }
-        };
-
-        self.invoke_command(&cmd, event);
     }
 
     pub fn quit(&mut self) {

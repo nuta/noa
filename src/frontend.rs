@@ -1,7 +1,7 @@
 use std::sync::mpsc::Sender;
 use crate::screen::Screen;
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Event {
     Unknown,
     Char(char),
@@ -18,7 +18,8 @@ pub enum Event {
 
     ScreenResized,
 
-    CommandMenu,
+    /// Invoke a command from the command menu.
+    CommandMenu(String),
 }
 
 #[derive(Debug)]

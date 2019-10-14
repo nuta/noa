@@ -96,7 +96,7 @@ impl Plugin for CommandMenuPlugin {
         }
 
         if let Some(cmd_def) = selected_cmd {
-            editor.invoke_command(&Command(cmd_def.id), Event::CommandMenu);
+            editor.fire_event(Event::CommandMenu(cmd_def.id.to_owned()));
         }
     }
 
