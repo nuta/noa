@@ -52,6 +52,16 @@ static MANIFEST: Manifest = Manifest {
             title: "screen: Split Screen Vertically",
             hidden: false,
         },
+        CommandDefinition {
+            id: "screen.panel_next",
+            title: "screen: Move To Next Panel",
+            hidden: false,
+        },
+        CommandDefinition {
+            id: "screen.panel_prev",
+            title: "screen: Move To Previous Panel",
+            hidden: false,
+        },
     ],
 };
 
@@ -83,6 +93,8 @@ impl Plugin for PrimitivePlugin {
             Command("buffer.cursor_left")  => active_view.move_cursor(0, -1),
             Command("buffer.cursor_right") => active_view.move_cursor(0, 1),
             Command("screen.vsplit")       => screen.split_vertically(),
+            Command("screen.panel_prev")   => screen.move_panel(-1),
+            Command("screen.panel_next")   => screen.move_panel(1),
             _ => {}
         }
     }

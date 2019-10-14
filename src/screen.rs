@@ -376,6 +376,25 @@ impl Screen {
         self.current_panel_mut().view_mut()
     }
 
+    pub fn move_panel(&mut self, diff: isize) {
+        // TODO:
+        assert!(diff.abs() == 1);
+
+        self.current_panel_index = if diff < 0 {
+            if self.current_panel_index == 0 {
+                self.panels.len() - 1
+            } else {
+                self.current_panel_index - 1
+            }
+        } else {
+            if self.current_panel_index == self.panels.len() - 1 {
+                0
+            } else {
+                self.current_panel_index + 1
+            }
+        };
+    }
+
     pub fn split_vertically(&mut self) {
         let current_panel = self.current_panel();
         let view = current_panel.view();
