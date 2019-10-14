@@ -1,3 +1,4 @@
+use std::sync::mpsc::Sender;
 use crate::screen::Screen;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -15,6 +16,8 @@ pub enum Event {
     Down,
     Esc,
 
+    ScreenResized,
+
     CommandMenu,
 }
 
@@ -25,7 +28,7 @@ pub struct ScreenSize {
 }
 
 pub trait FrontEnd {
-    fn read_event(&mut self) -> Event;
+    fn init(&mut self, event_queue: Sender<Event>);
     fn render(&mut self, screen: &Screen);
     fn get_screen_size(&self) -> ScreenSize;
 }

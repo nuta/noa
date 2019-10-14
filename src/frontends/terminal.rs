@@ -2,25 +2,21 @@ use termion;
 use termion::input::TermRead;
 use termion::event::{Key, Event as TEvent};
 use termion::raw::{IntoRawMode, RawTerminal};
+use signal_hook::{self, iterator::Signals};
 use std::cmp::max;
 use std::io::Write;
+use std::sync::mpsc::Sender;
 use crate::frontend::{FrontEnd, Event, ScreenSize};
 use crate::screen::{Screen, Mode};
 
 pub struct Terminal {
-    stdin: termion::input::Events<std::io::Stdin>,
     stdout: RawTerminal<std::io::Stdout>,
 }
 
 impl Terminal {
     pub fn new() -> Terminal {
-        let stdin = std::io::stdin().events();
-        let mut stdout = std::io::stdout().into_raw_mode().unwrap();
-        write!(stdout, "{}", termion::screen::ToAlternateScreen).unwrap();
-        Terminal {
-            stdin,
-            stdout,
-        }
+        let stdout = std::io::stdout().into_raw_mode().unwrap();
+        Terminal { stdout }
     }
 
     fn draw_command_menu(&mut self, screen: &Screen) {
@@ -96,6 +92,63 @@ fn num_of_digits(mut x: usize) -> usize {
 }
 
 impl FrontEnd for Terminal {
+    fn init(&mut self, event_queue: Sender<Event>) {
+        write!(self.stdout, "{}", termion::screen::ToAlternateScreen).unwrap();
+
+        // Read keyboard inputs in a dedicated thread.
+        let stdin_tx = event_queue.clone();
+        std::thread::spawn(move || {
+            let mut stdin = std::io::stdin().events();
+            loop {
+                let raw_event = stdin.next().unwrap().unwrap();
+                let event = match raw_event {
+                    TEvent::Key(key) => {
+                        match key {
+                            Key::Alt(ch) => Event::Alt(ch),
+                            Key::Ctrl(ch) => Event::Ctrl(ch),
+                            Key::Char(ch) => Event::Char(ch),
+                            Key::Up => Event::Up,
+                            Key::Down => Event::Down,
+                            Key::Left => Event::Left,
+                            Key::Right => Event::Right,
+                            Key::Backspace => Event::Backspace,
+                            Key::Delete => Event::Delete,
+                            Key::Esc => Event::Esc,
+                            _ => Event::Unknown,
+                        }
+                    }
+                    TEvent::Unsupported(seq) => {
+                        warn!("unsupported key sequence: {:?}", seq);
+                        Event::Unknown
+                    }
+                    _ => {
+                        warn!("unsupported input event: {:?}", raw_event);
+                        Event::Unknown
+                    }
+                };
+
+                stdin_tx.send(event).unwrap();
+            }
+        });
+
+        // Wait for signals in a dedicated thread.
+        let signal_tx = event_queue.clone();
+        std::thread::spawn(move || {
+            let signals = Signals::new(&[signal_hook::SIGWINCH]).unwrap();
+            for signal in &signals {
+                match signal {
+                    signal_hook::SIGWINCH => {
+                        signal_tx.send(Event::ScreenResized).unwrap();
+                        info!("received SIGWINCH");
+                    },
+                    _ => {
+                        warn!("unhandled signal: {}", signal);
+                    },
+                }
+            }
+        });
+    }
+
     fn render(&mut self, screen: &Screen) {
         // Clear the entire screen.
         write!(self.stdout, "{}", termion::clear::All).unwrap();
@@ -177,35 +230,6 @@ impl FrontEnd for Terminal {
         ScreenSize {
             height: size.1 as usize,
             width: size.0 as usize,
-        }
-    }
-
-    fn read_event(&mut self) -> Event {
-        let event = self.stdin.next().unwrap().unwrap();
-        match event {
-            TEvent::Key(key) => {
-                match key {
-                    Key::Alt(ch) => Event::Alt(ch),
-                    Key::Ctrl(ch) => Event::Ctrl(ch),
-                    Key::Char(ch) => Event::Char(ch),
-                    Key::Up => Event::Up,
-                    Key::Down => Event::Down,
-                    Key::Left => Event::Left,
-                    Key::Right => Event::Right,
-                    Key::Backspace => Event::Backspace,
-                    Key::Delete => Event::Delete,
-                    Key::Esc => Event::Esc,
-                    _ => Event::Unknown,
-                }
-            }
-            TEvent::Unsupported(seq) => {
-                warn!("unsupported key sequence: {:?}", seq);
-                Event::Unknown
-            }
-            _ => {
-                warn!("unsupported input event: {:?}", event);
-                Event::Unknown
-            }
         }
     }
 }

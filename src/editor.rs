@@ -2,6 +2,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::mpsc;
 use crate::file::File;
 use crate::fuzzy::FuzzySetElement;
 use crate::screen::{Screen, Mode};
@@ -68,7 +69,9 @@ static DEFAULT_BINDINGS: &'static [(BindTo, Command)] = &[
 pub struct Editor<'u> {
     /// An FrontEnd instance.
     ui: Box<dyn FrontEnd + 'u>,
-    /// screen.
+    /// The event queue.
+    event_queue: (mpsc::Sender<Event>, mpsc::Receiver<Event>),
+    /// The screen.
     screen: Screen,
     /// The current view's index in `views`.
     current_view_index: usize,
@@ -104,6 +107,7 @@ impl<'u> Editor<'u> {
 
         Editor {
             screen,
+            event_queue: mpsc::channel(),
             current_view_index: 0,
             ui: Box::new(ui),
             files: HashMap::new(),
@@ -118,8 +122,9 @@ impl<'u> Editor<'u> {
     // The mainloop. It may return if the user exited the editor.
     pub fn run(&mut self) {
         self.ui.render(&self.screen);
+        self.ui.init(self.event_queue.0.clone());
         loop {
-            let event = self.ui.read_event();
+            let event = self.event_queue.1.recv().unwrap();
             let current_mode = self.screen().mode();
             self.process_event(current_mode, event);
             if self.quit {
