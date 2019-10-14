@@ -45,7 +45,6 @@ macro_rules! binding {
 
 static DEFAULT_BINDINGS: &'static [(BindTo, Command)] = &[
     binding!(Mode::Buffer, Event::Ctrl('q'), "editor.quit"),
-    binding!(Mode::Buffer, Event::Ctrl('q'), "editor.quit"),
     binding!(Mode::Buffer, Event::Ctrl('s'), "buffer.save"),
     binding!(Mode::Buffer, Event::Ctrl('x'), "command_menu.open"),
     binding!(Mode::Buffer, Event::AnyChar,   "buffer.insert"),
@@ -174,11 +173,6 @@ impl<'u> Editor<'u> {
 
     pub fn invoke_command(&mut self, cmd: &Command, event: Event) {
         trace!("command: {:?}", cmd);
-        if *cmd == Command("editor.quit") {
-            self.quit = true;
-            return;
-        }
-
         let plugin = match self.handlers.get(&cmd) {
             Some(plugin) => plugin.clone(),
             None => {
@@ -205,5 +199,9 @@ impl<'u> Editor<'u> {
         };
 
         self.invoke_command(&cmd, event);
+    }
+
+    pub fn quit(&mut self) {
+        self.quit = true;
     }
 }
