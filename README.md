@@ -4,7 +4,9 @@ noa
 
 Installation
 ------------
-TODO: Publish to crates.io
+```
+$ cargo install noa
+```
 
 Building from source
 --------------------

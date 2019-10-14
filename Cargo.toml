@@ -1,9 +1,9 @@
 [package]
 name = "noa"
-version = "0.0.0"
+version = "0.0.1"
 authors = ["Seiya Nuta <nuta@seiya.me>"]
 edition = "2018"
-description = "A terminal-based text editor tailored just for me."
+description = "A terminal-based text editor (WIP)."
 keywords = []
 categories = ["text-editors"]
 readme = "README.md"
@@ -22,3 +22,12 @@ incremental = false
 overflow-checks = false
 
 [dependencies]
+lazy_static = "1"
+log = { version = "^0.4.6", features = ["max_level_trace", "release_max_level_warn"] }
+termion = "^1.5.1"
+dirs = "2"
+backtrace = "0"
+structopt = "0"
+
+[dev-dependencies]
+pretty_assertions = "0"
