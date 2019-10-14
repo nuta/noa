@@ -132,7 +132,7 @@ impl<'u> Editor<'u> {
         let name = path.to_str().unwrap();
         let file = Rc::new(RefCell::new(File::open_file(name, path)?));
         let view = View::new(file);
-        self.screen.current_panel_mut().add_view(view);
+        self.screen.current_panel_mut().set_view(view);
         Ok(())
     }
 

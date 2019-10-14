@@ -102,7 +102,7 @@ impl FrontEnd for Terminal {
 
         // Fill each panels.
         for panel in screen.panels() {
-            let view = panel.current_view();
+            let view = panel.view();
             let file = view.file();
             let buffer = file.buffer();
 

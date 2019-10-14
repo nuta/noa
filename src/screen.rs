@@ -158,18 +158,16 @@ impl View {
 }
 
 pub struct Panel {
-    views: Vec<View>,
-    current_view_index: usize,
+    view: View,
     top_left: Position,
     height: usize,
     width: usize,
 }
 
 impl Panel {
-    pub fn new(top_left: Position, height: usize, width: usize, views: Vec<View>) -> Panel {
+    pub fn new(top_left: Position, height: usize, width: usize, view: View) -> Panel {
         Panel {
-            views,
-            current_view_index: 0,
+            view,
             top_left,
             height,
             width,
@@ -188,22 +186,17 @@ impl Panel {
         &self.top_left
     }
 
-    pub fn views(&self) -> &[View] {
-        &self.views
+    pub fn view(&self) -> &View {
+        &self.view
     }
 
-    pub fn current_view(&self) -> &View {
-        &self.views[self.current_view_index]
+    pub fn view_mut(&mut self) -> &mut View {
+        &mut self.view
     }
 
-    pub fn current_view_mut(&mut self) -> &mut View {
-        &mut self.views[self.current_view_index]
-    }
-
-    pub fn add_view(&mut self, view: View) {
-        self.views.push(view);
-        // Make the newly added view active.
-        self.current_view_index = self.views.len() - 1;
+    pub fn set_view(&mut self, view: View) {
+        self.view = view;
+        // TODO: Open a prompt if the file is not yet saved.
     }
 }
 
@@ -332,9 +325,8 @@ pub struct Screen {
 }
 
 impl Screen {
-    pub fn new(scratch_view: View, height: usize, width: usize) -> Screen {
-        let views = vec![scratch_view];
-        let panel = Panel::new(Position::new(0, 0), height, width, views);
+    pub fn new(view: View, height: usize, width: usize) -> Screen {
+        let panel = Panel::new(Position::new(0, 0), height, width, view);
         Screen {
             mode: Mode::Buffer,
             width,
@@ -382,10 +374,10 @@ impl Screen {
     }
 
     pub fn active_view(&self) -> &View {
-        self.current_panel().current_view()
+        self.current_panel().view()
     }
 
     pub fn active_view_mut(&mut self) -> &mut View {
-        self.current_panel_mut().current_view_mut()
+        self.current_panel_mut().view_mut()
     }
 }
