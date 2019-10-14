@@ -3,8 +3,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use crate::file::File;
-use crate::layout::Layout;
-use crate::view::{View, Mode};
+use crate::screen::{Screen, Mode};
+use crate::screen::View;
 use crate::plugin::Plugin;
 use crate::frontend::{FrontEnd, Event};
 
@@ -38,8 +38,8 @@ static DEFAULT_BINDINGS: &'static [(BindTo, Command)] = &[
 pub struct Editor<'u> {
     /// An FrontEnd instance.
     ui: Box<dyn FrontEnd + 'u>,
-    /// layout.
-    layout: Layout,
+    /// screen.
+    screen: Screen,
     /// The current view's index in `views`.
     current_view_index: usize,
     /// Opened files.
@@ -62,7 +62,7 @@ impl<'u> Editor<'u> {
         let scratch_view = View::new(scratch_file);
 
         let screen_size = ui.get_screen_size();
-        let layout = Layout::new(scratch_view, screen_size.height, screen_size.width);
+        let screen = Screen::new(scratch_view, screen_size.height, screen_size.width);
 
         // Register default key bindings.
         let mut bindings = HashMap::new();
@@ -71,7 +71,7 @@ impl<'u> Editor<'u> {
         }
 
         Editor {
-            layout,
+            screen,
             current_view_index: 0,
             ui: Box::new(ui),
             files: HashMap::new(),
@@ -84,16 +84,16 @@ impl<'u> Editor<'u> {
 
     // The mainloop. It may return if the user exited the editor.
     pub fn run(&mut self) {
-        self.ui.render(&self.layout);
+        self.ui.render(&self.screen);
         loop {
             let event = self.ui.read_event();
-            let current_mode = self.layout().active_view().mode();
+            let current_mode = self.screen().mode();
             self.process_event(current_mode, event);
             if self.quit {
                 return;
             }
 
-            self.ui.render(&self.layout);
+            self.ui.render(&self.screen);
         }
     }
 
@@ -101,7 +101,7 @@ impl<'u> Editor<'u> {
         let name = path.to_str().unwrap();
         let file = Rc::new(RefCell::new(File::open_file(name, path)?));
         let view = View::new(file);
-        self.layout.current_panel_mut().add_view(view);
+        self.screen.current_panel_mut().add_view(view);
         Ok(())
     }
 
@@ -119,12 +119,12 @@ impl<'u> Editor<'u> {
         self.bindings.insert(bind_to, cmd);
     }
 
-    pub fn layout(&self) -> &Layout {
-        &self.layout
+    pub fn screen(&self) -> &Screen {
+        &self.screen
     }
 
-    pub fn layout_mut(&mut self) -> &mut Layout {
-        &mut self.layout
+    pub fn screen_mut(&mut self) -> &mut Screen {
+        &mut self.screen
     }
 
     fn process_event(&mut self, mode: Mode, event: Event) {

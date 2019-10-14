@@ -8,11 +8,10 @@ mod editor;
 mod file;
 mod frontend;
 mod frontends;
-mod layout;
 mod logger;
 mod plugin;
 mod plugins;
-mod view;
+mod screen;
 
 use structopt::StructOpt;
 use std::path::PathBuf;

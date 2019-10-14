@@ -27,7 +27,7 @@ impl PrimitivePlugin {
 
 impl Plugin for PrimitivePlugin {
     fn command(&mut self, editor: &mut Editor, cmd: &Command, event: &Event) {
-        let active_view = editor.layout_mut().active_view_mut();
+        let active_view = editor.screen_mut().active_view_mut();
         match *cmd {
             Command("buffer.insert") => {
                 if let Event::Char(ch) = event {

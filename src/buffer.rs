@@ -1,5 +1,5 @@
 use std::fs;
-use crate::layout::Position;
+use crate::screen::Position;
 
 pub struct Line<'a> {
     line: Option<&'a str>,

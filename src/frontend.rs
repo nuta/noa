@@ -1,4 +1,4 @@
-use crate::layout::Layout;
+use crate::screen::Screen;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum Event {
@@ -22,6 +22,6 @@ pub struct ScreenSize {
 
 pub trait FrontEnd {
     fn read_event(&mut self) -> Event;
-    fn render(&mut self, layout: &Layout);
+    fn render(&mut self, screen: &Screen);
     fn get_screen_size(&self) -> ScreenSize;
 }

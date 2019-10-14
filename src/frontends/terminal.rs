@@ -4,7 +4,7 @@ use termion::event::{Key, Event as TEvent};
 use termion::raw::{IntoRawMode, RawTerminal};
 use std::io::Write;
 use crate::frontend::{FrontEnd, Event, ScreenSize};
-use crate::layout::Layout;
+use crate::screen::Screen;
 
 pub struct Terminal {
     stdin: termion::input::Events<std::io::Stdin>,
@@ -45,12 +45,12 @@ fn num_of_digits(mut x: usize) -> usize {
 }
 
 impl FrontEnd for Terminal {
-    fn render(&mut self, layout: &Layout) {
+    fn render(&mut self, screen: &Screen) {
         // Clear the entire screen.
         write!(self.stdout, "{}", termion::clear::All).unwrap();
 
         // Fill each panels.
-        for panel in layout.panels() {
+        for panel in screen.panels() {
             let view = panel.current_view();
             let file = view.file();
             let buffer = file.buffer();
@@ -74,7 +74,7 @@ impl FrontEnd for Terminal {
                 write!(self.stdout, "{}{}", goto(y, x), line)
                     .unwrap();
             }
-        
+
             // Draw the status bar.
             let cursor = view.cursor();
             let status_bar_len =
@@ -105,8 +105,8 @@ impl FrontEnd for Terminal {
         }
 
         // Move the cursor.
-        let active_panel = layout.current_panel();
-        let active_view = layout.active_view();
+        let active_panel = screen.current_panel();
+        let active_view = screen.active_view();
         let cursor = active_view.cursor();
         let top_left = active_panel.top_left();
         let cursor_y = top_left.line + cursor.line;
