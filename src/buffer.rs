@@ -126,39 +126,12 @@ impl ops::Index<ops::Range<usize>> for IString {
     }
 }
 
-pub struct Line<'a> {
-    line: &'a IString,
-    column: usize,
-    display_width: usize,
-}
+pub struct Lines<'a>(std::slice::Iter<'a, IString>);
 
-impl<'a> Iterator for Line<'a> {
+impl<'a> Iterator for Lines<'a> {
     type Item = &'a str;
     fn next(&mut self) -> Option<Self::Item> {
-        let start = self.column;
-        let mut len = 0;
-        loop {
-            match self.line.at(self.column) {
-                Some(ch) => {
-                    let width =
-                        unicode_width::UnicodeWidthChar::width_cjk(ch).unwrap();
-                    if width <= self.display_width {
-                        len += 1;
-                        self.display_width -= width;
-                    } else {
-                        self.display_width = 0;
-                    }
-                },
-                None if start == self.column => {
-                    return None;
-                },
-                None => {
-                    return Some(&self.line[start..(start + len)]);
-                }
-            }
-
-            self.column += 1;
-        }
+        self.0.next().map(|s| s.as_str())
     }
 }
 
@@ -180,8 +153,11 @@ impl Buffer {
 
         let reader = std::io::BufReader::new(handle.try_clone()?);
         let mut lines = Vec::with_capacity(1024);
+        // TODO: Support CRLF.
         for line in reader.lines() {
-            lines.push(IString::from_string(line?));
+            let mut s = IString::from_string(line?);
+            s.push('\n');
+            lines.push(s);
         }
 
         if lines.is_empty() {
@@ -191,13 +167,13 @@ impl Buffer {
         Ok(Buffer { name: name.to_owned(), lines, modified: false })
     }
 
-    pub fn line_at<'a>(&'a self, line: usize, column: usize, display_width: usize) -> Line<'a> {
+    pub fn lines_from<'a>(&'a self, from: usize) -> Lines<'a> {
+        Lines(self.lines[from..].iter())
+    }
+
+    pub fn line_at(&self, line: usize) -> &IString {
         assert!(line < self.num_lines());
-        Line {
-            line: &self.lines[line],
-            column,
-            display_width
-        }
+        &self.lines[line]
     }
 
     pub fn line_len_at(&self, y: usize) -> usize {

@@ -1,26 +1,27 @@
+use std::ops::Range;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
-use std::cell::{RefCell, Ref, RefMut};
-use crate::buffer::Buffer;
+use crate::buffer::{Buffer, IString};
+use crate::highlight::Highlight;
+use syntect::highlighting::Style;
 
 pub struct File {
     /// The file path. It's `None` if the buffer is pseudo one (e.g.
     /// scratch).
     path: Option<PathBuf>,
-    buffer: Rc<RefCell<Buffer>>,
-    /// It contains the y-axis offset from `top_left.line` from which the frontnend
-    /// needs to redraw.
-    /// TODO: Use this.
-    needs_redraw: Option<usize>,
+    /// The file contents.
+    buffer: Buffer,
+    /// The highlighter state for the buffer. It's `None` if the highlighting
+    /// for the file is disabled.
+    highlight: Option<Highlight>,
 }
 
 impl File {
     pub fn pseudo_file(name: &str) -> File {
         File {
             path: None,
-            needs_redraw: Some(0),
-            buffer: Rc::new(RefCell::new(Buffer::new(name))),
+            highlight: None,
+            buffer: Buffer::new(name),
         }
     }
 
@@ -48,12 +49,39 @@ impl File {
 
         Ok(File {
             path: Some(path.to_owned()),
-            buffer: Rc::new(RefCell::new(buffer)),
-            needs_redraw: Some(0),
+            buffer,
+            highlight: None,
         })
     }
 
-    pub fn save(&self) -> std::io::Result<()> {
+    pub fn set_highlight(&mut self, highlight: Option<Highlight>) {
+        self.highlight = highlight;
+        self.update_highlight(0);
+    }
+
+    pub fn update_highlight(&mut self, line_from: usize) {
+        let buffer = &self.buffer;
+        if let Some(ref mut highlight) = self.highlight {
+            highlight.parse(line_from, buffer);
+        }
+    }
+
+    pub fn highlight<'a>(
+        &'a self,
+        lineno: usize,
+        column: usize,
+        display_width: usize
+    ) -> HighlightedSpans<'a> {
+        HighlightedSpans {
+            line: self.buffer.line_at(lineno),
+            spans: self.highlight.as_ref().map(|h| h.lines()[lineno].spans().iter()),
+            column,
+            remaining_width: display_width,
+            char_index: 0,
+        }
+    }
+
+    pub fn save(&mut self) -> std::io::Result<()> {
         let path = match &self.path {
             Some(path) => path,
             None => return Ok(()),
@@ -66,18 +94,67 @@ impl File {
             .truncate(true)
             .open(path)?;
 
-        self.buffer.borrow_mut().write_to_file(&mut handle)
+        self.buffer.write_to_file(&mut handle)
     }
 
-    pub fn buffer<'a>(&'a self) -> Ref<'a, Buffer> {
-        self.buffer.borrow()
+    pub fn path(&self) -> Option<&PathBuf> {
+        self.path.as_ref()
     }
 
-    pub fn buffer_mut<'a>(&'a mut self) -> RefMut<'a, Buffer> {
-        self.buffer.borrow_mut()
+    pub fn buffer(&self) -> &Buffer {
+        &self.buffer
     }
 
-    pub fn mark_as_drawed(&mut self) {
-        self.needs_redraw = None;
+    pub fn buffer_mut(&mut self) -> &mut Buffer {
+        &mut self.buffer
+    }
+}
+
+pub struct HighlightedSpans<'a> {
+    line: &'a IString,
+    spans: Option<std::slice::Iter<'a, (Style, Range<usize>)>>,
+    column: usize,
+    remaining_width: usize,
+    char_index: usize,
+}
+
+impl<'a> Iterator for HighlightedSpans<'a> {
+    type Item = (Option<Style>, &'a str);
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(ref mut iter) = self.spans {
+            while let Some(span) = iter.next() {
+                let style = Some(span.0);
+                let text = &self.line[span.1.start..span.1.end];
+                let num_chars = text.chars().count();
+                let width = unicode_width::UnicodeWidthStr::width_cjk(text);
+
+                if self.char_index >= self.column {
+                    // The span is entirely displayed in the screen.
+                    self.remaining_width -= width;
+                    return Some((style, text));
+                } else if self.column - self.char_index < width {
+                    // The span is partially displayed in the screen.
+                    self.char_index = self.column;
+                    self.remaining_width -= width;
+                    let start = self.column;
+                    let end = start + (width - (self.column + self.char_index));
+                    return Some((style, &self.line[start..end]));
+                } else {
+                    // The span is out of the screen. SKip it.
+                    self.char_index += num_chars;
+                }
+            }
+
+            // An empty line.
+            None
+        } else {
+            // Highlighting is disabled.
+            if self.remaining_width == 0 {
+                None
+            } else {
+                self.remaining_width = 0;
+                Some((None, self.line.as_str()))
+            }
+        }
     }
 }

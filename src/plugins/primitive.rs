@@ -89,7 +89,7 @@ impl Plugin for PrimitivePlugin {
             }
             Command("buffer.save") => {
                 // FIXME: Print a warning if an error occurrs.
-                active_view.file().save().unwrap();
+                active_view.file_mut().save().unwrap();
             }
             Command("buffer.backspace")    => active_view.backspace(),
             Command("buffer.delete")       => active_view.delete(),

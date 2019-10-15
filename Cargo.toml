@@ -30,6 +30,7 @@ signal-hook = "0"
 dirs = "2"
 backtrace = "0"
 structopt = "0"
+syntect = "3"
 
 [dev-dependencies]
 pretty_assertions = "0"

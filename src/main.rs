@@ -9,6 +9,7 @@ mod file;
 mod fuzzy;
 mod frontend;
 mod frontends;
+mod highlight;
 mod logger;
 mod plugin;
 mod plugins;

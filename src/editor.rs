@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use crate::file::File;
 use crate::fuzzy::FuzzySetElement;
+use crate::highlight::HighlightManager;
 use crate::screen::{Screen, Mode};
 use crate::screen::View;
 use crate::plugin::Plugin;
@@ -65,11 +66,16 @@ static DEFAULT_BINDINGS: &'static [(BindTo, Command)] = &[
     binding!(Mode::CommandMenu, Event::Ctrl('x'), "command_menu.quit"),
 ];
 
+pub struct EventQueue {
+    pub tx: mpsc::Sender<Event>,
+    pub rx: mpsc::Receiver<Event>, 
+}
+
 pub struct Editor<'u> {
     /// An FrontEnd instance.
     ui: Box<dyn FrontEnd + 'u>,
     /// The event queue.
-    event_queue: (mpsc::Sender<Event>, mpsc::Receiver<Event>),
+    event_queue: EventQueue,
     /// The screen.
     screen: Screen,
     /// The current view's index in `views`.
@@ -86,6 +92,11 @@ pub struct Editor<'u> {
     bindings: HashMap<BindTo, Command<'u>>,
     /// It's true if the editor is quitting.
     quit: bool,
+    /// Global states (e.g. programming langauge definitions) of the syntax
+    /// highlighter.
+    highlight_manager: &'static HighlightManager,
+    /// The current theme.
+    theme_name: String,
 }
 
 impl<'u> Editor<'u> {
@@ -101,9 +112,10 @@ impl<'u> Editor<'u> {
             bindings.insert(event.clone(), *cmd);
         }
 
+        let (tx, rx) = mpsc::channel();
         Editor {
             screen: Screen::new(scratch_view, ui.get_screen_size()),
-            event_queue: mpsc::channel(),
+            event_queue: EventQueue { tx, rx },
             current_view_index: 0,
             ui: Box::new(ui),
             files: HashMap::new(),
@@ -112,15 +124,17 @@ impl<'u> Editor<'u> {
             handlers: HashMap::new(),
             bindings,
             quit: false,
+            highlight_manager: HighlightManager::new(),
+            theme_name: "Solarized (light)".to_owned(),
         }
     }
 
     // The mainloop. It may return if the user exited the editor.
     pub fn run(&mut self) {
         self.ui.render(&self.screen);
-        self.ui.init(self.event_queue.0.clone());
+        self.ui.init(self.event_queue.tx.clone());
         loop {
-            let event = self.event_queue.1.recv().unwrap();
+            let event = self.event_queue.rx.recv().unwrap();
             let current_mode = self.screen().mode();
             self.process_event(current_mode, event);
             if self.quit {
@@ -133,7 +147,14 @@ impl<'u> Editor<'u> {
 
     pub fn open_file(&mut self, path: &Path) -> std::io::Result<()> {
         let name = path.to_str().unwrap();
+        let ext = path.extension()
+            .map(|s| s.to_str().map(|s| s.to_owned()).unwrap_or(String::new()))
+            .unwrap_or(String::new());
+
         let file = Rc::new(RefCell::new(File::open_file(name, path)?));
+        let highlight =
+            self.highlight_manager.create_highlight(&self.theme_name, &ext);
+        file.borrow_mut().set_highlight(highlight);
         let view = View::new(file);
         self.screen.current_panel_mut().set_view(view);
         Ok(())
@@ -168,8 +189,12 @@ impl<'u> Editor<'u> {
         &mut self.screen
     }
 
+    pub fn event_queue(&self) -> mpsc::Sender<Event> {
+        self.event_queue.tx.clone()
+    }
+
     pub fn fire_event(&mut self, event: Event) {
-        (self.event_queue.0).send(event).unwrap();
+        self.event_queue.tx.send(event).unwrap();
     }
 
     fn process_event(&mut self, mode: Mode, event: Event) {

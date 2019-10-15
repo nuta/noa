@@ -9,6 +9,7 @@ use std::sync::mpsc::Sender;
 use crate::frontend::{FrontEnd, Event};
 use crate::screen::{Screen, RectSize, Panel, View, Mode};
 use crate::buffer::Buffer;
+use crate::file::File;
 
 pub struct Terminal {
     stdout: RawTerminal<std::io::Stdout>,
@@ -20,7 +21,7 @@ impl Terminal {
         Terminal { stdout }
     }
 
-    fn draw_buffer(&mut self, panel: &Panel, view: &View, buffer: &Buffer) {
+    fn draw_buffer(&mut self, panel: &Panel, view: &View, file: &File, buffer: &Buffer) {
         for i in 0..(panel.height() - 2) {
             let lineno = view.top_left().line + i;
             if lineno >= buffer.num_lines() {
@@ -29,13 +30,22 @@ impl Terminal {
 
             let y = panel.top_left().line + i;
             let x = panel.top_left().column;
-            let spans =
-                buffer.line_at(lineno, 0, panel.width());
-            write!(self.stdout, "{}", goto(y, x)).unwrap();
-            for span in spans {
-                write!(self.stdout, "{}", span).unwrap();
+            write!(self.stdout, "{}", goto(y, x)).ok();
+            let highlighted_spans = 
+                file.highlight(lineno, 0 /* TODO: */, panel.width());
+            for (style, text) in highlighted_spans {
+                if let Some(style) = style {
+                    let c = style.foreground;
+                    let seq = 
+                        termion::color::Fg(termion::color::Rgb(c.r, c.g, c.b));
+                    write!(self.stdout, "{}", seq).ok();
+                }
+
+                write!(self.stdout, "{}", text).ok();
             }
         }
+
+        write!(self.stdout, "{}", termion::style::Reset).ok();
     }
 
     fn draw_status_bar(&mut self, panel: &Panel, view: &View, buffer: &Buffer) {
@@ -229,7 +239,7 @@ impl FrontEnd for Terminal {
                 return;
             }
 
-            self.draw_buffer(panel, view, &*buffer);
+            self.draw_buffer(panel, view, &*file, &*buffer);
             self.draw_status_bar(panel, view, &*buffer);
         }
 

@@ -117,14 +117,10 @@ impl View {
 
     pub fn insert(&mut self, ch: char) {
         let cursor = self.cursor;
-        self.file_mut().buffer_mut().insert(&cursor, ch);
-
-        /* TODO:
-        self.needs_redraw = match self.needs_redraw {
-            Some(current) => Some(std::cmp::min(current, cursor.line)),
-            None => Some(cursor.line),
-        };
-        */
+        let mut file = self.file_mut();
+        file.buffer_mut().insert(&cursor, ch);
+        file.update_highlight(cursor.line);
+        drop(file);
 
         if ch == '\n' {
             self.cursor.line += 1;
@@ -140,7 +136,10 @@ impl View {
             return;
         }
 
-        let prev_len = self.file_mut().buffer_mut().backspace(&cursor);
+        let mut file = self.file_mut();
+        let prev_len = file.buffer_mut().backspace(&cursor);
+        file.update_highlight(cursor.line);
+        drop(file);
 
         if cursor.column == 0 {
             // Move the cursor to the end of previous line.
@@ -155,7 +154,9 @@ impl View {
 
     pub fn delete(&mut self) {
         let cursor = self.cursor;
-        self.file_mut().buffer_mut().delete(&cursor);
+        let mut file = self.file_mut();
+        file.buffer_mut().delete(&cursor);
+        file.update_highlight(cursor.line);
     }
 }
 
