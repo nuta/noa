@@ -1,5 +1,92 @@
 use std::fs;
+use std::ops;
 use crate::screen::Position;
+
+/// A `String` with cached UTF-8 character byte indices.
+#[derive(Clone)]
+pub struct IString {
+    text: String,
+    indices: Vec<usize>,
+}
+
+impl IString {
+    pub fn new() -> IString {
+        IString {
+            text: String::new(),
+            indices: Vec::new(),
+        }
+    }
+
+    pub fn with_capacity(capacity: usize) -> IString {
+        IString {
+            text: String::with_capacity(capacity),
+            indices: Vec::with_capacity(capacity),
+        }
+    }
+
+    pub fn from_string(string: String) -> IString {
+        let len = string.len();
+        let mut new_string = IString {
+            text: string,
+            indices: Vec::with_capacity(len),
+        };
+
+        new_string.update_indices();
+        new_string
+    }
+
+    pub fn len(&self) -> usize {
+        self.indices.len()
+    }
+
+    pub fn as_str(&self) -> &str {
+        self.text.as_str()
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        self.text.as_bytes()
+    }
+
+    pub fn clear(&mut self) {
+        self.text.clear();
+        self.indices.clear();
+    }
+
+    pub fn insert(&mut self, index: usize, ch: char) {
+        self.text.insert(self.indices[index], ch);
+        self.update_indices();
+    }
+
+    pub fn push_str(&mut self, other: &str) {
+        self.text.push_str(other);
+        self.update_indices();
+    }
+
+    pub fn remove(&mut self, index: usize) {
+        self.text.remove(self.indices[index]);
+        self.update_indices();
+    }
+
+    pub fn truncate(&mut self, from: usize) {
+        self.text.truncate(self.indices[from]);
+        self.update_indices();
+    }
+
+    fn update_indices(&mut self) {
+        self.indices.clear();
+        for (i, _) in self.text.char_indices() {
+            self.indices.push(i);
+        }
+    }
+}
+
+impl ops::Index<ops::RangeFrom<usize>> for IString {
+    type Output = str;
+    fn index(&self, index: ops::RangeFrom<usize>) -> &str {
+        &self.text[self.indices[index.start]..]
+    }
+}
+
 
 pub struct Line<'a> {
     line: Option<&'a str>,
@@ -14,14 +101,14 @@ impl<'a> Iterator for Line<'a> {
 
 pub struct Buffer {
     name: String,
-    lines: Vec<String>,
+    lines: Vec<IString>,
     modified: bool,
 }
 
 impl Buffer {
     pub fn new(name: &str) -> Buffer {
         let mut lines = Vec::with_capacity(1024);
-        lines.push(String::new());
+        lines.push(IString::with_capacity(128));
         Buffer { name: name.to_owned(), lines, modified: false }
     }
 
@@ -31,11 +118,11 @@ impl Buffer {
         let reader = std::io::BufReader::new(handle.try_clone()?);
         let mut lines = Vec::with_capacity(1024);
         for line in reader.lines() {
-            lines.push(line?);
+            lines.push(IString::from_string(line?));
         }
 
         if lines.is_empty() {
-            lines.push(String::new());
+            lines.push(IString::new());
         }
 
         Ok(Buffer { name: name.to_owned(), lines, modified: false })
@@ -64,7 +151,8 @@ impl Buffer {
 
     pub fn insert(&mut self, pos: &Position, ch: char) {
         if ch == '\n' {
-            let after_cursor = self.lines[pos.line][pos.column..].to_owned();
+            let after_cursor =
+                IString::from_string(self.lines[pos.line][pos.column..].to_owned());
             self.lines[pos.line].truncate(pos.column);
             self.lines.insert(pos.line + 1, after_cursor);
         } else {
@@ -81,8 +169,8 @@ impl Buffer {
         if pos.column == 0 {
             // FIXME: Avoid temporary copy.
             let prev_line_len = self.lines[pos.line - 1].len();
-            let copied_str = self.lines[pos.line].to_owned();
-            self.lines[pos.line - 1].push_str(&copied_str);
+            let copied_str = self.lines[pos.line].clone();
+            self.lines[pos.line - 1].push_str(copied_str.as_str());
             self.lines.remove(pos.line);
             Some(prev_line_len)
         } else {
@@ -97,13 +185,13 @@ impl Buffer {
             // Delete at the end of the line: remove a newline.
             // FIXME: Avoid temporary copy.
             let trailing = if pos.line + 1 < self.num_lines() {
-                let s = self.lines[pos.line + 1].to_owned();
+                let s = self.lines[pos.line + 1].clone();
                 self.lines.remove(pos.line + 1);
                 s
             } else {
-                String::new()
+                IString::new()
             };
-            self.lines[pos.line].push_str(&trailing);
+            self.lines[pos.line].push_str(trailing.as_str());
         } else if pos.column < self.lines[pos.line].len() {
             self.lines[pos.line].remove(pos.column);
         }

@@ -1,6 +1,7 @@
 use std::cell::{RefCell, Ref, RefMut};
 use std::rc::Rc;
 use std::cmp::{min, max};
+use crate::buffer::IString;
 use crate::editor::CommandDefinition;
 use crate::file::File;
 use crate::fuzzy::{FuzzySet, FuzzySetElement};
@@ -211,20 +212,20 @@ pub enum Mode {
 }
 
 pub struct TextBox {
-    text: String,
+    text: IString,
     cursor: usize,
 }
 
 impl TextBox {
     pub fn new() -> TextBox {
         TextBox {
-            text: String::with_capacity(32),
+            text: IString::with_capacity(32),
             cursor: 0,
         }
     }
 
     pub fn text(&self) -> &str {
-        &self.text
+        self.text.as_str()
     }
 
     pub fn insert(&mut self, ch: char) {
