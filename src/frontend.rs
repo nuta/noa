@@ -1,5 +1,5 @@
 use std::sync::mpsc::Sender;
-use crate::screen::Screen;
+use crate::screen::{Screen, RectSize};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Event {
@@ -22,14 +22,8 @@ pub enum Event {
     CommandMenu(String),
 }
 
-#[derive(Debug)]
-pub struct ScreenSize {
-    pub height: usize,
-    pub width: usize,
-}
-
 pub trait FrontEnd {
     fn init(&mut self, event_queue: Sender<Event>);
     fn render(&mut self, screen: &Screen);
-    fn get_screen_size(&self) -> ScreenSize;
+    fn get_screen_size(&self) -> RectSize;
 }

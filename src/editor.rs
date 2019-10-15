@@ -95,9 +95,6 @@ impl<'u> Editor<'u> {
         let scratch_file = Rc::new(RefCell::new(File::pseudo_file("*scratch*")));
         let scratch_view = View::new(scratch_file);
 
-        let screen_size = ui.get_screen_size();
-        let screen = Screen::new(scratch_view, screen_size.height, screen_size.width);
-
         // Register default key bindings.
         let mut bindings = HashMap::new();
         for (event, cmd) in DEFAULT_BINDINGS {
@@ -105,7 +102,7 @@ impl<'u> Editor<'u> {
         }
 
         Editor {
-            screen,
+            screen: Screen::new(scratch_view, ui.get_screen_size()),
             event_queue: mpsc::channel(),
             current_view_index: 0,
             ui: Box::new(ui),

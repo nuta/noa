@@ -4,9 +4,8 @@ use std::cmp::{min, max};
 use crate::editor::CommandDefinition;
 use crate::file::File;
 use crate::fuzzy::{FuzzySet, FuzzySetElement};
-use crate::frontend::ScreenSize;
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Position {
     pub line: usize,
     pub column: usize,
@@ -16,6 +15,12 @@ impl Position {
     pub const fn new(line: usize, column: usize) -> Position {
         Position { line, column }
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct RectSize {
+    pub height: usize,
+    pub width: usize,
 }
 
 #[derive(Clone)]
@@ -110,7 +115,7 @@ impl View {
 
 
     pub fn insert(&mut self, ch: char) {
-        let cursor = self.cursor.clone();
+        let cursor = self.cursor;
         self.file_mut().buffer_mut().insert(&cursor, ch);
 
         /* TODO:
@@ -129,7 +134,7 @@ impl View {
     }
 
     pub fn backspace(&mut self) {
-        let mut cursor = self.cursor.clone();
+        let mut cursor = self.cursor;
         if cursor.line == 0 && cursor.column == 0 {
             return;
         }
@@ -148,7 +153,7 @@ impl View {
     }
 
     pub fn delete(&mut self) {
-        let cursor = self.cursor.clone();
+        let cursor = self.cursor;
         self.file_mut().buffer_mut().delete(&cursor);
     }
 }
@@ -156,26 +161,24 @@ impl View {
 pub struct Panel {
     view: View,
     top_left: Position,
-    height: usize,
-    width: usize,
+    size: RectSize,
 }
 
 impl Panel {
-    pub fn new(top_left: Position, height: usize, width: usize, view: View) -> Panel {
+    pub fn new(top_left: Position, size: RectSize, view: View) -> Panel {
         Panel {
             view,
             top_left,
-            height,
-            width,
+            size,
         }
     }
 
     pub fn height(&self) -> usize {
-        self.height
+        self.size.height
     }
 
     pub fn width(&self) -> usize {
-        self.width
+        self.size.width
     }
 
     pub fn top_left(&self) -> &Position {
@@ -195,10 +198,9 @@ impl Panel {
         // TODO: Open a prompt if the file is not yet saved.
     }
 
-    pub fn move_to(&mut self, top_left: Position, height: usize, width: usize) {
+    pub fn move_to(&mut self, top_left: Position, size: RectSize) {
         self.top_left = top_left;
-        self.height = height;
-        self.width = width;
+        self.size = size;
     }
 }
 
@@ -319,20 +321,18 @@ impl<T: FuzzySetElement + Clone> MenuBox<T> {
 
 pub struct Screen {
     mode: Mode,
-    width: usize,
-    height: usize,
+    size: RectSize,
     panels: Vec<Panel>,
     current_panel_index: usize,
     command_menu: MenuBox<&'static CommandDefinition>,
 }
 
 impl Screen {
-    pub fn new(view: View, height: usize, width: usize) -> Screen {
-        let panel = Panel::new(Position::new(0, 0), height, width, view);
+    pub fn new(view: View, size: RectSize) -> Screen {
+        let panel = Panel::new(Position::new(0, 0), size, view);
         Screen {
             mode: Mode::Buffer,
-            width,
-            height,
+            size,
             panels: vec![panel],
             current_panel_index: 0,
             command_menu: MenuBox::new(),
@@ -340,11 +340,11 @@ impl Screen {
     }
 
     pub fn width(&self) -> usize {
-        self.width
+        self.size.width
     }
 
     pub fn height(&self) -> usize {
-        self.height
+        self.size.height
     }
 
     pub fn mode(&self) -> Mode {
@@ -404,30 +404,29 @@ impl Screen {
 
     pub fn split_vertically(&mut self) {
         // TODO: Support vertically splitted panels.
-        let view = self.current_panel().view();
-        let height = self.current_panel().height();
-
         // Fill fields with zero and run resize() to divide the screen width
         // equally.
-        let panel_left =
-            Panel::new(Position::new(0, 0), height, 0, view.clone());
-        let panel_right =
-            Panel::new(Position::new(0, 0), height, 0, view.clone());
+        let view = self.current_panel().view();
+        let size = RectSize {
+            height: self.current_panel().height(),
+            width: 0,
+        };
+        let panel_left = Panel::new(Position::new(0, 0), size, view.clone());
+        let panel_right = Panel::new(Position::new(0, 0), size, view.clone());
         self.panels.remove(self.current_panel_index);
         self.panels.push(panel_left);
         self.panels.push(panel_right);
-        self.resize(ScreenSize { width: self.width, height: self.height });
+        self.resize(self.size);
 
         self.current_panel_index = self.panels.len() - 1;
     }
 
-    pub fn resize(&mut self, screen_size: ScreenSize) {
-        trace!("resize: new_size={:?}", screen_size);
-        let old_height = self.height;
-        self.width = screen_size.width;
-        self.height = screen_size.height;
+    pub fn resize(&mut self, new_size: RectSize) {
+        trace!("resize: new_size={:?}", new_size);
+        let old_height = self.size.height;
+        self.size = new_size;
 
-        let mut remaining_width = screen_size.width;
+        let mut remaining_width = new_size.width;
         let num_panels = self.panels.len();
         for (i, panel) in self.panels.iter_mut().enumerate() {
             // TODO: Support vertically splitted panels.
@@ -435,19 +434,19 @@ impl Screen {
             assert!(top_left.line == 0 && panel.height() == old_height);
 
             let is_last_panel = i == num_panels - 1;
-            let panel_x = screen_size.width - remaining_width;
-            let panel_height = screen_size.height;
-            let panel_width = if is_last_panel {
+            let x = new_size.width - remaining_width;
+            let height = new_size.height;
+            let width = if is_last_panel {
                 remaining_width
             } else {
-                let new_width = screen_size.width / num_panels;
+                let new_width = new_size.width / num_panels;
                 remaining_width -= new_width;
                 new_width
             };
 
             trace!("resize panel: #{}, top_left=({}, {}) new_size={}x{}",
-                i, 0, panel_x, panel_height, panel_width);
-            panel.move_to(Position::new(0, panel_x), panel_height, panel_width);
+                i, 0, x, height, width);
+            panel.move_to(Position::new(0, x), RectSize { height, width });
         }
     }
 }

@@ -6,8 +6,9 @@ use signal_hook::{self, iterator::Signals};
 use std::cmp::max;
 use std::io::Write;
 use std::sync::mpsc::Sender;
-use crate::frontend::{FrontEnd, Event, ScreenSize};
-use crate::screen::{Screen, Mode};
+use crate::frontend::{FrontEnd, Event};
+use crate::screen::{Screen, RectSize, Panel, View, Mode};
+use crate::buffer::Buffer;
 
 pub struct Terminal {
     stdout: RawTerminal<std::io::Stdout>,
@@ -17,6 +18,67 @@ impl Terminal {
     pub fn new() -> Terminal {
         let stdout = std::io::stdout().into_raw_mode().unwrap();
         Terminal { stdout }
+    }
+
+    fn draw_buffer(&mut self, panel: &Panel, view: &View, buffer: &Buffer) {
+        for i in 0..(panel.height() - 2) {
+            let lineno = view.top_left().line + i;
+            if lineno >= buffer.num_lines() {
+                break;
+            }
+
+            // FIXME: Avoid constructing a temporary string.
+            let line: String = buffer.line_at(lineno).collect();
+            let y = panel.top_left().line + i;
+            let x = panel.top_left().column;
+            write!(self.stdout, "{}{}", goto(y, x), line)
+                .unwrap();
+        }
+    }
+
+    fn draw_status_bar(&mut self, panel: &Panel, view: &View, buffer: &Buffer) {
+        let cursor = view.cursor();
+        let status_bar_len =
+            6 + buffer.name().len() + num_of_digits(cursor.column + 1);
+
+        if panel.width() < status_bar_len {
+            warn!("too small to draw the status bar!");
+            return;
+        }
+
+        let space_len = panel.width() - status_bar_len;
+        write!(
+            self.stdout,
+            concat!(
+                "{goto}{invert}",
+                 " ",
+                "{bold}{name}{modified}{nobold}",
+                "{:space_len$}",
+                "{column}",
+                " ",
+                "{reset}"
+            ),
+            ' ',
+            goto = goto(panel.height() - 2, panel.top_left().column),
+            invert = termion::style::Invert,
+            bold = termion::style::Bold,
+            name = buffer.name(),
+            modified = if buffer.modified() { " [+]" } else { "    " },
+            nobold = termion::style::NoBold,
+            space_len = space_len,
+            column = cursor.column + 1,
+            reset = termion::style::Reset,
+        ).unwrap();
+    }
+
+    fn draw_cursor(&mut self, screen: &Screen) {
+        let active_panel = screen.current_panel();
+        let active_view = screen.active_view();
+        let cursor = active_view.cursor();
+        let top_left = active_panel.top_left();
+        let cursor_y = top_left.line + cursor.line;
+        let cursor_x = top_left.column + cursor.column;
+        write!(self.stdout, "{}", goto(cursor_y, cursor_x)).unwrap();
     }
 
     fn draw_command_menu(&mut self, screen: &Screen) {
@@ -153,7 +215,6 @@ impl FrontEnd for Terminal {
         // Clear the entire screen.
         write!(self.stdout, "{}", termion::clear::All).unwrap();
 
-        // Fill each panels.
         for panel in screen.panels() {
             let view = panel.view();
             let file = view.file();
@@ -164,70 +225,19 @@ impl FrontEnd for Terminal {
                 return;
             }
 
-            // Fill the buffer text.
-            for i in 0..(panel.height() - 2) {
-                let lineno = view.top_left().line + i;
-                if lineno >= buffer.num_lines() {
-                    break;
-                }
-
-                // FIXME: Avoid constructing a temporary string.
-                let line: String = buffer.line_at(lineno).collect();
-                let y = panel.top_left().line + i;
-                let x = panel.top_left().column;
-                write!(self.stdout, "{}{}", goto(y, x), line)
-                    .unwrap();
-            }
-
-            // Draw the status bar.
-            let cursor = view.cursor();
-            let status_bar_len =
-                6 + buffer.name().len() + num_of_digits(cursor.column + 1);
-            let space_len = panel.width() - status_bar_len;
-            write!(
-                self.stdout,
-                concat!(
-                    "{goto}{invert}",
-                     " ",
-                    "{bold}{name}{modified}{nobold}",
-                    "{:space_len$}",
-                    "{column}",
-                    " ",
-                    "{reset}"
-                ),
-                ' ',
-                goto = goto(panel.height() - 2, panel.top_left().column),
-                invert = termion::style::Invert,
-                bold = termion::style::Bold,
-                name = buffer.name(),
-                modified = if buffer.modified() { " [+]" } else { "    " },
-                nobold = termion::style::NoBold,
-                space_len = space_len,
-                column = cursor.column + 1,
-                reset = termion::style::Reset,
-            ).unwrap();
+            self.draw_buffer(panel, view, &*buffer);
+            self.draw_status_bar(panel, view, &*buffer);
         }
 
-        // Move the cursor.
-        let active_panel = screen.current_panel();
-        let active_view = screen.active_view();
-        let cursor = active_view.cursor();
-        let top_left = active_panel.top_left();
-        let cursor_y = top_left.line + cursor.line;
-        let cursor_x = top_left.column + cursor.column;
-        write!(self.stdout, "{}", goto(cursor_y, cursor_x)).unwrap();
-
-        // Draw the command menu.
+        self.draw_cursor(screen);
         self.draw_command_menu(screen);
-
-        // Update the screen.
         self.stdout.flush().unwrap();
     }
 
 
-    fn get_screen_size(&self) -> ScreenSize {
+    fn get_screen_size(&self) -> RectSize {
         let size = termion::terminal_size().unwrap();
-        ScreenSize {
+        RectSize {
             height: size.1 as usize,
             width: size.0 as usize,
         }
