@@ -74,6 +74,8 @@ impl Terminal {
     }
 
     fn draw_cursor(&mut self, screen: &Screen) {
+        // TODO: Support lines which contains wide width characters.
+
         let active_panel = screen.current_panel();
         let active_view = screen.active_view();
         let cursor = active_view.cursor();
