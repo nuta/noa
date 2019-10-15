@@ -27,12 +27,14 @@ impl Terminal {
                 break;
             }
 
-            // FIXME: Avoid constructing a temporary string.
-            let line: String = buffer.line_at(lineno).collect();
             let y = panel.top_left().line + i;
             let x = panel.top_left().column;
-            write!(self.stdout, "{}{}", goto(y, x), line)
-                .unwrap();
+            let spans =
+                buffer.line_at(lineno, 0, panel.width());
+            write!(self.stdout, "{}", goto(y, x)).unwrap();
+            for span in spans {
+                write!(self.stdout, "{}", span).unwrap();
+            }
         }
     }
 

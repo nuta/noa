@@ -47,6 +47,14 @@ impl IString {
         self.text.as_bytes()
     }
 
+    pub fn at(&self, index: usize) -> Option<char> {
+        if index < self.indices.len() {
+            self.text.as_str()[self.indices[index]..].chars().next()
+        } else {
+            None
+        }
+    }
+
     pub fn clear(&mut self) {
         self.text.clear();
         self.indices.clear();
@@ -83,19 +91,61 @@ impl IString {
 impl ops::Index<ops::RangeFrom<usize>> for IString {
     type Output = str;
     fn index(&self, index: ops::RangeFrom<usize>) -> &str {
-        &self.text[self.indices[index.start]..]
+        if index.start == self.len() {
+            ""
+        } else {
+            &self.text[self.indices[index.start]..]
+        }
     }
 }
 
+impl ops::Index<ops::Range<usize>> for IString {
+    type Output = str;
+    fn index(&self, index: ops::Range<usize>) -> &str {
+        debug_assert!(index.end <= self.len());
+        let end = if index.end == self.len() {
+            self.as_str().len()
+        } else {
+            self.indices[index.end]
+        };
+
+        &self.text[self.indices[index.start]..end]
+    }
+}
 
 pub struct Line<'a> {
-    line: Option<&'a str>,
+    line: &'a IString,
+    column: usize,
+    display_width: usize,
 }
 
 impl<'a> Iterator for Line<'a> {
     type Item = &'a str;
     fn next(&mut self) -> Option<Self::Item> {
-        self.line.take()
+        let start = self.column;
+        let mut len = 0;
+        loop {
+            match self.line.at(self.column) {
+                Some(ch) => {
+                    let width =
+                        unicode_width::UnicodeWidthChar::width_cjk(ch).unwrap();
+                    if width <= self.display_width {
+                        len += 1;
+                        self.display_width -= width;
+                    } else {
+                        self.display_width = 0;
+                    }
+                },
+                None if start == self.column => {
+                    return None;
+                },
+                None => {
+                    return Some(&self.line[start..(start + len)]);
+                }
+            }
+
+            self.column += 1;
+        }
     }
 }
 
@@ -128,9 +178,13 @@ impl Buffer {
         Ok(Buffer { name: name.to_owned(), lines, modified: false })
     }
 
-    pub fn line_at<'a>(&'a self, y: usize) -> Line<'a> {
-        let line = Some(self.lines[y].as_str());
-        Line { line }
+    pub fn line_at<'a>(&'a self, line: usize, column: usize, display_width: usize) -> Line<'a> {
+        assert!(line < self.num_lines());
+        Line {
+            line: &self.lines[line],
+            column,
+            display_width
+        }
     }
 
     pub fn line_len_at(&self, y: usize) -> usize {
