@@ -4,7 +4,7 @@ use termion::event::{Key, Event as TEvent};
 use termion::raw::{IntoRawMode, RawTerminal};
 use signal_hook::{self, iterator::Signals};
 use std::cmp::max;
-use std::io::Write;
+use std::fmt::Write;
 use std::sync::mpsc::Sender;
 use crate::frontend::{FrontEnd, Event};
 use crate::screen::{Screen, RectSize, Panel, View, Mode};
@@ -21,7 +21,7 @@ impl Terminal {
         Terminal { stdout }
     }
 
-    fn draw_buffer(&mut self, panel: &Panel, view: &View, file: &File, buffer: &Buffer) {
+    fn draw_buffer(&mut self, buf: &mut String, panel: &Panel, view: &View, file: &File, buffer: &Buffer) {
         for i in 0..(panel.height() - 2) {
             let lineno = view.top_left().line + i;
             if lineno >= buffer.num_lines() {
@@ -30,7 +30,7 @@ impl Terminal {
 
             let y = panel.top_left().line + i;
             let x = panel.top_left().column;
-            write!(self.stdout, "{}", goto(y, x)).ok();
+            write!(buf, "{}", goto(y, x)).ok();
             let highlighted_spans = 
                 file.highlight(lineno, 0 /* TODO: */, panel.width());
             for (style, text) in highlighted_spans {
@@ -38,17 +38,17 @@ impl Terminal {
                     let c = style.foreground;
                     let seq = 
                         termion::color::Fg(termion::color::Rgb(c.r, c.g, c.b));
-                    write!(self.stdout, "{}", seq).ok();
+                    write!(buf, "{}", seq).ok();
                 }
 
-                write!(self.stdout, "{}", text).ok();
+                write!(buf, "{}", text).ok();
             }
         }
 
-        write!(self.stdout, "{}", termion::style::Reset).ok();
+        write!(buf, "{}", termion::style::Reset).ok();
     }
 
-    fn draw_status_bar(&mut self, panel: &Panel, view: &View, buffer: &Buffer) {
+    fn draw_status_bar(&mut self, buf: &mut String, panel: &Panel, view: &View, buffer: &Buffer) {
         let cursor = view.cursor();
         let status_bar_len =
             6 + buffer.name().len() + num_of_digits(cursor.column + 1);
@@ -60,7 +60,7 @@ impl Terminal {
 
         let space_len = panel.width() - status_bar_len;
         write!(
-            self.stdout,
+            buf,
             concat!(
                 "{goto}{invert}",
                  " ",
@@ -80,10 +80,10 @@ impl Terminal {
             space_len = space_len,
             column = cursor.column + 1,
             reset = termion::style::Reset,
-        ).unwrap();
+        ).ok();
     }
 
-    fn draw_cursor(&mut self, screen: &Screen) {
+    fn draw_cursor(&mut self, buf: &mut String, screen: &Screen) {
         // TODO: Support lines which contains wide width characters.
 
         let active_panel = screen.current_panel();
@@ -92,10 +92,10 @@ impl Terminal {
         let top_left = active_panel.top_left();
         let cursor_y = top_left.line + cursor.line;
         let cursor_x = top_left.column + cursor.column;
-        write!(self.stdout, "{}", goto(cursor_y, cursor_x)).unwrap();
+        write!(buf, "{}", goto(cursor_y, cursor_x)).ok();
     }
 
-    fn draw_command_menu(&mut self, screen: &Screen) {
+    fn draw_command_menu(&mut self, buf: &mut String, screen: &Screen) {
         if screen.mode() == Mode::CommandMenu {
             // Hard-coded preferences.
             let menu_width = 50;
@@ -118,21 +118,21 @@ impl Terminal {
 
             // Input box.
             write!(
-                self.stdout,
+                buf,
                 "{goto}{color}{text:<menu_width$}{reset}",
                 goto = goto(margin_top, x),
                 color = termion::color::Bg(termion::color::Cyan),
                 text = command_menu.textbox().text(),
                 menu_width = menu_width,
                 reset = termion::color::Bg(termion::color::Reset)
-            ).unwrap();
+            ).ok();
 
             // Results.
             let results = command_menu.filtered().iter().enumerate()
                               .take(menu_height - 1);
             for (i, cmd) in results {
                 write!(
-                    self.stdout,
+                    buf,
                     "{goto}{color}{selected}{title:<menu_width$}{reset}",
                     goto = goto(margin_top + 1 + i, x),
                     color = termion::color::Bg(termion::color::Magenta),
@@ -140,7 +140,7 @@ impl Terminal {
                     title = cmd.title,
                     menu_width = menu_width - 2,
                     reset = termion::color::Bg(termion::color::Reset)
-                ).unwrap();
+                ).ok();
             }
         }
     }
@@ -148,8 +148,9 @@ impl Terminal {
 
 impl Drop for Terminal {
     fn drop(&mut self) {
-        write!(self.stdout, "{}", termion::screen::ToMainScreen).unwrap();
-        self.stdout.flush().unwrap();
+        use std::io::Write;
+        write!(self.stdout, "{}", termion::screen::ToMainScreen).ok();
+        self.stdout.flush().ok();
     }
 }
 
@@ -169,7 +170,8 @@ fn num_of_digits(mut x: usize) -> usize {
 
 impl FrontEnd for Terminal {
     fn init(&mut self, event_queue: Sender<Event>) {
-        write!(self.stdout, "{}", termion::screen::ToAlternateScreen).unwrap();
+        use std::io::Write;
+        write!(self.stdout, "{}", termion::screen::ToAlternateScreen).ok();
 
         // Read keyboard inputs in a dedicated thread.
         let stdin_tx = event_queue.clone();
@@ -203,7 +205,7 @@ impl FrontEnd for Terminal {
                     }
                 };
 
-                stdin_tx.send(event).unwrap();
+                stdin_tx.send(event).ok();
             }
         });
 
@@ -214,7 +216,7 @@ impl FrontEnd for Terminal {
             for signal in &signals {
                 match signal {
                     signal_hook::SIGWINCH => {
-                        signal_tx.send(Event::ScreenResized).unwrap();
+                        signal_tx.send(Event::ScreenResized).ok();
                         info!("received SIGWINCH");
                     },
                     _ => {
@@ -226,8 +228,10 @@ impl FrontEnd for Terminal {
     }
 
     fn render(&mut self, screen: &Screen) {
+        let mut buf = String::with_capacity(screen.width() * screen.height() * 2);
+
         // Clear the entire screen.
-        write!(self.stdout, "{}", termion::clear::All).unwrap();
+        write!(buf, "{}", termion::clear::All).ok();
 
         for panel in screen.panels() {
             let view = panel.view();
@@ -239,12 +243,15 @@ impl FrontEnd for Terminal {
                 return;
             }
 
-            self.draw_buffer(panel, view, &*file, &*buffer);
-            self.draw_status_bar(panel, view, &*buffer);
+            self.draw_buffer(&mut buf, panel, view, &*file, &*buffer);
+            self.draw_status_bar(&mut buf, panel, view, &*buffer);
         }
 
-        self.draw_cursor(screen);
-        self.draw_command_menu(screen);
+        self.draw_cursor(&mut buf, screen);
+        self.draw_command_menu(&mut buf, screen);
+
+        use std::io::Write;
+        self.stdout.write_all(buf.as_bytes()).unwrap();
         self.stdout.flush().unwrap();
     }
 
