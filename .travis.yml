@@ -9,6 +9,7 @@ notifications:
 os:
   - linux
   - osx
+  - windows
 
 rust:
   - nightly
