@@ -231,7 +231,7 @@ impl FrontEnd for Terminal {
         let mut buf = String::with_capacity(screen.width() * screen.height() * 2);
 
         // Clear the entire screen.
-        write!(buf, "{}", termion::clear::All).ok();
+        write!(buf, "{}{}", termion::clear::All, termion::cursor::Hide).ok();
 
         for panel in screen.panels() {
             let view = panel.view();
@@ -249,6 +249,8 @@ impl FrontEnd for Terminal {
 
         self.draw_cursor(&mut buf, screen);
         self.draw_command_menu(&mut buf, screen);
+
+        write!(buf, "{}", termion::cursor::Show).ok();
 
         use std::io::Write;
         self.stdout.write_all(buf.as_bytes()).unwrap();
