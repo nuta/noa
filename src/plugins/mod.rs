@@ -1,5 +1,5 @@
-mod primitive;
 mod command_menu;
+mod primitive;
 
-pub use primitive::*;
 pub use command_menu::*;
+pub use primitive::*;
