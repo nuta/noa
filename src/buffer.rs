@@ -61,7 +61,12 @@ impl IString {
     }
 
     pub fn insert(&mut self, index: usize, ch: char) {
-        self.text.insert(self.indices[index], ch);
+        self.text.insert(self.offset_at(index), ch);
+        self.update_indices();
+    }
+
+    pub fn push(&mut self, ch: char) {
+        self.text.push(ch);
         self.update_indices();
     }
 
@@ -71,13 +76,21 @@ impl IString {
     }
 
     pub fn remove(&mut self, index: usize) {
-        self.text.remove(self.indices[index]);
+        self.text.remove(self.offset_at(index));
         self.update_indices();
     }
 
     pub fn truncate(&mut self, from: usize) {
-        self.text.truncate(self.indices[from]);
+        self.text.truncate(self.offset_at(from));
         self.update_indices();
+    }
+
+    fn offset_at(&self, index: usize) -> usize {
+        if index == self.indices.len() {
+            self.text.len()
+        } else {
+            self.indices[index]
+        }
     }
 
     fn update_indices(&mut self) {
