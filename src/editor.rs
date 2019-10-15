@@ -176,20 +176,24 @@ impl<'u> Editor<'u> {
     }
 
     fn process_event(&mut self, mode: Mode, event: Event) {
-        let event_key = match event {
-            Event::Char(_) => Event::AnyChar,
-            _ => event.clone(),
-        };
-
         let temp_cmd_name;
         let temp_cmd;
         let cmd = match event {
+            Event::ScreenResized => {
+                self.screen.resize(self.ui.get_screen_size());
+                return;
+            }
             Event::CommandMenu(ref cmd_name) => {
                 temp_cmd_name = cmd_name.to_owned();
                 temp_cmd = Command(&temp_cmd_name);
                 temp_cmd
             }
             _ => {
+                let event_key = match event {
+                    Event::Char(_) => Event::AnyChar,
+                    _ => event.clone(),
+                };
+
                 match self.bindings.get(&BindTo::new(mode, event_key)) {
                     Some(ev) => ev.clone(),
                     None => {

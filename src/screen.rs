@@ -4,6 +4,7 @@ use std::cmp::{min, max};
 use crate::editor::CommandDefinition;
 use crate::file::File;
 use crate::fuzzy::{FuzzySet, FuzzySetElement};
+use crate::frontend::ScreenSize;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Position {
@@ -192,6 +193,12 @@ impl Panel {
     pub fn set_view(&mut self, view: View) {
         self.view = view;
         // TODO: Open a prompt if the file is not yet saved.
+    }
+
+    pub fn move_to(&mut self, top_left: Position, height: usize, width: usize) {
+        self.top_left = top_left;
+        self.height = height;
+        self.width = width;
     }
 }
 
@@ -396,22 +403,51 @@ impl Screen {
     }
 
     pub fn split_vertically(&mut self) {
-        let current_panel = self.current_panel();
-        let view = current_panel.view();
-        let top_left = current_panel.top_left();
-        let width = current_panel.width() / 2;
-        let height = current_panel.height();
-        if width < 20 {
-            warn!("too small width!");
-            return;
-        }
+        // TODO: Support vertically splitted panels.
+        let view = self.current_panel().view();
+        let height = self.current_panel().height();
 
-        let top_left2 = Position::new(top_left.line, top_left.column + width);
-        let new_left = Panel::new(top_left.clone(), height, width, view.clone());
-        let new_right = Panel::new(top_left2, height, width, view.clone());
+        // Fill fields with zero and run resize() to divide the screen width
+        // equally.
+        let panel_left =
+            Panel::new(Position::new(0, 0), height, 0, view.clone());
+        let panel_right =
+            Panel::new(Position::new(0, 0), height, 0, view.clone());
         self.panels.remove(self.current_panel_index);
-        self.panels.push(new_left);
-        self.panels.push(new_right);
+        self.panels.push(panel_left);
+        self.panels.push(panel_right);
+        self.resize(ScreenSize { width: self.width, height: self.height });
+
         self.current_panel_index = self.panels.len() - 1;
+    }
+
+    pub fn resize(&mut self, screen_size: ScreenSize) {
+        trace!("resize: new_size={:?}", screen_size);
+        let old_height = self.height;
+        self.width = screen_size.width;
+        self.height = screen_size.height;
+
+        let mut remaining_width = screen_size.width;
+        let num_panels = self.panels.len();
+        for (i, panel) in self.panels.iter_mut().enumerate() {
+            // TODO: Support vertically splitted panels.
+            let top_left = panel.top_left();
+            assert!(top_left.line == 0 && panel.height() == old_height);
+
+            let is_last_panel = i == num_panels - 1;
+            let panel_x = screen_size.width - remaining_width;
+            let panel_height = screen_size.height;
+            let panel_width = if is_last_panel {
+                remaining_width
+            } else {
+                let new_width = screen_size.width / num_panels;
+                remaining_width -= new_width;
+                new_width
+            };
+
+            trace!("resize panel: #{}, top_left=({}, {}) new_size={}x{}",
+                i, 0, panel_x, panel_height, panel_width);
+            panel.move_to(Position::new(0, panel_x), panel_height, panel_width);
+        }
     }
 }
