@@ -11,6 +11,12 @@ os:
   - osx
   - windows
 
+matrix:
+  allow_failures:
+    # We don't support Windows for now since termion doesn't support it. See:
+    # https://gitlab.redox-os.org/redox-os/termion/merge_requests/151
+    - os: windows
+
 rust:
   - nightly
   - beta
