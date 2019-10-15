@@ -58,12 +58,12 @@ static DEFAULT_BINDINGS: &'static [(BindTo, Command)] = &[
     binding!(Mode::Buffer, Event::Ctrl('o'), "screen.panel_prev"),
     binding!(Mode::Buffer, Event::Ctrl('p'), "screen.panel_next"),
 
-    binding!(Mode::CommandMenu, Event::AnyChar,   "command_menu.insert"),
-    binding!(Mode::CommandMenu, Event::Backspace, "command_menu.backspace"),
-    binding!(Mode::CommandMenu, Event::Up,        "command_menu.move_up"),
-    binding!(Mode::CommandMenu, Event::Down,      "command_menu.move_down"),
-    binding!(Mode::CommandMenu, Event::Esc,       "command_menu.quit"),
-    binding!(Mode::CommandMenu, Event::Ctrl('x'), "command_menu.quit"),
+    binding!(Mode::Finder, Event::AnyChar,   "command_menu.insert"),
+    binding!(Mode::Finder, Event::Backspace, "command_menu.backspace"),
+    binding!(Mode::Finder, Event::Up,        "command_menu.move_up"),
+    binding!(Mode::Finder, Event::Down,      "command_menu.move_down"),
+    binding!(Mode::Finder, Event::Esc,       "command_menu.quit"),
+    binding!(Mode::Finder, Event::Ctrl('x'), "command_menu.quit"),
 ];
 
 pub struct EventQueue {
@@ -205,7 +205,7 @@ impl<'u> Editor<'u> {
                 self.screen.resize(self.ui.get_screen_size());
                 return;
             }
-            Event::CommandMenu(ref cmd_name) => {
+            Event::Finder(ref cmd_name) => {
                 temp_cmd_name = cmd_name.to_owned();
                 temp_cmd = Command(&temp_cmd_name);
                 temp_cmd

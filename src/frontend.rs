@@ -19,7 +19,7 @@ pub enum Event {
     ScreenResized,
 
     /// Invoke a command from the command menu.
-    CommandMenu(String),
+    Finder(String),
 }
 
 pub trait FrontEnd {

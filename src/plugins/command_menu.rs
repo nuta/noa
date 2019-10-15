@@ -3,7 +3,7 @@ use crate::plugin::{Plugin, Manifest};
 use crate::frontend::Event;
 use crate::screen::Mode;
 
-pub struct CommandMenuPlugin {
+pub struct FinderPlugin {
 }
 
 static MANIFEST: Manifest = Manifest {
@@ -41,14 +41,14 @@ static MANIFEST: Manifest = Manifest {
     ]
 };
 
-impl CommandMenuPlugin {
-    pub fn new() -> CommandMenuPlugin {
-        CommandMenuPlugin {
+impl FinderPlugin {
+    pub fn new() -> FinderPlugin {
+        FinderPlugin {
         }
     }
 }
 
-impl Plugin for CommandMenuPlugin {
+impl Plugin for FinderPlugin {
     fn command(&mut self, editor: &mut Editor, cmd: &Command, event: &Event) {
         let mut selected_cmd = None;
         {
@@ -83,7 +83,7 @@ impl Plugin for CommandMenuPlugin {
                     command_menu.filter();
                 }
                 Command("command_menu.open") => {
-                    editor.screen_mut().set_mode(Mode::CommandMenu)
+                    editor.screen_mut().set_mode(Mode::Finder)
                 }
                 Command("command_menu.quit") => {
                     command_menu.clear();
@@ -96,7 +96,7 @@ impl Plugin for CommandMenuPlugin {
         }
 
         if let Some(cmd_def) = selected_cmd {
-            editor.fire_event(Event::CommandMenu(cmd_def.id.to_owned()));
+            editor.fire_event(Event::Finder(cmd_def.id.to_owned()));
         }
     }
 

@@ -96,7 +96,7 @@ impl Terminal {
     }
 
     fn draw_command_menu(&mut self, buf: &mut String, screen: &Screen) {
-        if screen.mode() == Mode::CommandMenu {
+        if screen.mode() == Mode::Finder {
             // Hard-coded preferences.
             let menu_width = 50;
             let margin_top = 2;

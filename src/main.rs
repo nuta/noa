@@ -39,7 +39,7 @@ fn main() {
     let ui = frontends::terminal::Terminal::new();
     let mut editor = editor::Editor::new(ui);
     editor.add_plugin(plugins::PrimitivePlugin::new());
-    editor.add_plugin(plugins::CommandMenuPlugin::new());
+    editor.add_plugin(plugins::FinderPlugin::new());
     editor.open_file(&opt.file).unwrap();
     editor.run();
 }

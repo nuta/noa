@@ -209,7 +209,7 @@ impl Panel {
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum Mode {
     Buffer,
-    CommandMenu,
+    Finder,
 }
 
 pub struct TextBox {
