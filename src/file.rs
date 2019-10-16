@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::ops::Range;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -124,7 +125,7 @@ impl<'a> Iterator for HighlightedSpans<'a> {
         if let Some(ref mut iter) = self.spans {
             while let Some(span) = iter.next() {
                 let style = Some(span.0);
-                use std::cmp::min;
+
                 // Exclude newline characters.
                 let span_start = min(span.1.start, self.line.len().saturating_sub(1));
                 let span_end = min(span.1.end, self.line.len());
