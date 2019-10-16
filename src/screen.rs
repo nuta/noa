@@ -383,7 +383,6 @@ impl Screen {
     }
 
     pub fn move_panel(&mut self, diff: isize) {
-        // TODO:
         assert!(diff.abs() == 1);
 
         self.current_panel_index = if diff < 0 {
@@ -402,7 +401,7 @@ impl Screen {
     }
 
     pub fn split_vertically(&mut self) {
-        // TODO: Support vertically splitted panels.
+        // TODO: Support horizontally splitted panels.
         // Fill fields with zero and run resize() to divide the screen width
         // equally.
         let view = self.current_panel().view();
@@ -428,7 +427,7 @@ impl Screen {
         let mut remaining_width = new_size.width;
         let num_panels = self.panels.len();
         for (i, panel) in self.panels.iter_mut().enumerate() {
-            // TODO: Support vertically splitted panels.
+            // TODO: Support horizontally splitted panels.
             let top_left = panel.top_left();
             assert!(top_left.line == 0 && panel.height() == old_height);
 
