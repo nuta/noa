@@ -386,7 +386,7 @@ dependencies = [
 
 [[package]]
 name = "noa"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "backtrace 0.3.38 (registry+https://github.com/rust-lang/crates.io-index)",
  "dirs 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
