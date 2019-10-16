@@ -7,8 +7,6 @@ use crate::screen::Position;
 pub struct Line {
     /// A UTF-8 string.
     text: String,
-    /// The length of text without the trailing newline characters.
-    len: usize,
     /// The byte offsets of each characters.
     indices: Vec<usize>,
 }
@@ -17,7 +15,6 @@ impl Line {
     pub fn new() -> Line {
         Line {
             text: String::new(),
-            len: 0,
             indices: Vec::new(),
         }
     }
@@ -25,7 +22,6 @@ impl Line {
     pub fn with_capacity(capacity: usize) -> Line {
         Line {
             text: String::with_capacity(capacity),
-            len: 0,
             indices: Vec::with_capacity(capacity),
         }
     }
@@ -34,7 +30,6 @@ impl Line {
         let len = string.len();
         let mut new_string = Line {
             text: string,
-            len: 0,
             indices: Vec::with_capacity(len),
         };
 
@@ -43,11 +38,11 @@ impl Line {
     }
 
     pub fn len(&self) -> usize {
-        self.len
+        self.indices.len()
     }
 
     pub fn as_str(&self) -> &str {
-        &self.text[..self.len]
+        &self.text[..self.len()]
     }
 
     pub fn as_bytes(&self) -> &[u8] {
@@ -136,7 +131,6 @@ impl Line {
         for (i, _) in iter {
             self.indices.push(i);
         }
-        self.len = self.indices.len();
     }
 }
 
