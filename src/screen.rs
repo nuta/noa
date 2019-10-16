@@ -57,61 +57,58 @@ impl View {
     }
 
     pub fn move_cursor(&mut self, y_diff: isize, x_diff: isize) {
+        debug_assert!(
+            y_diff.abs() == 1 && x_diff.abs() == 0
+            || x_diff.abs() == 1 && y_diff.abs() == 0
+        );
+
+        let file = self.file();
+        let buffer = file.buffer();
+        let num_lines = buffer.num_lines();
         let mut line = self.cursor.line;
-        let num_lines = self.file().buffer().num_lines();
-
-        // Update the x-axis.
         let mut column = self.cursor.column;
-        if x_diff < 0 {
+
+        if x_diff == -1 {
             // Move the cursor left.
-            let mut diff = x_diff.abs() as usize;
-            if column < diff && line > 0 {
-                while diff > 0 && line > 0 {
-                    let line_len = self.file().buffer().line_len_at(line - 1);
-                    if diff < line_len {
-                        line -= 1;
-                        column = line_len - diff + 1;
-                        break;
-                    }
-
-                    diff -= line_len + 1;
+            if column == 0 {
+                if line > 0 {
                     line -= 1;
+                    column = buffer.line_len_at(line);
                 }
             } else {
-                column = column.saturating_sub(diff);
+                column -= 1;
             }
-        } else {
+        } else if x_diff == 1 {
             // Move the cursor right.
-            let mut diff = x_diff as usize;
-            let line_len = self.file().buffer().line_len_at(line);
-            if column + diff > line_len && line + 1 < num_lines {
-                while diff > 0 && line + 1 < num_lines {
-                    let line_len = self.file().buffer().line_len_at(line + 1);
-                    if diff < line_len {
-                        line += 1;
-                        column = diff - 1;
-                        break;
-                    }
-
-                    diff -= line_len + 1;
+            let line_len = buffer.line_len_at(line);
+            if column == line_len {
+                if line + 1 < num_lines {
                     line += 1;
+                    column = 0;
                 }
             } else {
-                column += x_diff as usize;
+                column += 1;
             }
         }
 
-        // Update the y-axis.
-        if y_diff < 0 {
-            line = line.saturating_sub(y_diff.abs() as usize);
-        } else {
-            line += y_diff as usize;
+        if y_diff == -1 {
+            // Move the cursor up.
+            if line > 0 {
+                line -= 1;
+            }
+        } else if y_diff == 1 {
+            // Move the cursor down.
+            if line + 1 < num_lines {
+                line += 1;
+            }
         }
 
-        self.cursor.line = min(line, num_lines - 1);
-        let new_line_num_columns =
-            self.file().buffer().line_len_at(self.cursor.line);
-        self.cursor.column = min(column, new_line_num_columns);
+        let column_max = buffer.line_len_at(line);
+        drop(buffer);
+        drop(file);
+        self.cursor.line = line;
+        self.cursor.column = min(column, column_max);
+        trace!("{} {}", self.cursor.line, self.cursor.column);
     }
 
 
