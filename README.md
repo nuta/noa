@@ -1,7 +1,9 @@
-noa
+noa (WIP)
 ====
 [![Build Status](https://travis-ci.com/seiyanuta/noa.svg?branch=master)](https://travis-ci.com/seiyanuta/noa)
 [![Latest version](https://img.shields.io/crates/v/noa.svg)](https://crates.io/crates/noa)
+
+A *batteries-inclued* terminal text editor written in Rust.
 
 Installation
 ------------
