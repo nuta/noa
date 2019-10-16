@@ -1,5 +1,5 @@
-mod command_menu;
+mod finder;
 mod primitive;
 
-pub use command_menu::*;
+pub use finder::*;
 pub use primitive::*;

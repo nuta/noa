@@ -47,7 +47,7 @@ macro_rules! binding {
 static DEFAULT_BINDINGS: &'static [(BindTo, Command)] = &[
     binding!(Mode::Buffer, Event::Ctrl('q'), "editor.quit"),
     binding!(Mode::Buffer, Event::Ctrl('s'), "buffer.save"),
-    binding!(Mode::Buffer, Event::Ctrl('x'), "command_menu.open"),
+    binding!(Mode::Buffer, Event::Ctrl('x'), "finder.open"),
     binding!(Mode::Buffer, Event::AnyChar,   "buffer.insert"),
     binding!(Mode::Buffer, Event::Backspace, "buffer.backspace"),
     binding!(Mode::Buffer, Event::Delete,    "buffer.delete"),
@@ -58,12 +58,12 @@ static DEFAULT_BINDINGS: &'static [(BindTo, Command)] = &[
     binding!(Mode::Buffer, Event::Ctrl('o'), "screen.panel_prev"),
     binding!(Mode::Buffer, Event::Ctrl('p'), "screen.panel_next"),
 
-    binding!(Mode::Finder, Event::AnyChar,   "command_menu.insert"),
-    binding!(Mode::Finder, Event::Backspace, "command_menu.backspace"),
-    binding!(Mode::Finder, Event::Up,        "command_menu.move_up"),
-    binding!(Mode::Finder, Event::Down,      "command_menu.move_down"),
-    binding!(Mode::Finder, Event::Esc,       "command_menu.quit"),
-    binding!(Mode::Finder, Event::Ctrl('x'), "command_menu.quit"),
+    binding!(Mode::Finder, Event::AnyChar,   "finder.insert"),
+    binding!(Mode::Finder, Event::Backspace, "finder.backspace"),
+    binding!(Mode::Finder, Event::Up,        "finder.move_up"),
+    binding!(Mode::Finder, Event::Down,      "finder.move_down"),
+    binding!(Mode::Finder, Event::Esc,       "finder.quit"),
+    binding!(Mode::Finder, Event::Ctrl('x'), "finder.quit"),
 ];
 
 pub struct EventQueue {
@@ -164,8 +164,8 @@ impl<'u> Editor<'u> {
         let manifest = plugin.manifest();
         let plugin_rc = Rc::new(RefCell::new(plugin));
 
-        let command_menu = self.screen.command_menu_mut();
-        let menu_elements = command_menu.elements_mut();
+        let finder = self.screen.finder_mut();
+        let menu_elements = finder.elements_mut();
         for cmd in manifest.commands {
             self.commands.insert(Command(cmd.id), cmd);
             self.handlers.insert(Command(cmd.id), plugin_rc.clone());

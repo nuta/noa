@@ -99,7 +99,7 @@ impl Terminal {
         write!(self.buf, "{}", goto(cursor_y, cursor_x)).ok();
     }
 
-    fn draw_command_menu(&mut self, screen: &Screen) {
+    fn draw_finder(&mut self, screen: &Screen) {
         if screen.mode() == Mode::Finder {
             // Hard-coded preferences.
             let menu_width = 50;
@@ -113,7 +113,7 @@ impl Terminal {
                 return;
             }
 
-            let command_menu = screen.command_menu();
+            let finder = screen.finder();
             let menu_height = max(
                 screen.height() - (margin_top + margin_bottom),
                 menu_height_max
@@ -126,13 +126,13 @@ impl Terminal {
                 "{goto}{color}{text:<menu_width$}{reset}",
                 goto = goto(margin_top, x),
                 color = termion::color::Bg(termion::color::Cyan),
-                text = command_menu.textbox().text(),
+                text = finder.textbox().text(),
                 menu_width = menu_width,
                 reset = termion::color::Bg(termion::color::Reset)
             ).ok();
 
             // Results.
-            let results = command_menu.filtered().iter().enumerate()
+            let results = finder.filtered().iter().enumerate()
                               .take(menu_height - 1);
             for (i, cmd) in results {
                 write!(
@@ -140,7 +140,7 @@ impl Terminal {
                     "{goto}{color}{selected}{title:<menu_width$}{reset}",
                     goto = goto(margin_top + 1 + i, x),
                     color = termion::color::Bg(termion::color::Magenta),
-                    selected = if i == command_menu.selected() { "> " } else { "  "},
+                    selected = if i == finder.selected() { "> " } else { "  "},
                     title = cmd.title,
                     menu_width = menu_width - 2,
                     reset = termion::color::Bg(termion::color::Reset)
@@ -252,7 +252,7 @@ impl FrontEnd for Terminal {
         }
 
         self.draw_cursor(screen);
-        self.draw_command_menu(screen);
+        self.draw_finder(screen);
 
         write!(self.buf, "{}", termion::cursor::Show).ok();
 

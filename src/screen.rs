@@ -326,7 +326,7 @@ pub struct Screen {
     size: RectSize,
     panels: Vec<Panel>,
     current_panel_index: usize,
-    command_menu: MenuBox<&'static CommandDefinition>,
+    finder: MenuBox<&'static CommandDefinition>,
 }
 
 impl Screen {
@@ -337,7 +337,7 @@ impl Screen {
             size,
             panels: vec![panel],
             current_panel_index: 0,
-            command_menu: MenuBox::new(),
+            finder: MenuBox::new(),
         }
     }
 
@@ -357,12 +357,12 @@ impl Screen {
         self.mode = mode;
     }
 
-    pub fn command_menu(&self) -> &MenuBox<&'static CommandDefinition> {
-        &self.command_menu
+    pub fn finder(&self) -> &MenuBox<&'static CommandDefinition> {
+        &self.finder
     }
 
-    pub fn command_menu_mut(&mut self) -> &mut MenuBox<&'static CommandDefinition> {
-        &mut self.command_menu
+    pub fn finder_mut(&mut self) -> &mut MenuBox<&'static CommandDefinition> {
+        &mut self.finder
     }
 
     pub fn panels(&self) -> &[Panel] {

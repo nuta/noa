@@ -9,32 +9,32 @@ pub struct FinderPlugin {
 static MANIFEST: Manifest = Manifest {
     commands: &[
         CommandDefinition {
-            id: "command_menu.open",
+            id: "finder.open",
             title: "",
             hidden: true,
         },
         CommandDefinition {
-            id: "command_menu.insert",
+            id: "finder.insert",
             title: "",
             hidden: true,
         },
         CommandDefinition {
-            id: "command_menu.backspace",
+            id: "finder.backspace",
             title: "",
             hidden: true,
         },
         CommandDefinition {
-            id: "command_menu.move_up",
+            id: "finder.move_up",
             title: "",
             hidden: true,
         },
         CommandDefinition {
-            id: "command_menu.move_down",
+            id: "finder.move_down",
             title: "",
             hidden: true,
         },
         CommandDefinition {
-            id: "command_menu.quit",
+            id: "finder.quit",
             title: "",
             hidden: true,
         },
@@ -53,12 +53,12 @@ impl Plugin for FinderPlugin {
         let mut selected_cmd = None;
         {
             let screen = editor.screen_mut();
-            let command_menu = screen.command_menu_mut();
+            let finder = screen.finder_mut();
             match *cmd {
-                Command("command_menu.insert") => {
+                Command("finder.insert") => {
                     match event {
                         Event::Char('\n') => {
-                            if let Some(selected) = command_menu.enter() {
+                            if let Some(selected) = finder.enter() {
                                 // FIXME: Avoid temporary copy.
                                 selected_cmd = Some(selected.to_owned());
                             }
@@ -66,27 +66,27 @@ impl Plugin for FinderPlugin {
                             editor.screen_mut().set_mode(Mode::Buffer);
                         }
                         Event::Char(ch) => {
-                            command_menu.textbox_mut().insert(*ch);
-                            command_menu.filter();
+                            finder.textbox_mut().insert(*ch);
+                            finder.filter();
                         }
                         _ => {}
                     }
                 }
-                Command("command_menu.move_up") => {
-                    command_menu.move_selection(-1);
+                Command("finder.move_up") => {
+                    finder.move_selection(-1);
                 }
-                Command("command_menu.move_down") => {
-                    command_menu.move_selection(1);
+                Command("finder.move_down") => {
+                    finder.move_selection(1);
                 }
-                Command("command_menu.backspace") => {
-                    command_menu.textbox_mut().backspace();
-                    command_menu.filter();
+                Command("finder.backspace") => {
+                    finder.textbox_mut().backspace();
+                    finder.filter();
                 }
-                Command("command_menu.open") => {
+                Command("finder.open") => {
                     editor.screen_mut().set_mode(Mode::Finder)
                 }
-                Command("command_menu.quit") => {
-                    command_menu.clear();
+                Command("finder.quit") => {
+                    finder.clear();
                     editor.screen_mut().set_mode(Mode::Buffer)
                 }
                 _ => {}
