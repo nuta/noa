@@ -278,6 +278,7 @@ impl Buffer {
             } else {
                 Line::new()
             };
+            self.lines[pos.line].remove_newline();
             self.lines[pos.line].push_str(trailing.as_str());
         } else if pos.column < self.lines[pos.line].len() {
             self.lines[pos.line].remove(pos.column);
