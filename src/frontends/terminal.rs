@@ -40,7 +40,7 @@ impl Terminal {
             for (style, text) in highlighted_spans {
                 if let Some(style) = style {
                     let c = style.foreground;
-                    let seq = 
+                    let seq =
                         termion::color::Fg(termion::color::Rgb(c.r, c.g, c.b));
                     write!(self.buf, "{}", seq).ok();
                 }

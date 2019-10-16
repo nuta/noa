@@ -131,7 +131,7 @@ impl<'a> Iterator for HighlightedSpans<'a> {
                 if span_start == 0 && span_end == 0 {
                     continue;
                 }
-                
+
                 let text = &self.line[span_start..span_end];
                 let num_chars = text.chars().count();
                 let width = unicode_width::UnicodeWidthStr::width_cjk(text);
@@ -144,9 +144,9 @@ impl<'a> Iterator for HighlightedSpans<'a> {
                     // The span is partially displayed in the screen.
                     self.char_index = self.column;
                     self.remaining_width -= width;
-                    let start = 
+                    let start =
                         min(span_start, self.column);
-                    let end = 
+                    let end =
                         min(span_end, start + (width - (self.column + self.char_index)));
                     let text = &self.line[start..end];
                     return Some((style, text));
