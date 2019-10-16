@@ -93,6 +93,23 @@ impl Line {
         self.update_indices();
     }
 
+    pub fn set_newline(&mut self, newline: &str) {
+        self.remove_newline();
+        self.text.push_str(newline);
+        self.update_indices();
+    }
+
+    pub fn remove_newline(&mut self) {
+        while self.text.len() > 0 {
+            let ch = self.text.as_bytes()[self.text.len() - 1];
+            if ch != b'\r' && ch != b'\n' {
+                break;
+            }
+
+            self.text.pop();
+        }
+    }
+
     pub fn remove(&mut self, index: usize) {
         self.text.remove(self.offset_at(index));
         self.update_indices();
@@ -152,13 +169,14 @@ pub struct Buffer {
     name: String,
     lines: Vec<Line>,
     modified: bool,
+    newline: &'static str,
 }
 
 impl Buffer {
     pub fn new(name: &str) -> Buffer {
         let mut lines = Vec::with_capacity(1024);
         lines.push(Line::with_capacity(128));
-        Buffer { name: name.to_owned(), lines, modified: false }
+        Buffer { name: name.to_owned(), lines, modified: false, newline: "\n" }
     }
 
     pub fn from_file(name: &str, handle: &fs::File) -> std::io::Result<Buffer> {
@@ -180,7 +198,12 @@ impl Buffer {
             lines.push(Line::new());
         }
 
-        Ok(Buffer { name: name.to_owned(), lines, modified: false })
+        Ok(Buffer {
+            name: name.to_owned(),
+            lines,
+            modified: false,
+            newline: "\n"
+        })
     }
 
     pub fn lines_from<'a>(&'a self, from: usize) -> impl Iterator<Item=&'a Line> {
@@ -213,6 +236,7 @@ impl Buffer {
             let after_cursor =
                 Line::from_string(self.lines[pos.line][pos.column..].to_owned());
             self.lines[pos.line].truncate(pos.column);
+            self.lines[pos.line].set_newline(self.newline);
             self.lines.insert(pos.line + 1, after_cursor);
         } else {
             self.lines[pos.line].insert(pos.column, ch);
@@ -227,9 +251,11 @@ impl Buffer {
         self.modified = true;
         if pos.column == 0 {
             // FIXME: Avoid temporary copy.
-            let prev_line_len = self.lines[pos.line - 1].len();
             let copied_str = self.lines[pos.line].clone();
-            self.lines[pos.line - 1].push_str(copied_str.as_str());
+            let prev_line = &mut self.lines[pos.line - 1];
+            let prev_line_len = prev_line.len();
+            prev_line.remove_newline();
+            prev_line.push_str(copied_str.as_str());
             self.lines.remove(pos.line);
             Some(prev_line_len)
         } else {

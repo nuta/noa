@@ -127,11 +127,12 @@ impl<'a> Iterator for HighlightedSpans<'a> {
                 let style = Some(span.0);
 
                 // Exclude newline characters.
-                let span_start = min(span.1.start, self.line.len().saturating_sub(1));
-                let span_end = min(span.1.end, self.line.len());
-                if span_start == 0 && span_end == 0 {
+                if span.1.start >= self.line.len() {
                     continue;
                 }
+
+                let span_start = span.1.start;
+                let span_end = min(span.1.end, self.line.len());
 
                 let text = &self.line[span_start..span_end];
                 let num_chars = text.chars().count();
