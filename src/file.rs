@@ -1,7 +1,7 @@
 use std::ops::Range;
 use std::fs;
 use std::path::{Path, PathBuf};
-use crate::buffer::{Buffer, IString};
+use crate::buffer::{Buffer, Line};
 use crate::highlight::Highlight;
 use syntect::highlighting::Style;
 
@@ -111,7 +111,7 @@ impl File {
 }
 
 pub struct HighlightedSpans<'a> {
-    line: &'a IString,
+    line: &'a Line,
     spans: Option<std::slice::Iter<'a, (Style, Range<usize>)>>,
     column: usize,
     remaining_width: usize,
@@ -124,7 +124,15 @@ impl<'a> Iterator for HighlightedSpans<'a> {
         if let Some(ref mut iter) = self.spans {
             while let Some(span) = iter.next() {
                 let style = Some(span.0);
-                let text = &self.line[span.1.start..span.1.end];
+                use std::cmp::min;
+                // Exclude newline characters.
+                let span_start = min(span.1.start, self.line.len().saturating_sub(1));
+                let span_end = min(span.1.end, self.line.len());
+                if span_start == 0 && span_end == 0 {
+                    continue;
+                }
+                
+                let text = &self.line[span_start..span_end];
                 let num_chars = text.chars().count();
                 let width = unicode_width::UnicodeWidthStr::width_cjk(text);
 
@@ -136,9 +144,12 @@ impl<'a> Iterator for HighlightedSpans<'a> {
                     // The span is partially displayed in the screen.
                     self.char_index = self.column;
                     self.remaining_width -= width;
-                    let start = self.column;
-                    let end = start + (width - (self.column + self.char_index));
-                    return Some((style, &self.line[start..end]));
+                    let start = 
+                        min(span_start, self.column);
+                    let end = 
+                        min(span_end, start + (width - (self.column + self.char_index)));
+                    let text = &self.line[start..end];
+                    return Some((style, text));
                 } else {
                     // The span is out of the screen. SKip it.
                     self.char_index += num_chars;

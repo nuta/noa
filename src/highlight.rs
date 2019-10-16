@@ -91,9 +91,10 @@ impl Highlight {
 
         self.lines.truncate(line_from);
         for line in buffer.lines_from(line_from) {
-            let changes = self.parse_state.parse_line(&line, self.syntax_set);
+            let text = line.as_str_with_newline();
+            let changes = self.parse_state.parse_line(text, self.syntax_set);
             let iter = RangedHighlightIterator::new(&mut self.highlight_state,
-                &changes, &line, &self.highlighter);
+                &changes, text, &self.highlighter);
             let spans = iter.map(|e| (e.0, e.2)).collect();
             self.lines.push(HighlightedLine(spans));
         }

@@ -35,7 +35,7 @@ impl Terminal {
             let y = panel.top_left().line + i;
             let x = panel.top_left().column;
             write!(self.buf, "{}", goto(y, x)).ok();
-            let highlighted_spans = 
+            let highlighted_spans =
                 file.highlight(lineno, 0 /* TODO: */, panel.width());
             for (style, text) in highlighted_spans {
                 if let Some(style) = style {

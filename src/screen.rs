@@ -1,7 +1,7 @@
 use std::cell::{RefCell, Ref, RefMut};
 use std::rc::Rc;
 use std::cmp::{min, max};
-use crate::buffer::IString;
+use crate::buffer::Line;
 use crate::editor::CommandDefinition;
 use crate::file::File;
 use crate::fuzzy::{FuzzySet, FuzzySetElement};
@@ -213,14 +213,14 @@ pub enum Mode {
 }
 
 pub struct TextBox {
-    text: IString,
+    text: Line,
     cursor: usize,
 }
 
 impl TextBox {
     pub fn new() -> TextBox {
         TextBox {
-            text: IString::with_capacity(32),
+            text: Line::with_capacity(32),
             cursor: 0,
         }
     }

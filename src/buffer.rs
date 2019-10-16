@@ -4,30 +4,37 @@ use crate::screen::Position;
 
 /// A `String` with cached UTF-8 character byte indices.
 #[derive(Clone)]
-pub struct IString {
+pub struct Line {
+    /// A UTF-8 string.
     text: String,
+    /// The length of text without the trailing newline characters.
+    len: usize,
+    /// The byte offsets of each characters.
     indices: Vec<usize>,
 }
 
-impl IString {
-    pub fn new() -> IString {
-        IString {
+impl Line {
+    pub fn new() -> Line {
+        Line {
             text: String::new(),
+            len: 0,
             indices: Vec::new(),
         }
     }
 
-    pub fn with_capacity(capacity: usize) -> IString {
-        IString {
+    pub fn with_capacity(capacity: usize) -> Line {
+        Line {
             text: String::with_capacity(capacity),
+            len: 0,
             indices: Vec::with_capacity(capacity),
         }
     }
 
-    pub fn from_string(string: String) -> IString {
+    pub fn from_string(string: String) -> Line {
         let len = string.len();
-        let mut new_string = IString {
+        let mut new_string = Line {
             text: string,
+            len: 0,
             indices: Vec::with_capacity(len),
         };
 
@@ -36,20 +43,28 @@ impl IString {
     }
 
     pub fn len(&self) -> usize {
-        self.indices.len()
+        self.len
     }
 
     pub fn as_str(&self) -> &str {
-        self.text.as_str()
+        &self.text[..self.len]
     }
 
     pub fn as_bytes(&self) -> &[u8] {
-        self.text.as_bytes()
+        self.as_str().as_bytes()
+    }
+
+    pub fn as_str_with_newline(&self) -> &str {
+        &self.text.as_str()
+    }
+
+    pub fn as_bytes_with_newline(&self) -> &[u8] {
+        self.as_str_with_newline().as_bytes()
     }
 
     pub fn at(&self, index: usize) -> Option<char> {
         if index < self.indices.len() {
-            self.text.as_str()[self.indices[index]..].chars().next()
+            self.as_str()[self.indices[index]..].chars().next()
         } else {
             None
         }
@@ -61,16 +76,19 @@ impl IString {
     }
 
     pub fn insert(&mut self, index: usize, ch: char) {
+        debug_assert!(ch != '\n' && ch != '\r');
         self.text.insert(self.offset_at(index), ch);
         self.update_indices();
     }
 
     pub fn push(&mut self, ch: char) {
+        debug_assert!(ch != '\n' && ch != '\r');
         self.text.push(ch);
         self.update_indices();
     }
 
     pub fn push_str(&mut self, other: &str) {
+        debug_assert!(!other.contains('\r') && !other.contains('\n'));
         self.text.push_str(other);
         self.update_indices();
     }
@@ -95,13 +113,17 @@ impl IString {
 
     fn update_indices(&mut self) {
         self.indices.clear();
-        for (i, _) in self.text.char_indices() {
+        let iter = self.text
+            .trim_end_matches(|c: char| c == '\n' || c == '\r')
+            .char_indices();
+        for (i, _) in iter {
             self.indices.push(i);
         }
+        self.len = self.indices.len();
     }
 }
 
-impl ops::Index<ops::RangeFrom<usize>> for IString {
+impl ops::Index<ops::RangeFrom<usize>> for Line {
     type Output = str;
     fn index(&self, index: ops::RangeFrom<usize>) -> &str {
         if index.start == self.len() {
@@ -112,7 +134,7 @@ impl ops::Index<ops::RangeFrom<usize>> for IString {
     }
 }
 
-impl ops::Index<ops::Range<usize>> for IString {
+impl ops::Index<ops::Range<usize>> for Line {
     type Output = str;
     fn index(&self, index: ops::Range<usize>) -> &str {
         debug_assert!(index.end <= self.len());
@@ -126,52 +148,46 @@ impl ops::Index<ops::Range<usize>> for IString {
     }
 }
 
-pub struct Lines<'a>(std::slice::Iter<'a, IString>);
-
-impl<'a> Iterator for Lines<'a> {
-    type Item = &'a str;
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next().map(|s| s.as_str())
-    }
-}
-
 pub struct Buffer {
     name: String,
-    lines: Vec<IString>,
+    lines: Vec<Line>,
     modified: bool,
 }
 
 impl Buffer {
     pub fn new(name: &str) -> Buffer {
         let mut lines = Vec::with_capacity(1024);
-        lines.push(IString::with_capacity(128));
+        lines.push(Line::with_capacity(128));
         Buffer { name: name.to_owned(), lines, modified: false }
     }
 
     pub fn from_file(name: &str, handle: &fs::File) -> std::io::Result<Buffer> {
         use std::io::BufRead;
 
-        let reader = std::io::BufReader::new(handle.try_clone()?);
+        let mut reader = std::io::BufReader::new(handle.try_clone()?);
         let mut lines = Vec::with_capacity(1024);
-        // TODO: Support CRLF.
-        for line in reader.lines() {
-            let mut s = IString::from_string(line?);
-            s.push('\n');
-            lines.push(s);
+        loop {
+            let mut buf = String::with_capacity(128);
+            match reader.read_line(&mut buf) {
+                // EOF.
+                Ok(0) => break,
+                Ok(_) => lines.push(Line::from_string(buf)),
+                Err(err) => return Err(err),
+            };
         }
 
         if lines.is_empty() {
-            lines.push(IString::new());
+            lines.push(Line::new());
         }
 
         Ok(Buffer { name: name.to_owned(), lines, modified: false })
     }
 
-    pub fn lines_from<'a>(&'a self, from: usize) -> Lines<'a> {
-        Lines(self.lines[from..].iter())
+    pub fn lines_from<'a>(&'a self, from: usize) -> impl Iterator<Item=&'a Line> {
+        self.lines[from..].iter()
     }
 
-    pub fn line_at(&self, line: usize) -> &IString {
+    pub fn line_at(&self, line: usize) -> &Line {
         assert!(line < self.num_lines());
         &self.lines[line]
     }
@@ -195,7 +211,7 @@ impl Buffer {
     pub fn insert(&mut self, pos: &Position, ch: char) {
         if ch == '\n' {
             let after_cursor =
-                IString::from_string(self.lines[pos.line][pos.column..].to_owned());
+                Line::from_string(self.lines[pos.line][pos.column..].to_owned());
             self.lines[pos.line].truncate(pos.column);
             self.lines.insert(pos.line + 1, after_cursor);
         } else {
@@ -232,7 +248,7 @@ impl Buffer {
                 self.lines.remove(pos.line + 1);
                 s
             } else {
-                IString::new()
+                Line::new()
             };
             self.lines[pos.line].push_str(trailing.as_str());
         } else if pos.column < self.lines[pos.line].len() {
@@ -245,9 +261,7 @@ impl Buffer {
     pub fn write_to_file(&mut self, handle: &mut fs::File) -> std::io::Result<()> {
         use std::io::Write;
         for line in &self.lines {
-            handle.write_all(line.as_bytes())?;
-            // FIXME: Don't append the newline at EOF.
-            handle.write(b"\n")?;
+            handle.write_all(line.as_bytes_with_newline())?;
         }
 
         self.modified = false;
