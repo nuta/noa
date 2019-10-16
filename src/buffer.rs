@@ -117,7 +117,15 @@ impl Line {
 
     fn offset_at(&self, index: usize) -> usize {
         if index == self.indices.len() {
-            self.text.len()
+            let mut bytes_without_newline = self.text.len();
+            while bytes_without_newline > 0 {
+                let ch = self.text.as_bytes()[bytes_without_newline - 1];
+                if ch != b'\r' && ch != b'\n' {
+                    break;
+                }
+                bytes_without_newline -= 1;
+            }
+            bytes_without_newline
         } else {
             self.indices[index]
         }

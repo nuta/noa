@@ -135,8 +135,6 @@ impl View {
 
         let mut file = self.file_mut();
         let prev_len = file.buffer_mut().backspace(&cursor);
-        file.update_highlight(cursor.line);
-        drop(file);
 
         if cursor.column == 0 {
             // Move the cursor to the end of previous line.
@@ -146,6 +144,8 @@ impl View {
             cursor.column -= 1;
         }
 
+        file.update_highlight(cursor.line);
+        drop(file);
         self.cursor = cursor;
     }
 

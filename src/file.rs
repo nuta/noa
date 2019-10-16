@@ -128,7 +128,7 @@ impl<'a> Iterator for HighlightedSpans<'a> {
 
                 // Exclude newline characters.
                 if span.1.start >= self.line.len() {
-                    continue;
+                    return None;
                 }
 
                 let span_start = span.1.start;
