@@ -26,17 +26,21 @@ pub struct RectSize {
 
 #[derive(Clone)]
 pub struct View {
+    size: RectSize,
     top_left: Position,
     cursor: Position,
     file: Rc<RefCell<File>>,
+    scrolled: bool,
 }
 
 impl View {
     pub fn new(file: Rc<RefCell<File>>) -> View {
         View {
+            size: RectSize { height: 0, width: 0 },
             top_left: Position::new(0, 0),
             cursor: Position::new(0, 0),
             file,
+            scrolled: false,
         }
     }
 
@@ -56,10 +60,24 @@ impl View {
         self.file.borrow_mut()
     }
 
+    pub fn resize(&mut self, new_size: RectSize) {
+        self.size = new_size;
+        self.move_cursor(0, 0);
+    }
+
+    pub fn scrolled(&self) -> bool {
+        self.scrolled
+    }
+
+    pub fn reset_scrolled(&mut self) {
+        self.scrolled = false;
+    }
+
     pub fn move_cursor(&mut self, y_diff: isize, x_diff: isize) {
         debug_assert!(
-            y_diff.abs() == 1 && x_diff.abs() == 0
-            || x_diff.abs() == 1 && y_diff.abs() == 0
+               y_diff.abs() == 1 && x_diff.abs() == 0 // Move vertically.
+            || x_diff.abs() == 1 && y_diff.abs() == 0 // Move horizontally.
+            || x_diff.abs() == 0 && y_diff.abs() == 0 // Screen resize, etc.
         );
 
         let file = self.file();
@@ -108,7 +126,34 @@ impl View {
         drop(file);
         self.cursor.line = line;
         self.cursor.column = min(column, column_max);
-        trace!("{} {}", self.cursor.line, self.cursor.column);
+
+        //
+        //  Update top_left if necessary (scrolling).
+        //
+        if self.cursor.line >= self.top_left.line + self.size.height {
+            self.top_left.line = self.cursor.line - self.size.height + 1;
+            self.scrolled = true;
+        }
+
+        if line < self.top_left.line {
+            self.top_left.line = self.cursor.line;
+            self.scrolled = true;
+        }
+
+        if self.cursor.column >= self.top_left.column + self.size.width {
+            self.top_left.column = self.cursor.column - self.size.width + 1;
+            self.scrolled = true;
+        }
+
+        if column < self.top_left.column {
+            self.top_left.column = self.cursor.column;
+            self.scrolled = true;
+        }
+
+        trace!("cursor=({}, {}), top_left=({}, {}), view_size=({}, {})",
+            self.cursor.line, self.cursor.column,
+            self.top_left.line, self.top_left.column,
+            self.size.height, self.size.width);
     }
 
 
@@ -125,6 +170,8 @@ impl View {
         } else {
             self.cursor.column += 1;
         }
+
+        self.move_cursor(0, 0);
     }
 
     pub fn backspace(&mut self) {
@@ -146,6 +193,7 @@ impl View {
 
         file.update_highlight(cursor.line);
         drop(file);
+        self.move_cursor(0, 0);
         self.cursor = cursor;
     }
 
@@ -194,12 +242,20 @@ impl Panel {
 
     pub fn set_view(&mut self, view: View) {
         self.view = view;
+        self.view.resize(RectSize {
+            height: self.height() - 2,
+            width: self.width(),
+        });
         // TODO: Open a prompt if the file is not yet saved.
     }
 
     pub fn move_to(&mut self, top_left: Position, size: RectSize) {
         self.top_left = top_left;
         self.size = size;
+    }
+
+    pub fn move_cursor(&mut self, y_diff: isize, x_diff: isize) {
+        self.view.move_cursor(y_diff, x_diff);
     }
 }
 
@@ -434,9 +490,10 @@ impl Screen {
         let num_panels = self.panels.len();
         for (i, panel) in self.panels.iter_mut().enumerate() {
             // TODO: Support horizontally splitted panels.
+
+            // Calculate new panel size.
             let top_left = panel.top_left();
             assert!(top_left.line == 0 && panel.height() == old_height);
-
             let is_last_panel = i == num_panels - 1;
             let x = new_size.width - remaining_width;
             let height = new_size.height;
@@ -448,6 +505,12 @@ impl Screen {
                 new_width
             };
 
+            // Update its view size.
+            panel.view_mut().resize(RectSize {
+                height: height - 2 /* including status bar */,
+                width,
+            });
+
             trace!("resize panel: #{}, top_left=({}, {}) new_size={}x{}",
                 i, 0, x, height, width);
             panel.move_to(Position::new(0, x), RectSize { height, width });
@@ -456,13 +519,16 @@ impl Screen {
         self.force_render_all();
     }
 
+
     /// It is called every time after the frontend rendering has been done.
     pub fn after_rendering(&mut self) {
         self.render_all = false;
 
         // Reset line modified of all files.
         for panel in self.panels_mut() {
-            panel.view_mut().file_mut().reset_line_modified();
+            let view = panel.view_mut();
+            view.reset_scrolled();
+            view.file_mut().reset_line_modified();
         }
     }
 

@@ -38,14 +38,14 @@ impl Terminal {
                 break;
             }
 
-            if !screen.render_all() && lineno < line_modified {
+            if !screen.render_all() && !view.scrolled() && lineno < line_modified {
                 continue;
             }
 
             let y = panel_pos.line + i;
             write!(self.buf, "{}", goto(y, panel_pos.column)).ok();
             let highlighted_spans =
-                file.highlight(lineno, 0 /* TODO: */, width);
+                file.highlight(lineno, view.top_left().column, width);
             let mut remaining_width = width;
             for (style, text, width) in highlighted_spans {
                 if let Some(style) = style {
@@ -114,8 +114,9 @@ impl Terminal {
         let active_view = screen.active_view();
         let cursor = active_view.cursor();
         let top_left = active_panel.top_left();
-        let cursor_y = top_left.line + cursor.line;
-        let cursor_x = top_left.column + cursor.column;
+        let view_top_left = active_view.top_left();
+        let cursor_y = top_left.line + cursor.line - view_top_left.line;
+        let cursor_x = top_left.column + cursor.column - view_top_left.column;
         write!(self.buf, "{}", goto(cursor_y, cursor_x)).ok();
     }
 
@@ -259,6 +260,9 @@ impl FrontEnd for Terminal {
     fn render(&mut self, screen: &Screen) {
         self.buf.clear();
         write!(self.buf, "{}", termion::cursor::Hide).ok();
+        if screen.render_all() {
+            write!(self.buf, "{}", termion::clear::All).ok();
+        }
 
         for panel in screen.panels() {
             let view = panel.view();
