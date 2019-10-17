@@ -7,6 +7,7 @@ use crate::highlight::Highlight;
 use crate::screen::Position;
 use crate::utils::report_exec_time;
 use syntect::highlighting::Style;
+use unicode_width::UnicodeWidthStr;
 
 pub struct File {
     /// The file path. It's `None` if the buffer is pseudo one (e.g.
@@ -156,6 +157,11 @@ impl<'a> Iterator for HighlightedSpans<'a> {
     // FIXME: Support long line.
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(ref mut iter) = self.spans {
+            if self.remaining_width == 0 {
+                // Already reached to the end of column in the screen.
+                return None;
+            }
+
             while let Some(span) = iter.next() {
                 let style = Some(span.0);
 
@@ -166,15 +172,37 @@ impl<'a> Iterator for HighlightedSpans<'a> {
 
                 let span_start = span.1.start;
                 let span_end = min(span.1.end, self.line.len());
+                if span_start == span_end {
+                    // This should would not happen...
+                    continue;
+                }
 
                 let text = &self.line[span_start..span_end];
                 let num_chars = text.chars().count();
-                let width = unicode_width::UnicodeWidthStr::width_cjk(text);
+                let width = UnicodeWidthStr::width_cjk(text);
 
                 if self.char_index >= self.column {
-                    // The span is entirely displayed in the screen.
-                    self.remaining_width -= width;
-                    return Some((style, text, width));
+                    if self.remaining_width < width {
+                        // Reached to the end of screen (x-axis).
+                        let mut truncated_span_end = span_end - 1;
+                        let mut truncated_width = width;
+                        let mut truncated_text =
+                            &self.line[span_start..truncated_span_end];
+                        while truncated_width > self.remaining_width {
+                            truncated_span_end -= 1;
+                            truncated_width =
+                                UnicodeWidthStr::width_cjk(truncated_text);
+                            truncated_text =
+                                &self.line[span_start..truncated_span_end];
+                        }
+
+                        self.remaining_width = 0;
+                        return Some((style, truncated_text, truncated_width));
+                    } else {
+                        // The span is entirely displayed in the screen.
+                        self.remaining_width -= width;
+                        return Some((style, text, width));
+                    }
                 } else if self.column - self.char_index < width {
                     // The span is partially displayed in the screen.
                     self.char_index = self.column;
@@ -183,7 +211,7 @@ impl<'a> Iterator for HighlightedSpans<'a> {
                     let end =
                         min(span_end, start + (width - (self.column + self.char_index)));
                     let text = &self.line[start..end];
-                    let width = unicode_width::UnicodeWidthStr::width_cjk(text);
+                    let width = UnicodeWidthStr::width_cjk(text);
                     self.remaining_width -= width;
                     return Some((style, text, width));
                 } else {
@@ -199,7 +227,7 @@ impl<'a> Iterator for HighlightedSpans<'a> {
             if self.remaining_width == 0 {
                 None
             } else {
-                let width = unicode_width::UnicodeWidthStr::width_cjk(self.line.as_str());
+                let width = UnicodeWidthStr::width_cjk(self.line.as_str());
                 self.remaining_width = 0;
                 Some((None, self.line.as_str(), width))
             }
