@@ -2,6 +2,7 @@ use crate::frontend::Event;
 use crate::editor::{Command, CommandDefinition, Editor};
 
 pub struct Manifest {
+    pub name: &'static str,
     pub commands: &'static [CommandDefinition],
 }
 

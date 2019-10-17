@@ -10,6 +10,7 @@ use crate::screen::{Screen, Mode};
 use crate::screen::View;
 use crate::plugin::Plugin;
 use crate::frontend::{FrontEnd, Event};
+use crate::utils::report_exec_time;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct Command<'a>(pub &'a str);
@@ -146,8 +147,10 @@ impl<'u> Editor<'u> {
     }
 
     fn render(&mut self) {
-        self.ui.render(&self.screen);
-        self.screen.after_rendering();
+        report_exec_time("renderer", || {
+            self.ui.render(&self.screen);
+            self.screen.after_rendering();
+        });
     }
 
     pub fn open_file(&mut self, path: &Path) -> std::io::Result<()> {
@@ -240,7 +243,10 @@ impl<'u> Editor<'u> {
             }
         };
 
-        plugin.borrow_mut().command(self, &cmd, &event);
+        let plugin_name = plugin.borrow().manifest().name;
+        report_exec_time(plugin_name, || {
+            plugin.borrow_mut().command(self, &cmd, &event);
+        });
     }
 
     pub fn quit(&mut self) {

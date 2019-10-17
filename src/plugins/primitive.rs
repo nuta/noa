@@ -6,6 +6,7 @@ pub struct PrimitivePlugin {
 }
 
 static MANIFEST: Manifest = Manifest {
+    name: "primitive",
     commands: &[
         CommandDefinition {
             id: "editor.quit",

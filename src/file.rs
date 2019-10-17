@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use crate::buffer::{Buffer, Line};
 use crate::highlight::Highlight;
 use crate::screen::Position;
+use crate::utils::report_exec_time;
 use syntect::highlighting::Style;
 
 pub struct File {
@@ -66,10 +67,12 @@ impl File {
     }
 
     pub fn update_highlight(&mut self, line_from: usize) {
-        let buffer = &self.buffer;
-        if let Some(ref mut highlight) = self.highlight {
-            highlight.parse(line_from, buffer);
-        }
+        report_exec_time("highlight", || {
+            let buffer = &self.buffer;
+            if let Some(ref mut highlight) = self.highlight {
+                highlight.parse(line_from, buffer);
+            }
+        });
     }
 
     pub fn highlight<'a>(

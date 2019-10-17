@@ -14,6 +14,7 @@ mod logger;
 mod plugin;
 mod plugins;
 mod screen;
+mod utils;
 
 use structopt::StructOpt;
 use std::path::PathBuf;

@@ -7,6 +7,7 @@ pub struct FinderPlugin {
 }
 
 static MANIFEST: Manifest = Manifest {
+    name: "finder",
     commands: &[
         CommandDefinition {
             id: "finder.open",
