@@ -115,7 +115,7 @@ impl View {
     pub fn insert(&mut self, ch: char) {
         let cursor = self.cursor;
         let mut file = self.file_mut();
-        file.buffer_mut().insert(&cursor, ch);
+        file.insert(&cursor, ch);
         file.update_highlight(cursor.line);
         drop(file);
 
@@ -134,7 +134,7 @@ impl View {
         }
 
         let mut file = self.file_mut();
-        let prev_len = file.buffer_mut().backspace(&cursor);
+        let prev_len = file.backspace(&cursor);
 
         if cursor.column == 0 {
             // Move the cursor to the end of previous line.
@@ -152,7 +152,7 @@ impl View {
     pub fn delete(&mut self) {
         let cursor = self.cursor;
         let mut file = self.file_mut();
-        file.buffer_mut().delete(&cursor);
+        file.delete(&cursor);
         file.update_highlight(cursor.line);
     }
 }
@@ -324,6 +324,7 @@ pub struct Screen {
     panels: Vec<Panel>,
     current_panel_index: usize,
     finder: MenuBox<&'static CommandDefinition>,
+    render_all: bool,
 }
 
 impl Screen {
@@ -335,6 +336,7 @@ impl Screen {
             panels: vec![panel],
             current_panel_index: 0,
             finder: MenuBox::new(),
+            render_all: true,
         }
     }
 
@@ -364,6 +366,10 @@ impl Screen {
 
     pub fn panels(&self) -> &[Panel] {
         &self.panels
+    }
+
+    pub fn panels_mut(&mut self) -> &mut [Panel] {
+        &mut self.panels
     }
 
     pub fn current_panel(&self) -> &Panel {
@@ -446,5 +452,26 @@ impl Screen {
                 i, 0, x, height, width);
             panel.move_to(Position::new(0, x), RectSize { height, width });
         }
+
+        self.force_render_all();
+    }
+
+    /// It is called every time after the frontend rendering has been done.
+    pub fn after_rendering(&mut self) {
+        self.render_all = false;
+
+        // Reset line modified of all files.
+        for panel in self.panels_mut() {
+            panel.view_mut().file_mut().reset_line_modified();
+        }
+    }
+
+    pub fn render_all(&self) -> bool {
+        self.render_all
+    }
+
+    /// Forces the frontend to render the entire screen.
+    pub fn force_render_all(&mut self) {
+        self.render_all = true;
     }
 }

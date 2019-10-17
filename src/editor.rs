@@ -68,7 +68,7 @@ static DEFAULT_BINDINGS: &'static [(BindTo, Command)] = &[
 
 pub struct EventQueue {
     pub tx: mpsc::Sender<Event>,
-    pub rx: mpsc::Receiver<Event>, 
+    pub rx: mpsc::Receiver<Event>,
 }
 
 pub struct Editor<'u> {
@@ -131,8 +131,8 @@ impl<'u> Editor<'u> {
 
     // The mainloop. It may return if the user exited the editor.
     pub fn run(&mut self) {
-        self.ui.render(&self.screen);
         self.ui.init(self.event_queue.tx.clone());
+        self.render();
         loop {
             let event = self.event_queue.rx.recv().unwrap();
             let current_mode = self.screen().mode();
@@ -141,8 +141,13 @@ impl<'u> Editor<'u> {
                 return;
             }
 
-            self.ui.render(&self.screen);
+            self.render();
         }
+    }
+
+    fn render(&mut self) {
+        self.ui.render(&self.screen);
+        self.screen.after_rendering();
     }
 
     pub fn open_file(&mut self, path: &Path) -> std::io::Result<()> {

@@ -4,6 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use crate::buffer::{Buffer, Line};
 use crate::highlight::Highlight;
+use crate::screen::Position;
 use syntect::highlighting::Style;
 
 pub struct File {
@@ -15,6 +16,8 @@ pub struct File {
     /// The highlighter state for the buffer. It's `None` if the highlighting
     /// for the file is disabled.
     highlight: Option<Highlight>,
+    /// The line from which the frontend needs to redraw.
+    line_modified: usize,
 }
 
 impl File {
@@ -23,6 +26,7 @@ impl File {
             path: None,
             highlight: None,
             buffer: Buffer::new(name),
+            line_modified: 0,
         }
     }
 
@@ -52,6 +56,7 @@ impl File {
             path: Some(path.to_owned()),
             buffer,
             highlight: None,
+            line_modified: 0,
         })
     }
 
@@ -106,8 +111,32 @@ impl File {
         &self.buffer
     }
 
-    pub fn buffer_mut(&mut self) -> &mut Buffer {
-        &mut self.buffer
+    pub fn insert(&mut self, pos: &Position, ch: char) {
+        self.buffer.insert(pos, ch);
+        self.line_modified = min(self.line_modified, pos.line);
+    }
+
+    pub fn backspace(&mut self, pos: &Position) -> Option<usize> {
+        if pos.column == 0 && pos.line > 0 {
+            self.line_modified = min(self.line_modified, pos.line - 1);
+        } else {
+            self.line_modified = min(self.line_modified, pos.line);
+        }
+
+        self.buffer.backspace(pos)
+    }
+
+    pub fn delete(&mut self, pos: &Position) {
+        self.buffer.delete(pos);
+        self.line_modified = min(self.line_modified, pos.line);
+    }
+
+    pub fn line_modified(&self) -> usize {
+        self.line_modified
+    }
+
+    pub fn reset_line_modified(&mut self) {
+        self.line_modified = self.buffer().num_lines().saturating_sub(1);
     }
 }
 
@@ -120,7 +149,8 @@ pub struct HighlightedSpans<'a> {
 }
 
 impl<'a> Iterator for HighlightedSpans<'a> {
-    type Item = (Option<Style>, &'a str);
+    type Item = (Option<Style>, &'a str, usize);
+    // FIXME: Support long line.
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(ref mut iter) = self.spans {
             while let Some(span) = iter.next() {
@@ -141,17 +171,18 @@ impl<'a> Iterator for HighlightedSpans<'a> {
                 if self.char_index >= self.column {
                     // The span is entirely displayed in the screen.
                     self.remaining_width -= width;
-                    return Some((style, text));
+                    return Some((style, text, width));
                 } else if self.column - self.char_index < width {
                     // The span is partially displayed in the screen.
                     self.char_index = self.column;
-                    self.remaining_width -= width;
                     let start =
                         min(span_start, self.column);
                     let end =
                         min(span_end, start + (width - (self.column + self.char_index)));
                     let text = &self.line[start..end];
-                    return Some((style, text));
+                    let width = unicode_width::UnicodeWidthStr::width_cjk(text);
+                    self.remaining_width -= width;
+                    return Some((style, text, width));
                 } else {
                     // The span is out of the screen. SKip it.
                     self.char_index += num_chars;
@@ -165,8 +196,9 @@ impl<'a> Iterator for HighlightedSpans<'a> {
             if self.remaining_width == 0 {
                 None
             } else {
+                let width = unicode_width::UnicodeWidthStr::width_cjk(self.line.as_str());
                 self.remaining_width = 0;
-                Some((None, self.line.as_str()))
+                Some((None, self.line.as_str(), width))
             }
         }
     }

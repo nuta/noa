@@ -25,19 +25,30 @@ impl Terminal {
         }
     }
 
-    fn draw_buffer(&mut self, panel: &Panel, view: &View, file: &File, buffer: &Buffer) {
-        for i in 0..(panel.height() - 2) {
+    fn draw_buffer(&mut self, screen: &Screen, panel: &Panel, view: &View, file: &File, buffer: &Buffer) {
+        let line_modified = file.line_modified();
+        let panel_pos = panel.top_left();
+        let height = panel.height() - 2;
+        let width = panel.width();
+        let mut remaining_height = height;
+        for i in 0..height {
+            remaining_height -= 1;
             let lineno = view.top_left().line + i;
             if lineno >= buffer.num_lines() {
                 break;
             }
 
-            let y = panel.top_left().line + i;
-            let x = panel.top_left().column;
-            write!(self.buf, "{}", goto(y, x)).ok();
+            trace!("lineno = {}, {}", lineno, line_modified);
+            if !screen.render_all() && lineno < line_modified {
+                continue;
+            }
+
+            let y = panel_pos.line + i;
+            write!(self.buf, "{}", goto(y, panel_pos.column)).ok();
             let highlighted_spans =
-                file.highlight(lineno, 0 /* TODO: */, panel.width());
-            for (style, text) in highlighted_spans {
+                file.highlight(lineno, 0 /* TODO: */, width);
+            let mut remaining_width = width;
+            for (style, text, width) in highlighted_spans {
                 if let Some(style) = style {
                     let c = style.foreground;
                     let seq =
@@ -46,7 +57,16 @@ impl Terminal {
                 }
 
                 write!(self.buf, "{}", text).ok();
+                remaining_width -= width;
             }
+
+            write!(self.buf, "{:1$}", "", remaining_width).ok();
+        }
+
+        for i in 0..remaining_height {
+            let y = panel_pos.line + (height - remaining_height) + i;
+            write!(self.buf, "{}{:width$}",
+                goto(y, panel_pos.column), "", width = width).ok();
         }
 
         write!(self.buf, "{}", termion::style::Reset).ok();
@@ -175,7 +195,12 @@ fn num_of_digits(mut x: usize) -> usize {
 impl FrontEnd for Terminal {
     fn init(&mut self, event_queue: Sender<Event>) {
         use std::io::Write;
-        write!(self.stdout, "{}", termion::screen::ToAlternateScreen).ok();
+        write!(
+            self.stdout,
+            "{}{}",
+            termion::screen::ToAlternateScreen,
+            termion::clear::All
+        ).ok();
 
         // Read keyboard inputs in a dedicated thread.
         let stdin_tx = event_queue.clone();
@@ -233,9 +258,7 @@ impl FrontEnd for Terminal {
 
     fn render(&mut self, screen: &Screen) {
         self.buf.clear();
-
-        // Clear the entire screen.
-        write!(self.buf, "{}{}", termion::clear::All, termion::cursor::Hide).ok();
+        write!(self.buf, "{}", termion::cursor::Hide).ok();
 
         for panel in screen.panels() {
             let view = panel.view();
@@ -247,7 +270,7 @@ impl FrontEnd for Terminal {
                 return;
             }
 
-            self.draw_buffer(panel, view, &*file, &*buffer);
+            self.draw_buffer(screen, panel, view, &*file, &*buffer);
             self.draw_status_bar(panel, view, &*buffer);
         }
 
