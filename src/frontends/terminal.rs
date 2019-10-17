@@ -49,6 +49,7 @@ impl Terminal {
             let mut remaining_width = width;
             for (style, text, width) in highlighted_spans {
                 if let Some(style) = style {
+                    // FIXME: True color escape sequence tends to be too big!
                     let c = style.foreground;
                     let seq =
                         termion::color::Fg(termion::color::Rgb(c.r, c.g, c.b));
@@ -279,6 +280,7 @@ impl FrontEnd for Terminal {
         write!(self.buf, "{}", termion::cursor::Show).ok();
 
         use std::io::Write;
+        trace!("terminal: writing {} bytes to stdout", self.buf.len());
         self.stdout.write_all(self.buf.as_bytes()).unwrap();
         self.stdout.flush().unwrap();
     }
