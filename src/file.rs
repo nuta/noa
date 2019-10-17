@@ -154,7 +154,7 @@ pub struct HighlightedSpans<'a> {
 
 impl<'a> Iterator for HighlightedSpans<'a> {
     type Item = (Option<Style>, &'a str, usize);
-    // FIXME: Support long line.
+    // FIXME: Needs refactoring.
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(ref mut iter) = self.spans {
             if self.remaining_width == 0 {
@@ -205,17 +205,26 @@ impl<'a> Iterator for HighlightedSpans<'a> {
                     }
                 } else if self.column - self.char_index < width {
                     // The span is partially displayed in the screen.
+                    let truncated_span_start =
+                        self.column - span_start;
+                    let mut truncated_span_end =
+                        min(span_end, truncated_span_start + (width - (self.column - self.char_index)));
+                    let mut truncated_text =
+                        &self.line[truncated_span_start..truncated_span_end];
+                    let mut truncated_width = UnicodeWidthStr::width_cjk(truncated_text);
+                    while truncated_width > self.remaining_width {
+                        truncated_span_end -= 1;
+                        truncated_width =
+                            UnicodeWidthStr::width_cjk(truncated_text);
+                        truncated_text =
+                            &self.line[truncated_span_start..truncated_span_end];
+                    }
+
                     self.char_index = self.column;
-                    let start =
-                        min(span_start, self.column);
-                    let end =
-                        min(span_end, start + (width - (self.column + self.char_index)));
-                    let text = &self.line[start..end];
-                    let width = UnicodeWidthStr::width_cjk(text);
-                    self.remaining_width -= width;
-                    return Some((style, text, width));
+                    self.remaining_width -= truncated_width;
+                    return Some((style, truncated_text, truncated_width));
                 } else {
-                    // The span is out of the screen. SKip it.
+                    // The span is out of the screen. Skip it.
                     self.char_index += num_chars;
                 }
             }
