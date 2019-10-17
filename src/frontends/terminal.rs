@@ -38,7 +38,6 @@ impl Terminal {
                 break;
             }
 
-            trace!("lineno = {}, {}", lineno, line_modified);
             if !screen.render_all() && lineno < line_modified {
                 continue;
             }
