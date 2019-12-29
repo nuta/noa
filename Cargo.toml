@@ -8,7 +8,7 @@ keywords = []
 categories = ["text-editors"]
 readme = "README.md"
 license = "CC0-1.0 OR MIT"
-repository = "https://github.com/seiyanuta/noa"
+repository = "https://github.com/nuta/noa"
 
 [profile.release]
 opt-level = 3
