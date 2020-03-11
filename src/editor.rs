@@ -350,10 +350,8 @@ impl Editor {
             }
             Key::Char('\n') => {
                 if !self.finder.filtered().is_empty() {
-                    match self.mode {
-                        EditorMode::Finder => self.select_finder_item(),
-                        _ => unreachable!(),
-                    }
+                    self.mode = EditorMode::Normal;
+                    self.select_finder_item();
                 }
             }
             Key::Char(ch) => {
@@ -375,5 +373,21 @@ impl Editor {
     fn select_finder_item(&mut self) {
         let item = &self.finder.filtered()[self.prompt_selected];
         trace!("select: {}", item.title);
+        match item.label {
+            // Buffer.
+            'b' | '*' => {
+                for buffer in &self.buffers {
+                    if buffer.borrow().display_name() == item.title {
+                        self.current = buffer.clone();
+                    }
+                }
+            }
+            // Path.
+            'p' => {
+                let path = &Path::new(&item.title).to_path_buf();
+                self.open_file(&path);
+            }
+            _ => unreachable!(),
+        }
     }
 }
