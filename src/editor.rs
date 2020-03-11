@@ -247,7 +247,7 @@ impl Editor {
                 self.quitting = true;
             }
             Key::Ctrl('f') => {
-                self.finder.reload(&self.repo_dir);
+                self.finder.reload(&self.repo_dir, &self.buffers);
                 self.prompt_input.clear();
                 self.prompt_cursor = 0;
                 self.prompt_selected = 0;

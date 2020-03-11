@@ -42,6 +42,8 @@ pub struct PromptItem {
 
 impl PromptItem {
     pub const PATH_COLOR: Rgb = Rgb::new(0, 100, 100);
+    pub const BUFFER_COLOR: Rgb = Rgb::new(50, 50, 140);
+    pub const UNSAVED_BUFFER_COLOR: Rgb = Rgb::new(200, 50, 50);
     pub fn new(label: char, color: Rgb, title: String) -> PromptItem {
         PromptItem {
             label,

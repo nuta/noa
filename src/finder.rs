@@ -1,7 +1,9 @@
+use crate::buffer::Buffer;
 use crate::terminal::PromptItem;
 use std::collections::BinaryHeap;
 use std::path::Path;
 use std::rc::Rc;
+use std::cell::RefCell;
 
 fn matches(item: &PromptItem, query: &str) -> i32 {
     let mut similarity = 0;
@@ -29,7 +31,7 @@ impl Finder {
         &self.filtered
     }
 
-    pub fn reload(&mut self, repo_dir: &Path) {
+    pub fn reload(&mut self, repo_dir: &Path, buffers: &[Rc<RefCell<Buffer>>]) {
         self.items.clear();
         for entry in ignore::Walk::new(repo_dir) {
             if let Ok(entry) = entry {
@@ -41,6 +43,18 @@ impl Finder {
                 let item = PromptItem::new('p', PromptItem::PATH_COLOR, title);
                 self.items.push(Rc::new(item));
             }
+        }
+
+        for buffer in buffers {
+            let (label, color) = if buffer.borrow_mut().modified() {
+                ('*', PromptItem::UNSAVED_BUFFER_COLOR)
+            } else {
+                ('b', PromptItem::BUFFER_COLOR)
+            };
+
+            let title = buffer.borrow().display_name().to_string();
+            let item = PromptItem::new(label, color, title);
+            self.items.push(Rc::new(item));
         }
 
         self.filter("");
