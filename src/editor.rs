@@ -268,6 +268,13 @@ impl Editor {
                 self.current.borrow_mut().tab(false);
             }
             Key::Char(ch) => {
+                if ch == '\n' {
+                    let result = self.current.borrow().backup();
+                    if let Err(err) = result {
+                        self.notify(&format!("failed to backup: {}", err));
+                    }
+                }
+
                 self.current.borrow_mut().insert(ch);
             }
             Key::Backspace => {

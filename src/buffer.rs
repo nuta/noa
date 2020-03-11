@@ -213,28 +213,58 @@ impl Buffer {
         Ok(buffer)
     }
 
+    fn write_into_file(&self, path: &Path) -> Result<(), std::io::Error> {
+        let mut file = std::fs::File::create(path)?;
+        let newline = match self.config.end_of_line {
+            EndOfLine::Cr => "\r",
+            EndOfLine::Lf => "\n",
+            EndOfLine::CrLf => "\r\n",
+        };
+
+        let mut iter = self.lines.iter().peekable();
+        while let Some(line) = iter.next() {
+            if iter.peek().is_none() && line.is_empty() {
+                // Ignore the last line if it's empty.
+                break;
+            }
+
+            use std::io::Write;
+            file.write(line.as_bytes()).ok();
+            file.write(newline.as_bytes()).ok();
+        }
+
+        Ok(())
+    }
+
+    pub fn backup(&self) -> Result<(), std::io::Error> {
+        let path = match &self.file {
+            Some(path) => path,
+            None => return Ok(()),
+        };
+
+        let backup_dir = dirs::home_dir()
+            .unwrap().join(".noa").join("backup");
+        if !backup_dir.exists() {
+            std::fs::create_dir_all(&backup_dir)?;
+        }
+
+        // "/Users/seiya/foo.txt" -> "Users.seiya.foo.txt"
+        let filename = path
+            .strip_prefix("/")
+            .unwrap_or(path)
+            .to_str()
+            .unwrap()
+            .replace('/', ".");
+        let backup_file = backup_dir.join(filename);
+        info!("backup = {}", backup_file.display());
+        self.write_into_file(&backup_file)?;
+        Ok(())        
+    }
+
     pub fn save(&mut self) -> Result<(), std::io::Error> {
         if let Some(path) = &self.file {
             trace!("saving...");
-            let mut file = std::fs::File::create(path)?;
-            let newline = match self.config.end_of_line {
-                EndOfLine::Cr => "\r",
-                EndOfLine::Lf => "\n",
-                EndOfLine::CrLf => "\r\n",
-            };
-
-            let mut iter = self.lines.iter().peekable();
-            while let Some(line) = iter.next() {
-                if iter.peek().is_none() && line.is_empty() {
-                    // Ignore the last line if it's empty.
-                    break;
-                }
-
-                use std::io::Write;
-                file.write(line.as_bytes()).ok();
-                file.write(newline.as_bytes()).ok();
-            }
-
+            self.write_into_file(path)?;
             self.modified = false;
             self.original_hash = self.hash();
         }
