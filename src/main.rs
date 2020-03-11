@@ -5,26 +5,20 @@ extern crate log;
 
 mod buffer;
 mod editor;
-mod file;
-mod fuzzy;
-mod frontend;
-mod frontends;
-mod highlight;
+mod editorconfig;
+mod finder;
 mod logger;
-mod plugin;
-mod plugins;
-mod screen;
-mod utils;
+mod terminal;
 
-use structopt::StructOpt;
 use std::path::PathBuf;
+use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "example", about = "An example of StructOpt usage.")]
+#[structopt(name = "noa", about = "A simple terminal text editor.")]
 struct Opt {
     /// The file to edit.
     #[structopt(parse(from_os_str))]
-    file: PathBuf,
+    files: Vec<PathBuf>,
 }
 
 fn main() {
@@ -37,10 +31,9 @@ fn main() {
     let opt = Opt::from_args();
 
     trace!("starting noa...");
-    let ui = frontends::terminal::Terminal::new();
-    let mut editor = editor::Editor::new(ui);
-    editor.add_plugin(plugins::PrimitivePlugin::new());
-    editor.add_plugin(plugins::FinderPlugin::new());
-    editor.open_file(&opt.file).unwrap();
+    let mut editor = editor::Editor::new();
+    for file in opt.files {
+        editor.open_file(&file);
+    }
     editor.run();
 }

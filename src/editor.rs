@@ -1,255 +1,366 @@
-use std::rc::Rc;
+use crate::buffer::{Buffer, Line};
+use crate::finder::Finder;
+use crate::terminal::{Key, Rgb, Terminal};
+use signal_hook::{self, iterator::Signals};
 use std::cell::RefCell;
+use std::cmp::min;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc;
-use crate::file::File;
-use crate::fuzzy::FuzzySetElement;
-use crate::highlight::HighlightManager;
-use crate::screen::{Screen, Mode};
-use crate::screen::View;
-use crate::plugin::Plugin;
-use crate::frontend::{FrontEnd, Event};
-use crate::utils::report_exec_time;
+use std::rc::Rc;
+use std::sync::mpsc::{self, Receiver, Sender};
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub struct Command<'a>(pub &'a str);
-
-pub struct CommandDefinition {
-    pub id: &'static str,
-    pub title: &'static str,
-    pub hidden: bool,
+pub enum Event {
+    Key(Key),
+    ForceRender,
+    ScreenResized,
 }
 
-impl FuzzySetElement for &'static CommandDefinition {
-    fn as_str(&self) -> &str {
-        self.id
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EditorMode {
+    Normal,
+    Finder,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct BindTo {
-    mode: Mode,
-    event: Event,
+pub struct Editor {
+    mode: EditorMode,
+    term: Terminal,
+    rx: Receiver<Event>,
+    tx: Sender<Event>,
+    repo_dir: PathBuf,
+    buffers: Vec<Rc<RefCell<Buffer>>>,
+    current: Rc<RefCell<Buffer>>,
+    messages: Vec<String>,
+    statuses: HashMap<&'static str, (String, Rgb)>,
+    hide_message_after: usize,
+    quitting: bool,
+    prompt_input: Line,
+    prompt_cursor: usize,
+    prompt_selected: usize,
+    finder: Finder,
 }
 
-impl BindTo {
-    pub const fn new(mode: Mode, event: Event) -> BindTo {
-        BindTo { mode, event }
-    }
-}
-
-macro_rules! binding {
-    ($mode:expr, $event:expr, $command:expr) => {
-        (BindTo::new($mode, $event), Command($command))
-    };
-}
-
-static DEFAULT_BINDINGS: &'static [(BindTo, Command)] = &[
-    binding!(Mode::Buffer, Event::Ctrl('q'), "editor.quit"),
-    binding!(Mode::Buffer, Event::Ctrl('s'), "buffer.save"),
-    binding!(Mode::Buffer, Event::Ctrl('x'), "finder.open"),
-    binding!(Mode::Buffer, Event::AnyChar,   "buffer.insert"),
-    binding!(Mode::Buffer, Event::Backspace, "buffer.backspace"),
-    binding!(Mode::Buffer, Event::Delete,    "buffer.delete"),
-    binding!(Mode::Buffer, Event::Up,        "buffer.cursor_up"),
-    binding!(Mode::Buffer, Event::Down,      "buffer.cursor_down"),
-    binding!(Mode::Buffer, Event::Left,      "buffer.cursor_left"),
-    binding!(Mode::Buffer, Event::Right,     "buffer.cursor_right"),
-    binding!(Mode::Buffer, Event::Ctrl('o'), "screen.panel_prev"),
-    binding!(Mode::Buffer, Event::Ctrl('p'), "screen.panel_next"),
-
-    binding!(Mode::Finder, Event::AnyChar,   "finder.insert"),
-    binding!(Mode::Finder, Event::Backspace, "finder.backspace"),
-    binding!(Mode::Finder, Event::Up,        "finder.move_up"),
-    binding!(Mode::Finder, Event::Down,      "finder.move_down"),
-    binding!(Mode::Finder, Event::Esc,       "finder.quit"),
-    binding!(Mode::Finder, Event::Ctrl('x'), "finder.quit"),
-];
-
-pub struct EventQueue {
-    pub tx: mpsc::Sender<Event>,
-    pub rx: mpsc::Receiver<Event>,
-}
-
-pub struct Editor<'u> {
-    /// An FrontEnd instance.
-    ui: Box<dyn FrontEnd + 'u>,
-    /// The event queue.
-    event_queue: EventQueue,
-    /// The screen.
-    screen: Screen,
-    /// The current view's index in `views`.
-    current_view_index: usize,
-    /// Opened files.
-    files: HashMap<PathBuf, Rc<RefCell<File>>>,
-    /// Plugins.
-    plugins: Vec<Rc<RefCell<dyn Plugin>>>,
-    /// Commands.
-    commands: HashMap<Command<'u>, &'static CommandDefinition>,
-    /// Command handlers.
-    handlers: HashMap<Command<'u>, Rc<RefCell<dyn Plugin>>>,
-    /// Key mappings.
-    bindings: HashMap<BindTo, Command<'u>>,
-    /// It's true if the editor is quitting.
-    quit: bool,
-    /// Global states (e.g. programming langauge definitions) of the syntax
-    /// highlighter.
-    highlight_manager: &'static HighlightManager,
-    /// The current theme.
-    theme_name: String,
-}
-
-impl<'u> Editor<'u> {
-    pub fn new(ui: impl FrontEnd + 'u) -> Editor<'u> {
-        // Create the scratch buffer. Note that the scratch buffer and view
-        // can't be removed in order to make current_view_index always valid.
-        let scratch_file = Rc::new(RefCell::new(File::pseudo_file("*scratch*")));
-        let scratch_view = View::new(scratch_file);
-
-        // Register default key bindings.
-        let mut bindings = HashMap::new();
-        for (event, cmd) in DEFAULT_BINDINGS {
-            bindings.insert(event.clone(), *cmd);
-        }
-
+impl Editor {
+    pub fn new() -> Editor {
         let (tx, rx) = mpsc::channel();
-        Editor {
-            screen: Screen::new(scratch_view, ui.get_screen_size()),
-            event_queue: EventQueue { tx, rx },
-            current_view_index: 0,
-            ui: Box::new(ui),
-            files: HashMap::new(),
-            plugins: Vec::new(),
-            commands: HashMap::new(),
-            handlers: HashMap::new(),
-            bindings,
-            quit: false,
-            highlight_manager: HighlightManager::new(),
-            theme_name: "Solarized (light)".to_owned(),
-        }
-    }
+        tx.send(Event::ForceRender).unwrap();
 
-    // The mainloop. It may return if the user exited the editor.
-    pub fn run(&mut self) {
-        self.ui.init(self.event_queue.tx.clone());
-        self.render();
-        loop {
-            let event = self.event_queue.rx.recv().unwrap();
-            let current_mode = self.screen().mode();
-            self.process_event(current_mode, event);
-            if self.quit {
-                return;
+        let scratch = Rc::new(RefCell::new(Buffer::new()));
+        scratch
+            .borrow_mut()
+            .set_display_name("*scratch*".to_owned());
+
+        // Handle signals.
+        let tx2 = tx.clone();
+        std::thread::spawn(move || {
+            let signals = Signals::new(&[signal_hook::SIGWINCH]).unwrap();
+            for signal in &signals {
+                match signal {
+                    signal_hook::SIGWINCH => {
+                        tx2.send(Event::ScreenResized).ok();
+                    }
+                    _ => {
+                        warn!("unhandled signal: {}", signal);
+                    }
+                }
             }
 
+            unreachable!();
+        });
+
+        let repo_dir = std::env::current_dir().unwrap().to_path_buf();
+        Editor {
+            mode: EditorMode::Normal,
+            term: Terminal::new(tx.clone()),
+            tx,
+            rx,
+            repo_dir,
+            buffers: vec![scratch.clone()],
+            current: scratch,
+            messages: Vec::new(),
+            statuses: HashMap::new(),
+            hide_message_after: 0,
+            quitting: false,
+            prompt_input: Line::new(),
+            prompt_cursor: 0,
+            prompt_selected: 0,
+            finder: Finder::new(),
+        }
+    }
+
+    pub fn open_file(&mut self, path: &Path) {
+        match Buffer::open_file(path) {
+            Ok(buffer) => {
+                if !path.exists() {
+                    self.notify("(new file)");
+                }
+
+                let buffer = Rc::new(RefCell::new(buffer));
+                self.buffers.push(buffer.clone());
+                self.current = buffer;
+                self.update_display_names();
+            }
+            Err(err) => {
+                self.notify(&format!("failed to open {} ({})", path.display(), err));
+            }
+        }
+    }
+
+    fn update_display_names(&self) {
+        // TODO:
+    }
+
+    fn set_status(&mut self, status: &'static str, body: String) {
+        let color = match status {
+            "modified" => Rgb::new(90, 50, 14),
+            "unsaved" => Rgb::new(125, 48, 31),
+            _ => unreachable!(),
+        };
+
+        self.statuses.insert(status, (body, color));
+    }
+
+    fn unset_status(&mut self, status: &'static str) {
+        self.statuses.remove(status);
+    }
+
+    fn notify(&mut self, s: &str) {
+        info!("{}", s);
+        self.messages.push(s.to_owned());
+        self.hide_message_after = 3;
+    }
+
+    pub fn run(&mut self) {
+        loop {
+            let ev = self.rx.recv().unwrap();
+
+            let started_at = std::time::SystemTime::now();
+            self.process(ev);
+            trace!("took {}us", started_at.elapsed().unwrap().as_micros());
+
+            if self.quit() {
+                break;
+            }
+
+            self.update_statuses();
             self.render();
         }
     }
 
-    fn render(&mut self) {
-        report_exec_time("renderer", || {
-            self.ui.render(&self.screen);
-            self.screen.after_rendering();
-        });
-    }
-
-    pub fn open_file(&mut self, path: &Path) -> std::io::Result<()> {
-        let name = path.to_str().unwrap();
-        let ext = path.extension()
-            .map(|s| s.to_str().map(|s| s.to_owned()).unwrap_or(String::new()))
-            .unwrap_or(String::new());
-
-        let file = Rc::new(RefCell::new(File::open_file(name, path)?));
-        let highlight =
-            self.highlight_manager.create_highlight(&self.theme_name, &ext);
-        file.borrow_mut().set_highlight(highlight);
-        let view = View::new(file);
-        self.screen.current_panel_mut().set_view(view);
-        Ok(())
-    }
-
-    pub fn add_plugin<'a>(&'a mut self, plugin: impl Plugin + 'a + 'static) {
-        let manifest = plugin.manifest();
-        let plugin_rc = Rc::new(RefCell::new(plugin));
-
-        let finder = self.screen.finder_mut();
-        let menu_elements = finder.elements_mut();
-        for cmd in manifest.commands {
-            self.commands.insert(Command(cmd.id), cmd);
-            self.handlers.insert(Command(cmd.id), plugin_rc.clone());
-            if !cmd.hidden {
-                menu_elements.insert(cmd);
-            }
+    fn quit(&mut self) -> bool {
+        if !self.quitting {
+            return false;
         }
 
-        self.plugins.push(plugin_rc);
+        self.quitting = false;
+
+        let num_unsaved = self.num_unsaved_files();
+        if num_unsaved > 0 {
+            self.notify(&format!(
+                "can't quit: {} files are still unsaved!",
+                num_unsaved
+            ));
+            return false;
+        }
+
+        true
     }
 
-    pub fn add_binding(&mut self, bind_to: BindTo, cmd: Command<'u>) {
-        self.bindings.insert(bind_to, cmd);
-    }
-
-    pub fn screen(&self) -> &Screen {
-        &self.screen
-    }
-
-    pub fn screen_mut(&mut self) -> &mut Screen {
-        &mut self.screen
-    }
-
-    pub fn event_queue(&self) -> mpsc::Sender<Event> {
-        self.event_queue.tx.clone()
-    }
-
-    pub fn fire_event(&mut self, event: Event) {
-        self.event_queue.tx.send(event).unwrap();
-    }
-
-    fn process_event(&mut self, mode: Mode, event: Event) {
-        let temp_cmd_name;
-        let temp_cmd;
-        let cmd = match event {
+    fn process(&mut self, ev: Event) {
+        match ev {
+            Event::Key(key) => match self.mode {
+                EditorMode::Normal => self.input_in_editor(key),
+                EditorMode::Finder => self.input_in_prompt(key),
+            },
             Event::ScreenResized => {
-                self.screen.resize(self.ui.get_screen_size());
-                return;
+                self.term.update_screen_size();
+                // Adjust the cursor positions.
+                self.current.borrow_mut().move_by(0, 0);
             }
-            Event::Finder(ref cmd_name) => {
-                temp_cmd_name = cmd_name.to_owned();
-                temp_cmd = Command(&temp_cmd_name);
-                temp_cmd
+            Event::ForceRender => {}
+        }
+    }
+
+    fn num_unsaved_files(&self) -> usize {
+        let mut num_unsaved = 0;
+        for buffer in &self.buffers {
+            let mut buffer = buffer.borrow_mut();
+            if buffer.file().is_some() && buffer.modified() {
+                num_unsaved += 1;
             }
-            _ => {
-                let event_key = match event {
-                    Event::Char(_) => Event::AnyChar,
-                    _ => event.clone(),
+        }
+        num_unsaved
+    }
+
+    fn update_statuses(&mut self) {
+        if self.current.borrow_mut().modified() {
+            self.set_status("modified", "[+]".to_owned());
+        } else {
+            self.unset_status("modified");
+        }
+
+        let num_unsaved = self.num_unsaved_files();
+        if num_unsaved > 1 {
+            self.set_status("unsaved", format!("{} unsaved", num_unsaved));
+        } else {
+            self.unset_status("unsaved");
+        }
+    }
+
+    fn render(&mut self) {
+        // Update the screen.
+        match self.mode {
+            EditorMode::Normal => {
+                let message = if self.hide_message_after == 0 {
+                    None
+                } else {
+                    self.messages.last().map(|s| s.as_str())
                 };
 
-                match self.bindings.get(&BindTo::new(mode, event_key)) {
-                    Some(ev) => ev.clone(),
-                    None => {
-                        warn!("no keymapping for event: {:?}", event);
-                        return;
+                self.term.render_editor(
+                    &mut *self.current.borrow_mut(),
+                    message,
+                    self.statuses.values(),
+                );
+            }
+            EditorMode::Finder => {
+                self.term.render_prompt(
+                    ">",
+                    &self.prompt_input,
+                    self.prompt_cursor,
+                    self.prompt_selected,
+                    self.finder.filtered(),
+                );
+            }
+        }
+    }
+
+    fn input_in_editor(&mut self, key: Key) {
+        self.hide_message_after = self.hide_message_after.saturating_sub(1);
+        match key {
+            Key::Ctrl('q') => {
+                self.quitting = true;
+            }
+            Key::Ctrl('f') => {
+                self.finder.reload(&self.repo_dir);
+                self.prompt_input.clear();
+                self.prompt_cursor = 0;
+                self.prompt_selected = 0;
+                self.mode = EditorMode::Finder;
+            }
+            Key::Ctrl('s') => {
+                if self.current.borrow().file().is_some() {
+                    let result = self.current.borrow_mut().save();
+                    match result {
+                        Ok(_) => {
+                            let num_lines = self.current.borrow().num_lines();
+                            self.notify(&format!("wrote {} lines", num_lines));
+                        }
+                        Err(err) => {
+                            self.notify(&format!("failed to save: {}", err));
+                        }
                     }
                 }
             }
-        };
-
-        trace!("command: {:?}", cmd);
-        let plugin = match self.handlers.get(&cmd) {
-            Some(plugin) => plugin.clone(),
-            None => {
-                 warn!("unhandled command: {:?}", cmd);
-                 return;
+            Key::Ctrl('k') => {
+                self.current.borrow_mut().truncate();
             }
-        };
+            Key::Char('\t') => {
+                self.current.borrow_mut().tab(false);
+            }
+            Key::Char(ch) => {
+                self.current.borrow_mut().insert(ch);
+            }
+            Key::Backspace => {
+                self.current.borrow_mut().backspace();
+            }
+            Key::Delete | Key::Ctrl('d') => {
+                self.current.borrow_mut().delete();
+            }
+            Key::Up => {
+                self.current.borrow_mut().move_by(-1, 0);
+            }
+            Key::Down => {
+                self.current.borrow_mut().move_by(1, 0);
+            }
+            Key::Right => {
+                self.current.borrow_mut().move_by(0, 1);
+            }
+            Key::Left => {
+                self.current.borrow_mut().move_by(0, -1);
+            }
+            Key::Ctrl('a') => {
+                self.current.borrow_mut().move_to_begin();
+            }
+            Key::Ctrl('e') => {
+                self.current.borrow_mut().move_to_end();
+            }
+            Key::PageUp | Key::Alt('d') => {
+                self.current.borrow_mut().scroll_up(self.term.text_height());
+            }
+            Key::PageDown | Key::Alt('c') => {
+                self.current
+                    .borrow_mut()
+                    .scroll_down(self.term.text_height());
+            }
+            _ => {
+                trace!("unhandled key input: {:?}", key);
+            }
+        }
 
-        let plugin_name = plugin.borrow().manifest().name;
-        report_exec_time(plugin_name, || {
-            plugin.borrow_mut().command(self, &cmd, &event);
-        });
+        // Adjust the cursor position.
+        // FIXME: Do this in buffer.
+        self.current.borrow_mut().move_by(0, 0);
     }
 
-    pub fn quit(&mut self) {
-        self.quit = true;
+    fn input_in_prompt(&mut self, key: Key) {
+        match key {
+            Key::Ctrl('q') | Key::Ctrl('f') | Key::Esc => {
+                self.mode = EditorMode::Normal;
+            }
+            Key::Backspace => {
+                if self.prompt_cursor > 0 {
+                    self.prompt_cursor -= 1;
+                    self.prompt_input.remove(self.prompt_cursor);
+                }
+            }
+            Key::Left => {
+                self.prompt_cursor = self.prompt_cursor.saturating_sub(1);
+            }
+            Key::Right => {
+                self.prompt_cursor = min(self.prompt_cursor + 1, self.prompt_input.len());
+            }
+            Key::Up => {
+                self.prompt_selected = self.prompt_selected.saturating_sub(1);
+            }
+            Key::Down | Key::Char('\t') => {
+                self.prompt_selected += 1;
+            }
+            Key::Char('\n') => {
+                if !self.finder.filtered().is_empty() {
+                    match self.mode {
+                        EditorMode::Finder => self.select_finder_item(),
+                        _ => unreachable!(),
+                    }
+                }
+            }
+            Key::Char(ch) => {
+                self.prompt_input.insert(self.prompt_cursor, ch);
+                self.prompt_cursor += 1;
+            }
+            _ => {
+                trace!("unhandled key input: {:?}", key);
+            }
+        }
+
+        self.finder.filter(self.prompt_input.as_str());
+        self.prompt_selected = min(
+            self.prompt_selected,
+            self.finder.filtered().len().saturating_sub(1),
+        );
+    }
+
+    fn select_finder_item(&mut self) {
+        let item = &self.finder.filtered()[self.prompt_selected];
+        trace!("select: {}", item.title);
     }
 }
