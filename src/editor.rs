@@ -94,6 +94,12 @@ impl Editor {
                     self.notify("(new file)");
                 }
 
+                if let Some(backup_path) = buffer.backup_path() {
+                    if backup_path.exists() {
+                        self.notify(&format!("backup exists: {}", backup_path.display()));
+                    }
+                }
+
                 let buffer = Rc::new(RefCell::new(buffer));
                 self.buffers.push(buffer.clone());
                 self.current = buffer;

@@ -159,6 +159,7 @@ pub struct Buffer {
     cursor: Point,
     top_left: Point,
     file: Option<PathBuf>,
+    backup_file: Option<PathBuf>,
     original_hash: u64,
     modified: bool,
     lines: Vec<Line>,
@@ -172,6 +173,7 @@ impl Buffer {
             cursor: Point { x: 0, y: 0 },
             top_left: Point { x: 0, y: 0 },
             file: None,
+            backup_file: None,
             original_hash: 0,
             modified: false,
             lines: vec![Line::new()],
@@ -201,7 +203,6 @@ impl Buffer {
         hasher.write(last_line.as_bytes());
         hasher.write(b"\n");
         buffer.lines.push(last_line);
-
         buffer.file = Some(path.to_owned());
         buffer.original_hash = hasher.finish();
         buffer.config = EditorConfig::resolve(path);
@@ -210,6 +211,24 @@ impl Buffer {
             .map(|s| s.to_str().unwrap())
             .unwrap_or("invalid filename")
             .to_owned();
+
+
+        let backup_dir = dirs::home_dir()
+            .unwrap().join(".noa").join("backup");
+        if !backup_dir.exists() {
+            std::fs::create_dir_all(&backup_dir)?;
+        }
+
+        // "/Users/seiya/foo.txt" -> "Users.seiya.foo.txt"
+        let filename = path
+            .strip_prefix("/")
+            .unwrap_or(path)
+            .to_str()
+            .unwrap()
+            .replace('/', ".");
+
+        buffer.backup_file = Some(backup_dir.join(filename).to_path_buf());
+
         Ok(buffer)
     }
 
@@ -236,28 +255,15 @@ impl Buffer {
         Ok(())
     }
 
-    pub fn backup(&self) -> Result<(), std::io::Error> {
-        let path = match &self.file {
-            Some(path) => path,
-            None => return Ok(()),
-        };
+    pub fn backup_path(&self) -> Option<&PathBuf> { 
+        self.backup_file.as_ref()
+    }
 
-        let backup_dir = dirs::home_dir()
-            .unwrap().join(".noa").join("backup");
-        if !backup_dir.exists() {
-            std::fs::create_dir_all(&backup_dir)?;
+    pub fn backup(&self) -> Result<(), std::io::Error> {
+        if let Some(backup_file) = &self.backup_file {
+            self.write_into_file(backup_file)?;
         }
 
-        // "/Users/seiya/foo.txt" -> "Users.seiya.foo.txt"
-        let filename = path
-            .strip_prefix("/")
-            .unwrap_or(path)
-            .to_str()
-            .unwrap()
-            .replace('/', ".");
-        let backup_file = backup_dir.join(filename);
-        info!("backup = {}", backup_file.display());
-        self.write_into_file(&backup_file)?;
         Ok(())        
     }
 
@@ -267,6 +273,12 @@ impl Buffer {
             self.write_into_file(path)?;
             self.modified = false;
             self.original_hash = self.hash();
+
+            // We no longer need the backup file. Remove it.
+            let backup = self.backup_path().unwrap();
+            if backup.exists() {
+                std::fs::remove_file(backup).ok();
+            }
         }
 
         Ok(())
