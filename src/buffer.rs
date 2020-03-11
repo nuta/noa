@@ -154,6 +154,39 @@ impl Line {
     }
 }
 
+/// Normalizes a relative path. Unlike std::fs::cannonicalize, it does not
+/// follow symbolic links and does not return an error even if the file does not
+/// exists.
+fn abspath(path: &Path) -> PathBuf {
+    use std::path::Component;
+
+    let mut segments: Vec<String> = if path.starts_with("/") {
+        vec!["".to_owned()]
+    } else {
+        std::env::current_dir().unwrap()
+          .to_str().unwrap()
+          .split("/").map(|s| s.to_owned()).collect()
+    };
+    
+    for c in path.components() {
+        match c {
+            Component::ParentDir => {
+                segments.pop();
+                if segments.is_empty() {
+                    segments.push("".to_owned());
+                }
+            }
+            Component::RootDir | Component::CurDir => { /* Nothing to do. */ }
+            Component::Normal(s) => {
+                segments.push(s.to_str().unwrap().to_owned());
+            }
+            _ => { unimplemented!(); }
+        }
+    }
+
+    Path::new(&segments.join("/")).to_path_buf()
+}
+
 pub struct Buffer {
     display_name: String,
     cursor: Point,
@@ -203,16 +236,7 @@ impl Buffer {
         hasher.write(last_line.as_bytes());
         hasher.write(b"\n");
         buffer.lines.push(last_line);
-        buffer.file = Some(path.to_owned());
-        buffer.original_hash = hasher.finish();
-        buffer.config = EditorConfig::resolve(path);
-        buffer.display_name = path
-            .file_name()
-            .map(|s| s.to_str().unwrap())
-            .unwrap_or("invalid filename")
-            .to_owned();
-
-
+        
         let backup_dir = dirs::home_dir()
             .unwrap().join(".noa").join("backup");
         if !backup_dir.exists() {
@@ -220,14 +244,23 @@ impl Buffer {
         }
 
         // "/Users/seiya/foo.txt" -> "Users.seiya.foo.txt"
-        let filename = path
+        let normalized_path = abspath(path);
+        let filename = normalized_path
             .strip_prefix("/")
             .unwrap_or(path)
             .to_str()
             .unwrap()
             .replace('/', ".");
 
+        buffer.config = EditorConfig::resolve(&normalized_path);
+        buffer.display_name = normalized_path
+            .file_name()
+            .map(|s| s.to_str().unwrap())
+            .unwrap_or("invalid filename")
+            .to_owned();
+        buffer.file = Some(normalized_path);
         buffer.backup_file = Some(backup_dir.join(filename).to_path_buf());
+        buffer.original_hash = hasher.finish();
 
         Ok(buffer)
     }
