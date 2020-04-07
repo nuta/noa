@@ -204,9 +204,27 @@ pub enum Action {
     },
 }
 
+#[derive(Debug)]
+enum Command {
+    Insert(char),
+    Backspace,
+    Delete,
+    Truncate,
+    Tab(bool),
+    MoveBy {
+        y_diff: isize,
+        x_diff: isize,
+    },
+    ScrollUp(usize),
+    ScrollDown(usize),
+    MoveToBegin,
+    MoveToEnd,
+}
+
 pub struct Buffer {
     display_name: String,
     cursor: Point,
+    cursors: Vec<Point>,
     top_left: Point,
     file: Option<PathBuf>,
     backup_file: Option<PathBuf>,
@@ -225,6 +243,7 @@ impl Buffer {
         Buffer {
             display_name: "".to_owned(),
             cursor: Point { x: 0, y: 0 },
+            cursors: vec![Point { x: 0, y: 0 }],
             top_left: Point { x: 0, y: 0 },
             file: None,
             backup_file: None,
@@ -406,112 +425,173 @@ impl Buffer {
         self.lines.len()
     }
 
+    fn process_command(&mut self, cmd: Command) {
+        let mut cursors = self.cursors.clone();
+        let mut new_cursors = Vec::with_capacity(cursors.len());
+        for mut cursor in &mut cursors {
+            match cmd {
+                Command::Insert(ch) => self.do_insert(&mut cursor, ch),
+                Command::Backspace => self.do_backspace(&mut cursor),
+                Command::Delete => self.do_delete(&mut cursor),
+                Command::Truncate => self.do_truncate(&mut cursor),
+                Command::Tab(after_newline) => self.do_tab(&mut cursor, after_newline),
+                Command::MoveBy { y_diff, x_diff } => self.do_move_by(&mut cursor, y_diff, x_diff),
+                Command::ScrollUp(height) => self.do_scroll_up(&mut cursor, height),
+                Command::ScrollDown(height) => self.do_scroll_down(&mut cursor, height),
+                Command::MoveToBegin => self.do_move_to_begin(&mut cursor),
+                Command::MoveToEnd => self.do_move_to_end(&mut cursor),
+            }
+            new_cursors.push(*cursor);
+        }
+        self.cursors = new_cursors;
+    }
+
     pub fn insert(&mut self, ch: char) {
+        self.process_command(Command::Insert(ch));
+    }
+
+    pub fn backspace(&mut self) {
+        self.process_command(Command::Backspace);
+    }
+
+    pub fn delete(&mut self) {
+        self.process_command(Command::Delete);
+    }
+
+    pub fn truncate(&mut self) {
+        self.process_command(Command::Truncate);
+    }
+
+    pub fn tab(&mut self, after_newline: bool) {
+        self.process_command(Command::Tab(after_newline));
+    }
+
+    pub fn move_by(&mut self, y_diff: isize, x_diff: isize) {
+        self.process_command(Command::MoveBy { y_diff, x_diff });
+    }
+
+    pub fn scroll_up(&mut self, height: usize) {
+        self.process_command(Command::ScrollUp(height));
+    }
+
+    pub fn scroll_down(&mut self, height: usize) {
+        self.process_command(Command::ScrollDown(height));
+    }
+
+    pub fn move_to_begin(&mut self) {
+        self.process_command(Command::MoveToBegin);
+    }
+
+    pub fn move_to_end(&mut self) {
+        self.process_command(Command::MoveToEnd);
+    }
+
+    fn do_insert(&mut self, cursor: &mut Point, ch: char) {
         self.push_action(Action::Insert {
-            pos: self.cursor,
+            pos: *cursor,
             text: ch.to_string(),
             num: 1,
         });
         self.modified = true;
         if ch == '\n' {
-            let current_line = &self.lines[self.cursor.y];
-            if self.cursor.x == current_line.len() {
-                self.lines.insert(self.cursor.y + 1, Line::new());
+            let current_line = &self.lines[cursor.y];
+            if cursor.x == current_line.len() {
+                self.lines.insert(cursor.y + 1, Line::new());
             } else {
-                let (prev, next) = current_line.split(self.cursor.x);
-                self.lines[self.cursor.y] = prev;
-                self.lines.insert(self.cursor.y + 1, next);
+                let (prev, next) = current_line.split(cursor.x);
+                self.lines[cursor.y] = prev;
+                self.lines.insert(cursor.y + 1, next);
             }
-            self.cursor.y += 1;
-            self.cursor.x = 0;
+            cursor.y += 1;
+            cursor.x = 0;
 
             // Auto indentation.
             self.tab(true);
         } else {
-            self.lines[self.cursor.y].insert(self.cursor.x, ch);
-            self.cursor.x += 1;
+            self.lines[cursor.y].insert(cursor.x, ch);
+            cursor.x += 1;
         }
     }
 
-    pub fn backspace(&mut self) {
+    pub fn do_backspace(&mut self, cursor: &mut Point) {
         self.modified = true;
-        if self.cursor.y == 0 && self.cursor.x == 0 {
+        if cursor.y == 0 && cursor.x == 0 {
             /* Do nothing. */
-        } else if self.cursor.x == 0 {
-            let tmp = self.lines[self.cursor.y].as_str().to_owned();
-            let x = self.lines[self.cursor.y - 1].len();
-            self.lines[self.cursor.y - 1].append(&tmp);
-            self.lines.remove(self.cursor.y);
-            self.cursor.y -= 1;
-            self.cursor.x = x;
+        } else if cursor.x == 0 {
+            let tmp = self.lines[cursor.y].as_str().to_owned();
+            let x = self.lines[cursor.y - 1].len();
+            self.lines[cursor.y - 1].append(&tmp);
+            self.lines.remove(cursor.y);
+            cursor.y -= 1;
+            cursor.x = x;
         } else {
-            let indent_len = self.lines[self.cursor.y].indent().len();
-            if self.cursor.x <= indent_len {
+            let indent_len = self.lines[cursor.y].indent().len();
+            if cursor.x <= indent_len {
                 // Decrease the indentation level.
-                let mut num_remove = self.cursor.x % self.config.indent_size;
+                let mut num_remove = cursor.x % self.config.indent_size;
                 if num_remove == 0 {
                     num_remove = self.config.indent_size;
                 }
 
                 for _ in 0..num_remove {
-                    self.lines[self.cursor.y].remove(self.cursor.x - 1);
-                    self.cursor.x -= 1;
+                    self.lines[cursor.y].remove(cursor.x - 1);
+                    cursor.x -= 1;
                 }
             } else {
                 // Remove a character.
                 self.push_action(Action::Remove {
                     pos: Point {
-                        y: self.cursor.y,
-                        x: self.cursor.x - 1,
+                        y: cursor.y,
+                        x: cursor.x - 1,
                     },
                     num: 1,
-                    text: self.lines[self.cursor.y]
-                        .at(self.cursor.x - 1).to_string()
+                    text: self.lines[cursor.y]
+                        .at(cursor.x - 1).to_string()
                 });
-                self.lines[self.cursor.y].remove(self.cursor.x - 1);
-                self.cursor.x -= 1;
+                self.lines[cursor.y].remove(cursor.x - 1);
+                cursor.x -= 1;
             }
         }
     }
 
-    pub fn delete(&mut self) {
+    pub fn do_delete(&mut self, cursor: &mut Point) {
         self.modified = true;
-        let at_eol = self.cursor.x == self.lines[self.cursor.y].len();
-        if self.cursor.y == self.num_lines() - 1 && at_eol {
+        let at_eol = cursor.x == self.lines[cursor.y].len();
+        if cursor.y == self.num_lines() - 1 && at_eol {
             /* Do nothing. */
         } else if at_eol {
-            let tmp = self.lines[self.cursor.y + 1].as_str().to_owned();
-            self.lines[self.cursor.y].append(&tmp);
-            self.lines.remove(self.cursor.y + 1);
+            let tmp = self.lines[cursor.y + 1].as_str().to_owned();
+            self.lines[cursor.y].append(&tmp);
+            self.lines.remove(cursor.y + 1);
         } else {
-            self.lines[self.cursor.y].remove(self.cursor.x);
+            self.lines[cursor.y].remove(cursor.x);
         }
     }
 
-    pub fn truncate(&mut self) {
+    pub fn do_truncate(&mut self, cursor: &mut Point) {
         self.modified = true;
-        if self.lines[self.cursor.y].is_empty() {
-            if self.cursor.y < self.lines.len() - 1 {
-                self.lines.remove(self.cursor.y);
+        if self.lines[cursor.y].is_empty() {
+            if cursor.y < self.lines.len() - 1 {
+                self.lines.remove(cursor.y);
             }
-        } else if self.cursor.x == self.lines[self.cursor.y].len() {
+        } else if cursor.x == self.lines[cursor.y].len() {
             // Remove the newline.
             self.delete();
         } else {
-            self.lines[self.cursor.y].truncate(self.cursor.x);
+            self.lines[cursor.y].truncate(cursor.x);
         }
     }
 
-    pub fn tab(&mut self, after_newline: bool) {
+    pub fn do_tab(&mut self, cursor: &mut Point, after_newline: bool) {
         self.modified = true;
         match self.config.indent_style {
             IndentStyle::Tab => self.insert('\t'),
             IndentStyle::Space => {
                 let indent_size = self.config.indent_size;
-                let indent_len = if after_newline || self.lines[self.cursor.y].is_empty() {
-                    if after_newline && self.cursor.y > 0 {
+                let indent_len = if after_newline || self.lines[cursor.y].is_empty() {
+                    if after_newline && cursor.y > 0 {
                         // Inherit the previous indent.
-                        self.lines[self.cursor.y - 1].indent().len()
+                        self.lines[cursor.y - 1].indent().len()
                     } else if !after_newline {
                         indent_size
                     } else {
@@ -523,7 +603,7 @@ impl Buffer {
                 };
 
                 if indent_len > 0 {
-                    for _ in 0..(indent_len - (self.cursor.x % indent_len)) {
+                    for _ in 0..(indent_len - (cursor.x % indent_len)) {
                         self.insert(' ');
                     }
                 }
@@ -531,93 +611,95 @@ impl Buffer {
         }
     }
 
-    pub fn move_by(&mut self, y_diff: isize, x_diff: isize) {
+    pub fn do_move_by(&mut self, cursor: &mut Point, y_diff: isize, x_diff: isize) {
         debug_assert!(y_diff.abs() <= 1 && x_diff.abs() <= 1);
 
         if x_diff < 0 {
-            if (self.cursor.x as isize) < x_diff.abs() && self.cursor.y > 0 {
+            if (cursor.x as isize) < x_diff.abs() && cursor.y > 0 {
                 // Move to the previous line.
-                self.cursor.y -= 1;
-                self.cursor.x = self.lines[self.cursor.y].len();
-            } else if self.cursor.x >= x_diff.abs() as usize {
-                self.cursor.x -= x_diff.abs() as usize;
+                cursor.y -= 1;
+                cursor.x = self.lines[cursor.y].len();
+            } else if cursor.x >= x_diff.abs() as usize {
+                cursor.x -= x_diff.abs() as usize;
             }
         } else if x_diff > 0 {
-            if self.cursor.x == self.lines[self.cursor.y].len() {
-                if self.cursor.y < self.num_lines() - 1 {
+            if cursor.x == self.lines[cursor.y].len() {
+                if cursor.y < self.num_lines() - 1 {
                     // Move to the next line.
-                    self.cursor.y += 1;
-                    self.cursor.x = 0;
+                    cursor.y += 1;
+                    cursor.x = 0;
                 }
             } else {
-                self.cursor.x += x_diff.abs() as usize;
+                cursor.x += x_diff.abs() as usize;
             }
         }
 
         if y_diff < 0 {
-            self.cursor.y = self.cursor.y.saturating_sub(y_diff.abs() as usize);
+            cursor.y = cursor.y.saturating_sub(y_diff.abs() as usize);
         } else {
-            self.cursor.y += y_diff.abs() as usize;
+            cursor.y += y_diff.abs() as usize;
         }
 
-        self.cursor.y = min(self.cursor.y, self.num_lines() - 1);
-        self.cursor.x = min(self.cursor.x, self.lines[self.cursor.y].len());
+        cursor.y = min(cursor.y, self.num_lines() - 1);
+        cursor.x = min(cursor.x, self.lines[cursor.y].len());
     }
 
-    pub fn adjust_top_left(&mut self, height: usize, width: usize) {
-        // Scroll Up.
-        if self.cursor.y < self.top_left.y {
-            self.top_left.y = self.cursor.y;
-        }
-
-        // Scroll Down.
-        if self.cursor.y >= self.top_left.y + height {
-            self.top_left.y = self.cursor.y - height + 1;
-        }
-
-        // Scroll Right.
-        if self.cursor.x >= self.top_left.x + width {
-            self.top_left.x = self.cursor.x - width + 1;
-        }
-
-        // Scroll Left.
-        if self.cursor.x < self.top_left.x {
-            self.top_left.x = self.cursor.x;
-        }
-    }
-
-    pub fn scroll_up(&mut self, height: usize) {
-        let relative_y = self.cursor.y - self.top_left.y;
+    pub fn do_scroll_up(&mut self, cursor: &mut Point, height: usize) {
+        let relative_y = cursor.y - self.top_left.y;
         self.top_left.y = self.top_left.y.saturating_sub(height);
-        self.cursor.y = self.top_left.y + relative_y;
+        cursor.y = self.top_left.y + relative_y;
     }
 
-    pub fn scroll_down(&mut self, height: usize) {
+    pub fn do_scroll_down(&mut self, cursor: &mut Point, height: usize) {
         if self.num_lines() >= self.top_left.y + height {
-            let relative_y = self.cursor.y - self.top_left.y;
+            let relative_y = cursor.y - self.top_left.y;
             self.top_left.y = min(self.num_lines() - 1, self.top_left.y + height);
-            self.cursor.y = min(self.num_lines() - 1, self.top_left.y + relative_y);
+            cursor.y = min(self.num_lines() - 1, self.top_left.y + relative_y);
         }
     }
 
-    pub fn move_to_begin(&mut self) {
-        let old = self.cursor.x;
-        self.cursor.x = 0;
-        while self.cursor.x < self.lines[self.cursor.y].len() {
-            if !self.lines[self.cursor.y].at(self.cursor.x).is_whitespace() {
+    pub fn do_move_to_begin(&mut self, cursor: &mut Point) {
+        let old = cursor.x;
+        cursor.x = 0;
+        while cursor.x < self.lines[cursor.y].len() {
+            if !self.lines[cursor.y].at(cursor.x).is_whitespace() {
                 break;
             }
 
-            self.cursor.x += 1;
+            cursor.x += 1;
         }
 
-        if self.cursor.x == old {
-            self.cursor.x = 0;
+        if cursor.x == old {
+            cursor.x = 0;
         }
     }
 
-    pub fn move_to_end(&mut self) {
-        self.cursor.x = self.lines[self.cursor.y].len();
+    pub fn do_move_to_end(&mut self, cursor: &mut Point) {
+        cursor.x = self.lines[cursor.y].len();
+    }
+
+    pub fn adjust_top_left(&mut self, height: usize, width: usize) {
+        for cursor in &mut self.cursors {
+            // Scroll Up.
+            if cursor.y < self.top_left.y {
+                self.top_left.y = cursor.y;
+            }
+
+            // Scroll Down.
+            if cursor.y >= self.top_left.y + height {
+                self.top_left.y = cursor.y - height + 1;
+            }
+
+            // Scroll Right.
+            if cursor.x >= self.top_left.x + width {
+                self.top_left.x = cursor.x - width + 1;
+            }
+
+            // Scroll Left.
+            if cursor.x < self.top_left.x {
+                self.top_left.x = cursor.x;
+            }
+        }
     }
 
     pub fn undo(&mut self) {
@@ -639,42 +721,46 @@ impl Buffer {
 
     /// Reverts the changes by `action`.
     pub fn undo_action(&mut self, action: &Action) {
+        /*
         match action {
             Action::Insert { pos, num, .. } => {
-                self.cursor.y = pos.y;
-                self.cursor.x = pos.x;
+                cursor.y = pos.y;
+                cursor.x = pos.x;
                 for _ in 0..*num {
                     self.delete();
                 }
             }
             Action::Remove { pos, text, .. } => {
-                self.cursor.y = pos.y;
-                self.cursor.x = pos.x;
+                cursor.y = pos.y;
+                cursor.x = pos.x;
                 for ch in text.chars() {
                     self.insert(ch);
                 }
             }
         }
+        */
     }
 
     /// Applies `action`.
     pub fn redo_action(&mut self, action: &Action) {
+        /*
         match action {
             Action::Insert { pos, text, .. } => {
-                self.cursor.y = pos.y;
-                self.cursor.x = pos.x;
+                cursor.y = pos.y;
+                cursor.x = pos.x;
                 for ch in text.chars() {
                     self.insert(ch);
                 }
             }
             Action::Remove { pos, num, .. } => {
-                self.cursor.y = pos.y;
-                self.cursor.x = pos.x;
+                cursor.y = pos.y;
+                cursor.x = pos.x;
                 for _ in 0..*num {
                     self.delete();
                 }
             }
         }
+        */
     }
 
     pub fn commit_actions(&mut self) {
