@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::time::Duration;
 
 pub enum Event {
     Key(Key),
@@ -137,7 +138,17 @@ impl Editor {
 
     pub fn run(&mut self) {
         loop {
-            let ev = self.rx.recv().unwrap();
+            let ev = match self.rx.recv_timeout(Duration::from_millis(700)) {
+                Ok(ev) => ev,
+                Err(mpsc::RecvTimeoutError::Timeout) => {
+                    self.interval_work();
+                    continue;
+                }
+                Err(err) => {
+                    trace!("failed to receive a event: {}", err);
+                    return;
+                }
+            };
 
             let started_at = std::time::SystemTime::now();
             self.process(ev);
@@ -169,6 +180,10 @@ impl Editor {
         }
 
         true
+    }
+
+    fn interval_work(&mut self) {
+        self.current.borrow_mut().commit_actions();
     }
 
     fn process(&mut self, ev: Event) {
@@ -306,6 +321,12 @@ impl Editor {
             }
             Key::Ctrl('e') => {
                 self.current.borrow_mut().move_to_end();
+            }
+            Key::Ctrl('u') => {
+                self.current.borrow_mut().undo();
+            }
+            Key::Ctrl('y') => {
+                self.current.borrow_mut().redo();
             }
             Key::PageUp | Key::Alt('d') => {
                 self.current.borrow_mut().scroll_up(self.term.text_height());

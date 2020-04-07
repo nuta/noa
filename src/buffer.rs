@@ -3,6 +3,7 @@ use std::cmp::min;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+#[derive(Clone, Copy, Debug)]
 pub struct Point {
     pub x: usize,
     pub y: usize,
@@ -123,20 +124,22 @@ impl Line {
         self.update_indices();
     }
 
-    pub fn insert(&mut self, index: usize, ch: char) {
-        let byte_index = if self.len() == index {
+    fn byte_index(&self, index: usize) -> usize {
+        if self.len() == index {
             self.text.len()
         } else {
             self.indices[index]
-        };
+        }
+    }
 
-        self.text.insert(byte_index, ch);
+    pub fn insert(&mut self, index: usize, ch: char) {
+        self.text.insert(self.byte_index(index), ch);
         self.update_indices();
     }
 
     pub fn remove(&mut self, index: usize) {
         debug_assert!(index < self.len());
-        self.text.remove(self.indices[index]);
+        self.text.remove(self.byte_index(index));
         self.update_indices();
     }
 
@@ -167,7 +170,7 @@ fn abspath(path: &Path) -> PathBuf {
           .to_str().unwrap()
           .split("/").map(|s| s.to_owned()).collect()
     };
-    
+
     for c in path.components() {
         match c {
             Component::ParentDir => {
@@ -187,6 +190,20 @@ fn abspath(path: &Path) -> PathBuf {
     Path::new(&segments.join("/")).to_path_buf()
 }
 
+#[derive(Debug)]
+pub enum Action {
+    Insert {
+        pos: Point,
+        num: usize,
+        text: String,
+    },
+    Remove {
+        pos: Point,
+        num: usize,
+        text: String,
+    },
+}
+
 pub struct Buffer {
     display_name: String,
     cursor: Point,
@@ -197,6 +214,10 @@ pub struct Buffer {
     modified: bool,
     lines: Vec<Line>,
     config: EditorConfig,
+
+    uncommitted_actions: Vec<Action>,
+    undo_stack: Vec<Action>,
+    redo_stack: Vec<Action>,
 }
 
 impl Buffer {
@@ -210,6 +231,9 @@ impl Buffer {
             original_hash: 0,
             modified: false,
             lines: vec![Line::new()],
+            uncommitted_actions: Vec::new(),
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
             config: EditorConfig::default(),
         }
     }
@@ -236,7 +260,7 @@ impl Buffer {
         hasher.write(last_line.as_bytes());
         hasher.write(b"\n");
         buffer.lines.push(last_line);
-        
+
         let backup_dir = dirs::home_dir()
             .unwrap().join(".noa").join("backup");
         if !backup_dir.exists() {
@@ -288,7 +312,7 @@ impl Buffer {
         Ok(())
     }
 
-    pub fn backup_path(&self) -> Option<&PathBuf> { 
+    pub fn backup_path(&self) -> Option<&PathBuf> {
         self.backup_file.as_ref()
     }
 
@@ -297,7 +321,7 @@ impl Buffer {
             self.write_into_file(backup_file)?;
         }
 
-        Ok(())        
+        Ok(())
     }
 
     pub fn save(&mut self) -> Result<(), std::io::Error> {
@@ -366,6 +390,14 @@ impl Buffer {
         &self.config
     }
 
+    pub fn text(&self) -> String {
+        let mut s = String::new();
+        for line in self.lines() {
+            s += line.as_str();
+        }
+        s
+    }
+
     pub fn lines(&self) -> std::slice::Iter<Line> {
         self.lines.iter()
     }
@@ -375,6 +407,11 @@ impl Buffer {
     }
 
     pub fn insert(&mut self, ch: char) {
+        self.push_action(Action::Insert {
+            pos: self.cursor,
+            text: ch.to_string(),
+            num: 1,
+        });
         self.modified = true;
         if ch == '\n' {
             let current_line = &self.lines[self.cursor.y];
@@ -422,6 +459,15 @@ impl Buffer {
                 }
             } else {
                 // Remove a character.
+                self.push_action(Action::Remove {
+                    pos: Point {
+                        y: self.cursor.y,
+                        x: self.cursor.x - 1,
+                    },
+                    num: 1,
+                    text: self.lines[self.cursor.y]
+                        .at(self.cursor.x - 1).to_string()
+                });
                 self.lines[self.cursor.y].remove(self.cursor.x - 1);
                 self.cursor.x -= 1;
             }
@@ -572,5 +618,136 @@ impl Buffer {
 
     pub fn move_to_end(&mut self) {
         self.cursor.x = self.lines[self.cursor.y].len();
+    }
+
+    pub fn undo(&mut self) {
+        self.commit_actions();
+        if let Some(action) = self.undo_stack.pop() {
+            self.undo_action(&action);
+            self.uncommitted_actions.clear();
+            self.redo_stack.push(action);
+        }
+    }
+
+    pub fn redo(&mut self) {
+        if let Some(action) = self.redo_stack.pop() {
+            self.redo_action(&action);
+            self.uncommitted_actions.clear();
+            self.undo_stack.push(action);
+        }
+    }
+
+    /// Reverts the changes by `action`.
+    pub fn undo_action(&mut self, action: &Action) {
+        match action {
+            Action::Insert { pos, num, .. } => {
+                self.cursor.y = pos.y;
+                self.cursor.x = pos.x;
+                for _ in 0..*num {
+                    self.delete();
+                }
+            }
+            Action::Remove { pos, text, .. } => {
+                self.cursor.y = pos.y;
+                self.cursor.x = pos.x;
+                for ch in text.chars() {
+                    self.insert(ch);
+                }
+            }
+        }
+    }
+
+    /// Applies `action`.
+    pub fn redo_action(&mut self, action: &Action) {
+        match action {
+            Action::Insert { pos, text, .. } => {
+                self.cursor.y = pos.y;
+                self.cursor.x = pos.x;
+                for ch in text.chars() {
+                    self.insert(ch);
+                }
+            }
+            Action::Remove { pos, num, .. } => {
+                self.cursor.y = pos.y;
+                self.cursor.x = pos.x;
+                for _ in 0..*num {
+                    self.delete();
+                }
+            }
+        }
+    }
+
+    pub fn commit_actions(&mut self) {
+        let mut iter = self.uncommitted_actions.drain(..).peekable();
+        if iter.peek().is_some() {
+            self.redo_stack.clear();
+        }
+
+        // Merge actions.
+        while let Some(mut action) = iter.next() {
+            while let Some(next_action) = iter.peek() {
+                match (&mut action, next_action) {
+                    (Action::Insert { pos, num, text },
+                     Action::Insert { pos: pos2, num: num2, text: text2 })
+                        if pos.y == pos2.y && pos.x + *num == pos2.x
+                            && !text.contains('\n') && !text.contains('\n') => {
+                            text.push_str(text2);
+                            *num += num2;
+                            iter.next();
+                        }
+                    (Action::Remove { pos, num, text },
+                     Action::Remove { pos: pos2, num: num2, text: text2 })
+                        if pos.y == pos2.y && pos.x == pos2.x + 1
+                            && !text.contains('\n') && !text.contains('\n') => {
+                            text.insert_str(0, text2);
+                            *num += num2;
+                            pos.x = pos2.x;
+                            iter.next();
+                        }
+                    (_, _) => {
+                        break;
+                    }
+                }
+            }
+
+            self.undo_stack.push(action);
+        }
+    }
+
+    pub fn push_action(&mut self, action: Action) {
+        self.uncommitted_actions.push(action);
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_undo() {
+        let mut b = Buffer::new();
+        b.insert('A');
+        b.insert('B');
+        b.commit_actions();
+
+        assert_eq!(b.text(), "AB");
+        b.undo();
+        assert_eq!(b.text(), "");
+        b.redo();
+        assert_eq!(b.text(), "AB");
+
+        b.insert('C');
+        b.commit_actions();
+        assert_eq!(b.text(), "ABC");
+
+        b.undo();
+        assert_eq!(b.text(), "AB");
+        b.insert('D');
+        assert_eq!(b.text(), "ABD");
+        b.undo(); // AB
+        b.undo(); //
+        b.redo(); // AB
+        b.redo(); // ABD
+        assert_eq!(b.text(), "ABD");
     }
 }
