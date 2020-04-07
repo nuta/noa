@@ -5,6 +5,17 @@ noa
 
 A simple *batteries-inclued* terminal text editor written in Rust.
 
+Features (or TODO)
+------------------
+- [x] File Finder
+- [x] Undo & Redo
+- [ ] Copy & Paste
+- [ ] Multiple Cursors
+- [ ] Mouse support
+- [ ] Multiple Process Syncing
+- [ ] *Semantic* Syntax Highlighting
+- [ ] Language Server Protocol support
+
 Installation
 ------------
 ```
