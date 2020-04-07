@@ -188,10 +188,13 @@ impl Editor {
 
     fn process(&mut self, ev: Event) {
         match ev {
-            Event::Key(key) => match self.mode {
-                EditorMode::Normal => self.input_in_editor(key),
-                EditorMode::Finder => self.input_in_prompt(key),
-            },
+            Event::Key(key) => {
+                trace!("key = {:?}", key);
+                match self.mode {
+                    EditorMode::Normal => self.input_in_editor(key),
+                    EditorMode::Finder => self.input_in_prompt(key),
+                }
+            }
             Event::ScreenResized => {
                 self.term.update_screen_size();
                 // Adjust the cursor positions.
