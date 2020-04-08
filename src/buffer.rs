@@ -223,7 +223,6 @@ enum Command {
 
 pub struct Buffer {
     display_name: String,
-    cursor: Point,
     cursors: Vec<Point>,
     top_left: Point,
     file: Option<PathBuf>,
@@ -242,7 +241,6 @@ impl Buffer {
     pub fn new() -> Buffer {
         Buffer {
             display_name: "".to_owned(),
-            cursor: Point { x: 0, y: 0 },
             cursors: vec![Point { x: 0, y: 0 }],
             top_left: Point { x: 0, y: 0 },
             file: None,
@@ -397,8 +395,8 @@ impl Buffer {
         &self.display_name
     }
 
-    pub fn cursor(&self) -> &Point {
-        &self.cursor
+    pub fn cursors(&self) -> &[Point] {
+        &self.cursors
     }
 
     pub fn top_left(&self) -> &Point {
@@ -419,6 +417,10 @@ impl Buffer {
 
     pub fn lines(&self) -> std::slice::Iter<Line> {
         self.lines.iter()
+    }
+
+    pub fn line_at(&self, lineno: usize) -> &Line {
+        &self.lines[lineno]
     }
 
     pub fn num_lines(&self) -> usize {
