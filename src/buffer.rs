@@ -696,12 +696,12 @@ impl Buffer {
         if cursor.x >= self.top_left.x + width {
             self.top_left.x = cursor.x - width + 1;
         }
-        
+
         // Scroll Left.
         if cursor.x < self.top_left.x {
             self.top_left.x = cursor.x;
         }
-        
+
     }
 
     pub fn undo(&mut self) {
