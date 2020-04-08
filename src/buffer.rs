@@ -681,27 +681,27 @@ impl Buffer {
     }
 
     pub fn adjust_top_left(&mut self, height: usize, width: usize) {
-        for cursor in &mut self.cursors {
-            // Scroll Up.
-            if cursor.y < self.top_left.y {
-                self.top_left.y = cursor.y;
-            }
-
-            // Scroll Down.
-            if cursor.y >= self.top_left.y + height {
-                self.top_left.y = cursor.y - height + 1;
-            }
-
-            // Scroll Right.
-            if cursor.x >= self.top_left.x + width {
-                self.top_left.x = cursor.x - width + 1;
-            }
-
-            // Scroll Left.
-            if cursor.x < self.top_left.x {
-                self.top_left.x = cursor.x;
-            }
+        let cursor = self.cursors[0];
+        // Scroll Up.
+        if cursor.y < self.top_left.y {
+            self.top_left.y = cursor.y;
         }
+
+        // Scroll Down.
+        if cursor.y >= self.top_left.y + height {
+            self.top_left.y = cursor.y - height + 1;
+        }
+
+        // Scroll Right.
+        if cursor.x >= self.top_left.x + width {
+            self.top_left.x = cursor.x - width + 1;
+        }
+        
+        // Scroll Left.
+        if cursor.x < self.top_left.x {
+            self.top_left.x = cursor.x;
+        }
+        
     }
 
     pub fn undo(&mut self) {
