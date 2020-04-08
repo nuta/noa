@@ -305,6 +305,7 @@ impl Editor {
                 self.current.borrow_mut().clear_cursors();
             }
             Key::Alt('w') => {
+                // TODO:
                 let new_cursor = crate::buffer::Point {
                     y: self.current.borrow_mut().cursors().len(),
                     x: 0
