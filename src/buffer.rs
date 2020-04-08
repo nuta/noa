@@ -3,7 +3,7 @@ use std::cmp::min;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Point {
     pub x: usize,
     pub y: usize,
@@ -678,6 +678,25 @@ impl Buffer {
 
     pub fn do_move_to_end(&mut self, cursor: &mut Point) {
         cursor.x = self.lines[cursor.y].len();
+    }
+
+    pub fn add_cursor(&mut self, position: Point) {
+        self.cursors.push(position);
+    }
+
+    pub fn clear_cursors(&mut self) {
+        self.cursors.truncate(1);
+    }
+
+    pub fn merge_cursors(&mut self) {
+        let mut new_cursors = Vec::with_capacity(self.cursors.len());
+        while !self.cursors.is_empty() {
+            let c = self.cursors.swap_remove(0);
+            if !self.cursors.contains(&c) {
+                new_cursors.push(c);
+            }
+        }
+        self.cursors = new_cursors;
     }
 
     pub fn adjust_top_left(&mut self, height: usize, width: usize) {

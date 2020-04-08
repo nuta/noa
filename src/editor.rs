@@ -301,6 +301,16 @@ impl Editor {
 
                 self.current.borrow_mut().insert(ch);
             }
+            Key::Esc => {
+                self.current.borrow_mut().clear_cursors();
+            }
+            Key::Alt('w') => {
+                let new_cursor = crate::buffer::Point {
+                    y: self.current.borrow_mut().cursors().len(),
+                    x: 0
+                };
+                self.current.borrow_mut().add_cursor(new_cursor);
+            }
             Key::Backspace => {
                 self.current.borrow_mut().backspace();
             }

@@ -166,6 +166,7 @@ impl Terminal {
 
         // Adjust y-axis first to compute lineno_width.
         let mut height = self.height - 2;
+        buffer.merge_cursors();
         buffer.adjust_top_left(height, self.width);
 
         // Adjust x-axis.
@@ -176,7 +177,7 @@ impl Terminal {
 
         // Now we have the correct top_left.
         let top_left = buffer.top_left();
-        
+
         // Buffer contents.
         let lines = buffer.lines().skip(top_left.y).take(height);
         let mut cursor_positions = vec![None; buffer.cursors().len()];
@@ -224,7 +225,6 @@ impl Terminal {
 
             // Handle cursors at the end of the line.
             for (i, cursor) in buffer.cursors().iter().enumerate() {
-                info!("{} {}", display_x, text_width);
                 if cursor_positions[i].is_none()
                     && top_left.y + y == cursor.y
                     && display_x < text_width {
