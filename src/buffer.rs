@@ -430,7 +430,13 @@ impl Buffer {
     fn process_command(&mut self, cmd: Command) {
         let mut cursors = self.cursors.clone();
         let mut new_cursors = Vec::with_capacity(cursors.len());
-        for mut cursor in &mut cursors {
+        for (i, mut cursor) in cursors.iter_mut().enumerate() {
+            // Remove out-of-range cursors and duplicated ones.
+            if cursor.y >= self.num_lines()
+                || (self.cursors[(i + 1)..].contains(&cursor)) {
+                continue;
+            }
+
             match cmd {
                 Command::Insert(ch) => self.do_insert(&mut cursor, ch),
                 Command::Backspace => self.do_backspace(&mut cursor),
@@ -686,17 +692,6 @@ impl Buffer {
 
     pub fn clear_cursors(&mut self) {
         self.cursors.truncate(1);
-    }
-
-    pub fn merge_cursors(&mut self) {
-        let mut new_cursors = Vec::with_capacity(self.cursors.len());
-        while !self.cursors.is_empty() {
-            let c = self.cursors.swap_remove(0);
-            if !self.cursors.contains(&c) {
-                new_cursors.push(c);
-            }
-        }
-        self.cursors = new_cursors;
     }
 
     pub fn adjust_top_left(&mut self, height: usize, width: usize) {

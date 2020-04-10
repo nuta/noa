@@ -166,7 +166,6 @@ impl Terminal {
 
         // Adjust y-axis first to compute lineno_width.
         let mut height = self.height - 2;
-        buffer.merge_cursors();
         buffer.adjust_top_left(height, self.width);
 
         // Adjust x-axis.
