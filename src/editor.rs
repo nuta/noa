@@ -188,10 +188,13 @@ impl Editor {
 
     fn process(&mut self, ev: Event) {
         match ev {
-            Event::Key(key) => match self.mode {
-                EditorMode::Normal => self.input_in_editor(key),
-                EditorMode::Finder => self.input_in_prompt(key),
-            },
+            Event::Key(key) => {
+                trace!("key = {:?}", key);
+                match self.mode {
+                    EditorMode::Normal => self.input_in_editor(key),
+                    EditorMode::Finder => self.input_in_prompt(key),
+                }
+            }
             Event::ScreenResized => {
                 self.term.update_screen_size();
                 // Adjust the cursor positions.
@@ -297,6 +300,17 @@ impl Editor {
                 }
 
                 self.current.borrow_mut().insert(ch);
+            }
+            Key::Esc => {
+                self.current.borrow_mut().clear_cursors();
+            }
+            Key::Alt('w') => {
+                // TODO:
+                let new_cursor = crate::buffer::Point {
+                    y: self.current.borrow_mut().cursors().len(),
+                    x: 0
+                };
+                self.current.borrow_mut().add_cursor(new_cursor);
             }
             Key::Backspace => {
                 self.current.borrow_mut().backspace();

@@ -67,10 +67,6 @@ fn whitespaces(n: usize) -> &'static str {
     }
 }
 
-fn display_width(s: &str) -> usize {
-    unicode_width::UnicodeWidthStr::width(s)
-}
-
 fn truncate(s: &str, width: usize) -> &str {
     &s[..min(s.len(), width)]
 }
@@ -157,6 +153,9 @@ impl Terminal {
         use std::io::Write;
         use termion::{clear, color, cursor, style};
 
+        let main_cursor = buffer.cursors()[0];
+        let main_cursor_col = main_cursor.x + 1;
+
         if self.width < 10 || self.height < 10 {
             warn!("screen is too small!");
             return;
@@ -179,9 +178,8 @@ impl Terminal {
         let top_left = buffer.top_left();
 
         // Buffer contents.
-        let mut display_x = 0;
-        let cursor = buffer.cursor();
         let lines = buffer.lines().skip(top_left.y).take(height);
+        let mut cursor_positions = vec![None; buffer.cursors().len()];
         for (y, line) in lines.enumerate() {
             write!(
                 self.stdout,
@@ -194,10 +192,17 @@ impl Terminal {
 
             let mut remaining = text_width;
             let tab_width = buffer.config().tab_width;
+            let mut display_x = 0;
             for (x, ch) in line.substr(top_left.x, text_width).chars().enumerate() {
                 let ch_width = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(1);
                 if remaining < ch_width {
                     break;
+                }
+
+                for (i, cursor) in buffer.cursors().iter().enumerate() {
+                    if top_left.y + y == cursor.y && top_left.x + x == cursor.x {
+                        cursor_positions[i] = Some((display_x, y));
+                    }
                 }
 
                 if ch == '\t' {
@@ -207,16 +212,23 @@ impl Terminal {
                     }
 
                     write!(self.stdout, "{}", whitespaces(n)).ok();
-                    if top_left.y + y == cursor.y && top_left.x + x < cursor.x {
-                        display_x += n;
-                    }
+                    display_x += n;
                 } else {
                     write!(self.stdout, "{}", ch).ok();
-                    if top_left.y + y == cursor.y && top_left.x + x < cursor.x {
-                        display_x += 1;
-                    }
+                    display_x += 1;
                 }
+
                 remaining -= ch_width;
+            }
+
+
+            // Handle cursors at the end of the line.
+            for (i, cursor) in buffer.cursors().iter().enumerate() {
+                if cursor_positions[i].is_none()
+                    && top_left.y + y == cursor.y
+                    && display_x < text_width {
+                    cursor_positions[i] = Some((display_x, y));
+                }
             }
 
             write!(self.stdout, "{}", clear::UntilNewline).ok();
@@ -240,14 +252,15 @@ impl Terminal {
             style::Bold,
             filename,
             style::NoBold,
-            buffer.cursor().x + 1,
+            main_cursor_col,
             style::Reset,
         )
         .ok();
 
         // Statuses.
         let mut remaining_width =
-            self.width - (display_width(filename) + num_of_digits(buffer.cursor().x + 1) + 5);
+            self.width - unicode_width::UnicodeWidthStr::width(filename)
+            + num_of_digits(main_cursor_col) + 5;
         for (status, rgb) in statuses {
             if status.len() + 2 <= remaining_width {
                 write!(self.stdout, "{} {} ", color::Bg(rgb.as_term_rgb()), status).ok();
@@ -267,13 +280,27 @@ impl Terminal {
         )
         .ok();
 
-        // Move the cursor to the correct position and show it.
-        let x = lineno_width + 2 + display_x;
-        let y = cursor.y - top_left.y;
+        // Draw the cursors except the main cursor.
+        let before_text_width = (lineno_width + 2) as u16;
+        for pos in cursor_positions.iter().skip(1) {
+            if let Some((display_x, display_y)) = pos {
+                write!(
+                    self.stdout,
+                    "{}{} {}",
+                    cursor::Goto(1 + before_text_width + *display_x as u16,
+                        1 + *display_y as u16),
+                    style::Invert,
+                    style::Reset,
+                ).ok();
+            }
+        }
+
+        // Draw the main cursor.
+        let (x, y) = cursor_positions[0].unwrap_or((0, 0));
         write!(
             self.stdout,
             "{}{}",
-            cursor::Goto(1 + x as u16, 1 + y as u16),
+            cursor::Goto(1 + before_text_width + x as u16, 1 + y as u16),
             cursor::Show,
         )
         .ok();
