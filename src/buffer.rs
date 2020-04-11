@@ -81,10 +81,6 @@ impl Cursor {
         self.start_mut()
     }
 
-    pub fn adjust(&mut self) {
-        self.selection.end = self.selection.start;
-    }
-
     pub fn clear_selection(&mut self) {
         self.selection.end = self.selection.start;
     }
@@ -524,19 +520,10 @@ impl Buffer {
         self.lines.len()
     }
 
-    pub fn set_selection_mode(&mut self, value: bool) {
-        if self.selection_mode && !value {
-            for cursor in &mut self.cursors {
-                cursor.clear_selection();
-            }
-        }
-
-        self.selection_mode = value;
-    }
-
     fn process_command(&mut self, cmd: Command) {
         let mut cursors = self.cursors.clone();
         let mut new_cursors = Vec::with_capacity(cursors.len());
+        let mut end_selection = true;
         for (i, cursor) in cursors.iter_mut().enumerate() {
             // Remove out-of-range cursors and duplicated ones.
             /* TODO:
@@ -552,12 +539,10 @@ impl Buffer {
                 Command::Insert(ch) => {
                     self.remove_selection(cursor);
                     self.do_insert(cursor.position_mut(), ch);
-                    cursor.adjust();
                 }
                 Command::Tab(after_newline) => {
                     self.remove_selection(cursor);
                     self.do_tab(cursor.start_mut(), after_newline);
-                    cursor.adjust();
                 }
                 Command::Backspace => {
                     if cursor.is_selection() {
@@ -565,7 +550,6 @@ impl Buffer {
                     } else {
                         self.do_backspace(cursor.start_mut());
                     }
-                    cursor.adjust();
                 },
                 Command::Delete => {
                     if cursor.is_selection() {
@@ -573,7 +557,6 @@ impl Buffer {
                     } else {
                         self.do_delete(cursor.start_mut());
                     }
-                    cursor.adjust();
                 }
                 Command::Truncate => {
                     if cursor.is_selection() {
@@ -581,48 +564,60 @@ impl Buffer {
                     } else {
                         self.do_truncate(cursor.start_mut(), false);
                     }
-                    cursor.adjust();
                 }
                 Command::MoveBy { y_diff, x_diff } => {
                     trace!("move_by: {} {}", self.selection_mode, y_diff < 0 || x_diff < 0);
                     match (self.selection_mode, y_diff < 0 || x_diff < 0) {
                         (true, true) => {
+                            end_selection = false;
                             self.do_move_by(cursor.start_mut(), y_diff, x_diff);
                         }
                         (true, false) => {
+                            end_selection = false;
                             self.do_move_by(cursor.end_mut(), y_diff, x_diff);
                         }
                         (false, _) => {
                             cursor.clear_selection();
                             self.do_move_by(cursor.start_mut(), y_diff, x_diff);
-                            cursor.adjust();
                         }
                     }
                 }
                 Command::ScrollUp(height) => {
                     cursor.clear_selection();
                     self.do_scroll_up(cursor.start_mut(), height);
-                    cursor.adjust();
                 }
                 Command::ScrollDown(height) => {
                     cursor.clear_selection();
                     self.do_scroll_down(cursor.start_mut(), height);
-                    cursor.adjust();
                 }
                 Command::MoveToBegin => {
                     cursor.clear_selection();
                     self.do_move_to_begin(cursor.start_mut());
-                    cursor.adjust();
                 }
                 Command::MoveToEnd => {
                     cursor.clear_selection();
                     self.do_move_to_end(cursor.start_mut());
-                    cursor.adjust();
                 }
             }
             new_cursors.push(cursor.clone());
         }
+
+        if end_selection {
+            self.end_selection();
+        }
+
         self.cursors = new_cursors;
+    }
+
+    pub fn start_selection(&mut self) {
+        self.selection_mode = true;
+    }
+
+    pub fn end_selection(&mut self) {
+        self.selection_mode = false;
+        for cursor in &mut self.cursors {
+            cursor.clear_selection();
+        }
     }
 
     pub fn remove_selection(&mut self, cursor: &mut Cursor) {
@@ -638,11 +633,12 @@ impl Buffer {
 
         let start = cursor.start();
         let end = cursor.end();
-        let mut end_y = end.y;
+        let mut end_y: usize = end.y;
 
         // Remove the lines except the last line (i.e. "123", "abc...").
         debug_assert!(start.y <= end_y);
         while start.y < end_y {
+            trace!("start: {:?}, end_y: {}", start, end_y);
             self.do_truncate(start, true);
             end_y -= 1;
         }
@@ -650,6 +646,7 @@ impl Buffer {
         // Remove the characters in the last line (i.e. "ghi").
         debug_assert!(start.y == end_y);
         for _ in 0..(end.x - start.x) {
+            trace!("lastline: {}", (end.x - start.x));
             self.do_delete(start);
         }
 
@@ -788,11 +785,11 @@ impl Buffer {
             }
         } else if pos.x == self.lines[pos.y].len() {
             // Remove the newline.
-            self.delete();
+            self.do_delete(pos);
         } else {
             self.lines[pos.y].truncate(pos.x);
             if remove_newline {
-                self.delete();
+                self.do_delete(pos);
             }
         }
     }
