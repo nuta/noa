@@ -81,6 +81,14 @@ impl Cursor {
         self.selection.end = self.selection.start;
     }
 
+    pub fn clear_selection(&mut self) {
+        self.selection.end = self.selection.start;
+    }
+
+    pub fn is_selection(&self) -> bool {
+        self.selection.start != self.selection.end
+    }
+
     pub fn intersects_with(&self, other: &Cursor) -> bool {
         !(self.selection.end.y < other.selection.start.y
             || other.selection.end.y < self.selection.start.y
@@ -530,13 +538,24 @@ impl Buffer {
                     self.do_insert(cursor.position_mut(), ch);
                     cursor.adjust();
                 },
+                Command::Backspace => {
+                    if cursor.is_selection() {
+                        self.remove_selection(cursor);
+                    } else {
+                        self.do_backspace(cursor.start_mut());
+                    }
+                    cursor.adjust();
+                },
+                Command::MoveBy { y_diff, x_diff } => {
+                    cursor.clear_selection();
+                    self.do_move_by(cursor.start_mut(), y_diff, x_diff);
+                    cursor.adjust();
+                }
                 _ => ()
                 /*
-                Command::Backspace => self.do_backspace(&mut cursor),
                 Command::Delete => self.do_delete(&mut cursor),
                 Command::Truncate => self.do_truncate(&mut cursor),
                 Command::Tab(after_newline) => self.do_tab(&mut cursor, after_newline),
-                Command::MoveBy { y_diff, x_diff } => self.do_move_by(&mut cursor, y_diff, x_diff),
                 Command::ScrollUp(height) => self.do_scroll_up(&mut cursor, height),
                 Command::ScrollDown(height) => self.do_scroll_down(&mut cursor, height),
                 Command::MoveToBegin => self.do_move_to_begin(&mut cursor),
