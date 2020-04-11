@@ -67,6 +67,10 @@ impl Cursor {
         &self.selection.end
     }
 
+    pub fn end_mut(&mut self) -> &mut Point {
+        &mut self.selection.end
+    }
+
     pub fn position(&self) -> &Point {
         assert_eq!(self.start(), self.end());
         self.start()
@@ -322,6 +326,7 @@ pub struct Buffer {
     modified: bool,
     lines: Vec<Line>,
     config: EditorConfig,
+    selection_mode: bool,
 
     uncommitted_actions: Vec<Action>,
     undo_stack: Vec<Action>,
@@ -343,6 +348,7 @@ impl Buffer {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             config: EditorConfig::default(),
+            selection_mode: false,
         }
     }
 
@@ -518,10 +524,20 @@ impl Buffer {
         self.lines.len()
     }
 
+    pub fn set_selection_mode(&mut self, value: bool) {
+        if self.selection_mode && !value {
+            for cursor in &mut self.cursors {
+                cursor.clear_selection();
+            }
+        }
+
+        self.selection_mode = value;
+    }
+
     fn process_command(&mut self, cmd: Command) {
         let mut cursors = self.cursors.clone();
         let mut new_cursors = Vec::with_capacity(cursors.len());
-        for (i, mut cursor) in cursors.iter_mut().enumerate() {
+        for (i, cursor) in cursors.iter_mut().enumerate() {
             // Remove out-of-range cursors and duplicated ones.
             /* TODO:
             if pos.y >= self.num_lines()
@@ -568,9 +584,20 @@ impl Buffer {
                     cursor.adjust();
                 }
                 Command::MoveBy { y_diff, x_diff } => {
-                    cursor.clear_selection();
-                    self.do_move_by(cursor.start_mut(), y_diff, x_diff);
-                    cursor.adjust();
+                    trace!("move_by: {} {}", self.selection_mode, y_diff < 0 || x_diff < 0);
+                    match (self.selection_mode, y_diff < 0 || x_diff < 0) {
+                        (true, true) => {
+                            self.do_move_by(cursor.start_mut(), y_diff, x_diff);
+                        }
+                        (true, false) => {
+                            self.do_move_by(cursor.end_mut(), y_diff, x_diff);
+                        }
+                        (false, _) => {
+                            cursor.clear_selection();
+                            self.do_move_by(cursor.start_mut(), y_diff, x_diff);
+                            cursor.adjust();
+                        }
+                    }
                 }
                 Command::ScrollUp(height) => {
                     cursor.clear_selection();
@@ -872,6 +899,7 @@ impl Buffer {
 
     pub fn clear_cursors(&mut self) {
         self.cursors.truncate(1);
+        self.cursors[0].clear_selection();
     }
 
     pub fn adjust_top_left(&mut self, height: usize, width: usize) {

@@ -302,7 +302,12 @@ impl Editor {
                 self.current.borrow_mut().insert(ch);
             }
             Key::Esc => {
-                self.current.borrow_mut().clear_cursors();
+                let mut buffer = self.current.borrow_mut();
+                buffer.set_selection_mode(false);
+                buffer.clear_cursors();
+            }
+            Key::Ctrl('o') => {
+                self.current.borrow_mut().set_selection_mode(true);
             }
             Key::Alt('w') => {
                 // TODO:
