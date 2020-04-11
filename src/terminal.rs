@@ -153,8 +153,8 @@ impl Terminal {
         use std::io::Write;
         use termion::{clear, color, cursor, style};
 
-        let main_cursor = buffer.cursors()[0];
-        let main_cursor_col = main_cursor.x + 1;
+        let main_cursor = buffer.cursors()[0].clone();
+        let main_cursor_col = main_cursor.start().x + 1;
 
         if self.width < 10 || self.height < 10 {
             warn!("screen is too small!");
@@ -200,7 +200,7 @@ impl Terminal {
                 }
 
                 for (i, cursor) in buffer.cursors().iter().enumerate() {
-                    if top_left.y + y == cursor.y && top_left.x + x == cursor.x {
+                    if top_left.y + y == cursor.start().y && top_left.x + x == cursor.start().x {
                         cursor_positions[i] = Some((display_x, y));
                     }
                 }
@@ -225,7 +225,7 @@ impl Terminal {
             // Handle cursors at the end of the line.
             for (i, cursor) in buffer.cursors().iter().enumerate() {
                 if cursor_positions[i].is_none()
-                    && top_left.y + y == cursor.y
+                    && top_left.y + y == cursor.start().y
                     && display_x < text_width {
                     cursor_positions[i] = Some((display_x, y));
                 }
