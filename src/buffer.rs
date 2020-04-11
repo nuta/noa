@@ -651,8 +651,7 @@ impl Buffer {
 
         // Remove the characters in the last line (i.e. "ghi").
         debug_assert!(start.y == end_y);
-        for _ in 0..(end.x - start.x) {
-            trace!("lastline: {}", (end.x - start.x));
+        for _ in 0..end.x {
             self.do_delete(start);
         }
 
@@ -721,7 +720,7 @@ impl Buffer {
             pos.x = 0;
 
             // Auto indentation.
-            self.tab(true);
+            self.do_tab(pos, true);
         } else {
             self.lines[pos.y].insert(pos.x, ch);
             pos.x += 1;
