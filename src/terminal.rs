@@ -199,6 +199,7 @@ impl Terminal {
                     break;
                 }
 
+                let mut invert = false;
                 for (i, cursor) in buffer.cursors().iter().enumerate() {
                     let lineno = top_left.y + y;
                     let colno = top_left.x + x;
@@ -206,9 +207,14 @@ impl Terminal {
                         cursor_positions[i] = Some((display_x, y));
                     }
 
-                    if cursor.contains(&Point::new(colno, lineno)) {
-                        write!(self.stdout, "{}", style::Invert).ok();
+                    if cursor.is_selection()
+                        && cursor.contains(&Point::new(colno, lineno)) {
+                        invert = true;
                     }
+                }
+
+                if invert {
+                    write!(self.stdout, "{}", style::Invert).ok();
                 }
 
                 if ch == '\t' {
@@ -224,8 +230,11 @@ impl Terminal {
                     display_x += 1;
                 }
 
+                if invert {
+                    write!(self.stdout, "{}", style::NoInvert).ok();
+                }
+
                 remaining -= ch_width;
-                write!(self.stdout, "{}", style::NoInvert).ok();
             }
 
 

@@ -102,7 +102,7 @@ impl Cursor {
     pub fn contains(&self, pos: &Point) -> bool {
         self.selection.start.y <= pos.y &&  pos.y <= self.selection.end.y
         && !((pos.y == self.selection.start.y && pos.x < self.selection.start.x)
-            || (pos.y == self.selection.end.y && pos.x > self.selection.end.x))
+            || (pos.y == self.selection.end.y && pos.x >= self.selection.end.x))
     }
 }
 
