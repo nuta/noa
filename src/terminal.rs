@@ -1,4 +1,4 @@
-use crate::buffer::{Buffer, Line};
+use crate::buffer::{Buffer, Line, Point};
 use crate::editor::Event;
 use std::cmp::min;
 use std::rc::Rc;
@@ -153,8 +153,8 @@ impl Terminal {
         use std::io::Write;
         use termion::{clear, color, cursor, style};
 
-        let main_cursor = buffer.cursors()[0];
-        let main_cursor_col = main_cursor.x + 1;
+        let main_cursor = buffer.cursors()[0].clone();
+        let main_cursor_col = main_cursor.start().x + 1;
 
         if self.width < 10 || self.height < 10 {
             warn!("screen is too small!");
@@ -199,10 +199,22 @@ impl Terminal {
                     break;
                 }
 
+                let mut invert = false;
                 for (i, cursor) in buffer.cursors().iter().enumerate() {
-                    if top_left.y + y == cursor.y && top_left.x + x == cursor.x {
+                    let lineno = top_left.y + y;
+                    let colno = top_left.x + x;
+                    if lineno == cursor.start().y && colno == cursor.start().x {
                         cursor_positions[i] = Some((display_x, y));
                     }
+
+                    if cursor.is_selection()
+                        && cursor.contains(&Point::new(colno, lineno)) {
+                        invert = true;
+                    }
+                }
+
+                if invert {
+                    write!(self.stdout, "{}", style::Invert).ok();
                 }
 
                 if ch == '\t' {
@@ -218,6 +230,10 @@ impl Terminal {
                     display_x += 1;
                 }
 
+                if invert {
+                    write!(self.stdout, "{}", style::NoInvert).ok();
+                }
+
                 remaining -= ch_width;
             }
 
@@ -225,7 +241,7 @@ impl Terminal {
             // Handle cursors at the end of the line.
             for (i, cursor) in buffer.cursors().iter().enumerate() {
                 if cursor_positions[i].is_none()
-                    && top_left.y + y == cursor.y
+                    && top_left.y + y == cursor.start().y
                     && display_x < text_width {
                     cursor_positions[i] = Some((display_x, y));
                 }
