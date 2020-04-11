@@ -433,7 +433,9 @@ impl Buffer {
         for (i, mut cursor) in cursors.iter_mut().enumerate() {
             // Remove out-of-range cursors and duplicated ones.
             if cursor.y >= self.num_lines()
-                || (self.cursors[(i + 1)..].contains(&cursor)) {
+                || cursor.x > self.line_at(cursor.y).len()
+                || (i + 1 < self.cursors.len() &&
+                    self.cursors[(i + 1)..].contains(&cursor)) {
                 continue;
             }
 
