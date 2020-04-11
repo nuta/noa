@@ -104,6 +104,18 @@ impl Cursor {
         && !((pos.y == self.selection.start.y && pos.x < self.selection.start.x)
             || (pos.y == self.selection.end.y && pos.x >= self.selection.end.x))
     }
+
+    // XXX:
+    pub fn swap_start_and_end(&mut self) {
+        if self.selection.end.y < self.selection.start.y
+            || (self.selection.start.y == self.selection.end.y
+                && self.selection.end.x < self.selection.start.x) {
+            let tmp = self.selection.end;
+            self.selection.end = self.selection.start;
+            self.selection.start = tmp;
+        }
+    }
+
 }
 
 impl fmt::Debug for Cursor {
@@ -318,6 +330,12 @@ enum Command {
     MoveToEnd,
 }
 
+#[derive(Debug)]
+enum Selection {
+    Left,
+    Right,
+}
+
 pub struct Buffer {
     display_name: String,
     cursors: Vec<Cursor>,
@@ -328,7 +346,7 @@ pub struct Buffer {
     modified: bool,
     lines: Vec<Line>,
     config: EditorConfig,
-    selection_mode: bool,
+    selection: Option<Selection>,
 
     uncommitted_actions: Vec<Action>,
     undo_stack: Vec<Action>,
@@ -350,7 +368,7 @@ impl Buffer {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             config: EditorConfig::default(),
-            selection_mode: false,
+            selection: None,
         }
     }
 
@@ -572,21 +590,32 @@ impl Buffer {
                     }
                 }
                 Command::MoveBy { y_diff, x_diff } => {
-                    trace!("move_by: {} {}", self.selection_mode, y_diff < 0 || x_diff < 0);
-                    match (self.selection_mode, y_diff < 0 || x_diff < 0) {
-                        (true, true) => {
-                            end_selection = false;
-                            self.do_move_by(cursor.start_mut(), y_diff, x_diff);
-                        }
-                        (true, false) => {
-                            end_selection = false;
-                            self.do_move_by(cursor.end_mut(), y_diff, x_diff);
-                        }
-                        (false, _) => {
-                            cursor.clear_selection();
-                            self.do_move_by(cursor.start_mut(), y_diff, x_diff);
+                    if self.selection.is_some() && cursor.start() == cursor.end() {
+                        if x_diff < 0 || y_diff < 0 {
+                            self.selection = Some(Selection::Left);
+                        } else {
+                            self.selection = Some(Selection::Right);
                         }
                     }
+
+                    match &mut self.selection {
+                        Some(direction) => {
+                            let pos = match direction {
+                                Selection::Left => cursor.start_mut(),
+                                Selection::Right => cursor.end_mut(),
+                            };
+
+                            self.do_move_by(pos, y_diff, x_diff);
+                            end_selection = false;
+                            cursor.swap_start_and_end();
+                        }
+                        None => {
+                            cursor.clear_selection();
+                            self.do_move_by(cursor.position_mut(), y_diff, x_diff);
+                        }
+                    }
+
+                    info!("cursor={:?} {:?}", cursor, self.selection);
                 }
                 Command::ScrollUp(height) => {
                     cursor.clear_selection();
@@ -616,11 +645,11 @@ impl Buffer {
     }
 
     pub fn start_selection(&mut self) {
-        self.selection_mode = true;
+        self.selection = Some(Selection::Right);
     }
 
     pub fn end_selection(&mut self) {
-        self.selection_mode = false;
+        self.selection = None;
         for cursor in &mut self.cursors {
             cursor.clear_selection();
         }
@@ -639,6 +668,7 @@ impl Buffer {
 
         let start = cursor.start();
         let end = cursor.end();
+        let mut start_x = start.x;
         let mut end_y: usize = end.y;
 
         // Remove the lines except the last line (i.e. "123", "abc...").
@@ -646,12 +676,13 @@ impl Buffer {
         while start.y < end_y {
             trace!("start: {:?}, end_y: {}", start, end_y);
             self.do_truncate(start, true);
+            start_x = 0;
             end_y -= 1;
         }
 
         // Remove the characters in the last line (i.e. "ghi").
         debug_assert!(start.y == end_y);
-        for _ in 0..end.x {
+        for _ in 0..(end.x - start_x) {
             self.do_delete(start);
         }
 
