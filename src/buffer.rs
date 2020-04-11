@@ -537,7 +537,12 @@ impl Buffer {
                     self.remove_selection(cursor);
                     self.do_insert(cursor.position_mut(), ch);
                     cursor.adjust();
-                },
+                }
+                Command::Tab(after_newline) => {
+                    self.remove_selection(cursor);
+                    self.do_tab(cursor.start_mut(), after_newline);
+                    cursor.adjust();
+                }
                 Command::Backspace => {
                     if cursor.is_selection() {
                         self.remove_selection(cursor);
@@ -546,21 +551,47 @@ impl Buffer {
                     }
                     cursor.adjust();
                 },
+                Command::Delete => {
+                    if cursor.is_selection() {
+                        self.remove_selection(cursor);
+                    } else {
+                        self.do_delete(cursor.start_mut());
+                    }
+                    cursor.adjust();
+                }
+                Command::Truncate => {
+                    if cursor.is_selection() {
+                        self.remove_selection(cursor);
+                    } else {
+                        self.do_truncate(cursor.start_mut(), false);
+                    }
+                    cursor.adjust();
+                }
                 Command::MoveBy { y_diff, x_diff } => {
                     cursor.clear_selection();
                     self.do_move_by(cursor.start_mut(), y_diff, x_diff);
                     cursor.adjust();
                 }
-                _ => ()
-                /*
-                Command::Delete => self.do_delete(&mut cursor),
-                Command::Truncate => self.do_truncate(&mut cursor),
-                Command::Tab(after_newline) => self.do_tab(&mut cursor, after_newline),
-                Command::ScrollUp(height) => self.do_scroll_up(&mut cursor, height),
-                Command::ScrollDown(height) => self.do_scroll_down(&mut cursor, height),
-                Command::MoveToBegin => self.do_move_to_begin(&mut cursor),
-                Command::MoveToEnd => self.do_move_to_end(&mut cursor),
-                */
+                Command::ScrollUp(height) => {
+                    cursor.clear_selection();
+                    self.do_scroll_up(cursor.start_mut(), height);
+                    cursor.adjust();
+                }
+                Command::ScrollDown(height) => {
+                    cursor.clear_selection();
+                    self.do_scroll_down(cursor.start_mut(), height);
+                    cursor.adjust();
+                }
+                Command::MoveToBegin => {
+                    cursor.clear_selection();
+                    self.do_move_to_begin(cursor.start_mut());
+                    cursor.adjust();
+                }
+                Command::MoveToEnd => {
+                    cursor.clear_selection();
+                    self.do_move_to_end(cursor.start_mut());
+                    cursor.adjust();
+                }
             }
             new_cursors.push(cursor.clone());
         }
@@ -742,7 +773,7 @@ impl Buffer {
     pub fn do_tab(&mut self, pos: &mut Point, after_newline: bool) {
         self.modified = true;
         match self.config.indent_style {
-            IndentStyle::Tab => self.insert('\t'),
+            IndentStyle::Tab => self.do_insert(pos, '\t'),
             IndentStyle::Space => {
                 let indent_size = self.config.indent_size;
                 let indent_len = if after_newline || self.lines[pos.y].is_empty() {
@@ -761,7 +792,7 @@ impl Buffer {
 
                 if indent_len > 0 {
                     for _ in 0..(indent_len - (pos.x % indent_len)) {
-                        self.insert(' ');
+                        self.do_insert(pos, ' ');
                     }
                 }
             }
