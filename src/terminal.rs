@@ -1,4 +1,4 @@
-use crate::buffer::{Buffer, Line};
+use crate::buffer::{Buffer, Line, Point};
 use crate::editor::Event;
 use std::cmp::min;
 use std::rc::Rc;
@@ -200,8 +200,14 @@ impl Terminal {
                 }
 
                 for (i, cursor) in buffer.cursors().iter().enumerate() {
-                    if top_left.y + y == cursor.start().y && top_left.x + x == cursor.start().x {
+                    let lineno = top_left.y + y;
+                    let colno = top_left.x + x;
+                    if lineno == cursor.start().y && colno == cursor.start().x {
                         cursor_positions[i] = Some((display_x, y));
+                    }
+
+                    if cursor.contains(&Point::new(colno, lineno)) {
+                        write!(self.stdout, "{}", style::Invert).ok();
                     }
                 }
 
@@ -219,6 +225,7 @@ impl Terminal {
                 }
 
                 remaining -= ch_width;
+                write!(self.stdout, "{}", style::NoInvert).ok();
             }
 
 
