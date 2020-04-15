@@ -203,6 +203,11 @@ impl Line {
         &self.text[..end]
     }
 
+    pub fn substr_from(&self, from: usize) -> &str {
+        debug_assert!(from < self.len());
+        self.substr(from, self.len() - from)
+    }
+
     pub fn substr(&self, from: usize, len: usize) -> &str {
         if self.is_empty() {
             return "";
@@ -347,7 +352,6 @@ pub struct Buffer {
     lines: Vec<Line>,
     config: EditorConfig,
     selection: Option<Selection>,
-
     uncommitted_actions: Vec<Action>,
     undo_stack: Vec<Action>,
     redo_stack: Vec<Action>,
@@ -586,7 +590,7 @@ impl Buffer {
                     if cursor.is_selection() {
                         self.remove_selection(cursor);
                     } else {
-                        self.do_truncate(cursor.start_mut(), false);
+                        self.do_truncate(cursor.start_mut());
                     }
                 }
                 Command::MoveBy { y_diff, x_diff } => {
@@ -655,7 +659,7 @@ impl Buffer {
         }
     }
 
-    pub fn remove_selection(&mut self, cursor: &mut Cursor) {
+    pub fn remove_selection(&mut self, cursor: &mut Cursor) -> String {
         // A example text:
         //
         //    start
@@ -666,16 +670,20 @@ impl Buffer {
         //    ^
         //    end
 
+        let mut removed = String::new();
         let start = cursor.start();
         let end = cursor.end();
-        let mut start_x = start.x;
+        let mut start_x = start.x; // FIXME: better name
         let mut end_y: usize = end.y;
 
         // Remove the lines except the last line (i.e. "123", "abc...").
         debug_assert!(start.y <= end_y);
         while start.y < end_y {
-            trace!("start: {:?}, end_y: {}", start, end_y);
-            self.do_truncate(start, true);
+            removed.push_str(self.lines[start.y].substr_from(start.x));
+            removed.push('\n');
+            self.lines[start.y].truncate(start.x);
+            // Removed the trailing newline.
+            self.do_delete(&Point::new(start.x, start.y));
             start_x = 0;
             end_y -= 1;
         }
@@ -683,10 +691,36 @@ impl Buffer {
         // Remove the characters in the last line (i.e. "ghi").
         debug_assert!(start.y == end_y);
         for _ in 0..(end.x - start_x) {
-            self.do_delete(start);
+            removed.push(self.lines[start.y].at(start.x));
+            self.lines[start.y].remove(start.x);
         }
 
         cursor.selection.end = *start;
+        removed
+    }
+
+    pub fn copy_selection(&self, cursor: &Cursor) -> String {
+        // A example text:
+        //
+        //    start
+        //    V
+        // ...123
+        // abcdef
+        // ghi...
+        //    ^
+        //    end
+        let mut pos = cursor.start().clone();
+        let mut copied = String::new();
+        // Copy "123" and "abcdef".
+        while pos.y < cursor.end().y {
+            copied += self.lines[pos.y].substr_from(pos.x);
+            pos.x = 0;
+            pos.y += 1;
+        }
+
+        // Copy "ghi"
+        copied += self.lines[pos.y].substr(pos.x, cursor.end().x);
+        copied
     }
 
     pub fn insert(&mut self, ch: char) {
@@ -813,7 +847,7 @@ impl Buffer {
         }
     }
 
-    pub fn do_truncate(&mut self, pos: &Point, remove_newline: bool) {
+    pub fn do_truncate(&mut self, pos: &Point) {
         self.modified = true;
         if self.lines[pos.y].is_empty() {
             if pos.y < self.lines.len() - 1 {
@@ -824,9 +858,6 @@ impl Buffer {
             self.do_delete(pos);
         } else {
             self.lines[pos.y].truncate(pos.x);
-            if remove_newline {
-                self.do_delete(pos);
-            }
         }
     }
 
@@ -957,6 +988,68 @@ impl Buffer {
             self.top_left.x = pos.x;
         }
 
+    }
+
+    pub fn cut(&mut self) -> String {
+        let mut clipboard = String::new();
+        let cursors = self.cursors.clone();
+        let mut new_cursors = Vec::with_capacity(self.cursors.len());
+        for mut cursor in cursors {
+            clipboard.push_str(&self.remove_selection(&mut cursor));
+            cursor.clear_selection();
+            new_cursors.push(cursor);
+        }
+
+        if self.cursors.len() == 1 {
+            self.selection = None;
+        }
+
+        self.cursors = new_cursors;
+        clipboard
+    }
+
+    pub fn copy(&mut self) -> String {
+        let mut clipboard = String::new();
+        for cursor in &self.cursors {
+            clipboard.push_str(&self.copy_selection(cursor));
+        }
+        for cursor in &mut self.cursors {
+            cursor.clear_selection();
+        }
+        clipboard
+    }
+
+    pub fn paste(&mut self, clipboard: &str) {
+        let mut cursors = self.cursors.clone();
+        let lines: Vec<&str> = clipboard.lines().collect();
+        if cursors.len() == lines.len() {
+            for (i, line) in lines.iter().enumerate() {
+                self.remove_selection(&mut cursors[i]);
+                for ch in line.chars() {
+                    self.do_insert(cursors[i].position_mut(), ch);
+                    cursors[i].clear_selection();
+                }
+            }
+        } else {
+            // Use lines as a single string.
+            for cursor in &mut cursors {
+                self.remove_selection(cursor);
+                let mut iter = lines.iter().enumerate().peekable();
+                while let Some((i, line)) = iter.next() {
+                    if i > 0 {
+                        self.do_insert(cursor.position_mut(), '\n');
+                        cursor.clear_selection();
+                    }
+
+                    for ch in line.chars() {
+                        self.do_insert(cursor.position_mut(), ch);
+                        cursor.clear_selection();
+                    }
+                }
+            }
+        }
+
+        self.cursors = cursors;
     }
 
     pub fn undo(&mut self) {
