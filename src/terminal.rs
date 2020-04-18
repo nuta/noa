@@ -4,8 +4,8 @@ use std::cmp::min;
 use std::rc::Rc;
 use std::sync::mpsc::Sender;
 use termion::event::Event as TermEvent;
-pub use termion::event::Key;
-use termion::input::TermRead;
+pub use termion::event::{Key, MouseEvent};
+use termion::input::{TermRead, MouseTerminal};
 use termion::raw::{IntoRawMode, RawTerminal};
 use termion::screen::AlternateScreen;
 
@@ -92,7 +92,7 @@ fn num_of_digits(mut n: usize) -> usize {
 }
 
 pub struct Terminal {
-    stdout: AlternateScreen<RawTerminal<std::io::Stdout>>,
+    stdout: AlternateScreen<MouseTerminal<RawTerminal<std::io::Stdout>>>,
     tx: Sender<Event>,
     width: usize,
     height: usize,
@@ -100,7 +100,9 @@ pub struct Terminal {
 
 impl Terminal {
     pub fn new(tx: Sender<Event>) -> Terminal {
-        let mut stdout = AlternateScreen::from(std::io::stdout().into_raw_mode().unwrap());
+        let term =
+            MouseTerminal::from(std::io::stdout().into_raw_mode().unwrap());
+        let mut stdout = AlternateScreen::from(term);
 
         // Clear the screen.
         use std::io::Write;
@@ -114,6 +116,9 @@ impl Terminal {
                 if let Some(ev) = stdin.next() {
                     match ev {
                         Ok(ev) => match ev {
+                            TermEvent::Mouse(e) => {
+                                trace!("mouse = {:?}", e);
+                            }
                             TermEvent::Key(key) => {
                                 tx1.send(Event::Key(key)).ok();
                             }
