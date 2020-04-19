@@ -2,6 +2,7 @@ use crate::editorconfig::{EditorConfig, EndOfLine, IndentStyle};
 use std::cmp::min;
 use std::fmt;
 use std::path::{Path, PathBuf};
+use std::collections::HashSet;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Point {
@@ -12,6 +13,14 @@ pub struct Point {
 impl Point {
     pub const fn new(x: usize, y: usize) -> Point {
         Point { x, y }
+    }
+
+    pub fn move_y_by(&mut self, diff: isize) {
+        if diff < 0 {
+            self.y = self.y.saturating_sub(diff.abs() as usize);
+        } else {
+            self.y += diff as usize;
+        }
     }
 }
 
@@ -549,46 +558,42 @@ impl Buffer {
     }
 
     fn process_command(&mut self, cmd: Command) {
-        let mut cursors = self.cursors.clone();
-        let mut new_cursors = Vec::with_capacity(cursors.len());
         let mut end_selection = true;
-        for (i, cursor) in cursors.iter_mut().enumerate() {
-            // Remove out-of-range cursors and duplicated ones.
-            /* TODO:
-            if pos.y >= self.num_lines()
-                || pos.x > self.line_at(pos.y).len()
-                || (i + 1 < self.cursors.len() &&
-                    self.cursors.iter().skip(i + 1).any(|&c| c.intersects_with(cursor))) {
+        let mut removed_cursors = HashSet::new();
+        for cursor_i in 0..self.cursors.len() {
+            if removed_cursors.contains(&cursor_i) {
                 continue;
             }
-            */
 
+            let mut cursor = self.cursors[cursor_i].clone();
+            info!("pre = {:?}", cursor);
+            let prev_num_lines = self.num_lines();
             match cmd {
                 Command::Insert(ch) => {
-                    self.remove_selection(cursor);
+                    self.remove_selection(&mut cursor);
                     self.do_insert(cursor.position_mut(), ch);
                 }
                 Command::Tab(after_newline) => {
-                    self.remove_selection(cursor);
+                    self.remove_selection(&mut cursor);
                     self.do_tab(cursor.start_mut(), after_newline);
                 }
                 Command::Backspace => {
                     if cursor.is_selection() {
-                        self.remove_selection(cursor);
+                        self.remove_selection(&mut cursor);
                     } else {
                         self.do_backspace(cursor.start_mut());
                     }
                 },
                 Command::Delete => {
                     if cursor.is_selection() {
-                        self.remove_selection(cursor);
+                        self.remove_selection(&mut cursor);
                     } else {
                         self.do_delete(cursor.start_mut());
                     }
                 }
                 Command::Truncate => {
                     if cursor.is_selection() {
-                        self.remove_selection(cursor);
+                        self.remove_selection(&mut cursor);
                     } else {
                         self.do_truncate(cursor.start_mut());
                     }
@@ -638,14 +643,43 @@ impl Buffer {
                     self.do_move_to_end(cursor.start_mut());
                 }
             }
-            new_cursors.push(cursor.clone());
+
+            if end_selection {
+                cursor.clear_selection();
+            }
+            self.cursors[cursor_i] = cursor.clone();
+
+            // Move other cursors after the current one if a newline is inserted
+            // or removed.
+            let num_lines = self.num_lines();
+            for (i, c) in self.cursors.iter_mut().enumerate() {
+                if i != cursor_i && c.start().y >= cursor.start().y {
+                    let diff = num_lines as isize - prev_num_lines as isize;
+                    c.start_mut().move_y_by(diff);
+                    c.end_mut().move_y_by(diff);
+                }
+            }
+
+            // Look for duplicated or out-of-range cursors.
+            let num_cursors = self.cursors.len();
+            for i in 0..num_cursors {
+                let c = self.cursors[i].clone();
+                let duplicated =
+                    self.cursors.iter().enumerate().any(|(j, other)|
+                        i != j && !removed_cursors.contains(&j) && c.intersects_with(other));
+                let out_of_range =
+                    c.end().y >= num_lines
+                    || c.end().x > self.lines[c.end().y].len();
+                if duplicated || out_of_range {
+                    removed_cursors.insert(i);
+                }
+            }
         }
 
-        if end_selection {
-            self.end_selection();
-        }
-
-        self.cursors = new_cursors;
+        // Remove cursors.
+        let mut i = 0;
+        self.cursors.retain(|_| (!removed_cursors.contains(&i), i += 1).0);
+        debug_assert!(self.cursors.len() > 0);
     }
 
     pub fn start_selection(&mut self) {
