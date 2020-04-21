@@ -1,4 +1,5 @@
-use crate::buffer::{Buffer, Line, Point};
+use crate::buffer::Buffer;
+use crate::diff::{Line, Point};
 use crate::editor::Event;
 use std::cmp::min;
 use std::rc::Rc;

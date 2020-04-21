@@ -1,284 +1,8 @@
 use crate::editorconfig::{EditorConfig, EndOfLine, IndentStyle};
 use std::cmp::min;
-use std::fmt;
 use std::path::{Path, PathBuf};
 use std::collections::HashSet;
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub struct Point {
-    pub x: usize,
-    pub y: usize,
-}
-
-impl Point {
-    pub const fn new(x: usize, y: usize) -> Point {
-        Point { x, y }
-    }
-
-    pub fn move_y_by(&mut self, diff: isize) {
-        if diff < 0 {
-            self.y = self.y.saturating_sub(diff.abs() as usize);
-        } else {
-            self.y += diff as usize;
-        }
-    }
-}
-
-impl fmt::Debug for Point {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({}, {})", self.x, self.y)
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub struct Range {
-    pub start: Point,
-    pub end: Point,
-}
-
-impl Range {
-    pub const fn new(start: Point, end: Point) -> Range {
-        Range { start, end }
-    }
-
-    pub const fn from_point(point: Point) -> Range {
-        Range::new(point, point)
-    }
-}
-
-impl fmt::Debug for Range {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{:?}, {:?}]", self.start, self.end)
-    }
-}
-
-#[derive(Clone)]
-pub struct Cursor {
-    selection: Range,
-}
-
-impl Cursor {
-    pub const fn new(position: Point) -> Cursor {
-        Cursor {
-            selection: Range::from_point(position)
-        }
-    }
-
-    pub fn start(&self) -> &Point {
-        &self.selection.start
-    }
-
-    pub fn start_mut(&mut self) -> &mut Point {
-        &mut self.selection.start
-    }
-
-    pub fn end(&self) -> &Point {
-        &self.selection.end
-    }
-
-    pub fn end_mut(&mut self) -> &mut Point {
-        &mut self.selection.end
-    }
-
-    pub fn position(&self) -> &Point {
-        assert_eq!(self.start(), self.end());
-        self.start()
-    }
-
-    pub fn position_mut(&mut self) -> &mut Point {
-        assert_eq!(self.start(), self.end());
-        self.start_mut()
-    }
-
-    pub fn clear_selection(&mut self) {
-        self.selection.end = self.selection.start;
-    }
-
-    pub fn is_selection(&self) -> bool {
-        self.selection.start != self.selection.end
-    }
-
-    pub fn intersects_with(&self, other: &Cursor) -> bool {
-        !(self.selection.end.y < other.selection.start.y
-            || other.selection.end.y < self.selection.start.y
-            || (self.selection.end.y == other.selection.start.y
-                && self.selection.end.x < other.selection.start.x)
-            || (other.selection.end.y == self.selection.start.y
-                && other.selection.end.x < self.selection.start.x)
-            )
-    }
-
-    pub fn contains(&self, pos: &Point) -> bool {
-        self.selection.start.y <= pos.y &&  pos.y <= self.selection.end.y
-        && !((pos.y == self.selection.start.y && pos.x < self.selection.start.x)
-            || (pos.y == self.selection.end.y && pos.x >= self.selection.end.x))
-    }
-
-    // XXX:
-    pub fn swap_start_and_end(&mut self) {
-        if self.selection.end.y < self.selection.start.y
-            || (self.selection.start.y == self.selection.end.y
-                && self.selection.end.x < self.selection.start.x) {
-            let tmp = self.selection.end;
-            self.selection.end = self.selection.start;
-            self.selection.start = tmp;
-        }
-    }
-
-}
-
-impl fmt::Debug for Cursor {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.selection)
-    }
-}
-
-pub struct Line {
-    text: String,
-    indices: Vec<usize>,
-}
-
-impl Line {
-    pub fn new() -> Line {
-        Line {
-            text: String::new(),
-            indices: Vec::new(),
-        }
-    }
-
-    pub fn from(s: &str) -> Line {
-        Line::from_string(s.to_owned())
-    }
-
-    pub fn from_string(s: String) -> Line {
-        let mut line = Line {
-            text: s.to_owned(),
-            indices: Vec::with_capacity(s.len()),
-        };
-
-        line.update_indices();
-        line
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.text
-    }
-
-    pub fn as_bytes(&self) -> &[u8] {
-        self.as_str().as_bytes()
-    }
-
-    pub fn len(&self) -> usize {
-        self.indices.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.indices.is_empty()
-    }
-
-    pub fn at(&self, index: usize) -> char {
-        debug_assert!(index < self.len());
-
-        // This should be safe unless you forgot to self.update_indices().
-        unsafe {
-            if index == self.len() - 1 {
-                self.text
-                    .get_unchecked(self.indices[index]..)
-                    .chars()
-                    .next()
-                    .unwrap()
-            } else {
-                self.text
-                    .get_unchecked(self.indices[index]..self.indices[index + 1])
-                    .chars()
-                    .next()
-                    .unwrap()
-            }
-        }
-    }
-
-    /// Returns the indent string in this string. It is guaranteed that the
-    /// returned string contains only ASCII characters, specficically, ' ' or
-    /// '\t'.
-    pub fn indent(&self) -> &str {
-        let mut end = 0;
-        for (i, c) in self.text.char_indices() {
-            if c != ' ' && c != '\t' {
-                break;
-            }
-            end = i + 1;
-        }
-
-        &self.text[..end]
-    }
-
-    pub fn substr_from(&self, from: usize) -> &str {
-        debug_assert!(from < self.len());
-        self.substr(from, self.len() - from)
-    }
-
-    pub fn substr(&self, from: usize, len: usize) -> &str {
-        if self.is_empty() {
-            return "";
-        }
-
-        let start = min(from, self.indices.len().saturating_sub(1));
-        let end = from + len;
-        if end < self.indices.len() {
-            &self.text[self.indices[start]..self.indices[end]]
-        } else {
-            &self.text[self.indices[start]..]
-        }
-    }
-
-    pub fn split(&self, index: usize) -> (Line, Line) {
-        let prev = Line::from(&self.text[..self.indices[index]]);
-        let next = Line::from(&self.text[self.indices[index]..]);
-        (prev, next)
-    }
-
-    pub fn clear(&mut self) {
-        self.text.clear();
-        self.indices.clear();
-    }
-
-    pub fn append(&mut self, s: &str) {
-        self.text += s;
-        self.update_indices();
-    }
-
-    fn byte_index(&self, index: usize) -> usize {
-        if self.len() == index {
-            self.text.len()
-        } else {
-            self.indices[index]
-        }
-    }
-
-    pub fn insert(&mut self, index: usize, ch: char) {
-        self.text.insert(self.byte_index(index), ch);
-        self.update_indices();
-    }
-
-    pub fn remove(&mut self, index: usize) {
-        debug_assert!(index < self.len());
-        self.text.remove(self.byte_index(index));
-        self.update_indices();
-    }
-
-    pub fn truncate(&mut self, from: usize) {
-        debug_assert!(from < self.len());
-        self.text.truncate(self.indices[from]);
-        self.update_indices();
-    }
-
-    fn update_indices(&mut self) {
-        self.indices.clear();
-        for index in self.text.char_indices() {
-            self.indices.push(index.0);
-        }
-    }
-}
+use crate::diff::*;
 
 /// Normalizes a relative path. Unlike std::fs::cannonicalize, it does not
 /// follow symbolic links and does not return an error even if the file does not
@@ -311,20 +35,6 @@ fn abspath(path: &Path) -> PathBuf {
     }
 
     Path::new(&segments.join("/")).to_path_buf()
-}
-
-#[derive(Debug)]
-pub enum Action {
-    Insert {
-        pos: Point,
-        num: usize,
-        text: String,
-    },
-    Remove {
-        pos: Point,
-        num: usize,
-        text: String,
-    },
 }
 
 #[derive(Debug)]
@@ -361,9 +71,8 @@ pub struct Buffer {
     lines: Vec<Line>,
     config: EditorConfig,
     selection: Option<Selection>,
-    uncommitted_actions: Vec<Action>,
-    undo_stack: Vec<Action>,
-    redo_stack: Vec<Action>,
+    undo_stack: Vec<Diff>,
+    redo_stack: Vec<Diff>,
 }
 
 impl Buffer {
@@ -377,11 +86,10 @@ impl Buffer {
             original_hash: 0,
             modified: false,
             lines: vec![Line::new()],
-            uncommitted_actions: Vec::new(),
-            undo_stack: Vec::new(),
-            redo_stack: Vec::new(),
             config: EditorConfig::default(),
             selection: None,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
         }
     }
 
@@ -566,7 +274,6 @@ impl Buffer {
             }
 
             let mut cursor = self.cursors[cursor_i].clone();
-            info!("pre = {:?}", cursor);
             let prev_num_lines = self.num_lines();
             match cmd {
                 Command::Insert(ch) => {
@@ -623,8 +330,6 @@ impl Buffer {
                             self.do_move_by(cursor.position_mut(), y_diff, x_diff);
                         }
                     }
-
-                    info!("cursor={:?} {:?}", cursor, self.selection);
                 }
                 Command::ScrollUp(height) => {
                     cursor.clear_selection();
@@ -694,42 +399,16 @@ impl Buffer {
     }
 
     pub fn remove_selection(&mut self, cursor: &mut Cursor) -> String {
-        // A example text:
-        //
-        //    start
-        //    V
-        // ...123
-        // abcdef
-        // ghi...
-        //    ^
-        //    end
-
-        let mut removed = String::new();
-        let start = cursor.start();
-        let end = cursor.end();
-        let mut start_x = start.x; // FIXME: better name
-        let mut end_y: usize = end.y;
-
-        // Remove the lines except the last line (i.e. "123", "abc...").
-        debug_assert!(start.y <= end_y);
-        while start.y < end_y {
-            removed.push_str(self.lines[start.y].substr_from(start.x));
-            removed.push('\n');
-            self.lines[start.y].truncate(start.x);
-            // Removed the trailing newline.
-            self.do_delete(&Point::new(start.x, start.y));
-            start_x = 0;
-            end_y -= 1;
+        if !cursor.is_selection() {
+            return String::new();
         }
 
-        // Remove the characters in the last line (i.e. "ghi").
-        debug_assert!(start.y == end_y);
-        for _ in 0..(end.x - start_x) {
-            removed.push(self.lines[start.y].at(start.x));
-            self.lines[start.y].remove(start.x);
-        }
-
-        cursor.selection.end = *start;
+        let removed = self.copy_selection(cursor);
+        warn!("not removed = '{}'", removed);
+        self.apply_diff(
+            Diff::Remove(*cursor.start(), *cursor.end(), removed.clone()));
+        self.modified = true;
+        cursor.clear_selection();
         removed
     }
 
@@ -750,6 +429,7 @@ impl Buffer {
             copied += self.lines[pos.y].substr_from(pos.x);
             pos.x = 0;
             pos.y += 1;
+            copied.push('\n');
         }
 
         // Copy "ghi"
@@ -797,101 +477,79 @@ impl Buffer {
         self.process_command(Command::MoveToEnd);
     }
 
-    fn do_insert(&mut self, pos: &mut Point, ch: char) {
-        /*
-        self.push_action(Action::Insert {
-            pos: *cursor,
-            text: ch.to_string(),
-            num: 1,
-        });
-        */
-        self.modified = true;
-        if ch == '\n' {
-            let current_line = &self.lines[pos.y];
-            if pos.x == current_line.len() {
-                self.lines.insert(pos.y + 1, Line::new());
-            } else {
-                let (prev, next) = current_line.split(pos.x);
-                self.lines[pos.y] = prev;
-                self.lines.insert(pos.y + 1, next);
-            }
-            pos.y += 1;
-            pos.x = 0;
+    pub fn apply_diff(&mut self, diff: Diff) -> Point {
+        let new_pos = diff.apply(&mut self.lines);
+        self.undo_stack.push(Diff::Move(self.cursors.clone()));
+        self.undo_stack.push(diff);
+        self.redo_stack.clear();
+        new_pos
+    }
 
-            // Auto indentation.
+    fn do_insert(&mut self, pos: &mut Point, ch: char) {
+        *pos = self.apply_diff(Diff::InsertChar(*pos, ch));
+        self.modified = true;
+
+        // Auto indentation.
+        if ch == '\n' {
             self.do_tab(pos, true);
-        } else {
-            self.lines[pos.y].insert(pos.x, ch);
-            pos.x += 1;
         }
     }
 
     pub fn do_backspace(&mut self, pos: &mut Point) {
-        self.modified = true;
         if pos.y == 0 && pos.x == 0 {
-            /* Do nothing. */
-        } else if pos.x == 0 {
-            let tmp = self.lines[pos.y].as_str().to_owned();
-            let x = self.lines[pos.y - 1].len();
-            self.lines[pos.y - 1].append(&tmp);
-            self.lines.remove(pos.y);
-            pos.y -= 1;
-            pos.x = x;
-        } else {
-            let indent_len = self.lines[pos.y].indent().len();
-            if pos.x <= indent_len {
-                // Decrease the indentation level.
-                let mut num_remove = pos.x % self.config.indent_size;
-                if num_remove == 0 {
-                    num_remove = self.config.indent_size;
-                }
+            return;
+        }
 
-                for _ in 0..num_remove {
-                    self.lines[pos.y].remove(pos.x - 1);
-                    pos.x -= 1;
-                }
+        let indent_len = self.lines[pos.y].indent().len();
+        if 0 < pos.x && pos.x <= indent_len {
+            // Decrease the indentation level.
+            let mut num_remove = pos.x % self.config.indent_size;
+            if num_remove == 0 {
+                num_remove = self.config.indent_size;
+            }
+
+            for _ in 0..num_remove {
+                let ch = self.lines[pos.y].at(pos.x - 1);
+                *pos = self.apply_diff(Diff::BackspaceChar(*pos, ch));
+            }
+        } else {
+            let removed_char =
+            if pos.x == 0 { '\n' } else { self.lines[pos.y].at(pos.x - 1) };
+            *pos = self.apply_diff(Diff::BackspaceChar(*pos, removed_char));
+        }
+
+        self.modified = true;
+    }
+
+    pub fn do_delete(&mut self, pos: &mut Point) {
+        let eol = pos.x == self.lines[pos.y].len();
+        if pos.y == self.num_lines() - 1 && eol {
+            return;
+        }
+
+        let (removed_char, end) =
+            if eol {
+                ('\n', Point::new(0, pos.y + 1))
             } else {
-                // Remove a character.
-                self.push_action(Action::Remove {
-                    pos: Point {
-                        y: pos.y,
-                        x: pos.x - 1,
-                    },
-                    num: 1,
-                    text: self.lines[pos.y]
-                        .at(pos.x - 1).to_string()
-                });
-                self.lines[pos.y].remove(pos.x - 1);
-                pos.x -= 1;
-            }
-        }
+                (self.lines[pos.y].at(pos.x), Point::new(pos.x + 1, pos.y))
+            };
+        self.apply_diff(Diff::Remove(*pos, end, removed_char.to_string()));
+        self.modified = true;
     }
 
-    pub fn do_delete(&mut self, pos: &Point) {
-        self.modified = true;
-        let at_eol = pos.x == self.lines[pos.y].len();
-        if pos.y == self.num_lines() - 1 && at_eol {
-            /* Do nothing. */
-        } else if at_eol {
-            let tmp = self.lines[pos.y + 1].as_str().to_owned();
-            self.lines[pos.y].append(&tmp);
-            self.lines.remove(pos.y + 1);
-        } else {
-            self.lines[pos.y].remove(pos.x);
+    pub fn do_truncate(&mut self, pos: &mut Point) {
+        if pos.y == self.num_lines() - 1 && pos.x == self.lines[pos.y].len() {
+            return;
         }
-    }
 
-    pub fn do_truncate(&mut self, pos: &Point) {
         self.modified = true;
-        if self.lines[pos.y].is_empty() {
-            if pos.y < self.lines.len() - 1 {
-                self.lines.remove(pos.y);
-            }
-        } else if pos.x == self.lines[pos.y].len() {
-            // Remove the newline.
-            self.do_delete(pos);
+        if pos.x == self.lines[pos.y].len() {
+            self.apply_diff(Diff::Remove(*pos, *pos, '\n'.to_string()));
         } else {
-            self.lines[pos.y].truncate(pos.x);
+            let mut end = *pos;
+            end.x = self.lines[pos.y].len() - 1;
+            let removed = self.lines[pos.y].substr_from(pos.x).to_owned();
+            self.apply_diff(Diff::Remove(*pos, end, removed));
         }
     }
 
@@ -926,7 +584,7 @@ impl Buffer {
 
     pub fn do_move_by(&mut self, pos: &mut Point, y_diff: isize, x_diff: isize) {
         debug_assert!(y_diff.abs() <= 1 && x_diff.abs() <= 1);
-
+        trace!("pos = {:?} {} {}", pos, y_diff, x_diff);
         if x_diff < 0 {
             if (pos.x as isize) < x_diff.abs() && pos.y > 0 {
                 // Move to the previous line.
@@ -1001,7 +659,7 @@ impl Buffer {
     }
 
     pub fn adjust_top_left(&mut self, height: usize, width: usize) {
-        let pos = &mut self.cursors[0].selection.start;
+        let pos = &mut self.cursors[0].selection_mut().start;
         // Scroll Up.
         if pos.y < self.top_left.y {
             self.top_left.y = pos.y;
@@ -1086,142 +744,30 @@ impl Buffer {
         self.cursors = cursors;
     }
 
+    pub fn add_undo_stop(&mut self) {
+        match self.undo_stack.last() {
+            Some(Diff::Stop) => {}
+            _ => { self.undo_stack.push(Diff::Stop); }
+        }
+    }
+
     pub fn undo(&mut self) {
-        self.commit_actions();
-        if let Some(action) = self.undo_stack.pop() {
-            self.undo_action(&action);
-            self.uncommitted_actions.clear();
-            self.redo_stack.push(action);
+        match self.undo_stack.last() {
+            Some(Diff::Stop) => { self.undo_stack.pop(); }
+            _ => {}
+        }
+
+        trace!("undo: {:?}", self.undo_stack.last());
+        while let Some(diff) = self.undo_stack.pop() {
+            match &diff {
+                Diff::Stop => break,
+                Diff::Move(cursors) => self.cursors = cursors.to_owned(),
+                _ => diff.revert(&mut self.lines),
+            }
+            self.redo_stack.push(diff);
         }
     }
 
     pub fn redo(&mut self) {
-        if let Some(action) = self.redo_stack.pop() {
-            self.redo_action(&action);
-            self.uncommitted_actions.clear();
-            self.undo_stack.push(action);
-        }
-    }
-
-    /// Reverts the changes by `action`.
-    pub fn undo_action(&mut self, _action: &Action) {
-        /*
-        match action {
-            Action::Insert { pos, num, .. } => {
-                pos.y = pos.y;
-                pos.x = pos.x;
-                for _ in 0..*num {
-                    self.delete();
-                }
-            }
-            Action::Remove { pos, text, .. } => {
-                pos.y = pos.y;
-                pos.x = pos.x;
-                for ch in text.chars() {
-                    self.insert(ch);
-                }
-            }
-        }
-        */
-    }
-
-    /// Applies `action`.
-    pub fn redo_action(&mut self, _action: &Action) {
-        /*
-        match action {
-            Action::Insert { pos, text, .. } => {
-                pos.y = pos.y;
-                pos.x = pos.x;
-                for ch in text.chars() {
-                    self.insert(ch);
-                }
-            }
-            Action::Remove { pos, num, .. } => {
-                pos.y = pos.y;
-                pos.x = pos.x;
-                for _ in 0..*num {
-                    self.delete();
-                }
-            }
-        }
-        */
-    }
-
-    pub fn commit_actions(&mut self) {
-        /*
-        let mut iter = self.uncommitted_actions.drain(..).peekable();
-        if iter.peek().is_some() {
-            self.redo_stack.clear();
-        }
-
-        // Merge actions.
-        while let Some(mut action) = iter.next() {
-            while let Some(next_action) = iter.peek() {
-                match (&mut action, next_action) {
-                    (Action::Insert { pos, num, text },
-                     Action::Insert { pos: pos2, num: num2, text: text2 })
-                        if pos.y == pos2.y && pos.x + *num == pos2.x
-                            && !text.contains('\n') && !text.contains('\n') => {
-                            text.push_str(text2);
-                            *num += num2;
-                            iter.next();
-                        }
-                    (Action::Remove { pos, num, text },
-                     Action::Remove { pos: pos2, num: num2, text: text2 })
-                        if pos.y == pos2.y && pos.x == pos2.x + 1
-                            && !text.contains('\n') && !text.contains('\n') => {
-                            text.insert_str(0, text2);
-                            *num += num2;
-                            pos.x = pos2.x;
-                            iter.next();
-                        }
-                    (_, _) => {
-                        break;
-                    }
-                }
-            }
-
-            self.undo_stack.push(action);
-        }
-        */
-    }
-
-    pub fn push_action(&mut self, action: Action) {
-        self.uncommitted_actions.push(action);
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_undo() {
-        /*
-        let mut b = Buffer::new();
-        b.insert('A');
-        b.insert('B');
-        b.commit_actions();
-
-        assert_eq!(b.text(), "AB");
-        b.undo();
-        assert_eq!(b.text(), "");
-        b.redo();
-        assert_eq!(b.text(), "AB");
-
-        b.insert('C');
-        b.commit_actions();
-        assert_eq!(b.text(), "ABC");
-
-        b.undo();
-        assert_eq!(b.text(), "AB");
-        b.insert('D');
-        assert_eq!(b.text(), "ABD");
-        b.undo(); // AB
-        b.undo(); //
-        b.redo(); // AB
-        b.redo(); // ABD
-        assert_eq!(b.text(), "ABD");
-        */
     }
 }

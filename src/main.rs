@@ -4,6 +4,7 @@
 extern crate log;
 
 mod buffer;
+mod diff;
 mod editor;
 mod editorconfig;
 mod finder;

@@ -1,4 +1,5 @@
-use crate::buffer::{Buffer, Line};
+use crate::buffer::Buffer;
+use crate::diff::Line;
 use crate::finder::Finder;
 use crate::terminal::{Key, Rgb, Terminal};
 use signal_hook::{self, iterator::Signals};
@@ -141,7 +142,7 @@ impl Editor {
 
     pub fn run(&mut self) {
         loop {
-            let ev = match self.rx.recv_timeout(Duration::from_millis(700)) {
+            let ev = match self.rx.recv_timeout(Duration::from_millis(500)) {
                 Ok(ev) => ev,
                 Err(mpsc::RecvTimeoutError::Timeout) => {
                     self.interval_work();
@@ -186,7 +187,7 @@ impl Editor {
     }
 
     fn interval_work(&mut self) {
-        self.current.borrow_mut().commit_actions();
+        self.current.borrow_mut().add_undo_stop();
     }
 
     fn process(&mut self, ev: Event) {
@@ -330,7 +331,7 @@ impl Editor {
             }
             Key::Alt('w') => {
                 // TODO:
-                let new_cursor = crate::buffer::Point {
+                let new_cursor = crate::diff::Point {
                     y: self.current.borrow_mut().cursors().len(),
                     x: 0
                 };
