@@ -769,5 +769,19 @@ impl Buffer {
     }
 
     pub fn redo(&mut self) {
+        match self.redo_stack.last() {
+            Some(Diff::Stop) => { self.redo_stack.pop(); }
+            _ => {}
+        }
+
+        trace!("redo: {:?}", self.redo_stack.last());
+        while let Some(diff) = self.redo_stack.pop() {
+            match &diff {
+                Diff::Stop => break,
+                Diff::Move(cursors) => self.cursors = cursors.to_owned(),
+                _ => { diff.apply(&mut self.lines); }
+            }
+            self.redo_stack.push(diff);
+        }
     }
 }
