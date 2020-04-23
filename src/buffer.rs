@@ -781,7 +781,7 @@ impl Buffer {
                 Diff::Move(cursors) => self.cursors = cursors.to_owned(),
                 _ => { diff.apply(&mut self.lines); }
             }
-            self.redo_stack.push(diff);
+            self.undo_stack.push(diff);
         }
     }
 }
