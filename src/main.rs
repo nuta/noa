@@ -10,6 +10,7 @@ mod editorconfig;
 mod finder;
 mod logger;
 mod terminal;
+mod highlight;
 
 use std::path::PathBuf;
 use structopt::StructOpt;
