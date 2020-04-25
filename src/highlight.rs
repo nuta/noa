@@ -70,18 +70,24 @@ impl Highlight {
             let mut matched = None;
             for (style, keywords) in keyword_types {
                 if let Some(k) = consume(keywords, &line[i..]) {
-                    matched = Some((style, k.len()));
+                    matched = Some((*style, k.len()));
                     break;
+                }
+            }
+
+            if matched.is_none() {
+                if let Some(comment_start) = consume(&self.lang.line_comments, &line[i..]) {
+                    matched = Some((Style::LineComment, line.len() - i));
                 }
             }
 
             let n = if let Some((style, n)) = matched {
                 if i != normal_start {
-                    spans.push((*style, &line[normal_start..i]));
+                    spans.push((style, &line[normal_start..i]));
                     normal_start = i;
                 }
 
-                spans.push((*style, &line[i..i + n]));
+                spans.push((style, &line[i..i + n]));
                 normal_start += n;
                 n
             } else {
