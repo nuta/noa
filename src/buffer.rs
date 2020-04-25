@@ -3,6 +3,8 @@ use std::cmp::min;
 use std::path::{Path, PathBuf};
 use std::collections::HashSet;
 use crate::diff::*;
+use crate::highlight::{Highlight, Style};
+use crate::language::Language;
 
 /// Normalizes a relative path. Unlike std::fs::cannonicalize, it does not
 /// follow symbolic links and does not return an error even if the file does not
@@ -62,6 +64,7 @@ enum Selection {
 
 pub struct Buffer {
     display_name: String,
+    lang: &'static Language,
     cursors: Vec<Cursor>,
     top_left: Point,
     file: Option<PathBuf>,
@@ -79,6 +82,7 @@ impl Buffer {
     pub fn new() -> Buffer {
         Buffer {
             display_name: "".to_owned(),
+            lang: &crate::language::C, /* FIXME: */
             cursors: vec![Cursor::new(Point::new(0, 0))],
             top_left: Point { x: 0, y: 0 },
             file: None,
@@ -247,14 +251,39 @@ impl Buffer {
 
     pub fn text(&self) -> String {
         let mut s = String::new();
-        for line in self.lines() {
+        for line in &self.lines {
             s += line.as_str();
         }
         s
     }
 
-    pub fn lines(&self) -> std::slice::Iter<Line> {
-        self.lines.iter()
+    pub fn highlight(&self, lineno: usize, from: usize) -> Vec<(Style, &str)> {
+        assert!(lineno < self.num_lines());
+        // TODO: Cache highlight states to improve the highlighting performance.
+        let mut h = Highlight::new(self.lang);
+        for (y, line) in self.lines.iter().enumerate() {
+            let mut spans = h.highlight_line(line.as_str());
+            if y == lineno {
+                let mut i = 0;
+                loop {
+                    let (_, span) = match spans.first_mut() {
+                        Some(span) => span,
+                        None => break,
+                    };
+
+                    if i >= from {
+                        *span = &span[i - from..];
+                        break;
+                    }
+
+                    i += span.len();
+                    spans.pop();
+                }
+                return spans;
+            }
+        }
+
+        unreachable!();
     }
 
     pub fn line_at(&self, lineno: usize) -> &Line {

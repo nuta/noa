@@ -1,6 +1,7 @@
 use crate::buffer::Buffer;
 use crate::diff::{Line, Point};
 use crate::editor::Event;
+use crate::highlight::Style;
 use std::cmp::min;
 use std::rc::Rc;
 use std::sync::mpsc::Sender;
@@ -179,65 +180,74 @@ impl Terminal {
         let top_left = buffer.top_left();
 
         // Buffer contents.
-        let lines = buffer.lines().skip(top_left.y).take(height);
         let mut cursor_positions = vec![None; buffer.cursors().len()];
-        for (y, line) in lines.enumerate() {
+        for y in top_left.y..min(top_left.y + height, buffer.num_lines()) {
             write!(
                 self.stdout,
                 "{} {}{} ",
                 cursor::Goto(1, 1 + y as u16),
                 whitespaces(lineno_width - num_of_digits(lineno)),
                 lineno
-            )
-            .ok();
+            ).ok();
 
             let mut remaining = text_width;
             let tab_width = buffer.config().tab_width;
             let mut display_x = 0;
-            for (x, ch) in line.substr(top_left.x, text_width).chars().enumerate() {
-                let ch_width = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(1);
-                if remaining < ch_width {
-                    break;
+            let spans = buffer.highlight(y, top_left.x);
+            let mut x = top_left.x;
+            for (style, span) in spans {
+                match style {
+                    Style::Normal => { write!(self.stdout, "{}", style::Reset).ok(); }
+                    Style::CtrlStmt => { write!(self.stdout, "{}", color::Fg(color::Blue)).ok(); }
+                    Style::LineComment => { write!(self.stdout, "{}", color::Fg(color::Green)).ok(); }
+                    Style::InString => { write!(self.stdout, "{}", color::Fg(color::Magenta)).ok(); }
                 }
 
-                let mut invert = false;
-                for (i, cursor) in buffer.cursors().iter().enumerate() {
-                    let lineno = top_left.y + y;
-                    let colno = top_left.x + x;
-                    if lineno == cursor.start().y && colno == cursor.start().x {
-                        cursor_positions[i] = Some((display_x, y));
+                for ch in span.chars() {
+                    let ch_width = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(1);
+                    if remaining < ch_width {
+                        break;
                     }
 
-                    if cursor.is_selection()
-                        && cursor.contains(&Point::new(colno, lineno)) {
-                        invert = true;
-                    }
-                }
+                    let mut invert = false;
+                    for (i, cursor) in buffer.cursors().iter().enumerate() {
+                        let lineno = top_left.y + y;
+                        let colno = top_left.x + x;
+                        if lineno == cursor.start().y && colno == cursor.start().x {
+                            cursor_positions[i] = Some((display_x, y));
+                        }
 
-                if invert {
-                    write!(self.stdout, "{}", style::Invert).ok();
-                }
-
-                if ch == '\t' {
-                    let mut n = min(remaining, tab_width - (x % tab_width));
-                    if n == 0 {
-                        n = tab_width;
+                        if cursor.is_selection()
+                            && cursor.contains(&Point::new(colno, lineno)) {
+                            invert = true;
+                        }
                     }
 
-                    write!(self.stdout, "{}", whitespaces(n)).ok();
-                    display_x += n;
-                } else {
-                    write!(self.stdout, "{}", ch).ok();
-                    display_x += 1;
-                }
+                    if invert {
+                        write!(self.stdout, "{}", style::Invert).ok();
+                    }
 
-                if invert {
-                    write!(self.stdout, "{}", style::NoInvert).ok();
-                }
+                    if ch == '\t' {
+                        let mut n = min(remaining, tab_width - (x % tab_width));
+                        if n == 0 {
+                            n = tab_width;
+                        }
 
-                remaining -= ch_width;
+                        write!(self.stdout, "{}", whitespaces(n)).ok();
+                        display_x += n;
+                    } else {
+                        write!(self.stdout, "{}", ch).ok();
+                        display_x += 1;
+                    }
+
+                    if invert {
+                        write!(self.stdout, "{}", style::NoInvert).ok();
+                    }
+
+                    remaining -= ch_width;
+                    x += 1;
+                }
             }
-
 
             // Handle cursors at the end of the line.
             for (i, cursor) in buffer.cursors().iter().enumerate() {
@@ -248,7 +258,7 @@ impl Terminal {
                 }
             }
 
-            write!(self.stdout, "{}", clear::UntilNewline).ok();
+            write!(self.stdout, "{}{}", clear::UntilNewline, style::Reset).ok();
             lineno += 1;
             height -= 1;
         }
