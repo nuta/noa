@@ -17,8 +17,8 @@ pub struct Highlight {
     context: Vec<Context>,
 }
 
-fn is_word_split(ch: char) -> bool {
-    !ch.is_ascii_alphanumeric() && !"_".contains(ch)
+fn is_word_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || "_".contains(ch)
 }
 
 fn consume<'a, 'b>(keywords: &'a [&'a str], rest: &'b str) -> Option<&'a str> {
@@ -36,7 +36,7 @@ fn consume<'a, 'b>(keywords: &'a [&'a str], rest: &'b str) -> Option<&'a str> {
         let next_ch = rest.chars().skip(k.len()).next();
         match next_ch {
             Some(ch) => {
-                if is_word_split(ch) {
+                if !is_word_char(ch) {
                     break Some(k);
                 } else {
                     continue;
@@ -85,7 +85,18 @@ impl Highlight {
                 normal_start += n;
                 n
             } else {
-                1
+                let mut n = 1;
+                let mut iter = line.chars().skip(i);
+                if is_word_char(iter.next().unwrap()) {
+                    while let Some(ch) = iter.next() {
+                        if !is_word_char(ch) {
+                            break;
+                        }
+
+                        n += 1;
+                    }
+                }
+                n
             };
 
             i += n;
@@ -106,6 +117,6 @@ mod tests {
     #[test]
     fn test_highlight() {
         let mut h = Highlight::new(&crate::language::C);
-        assert_eq!(h.highlight_line("bar-if (foo) // fii"), vec![]);
+        assert_eq!(h.highlight_line("barif-if (foo) // fii"), vec![]);
     }
 }
