@@ -10,6 +10,6 @@ pub struct Language {
 
 pub const C: Language = Language {
     line_comments: &["//"],
-    ctrl_stmts: &["if"],
+    ctrl_stmts: &["if", "break"],
     strings: &[("\"", "\"", Some("\\\""))],
 };

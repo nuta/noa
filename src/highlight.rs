@@ -152,17 +152,20 @@ impl Highlight {
                         n
                     } else {
                         // Skip normal characters.
-                        let mut n = 1;
-                        let mut iter = line.chars().skip(i);
-                        if is_word_char(iter.next().unwrap()) {
-                            while let Some(ch) = iter.next() {
+                        let mut iter = line[i..].char_indices();
+                        let ch = iter.next().unwrap().1;
+                        let mut n = ch.len_utf8();
+                        if is_word_char(ch) {
+                            while let Some((offset, ch)) = iter.next() {
                                 if !is_word_char(ch) {
                                     break;
                                 }
 
-                                n += 1; // FIXME: multi byte chars
+                                n = offset;
                             }
                         }
+
+                        eprintln!("ends = {} {}", i,n);
                         n
                     };
 
@@ -171,8 +174,9 @@ impl Highlight {
             }
         }
 
+        eprintln!("norm = {} {}", i,normal_start);
         if normal_start != i {
-        spans.push((Style::Normal, &line[normal_start..]));
+            spans.push((Style::Normal, &line[normal_start..]));
         }
 
         spans
@@ -185,19 +189,35 @@ mod tests {
 
     #[test]
     fn test_highlight() {
+        use Style::*;
+
         let mut h = Highlight::new(&crate::language::C);
         assert_eq!(h.highlight_line(""), vec![]);
-        assert_eq!(h.highlight_line("foo"), vec![(Style::Normal, "foo")]);
+        assert_eq!(h.highlight_line("foo"), vec![(Normal, "foo")]);
+        assert_eq!(h.highlight_line("あいうえお"), vec![(Normal, "あいうえお")]);
+        assert_eq!(
+            h.highlight_line("abc // if"),
+            vec![(Normal, "abc "), (LineComment, "// if")]
+        );
         assert_eq!(
             h.highlight_line("\"Hello \\\" World\""),
-            vec![(Style::String, "\"Hello \\\" World\"")]
+            vec![(String, "\"Hello \\\" World\"")]
         );
-
         assert_eq!(
             h.highlight_line("if (true) { bar(); }"),
             vec![
-                (Style::CtrlStmt, "if"),
-                (Style::Normal, " (true) { bar(); }"),
+                (CtrlStmt, "if"),
+                (Normal, " (true) { bar(); }"),
+            ]
+        );
+        assert_eq!(
+            h.highlight_line("puts(\"こんにちは世界\"); break;"),
+            vec![
+                (Normal, "puts("),
+                (String, "\"こんにちは世界\""),
+                (Normal, "); "),
+                (CtrlStmt, "break"),
+                (Normal, ";")
             ]
         );
     }
