@@ -271,8 +271,8 @@ impl Buffer {
                         None => break,
                     };
 
-                    if i >= from {
-                        *span = &span[i - from..];
+                    if i + span.len() >= from {
+                        *span = &span[from - i..];
                         break;
                     }
 
