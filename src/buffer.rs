@@ -613,7 +613,6 @@ impl Buffer {
 
     pub fn do_move_by(&mut self, pos: &mut Point, y_diff: isize, x_diff: isize) {
         debug_assert!(y_diff.abs() <= 1 && x_diff.abs() <= 1);
-        trace!("pos = {:?} {} {}", pos, y_diff, x_diff);
         if x_diff < 0 {
             if (pos.x as isize) < x_diff.abs() && pos.y > 0 {
                 // Move to the previous line.

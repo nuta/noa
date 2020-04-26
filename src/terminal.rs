@@ -212,7 +212,6 @@ impl Terminal {
 
                     let mut invert = false;
                     for (i, cursor) in buffer.cursors().iter().enumerate() {
-                        let display_y = y - top_left.y;
                         if y == cursor.start().y && x == cursor.start().x {
                             cursor_positions[i] = Some((display_x, display_y));
                         }
@@ -263,7 +262,7 @@ impl Terminal {
 
         // Clear remaining lines.
         while height > 0 {
-            write!(self.stdout, "{}{}", cursor::Down(1), clear::CurrentLine,).ok();
+            write!(self.stdout, "{}{}", cursor::Down(1), clear::CurrentLine).ok();
             height -= 1;
         }
 
