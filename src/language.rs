@@ -1,6 +1,11 @@
+pub struct Keywords {
+    pub ctrls: &'static [&'static str],
+    pub defs: &'static [&'static str],
+}
+
 pub struct Language {
     pub line_comments: &'static [&'static str],
-    pub ctrl_stmts: &'static [&'static str],
+    pub keywords: Keywords,
     pub strings: &'static [(
             &'static str /* start */,
             &'static str /* end */,
@@ -8,8 +13,16 @@ pub struct Language {
         )],
 }
 
-pub const C: Language = Language {
+pub const CXX: Language = Language {
     line_comments: &["//"],
-    ctrl_stmts: &["if", "break"],
+    keywords: Keywords {
+        ctrls: &[
+            "if", "for", "while", "do", "goto", "break", "continue", "case",
+            "default", "return", "switch"
+        ],
+        defs: &[
+            "typedef", "enum", "struct", "union", "class", "namespace", "using",
+        ],
+    },
     strings: &[("\"", "\"", Some("\\\""))],
 };

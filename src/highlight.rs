@@ -9,7 +9,8 @@ enum Context {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Style {
     Normal,
-    CtrlStmt,
+    Ctrl,
+    Def,
     LineComment,
     InString,
 }
@@ -61,7 +62,8 @@ impl Highlight {
 
     pub fn highlight_line<'a>(&mut self, line: &'a str) -> Vec<(Style, &'a str)> {
         let keyword_types = &[
-            (Style::CtrlStmt, self.lang.ctrl_stmts),
+            (Style::Ctrl, self.lang.keywords.ctrls),
+            (Style::Def, self.lang.keywords.defs),
         ];
         let mut spans: Vec<(Style, &str)> = Vec::new();
         let mut normal_start = 0;
@@ -194,7 +196,7 @@ mod tests {
 
     #[test]
     fn test_highlight() {
-        let lang = &crate::language::C;
+        let lang = &crate::language::CXX;
 
         assert_eq!(Highlight::new(lang).highlight_line(""), vec![]);
         assert_eq!(Highlight::new(lang).highlight_line("foo"), vec![(Normal, "foo")]);
@@ -202,7 +204,7 @@ mod tests {
         assert_eq!(
             Highlight::new(lang).highlight_line("if (true) { bar(); }"),
             vec![
-                (CtrlStmt, "if"),
+                (Ctrl, "if"),
                 (Normal, " (true) { bar(); }"),
             ]
         );
@@ -213,7 +215,7 @@ mod tests {
                 (Normal, "puts("),
                 (InString, "\"こんにちは世界\""),
                 (Normal, "); "),
-                (CtrlStmt, "break"),
+                (Ctrl, "break"),
                 (Normal, ";")
             ]
         );
@@ -221,7 +223,7 @@ mod tests {
 
     #[test]
     fn test_string_highlighting() {
-        let lang = &crate::language::C;
+        let lang = &crate::language::CXX;
 
         assert_eq!(
             Highlight::new(lang).highlight_line("abc // if"),

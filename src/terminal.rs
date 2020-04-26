@@ -199,7 +199,8 @@ impl Terminal {
             for (style, span) in spans {
                 match style {
                     Style::Normal => { write!(self.stdout, "{}", style::Reset).ok(); }
-                    Style::CtrlStmt => { write!(self.stdout, "{}", color::Fg(color::Blue)).ok(); }
+                    Style::Ctrl => { write!(self.stdout, "{}", color::Fg(color::Blue)).ok(); }
+                    Style::Def => { write!(self.stdout, "{}", color::Fg(color::Magenta)).ok(); }
                     Style::LineComment => { write!(self.stdout, "{}", color::Fg(color::Green)).ok(); }
                     Style::InString => { write!(self.stdout, "{}", color::Fg(color::Magenta)).ok(); }
                 }

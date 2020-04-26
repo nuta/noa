@@ -82,7 +82,7 @@ impl Buffer {
     pub fn new() -> Buffer {
         Buffer {
             display_name: "".to_owned(),
-            lang: &crate::language::C, /* FIXME: */
+            lang: &crate::language::CXX, /* FIXME: */
             cursors: vec![Cursor::new(Point::new(0, 0))],
             top_left: Point { x: 0, y: 0 },
             file: None,
