@@ -6,6 +6,12 @@ cache: cargo
 notifications:
   email: false
 
+addons:
+  apt:
+    update: true
+    packages:
+      - xorg-dev
+
 os:
   - linux
   - osx
