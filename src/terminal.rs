@@ -237,7 +237,7 @@ impl Terminal {
                         display_x += n;
                     } else {
                         write!(self.stdout, "{}", ch).ok();
-                        display_x += 1;
+                        display_x += ch_width;
                     }
 
                     if invert {
