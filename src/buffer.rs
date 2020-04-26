@@ -669,13 +669,19 @@ impl Buffer {
     }
 
     pub fn do_scroll_up(&mut self, pos: &mut Point, height: usize) {
-        let relative_y = pos.y - self.top_left.y;
-        self.top_left.y = self.top_left.y.saturating_sub(height);
-        pos.y = self.top_left.y + relative_y;
+        if pos.y < height {
+            pos.y = 0;
+        } else {
+            let relative_y = pos.y - self.top_left.y;
+            self.top_left.y = self.top_left.y.saturating_sub(height);
+            pos.y = self.top_left.y + relative_y;
+        }
     }
 
     pub fn do_scroll_down(&mut self, pos: &mut Point, height: usize) {
-        if self.num_lines() >= self.top_left.y + height {
+        if self.num_lines() < self.top_left.y + height {
+            pos.y = self.num_lines() - 1;
+        } else {
             let relative_y = pos.y - self.top_left.y;
             self.top_left.y = min(self.num_lines() - 1, self.top_left.y + height);
             pos.y = min(self.num_lines() - 1, self.top_left.y + relative_y);
