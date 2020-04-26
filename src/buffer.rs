@@ -688,7 +688,7 @@ impl Buffer {
     }
 
     pub fn adjust_top_left(&mut self, height: usize, width: usize) {
-        let pos = &mut self.cursors[0].selection_mut().start;
+        let pos = &mut self.cursors[0].selection_mut().end;
         // Scroll Up.
         if pos.y < self.top_left.y {
             self.top_left.y = pos.y;

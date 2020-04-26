@@ -171,8 +171,7 @@ impl Terminal {
         buffer.adjust_top_left(height, self.width);
 
         // Adjust x-axis.
-        let mut lineno = buffer.top_left().y + 1;
-        let lineno_width = num_of_digits(lineno + height);
+        let lineno_width = num_of_digits(buffer.top_left().y + 1 + height);
         let text_width = self.width - lineno_width - 2;
         buffer.adjust_top_left(height, text_width);
 
@@ -182,10 +181,12 @@ impl Terminal {
         // Buffer contents.
         let mut cursor_positions = vec![None; buffer.cursors().len()];
         for y in top_left.y..min(top_left.y + height, buffer.num_lines()) {
+            let display_y  = y - top_left.y;
+            let lineno = y + 1;
             write!(
                 self.stdout,
                 "{} {}{} ",
-                cursor::Goto(1, 1 + y as u16),
+                cursor::Goto(1, 1 + display_y as u16),
                 whitespaces(lineno_width - num_of_digits(lineno)),
                 lineno
             ).ok();
@@ -211,14 +212,13 @@ impl Terminal {
 
                     let mut invert = false;
                     for (i, cursor) in buffer.cursors().iter().enumerate() {
-                        let lineno = top_left.y + y;
                         let colno = top_left.x + x;
-                        if lineno == cursor.start().y && colno == cursor.start().x {
-                            cursor_positions[i] = Some((display_x, y));
+                        if y == cursor.start().y && colno == cursor.start().x {
+                            cursor_positions[i] = Some((display_x, display_y));
                         }
 
                         if cursor.is_selection()
-                            && cursor.contains(&Point::new(colno, lineno)) {
+                            && cursor.contains(&Point::new(colno, display_y)) {
                             invert = true;
                         }
                     }
@@ -252,14 +252,12 @@ impl Terminal {
             // Handle cursors at the end of the line.
             for (i, cursor) in buffer.cursors().iter().enumerate() {
                 if cursor_positions[i].is_none()
-                    && top_left.y + y == cursor.start().y
-                    && display_x < text_width {
-                    cursor_positions[i] = Some((display_x, y));
+                    && y == cursor.start().y && display_x < text_width {
+                    cursor_positions[i] = Some((display_x, display_y));
                 }
             }
 
             write!(self.stdout, "{}{}", clear::UntilNewline, style::Reset).ok();
-            lineno += 1;
             height -= 1;
         }
 
