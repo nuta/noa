@@ -10,7 +10,10 @@ addons:
   apt:
     update: true
     packages:
-      - xorg-dev
+      - libxcb1-dev
+      - libxcb-render0-dev
+      - libxcb-shape0-dev
+      - libxcb-xfixes0-dev
 
 os:
   - linux
