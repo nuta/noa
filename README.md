@@ -11,8 +11,8 @@ Features (or TODO)
 - [x] Undo & Redo
 - [x] Copy & Paste
 - [x] Multiple Cursors
-- [x] *Semantic* Syntax Highlighting
-- [ ] Mouse support
+- [ ] Syntax Highlighting **WIP**
+- [ ] Mouse support **WIP**
 - [ ] Multiple Process Syncing
 - [ ] Language Server Protocol support
 
