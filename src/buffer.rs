@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::collections::HashSet;
 use crate::diff::*;
 use crate::highlight::{Highlight, Style};
-use crate::language::Language;
+use crate::language::{Language, LANGS};
 
 /// Normalizes a relative path. Unlike std::fs::cannonicalize, it does not
 /// follow symbolic links and does not return an error even if the file does not
@@ -82,7 +82,7 @@ impl Buffer {
     pub fn new() -> Buffer {
         Buffer {
             display_name: "".to_owned(),
-            lang: &crate::language::CXX, /* FIXME: */
+            lang: &crate::language::PLAIN,
             cursors: vec![Cursor::new(Point::new(0, 0))],
             top_left: Point { x: 0, y: 0 },
             file: None,
@@ -144,6 +144,31 @@ impl Buffer {
         buffer.file = Some(normalized_path);
         buffer.backup_file = Some(backup_dir.join(filename).to_path_buf());
         buffer.original_hash = hasher.finish();
+
+        // Look for and set the language definition.
+        let mut matched = None;
+        'outer: for lang in LANGS {
+            for filename in lang.filenames {
+                if path.ends_with(filename) {
+                    matched = Some(lang);
+                    break 'outer;
+                }
+            }
+
+            for ext in lang.extensions {
+                match path.extension() {
+                    Some(ext2) if ext2 == std::ffi::OsStr::new(ext) => {
+                        matched = Some(lang);
+                        break 'outer;
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        if let Some(lang) = matched {
+            buffer.lang = lang;
+        }
 
         Ok(buffer)
     }
