@@ -212,13 +212,13 @@ impl Terminal {
 
                     let mut invert = false;
                     for (i, cursor) in buffer.cursors().iter().enumerate() {
-                        let colno = top_left.x + x;
-                        if y == cursor.start().y && colno == cursor.start().x {
+                        let display_y = y - top_left.y;
+                        if y == cursor.start().y && x == cursor.start().x {
                             cursor_positions[i] = Some((display_x, display_y));
                         }
 
                         if cursor.is_selection()
-                            && cursor.contains(&Point::new(colno, display_y)) {
+                            && cursor.contains(&Point::new(x, y)) {
                             invert = true;
                         }
                     }

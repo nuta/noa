@@ -277,7 +277,7 @@ impl Buffer {
                     }
 
                     i += span.len();
-                    spans.pop();
+                    spans.remove(0);
                 }
                 return spans;
             }
