@@ -424,8 +424,8 @@ impl Buffer {
             for i in 0..num_cursors {
                 let c = self.cursors[i].clone();
                 let duplicated =
-                    self.cursors.iter().enumerate().any(|(j, other)|
-                        i != j && !removed_cursors.contains(&j) && c.intersects_with(other));
+                self.cursors.iter().enumerate().any(|(j, other)|
+                i != j && !removed_cursors.contains(&j) && c.intersects_with(other));
                 let out_of_range =
                     c.end().y >= num_lines
                     || c.end().x > self.lines[c.end().y].len();
@@ -676,6 +676,8 @@ impl Buffer {
             self.top_left.y = self.top_left.y.saturating_sub(height);
             pos.y = self.top_left.y + relative_y;
         }
+
+        pos.x = min(pos.x, self.lines[pos.y].len());
     }
 
     pub fn do_scroll_down(&mut self, pos: &mut Point, height: usize) {
@@ -686,6 +688,8 @@ impl Buffer {
             self.top_left.y = min(self.num_lines() - 1, self.top_left.y + height);
             pos.y = min(self.num_lines() - 1, self.top_left.y + relative_y);
         }
+
+        pos.x = min(pos.x, self.lines[pos.y].len());
     }
 
     pub fn do_move_to_begin(&mut self, pos: &mut Point) {
