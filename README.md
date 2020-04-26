@@ -9,15 +9,18 @@ Features (or TODO)
 ------------------
 - [x] File Finder
 - [x] Undo & Redo
-- [ ] Copy & Paste
-- [ ] Multiple Cursors
+- [x] Copy & Paste
+- [x] Multiple Cursors
+- [x] *Semantic* Syntax Highlighting
 - [ ] Mouse support
 - [ ] Multiple Process Syncing
-- [ ] *Semantic* Syntax Highlighting
 - [ ] Language Server Protocol support
 
 Installation
 ------------
+Install `libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev` if you're using Ubuntu.
+
+
 ```
 $ cargo install noa
 ```
