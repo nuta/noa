@@ -3,6 +3,7 @@ use crate::diff::Line;
 use crate::finder::Finder;
 use crate::terminal::{Key, Rgb, Terminal};
 use crate::clipboard::{copy_from_clipboard, copy_into_clipboard};
+use crate::lsp::Lsp;
 use signal_hook::{self, iterator::Signals};
 use std::cell::RefCell;
 use std::cmp::min;
@@ -40,6 +41,7 @@ pub struct Editor {
     prompt_cursor: usize,
     prompt_selected: usize,
     finder: Finder,
+    lsp: Lsp,
 }
 
 impl Editor {
@@ -74,6 +76,7 @@ impl Editor {
         Editor {
             mode: EditorMode::Normal,
             term: Terminal::new(tx.clone()),
+            lsp: Lsp::new(tx.clone()).expect("failed to spawn lsp server"),
             tx,
             rx,
             repo_dir,

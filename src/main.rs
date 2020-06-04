@@ -13,6 +13,7 @@ mod terminal;
 mod highlight;
 mod language;
 mod clipboard;
+mod lsp;
 
 use std::path::PathBuf;
 use structopt::StructOpt;
