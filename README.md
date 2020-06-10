@@ -18,8 +18,6 @@ Features (or TODO)
 
 Installation
 ------------
-Install `libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev` if you're using Ubuntu.
-
 
 ```
 $ cargo install noa

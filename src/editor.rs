@@ -2,6 +2,7 @@ use crate::buffer::Buffer;
 use crate::diff::Line;
 use crate::finder::Finder;
 use crate::terminal::{Key, Rgb, Terminal};
+use crate::clipboard::{copy_from_clipboard, copy_into_clipboard};
 use signal_hook::{self, iterator::Signals};
 use std::cell::RefCell;
 use std::cmp::min;
@@ -10,7 +11,6 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::Duration;
-use clipboard::{ClipboardContext, ClipboardProvider};
 
 pub enum Event {
     Key(Key),
@@ -40,7 +40,6 @@ pub struct Editor {
     prompt_cursor: usize,
     prompt_selected: usize,
     finder: Finder,
-    clipboard: ClipboardContext,
 }
 
 impl Editor {
@@ -88,7 +87,6 @@ impl Editor {
             prompt_cursor: 0,
             prompt_selected: 0,
             finder: Finder::new(),
-            clipboard: ClipboardProvider::new().unwrap(),
         }
     }
 
@@ -311,18 +309,15 @@ impl Editor {
                 buffer.clear_cursors();
             }
             Key::Ctrl('x') => {
-                let content = self.current.borrow_mut().cut();
-                self.clipboard.set_contents(content).ok();
+                copy_into_clipboard(self.current.borrow_mut().cut());
                 self.notify("cut");
             }
             Key::Ctrl('c') => {
-                let content = self.current.borrow_mut().copy();
-                self.clipboard.set_contents(content).ok();
+                copy_into_clipboard(self.current.borrow_mut().copy());
                 self.notify("copied");
             }
             Key::Ctrl('v') => {
-                let content = self.clipboard.get_contents().unwrap();
-                self.current.borrow_mut().paste(&content);
+                self.current.borrow_mut().paste(&copy_from_clipboard());
                 self.notify("pasted");
             }
             Key::Ctrl('o') => {
