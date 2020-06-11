@@ -3,6 +3,7 @@ use crate::diff::Line;
 use crate::finder::Finder;
 use crate::terminal::{Key, Rgb, Terminal};
 use crate::clipboard::{copy_from_clipboard, copy_into_clipboard};
+use crate::lsp::{self, Lsp};
 use signal_hook::{self, iterator::Signals};
 use std::cell::RefCell;
 use std::cmp::min;
@@ -40,6 +41,8 @@ pub struct Editor {
     prompt_cursor: usize,
     prompt_selected: usize,
     finder: Finder,
+    lsp: Lsp,
+    lsp_sent_versions: HashMap<PathBuf, usize>,
 }
 
 impl Editor {
@@ -71,9 +74,12 @@ impl Editor {
         });
 
         let repo_dir = std::env::current_dir().unwrap().to_path_buf();
+
         Editor {
             mode: EditorMode::Normal,
             term: Terminal::new(tx.clone()),
+            lsp: Lsp::new(&repo_dir, tx.clone()),
+            lsp_sent_versions: HashMap::new(),
             tx,
             rx,
             repo_dir,
@@ -96,6 +102,14 @@ impl Editor {
                 if !path.exists() {
                     self.notify("(new file)");
                 }
+
+                self.lsp.send(
+                    buffer.language(),
+                    lsp::Request::OpenFile {
+                        path: buffer.path().cloned().unwrap(),
+                        text: buffer.text(),
+                    })
+                ;
 
                 if let Some(backup_path) = buffer.backup_path() {
                     if backup_path.exists() {
@@ -186,6 +200,29 @@ impl Editor {
 
     fn interval_work(&mut self) {
         self.current.borrow_mut().add_undo_stop();
+
+        for buffer in &self.buffers {
+            // TODO: Support for unnamed files.
+            let buffer = buffer.borrow();
+            let version = buffer.version();
+            if let Some(path) = buffer.path() {
+                let prev_version =
+                    self.lsp_sent_versions.get(path).unwrap_or(&0);
+                if *prev_version == version {
+                    continue;
+                }
+
+                self.lsp.send(
+                    buffer.language(),
+                    lsp::Request::ChangeFile {
+                        path: path.to_owned(),
+                        text: buffer.text(),
+                        version,
+                    }
+                );
+                self.lsp_sent_versions.insert(path.to_owned(), version);
+            }
+        }
     }
 
     fn process(&mut self, ev: Event) {

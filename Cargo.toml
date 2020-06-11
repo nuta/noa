@@ -21,6 +21,11 @@ backtrace = "0"
 structopt = "0"
 ignore = "0"
 fxhash = "0"
+lsp-types = "0"
+serde = "1"
+serde_json = "1"
+jsonrpc-core = "14"
+phf = { version = "0.8", features = ["macros"] }
 
 [dev-dependencies]
 pretty_assertions = "0"

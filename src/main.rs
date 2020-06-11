@@ -12,7 +12,9 @@ mod logger;
 mod terminal;
 mod highlight;
 mod language;
+mod helpers;
 mod clipboard;
+mod lsp;
 
 use std::path::PathBuf;
 use structopt::StructOpt;

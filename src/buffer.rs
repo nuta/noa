@@ -76,6 +76,7 @@ pub struct Buffer {
     selection: Option<Selection>,
     undo_stack: Vec<Diff>,
     redo_stack: Vec<Diff>,
+    version: usize,
 }
 
 impl Buffer {
@@ -94,6 +95,7 @@ impl Buffer {
             selection: None,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
+            version: 1,
         }
     }
 
@@ -196,6 +198,18 @@ impl Buffer {
         Ok(())
     }
 
+    pub fn version(&self) -> usize {
+        self.version
+    }
+
+    pub fn language(&self) -> &'static Language {
+        self.lang
+    }
+
+    pub fn path(&self) -> Option<&PathBuf> {
+        self.file.as_ref()
+    }
+
     pub fn backup_path(&self) -> Option<&PathBuf> {
         self.backup_file.as_ref()
     }
@@ -278,6 +292,7 @@ impl Buffer {
         let mut s = String::new();
         for line in &self.lines {
             s += line.as_str();
+            s.push('\n');
         }
         s
     }
@@ -532,6 +547,11 @@ impl Buffer {
     }
 
     pub fn apply_diff(&mut self, diff: Diff) -> Point {
+        match diff {
+            Diff::Move(_) => { /* Move does not modify the buffer. */ }
+            _ => { self.version += 1; }
+        }
+
         let new_pos = diff.apply(&mut self.lines);
         self.undo_stack.push(Diff::Move(self.cursors.clone()));
         self.undo_stack.push(diff);

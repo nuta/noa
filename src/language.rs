@@ -1,11 +1,20 @@
+use std::hash::{Hash, Hasher};
+
 pub struct Keywords {
     pub ctrls: &'static [&'static str],
     pub defs: &'static [&'static str],
 }
 
+pub struct Lsp {
+    pub language_id: &'static str,
+    pub command: &'static [&'static str],
+}
+
 pub struct Language {
+    pub id: &'static str,
     pub filenames: &'static [&'static str],
     pub extensions: &'static [&'static str],
+    pub lsp: Option<Lsp>,
     pub line_comments: &'static [&'static str],
     pub keywords: Keywords,
     pub strings: &'static [(
@@ -15,11 +24,27 @@ pub struct Language {
         )],
 }
 
-pub const LANGS: &'static [Language] = &[PLAIN, CXX];
+impl Hash for Language {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
+}
+
+impl PartialEq for Language {
+    fn eq(&self, other: &Language) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for Language {}
+
+pub const LANGS: &'static [Language] = &[PLAIN, C];
 
 pub const PLAIN: Language = Language {
+    id: "plain",
     filenames: &[],
     extensions: &[],
+    lsp: None,
     line_comments: &[],
     strings: &[],
     keywords: Keywords {
@@ -28,10 +53,15 @@ pub const PLAIN: Language = Language {
     },
 };
 
-pub const CXX: Language = Language {
+pub const C: Language = Language {
+    id: "c",
     filenames: &[],
-    extensions: &["c", "h", "cxx", "cpp"],
+    extensions: &["c", "h"],
     line_comments: &["//"],
+    lsp: Some(Lsp {
+        language_id: "c",
+        command: &["clangd", "-j=8", "--log=verbose", "--pretty"]
+    }),
     strings: &[("\"", "\"", Some("\\\""))],
     keywords: Keywords {
         ctrls: &[
@@ -39,7 +69,7 @@ pub const CXX: Language = Language {
             "default", "return", "switch"
         ],
         defs: &[
-            "typedef", "enum", "struct", "union", "class", "namespace", "using",
+            "typedef", "enum", "struct", "union",
         ],
     },
 };
