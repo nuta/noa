@@ -26,6 +26,7 @@ enum EditorMode {
 }
 
 pub struct Editor {
+    headless: bool,
     mode: EditorMode,
     term: Terminal,
     rx: Receiver<Event>,
@@ -46,7 +47,7 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn new() -> Editor {
+    pub fn new(headless: bool) -> Editor {
         let (tx, rx) = mpsc::channel();
         tx.send(Event::ForceRender).unwrap();
 
@@ -76,6 +77,7 @@ impl Editor {
         let repo_dir = std::env::current_dir().unwrap().to_path_buf();
 
         Editor {
+            headless,
             mode: EditorMode::Normal,
             term: Terminal::new(tx.clone()),
             lsp: Lsp::new(&repo_dir, tx.clone()),
@@ -270,6 +272,10 @@ impl Editor {
     }
 
     fn render(&mut self) {
+        if self.headless {
+            return;
+        }
+
         // Update the screen.
         match self.mode {
             EditorMode::Normal => {

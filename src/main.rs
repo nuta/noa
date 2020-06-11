@@ -25,6 +25,9 @@ struct Opt {
     /// The file to edit.
     #[structopt(parse(from_os_str))]
     files: Vec<PathBuf>,
+    /// Disable terminal rendering (for testing).
+    #[structopt(long)]
+    headless: bool,
 }
 
 fn main() {
@@ -37,7 +40,7 @@ fn main() {
     let opt = Opt::from_args();
 
     trace!("starting noa...");
-    let mut editor = editor::Editor::new();
+    let mut editor = editor::Editor::new(opt.headless);
     for file in opt.files {
         editor.open_file(&file);
     }
