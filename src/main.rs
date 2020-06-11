@@ -12,6 +12,7 @@ mod logger;
 mod terminal;
 mod highlight;
 mod language;
+mod helpers;
 mod clipboard;
 mod lsp;
 

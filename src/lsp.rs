@@ -1,20 +1,160 @@
 use crate::editor::Event;
+use crate::helpers::open_log_file;
 use std::collections::HashMap;
 use std::sync::mpsc::{self, Sender, Receiver};
 use std::process::{Command, Child, Stdio, ChildStdin, ChildStdout};
+use std::path::{Path, PathBuf};
 
 pub enum Request {
     Initialize {
-        root_path: String,
+        root_path: PathBuf,
+    },
+    OpenFile {
+        path: PathBuf,
+        text: String,
+    },
+    ChangeFile {
+        path: PathBuf,
+        text: String,
+        version: usize,
+    },
+}
+
+fn parse_path_as_uri(path: &Path) -> lsp_types::Url {
+    let uri = &format!("file://{}", path.to_str().unwrap());
+    lsp_types::Url::parse(uri).unwrap()
+}
+
+static LANG_ID_TABLE: phf::Map<&'static str, &'static str> = phf::phf_map! {
+    "c" => "c",
+    "h" => "h",
+    "cpp" => "cpp",
+    "cxx" => "cpp",
+    "rs" => "rust",
+};
+
+fn path_to_lang_id(path: &Path) -> Option<&'static str> {
+    match path.extension() {
+        Some(ext) => match ext.to_str() {
+            Some(ext) => LANG_ID_TABLE.get(ext).map(|s| *s),
+            None => None,
+        }
+        None => None,
     }
 }
 
-fn send_requests(rx: Receiver<Request>, stdin: ChildStdin) {
+use lsp_types::{
+    request::{
+        Initialize,
+    },
+    notification::{
+        DidOpenTextDocument,
+        DidChangeTextDocument,
+    },
+    InitializeParams,
+    DidOpenTextDocumentParams,
+    VersionedTextDocumentIdentifier,
+    DidChangeTextDocumentParams,
+    TextDocumentContentChangeEvent,
+};
+
+fn serialize_request<T: lsp_types::request::Request>(id: usize, params: T::Params) -> String {
+    let obj = match serde_json::to_value(params) {
+        Ok(serde_json::value::Value::Object(obj)) => obj,
+        _ => unreachable!(),
+    };
+
+    let msg = &jsonrpc_core::types::request::MethodCall {
+        id: jsonrpc_core::Id::Num(id as u64),
+        jsonrpc: Some(jsonrpc_core::Version::V2),
+        method: T::METHOD.to_string(),
+        params: jsonrpc_core::Params::Map(obj),
+    };
+
+    serde_json::to_string(msg).unwrap()
+}
+
+fn serialize_notification<T: lsp_types::notification::Notification>(params: T::Params) -> String {
+    let obj = match serde_json::to_value(params) {
+        Ok(serde_json::value::Value::Object(obj)) => obj,
+        _ => unreachable!(),
+    };
+
+    let msg = &jsonrpc_core::types::request::Notification {
+        jsonrpc: Some(jsonrpc_core::Version::V2),
+        method: T::METHOD.to_string(),
+        params: jsonrpc_core::Params::Map(obj),
+    };
+
+    serde_json::to_string(msg).unwrap()
+}
+
+fn send_requests(rx: Receiver<Request>, mut stdin: ChildStdin) {
     while let Ok(req) = rx.recv() {
-        match req {
+        let body = match req {
             Request::Initialize { root_path } => {
+                info!("Initialize(root_path={})", root_path.display());
+                serialize_request::<Initialize>(
+                    0,
+                    #[allow(deprecated)]
+                    InitializeParams {
+                        process_id: None,
+                        root_path: None,
+                        root_uri: Some(parse_path_as_uri(&root_path)),
+                        initialization_options: None,
+                        capabilities: lsp_types::ClientCapabilities {
+                            workspace: None,
+                            text_document: None,
+                            window: None,
+                            experimental: None,
+                        },
+                        trace: None,
+                        workspace_folders: None,
+                        client_info: None,
+                    }
+                )
             }
-        }
+            Request::OpenFile { path, text } => {
+                info!("DidOpenTextDocument(path={})", path.display());
+                let language_id = match path_to_lang_id(&path) {
+                    Some(id) => id,
+                    None => {
+                        warn!("unknown extension, ignoring: {}", path.display());
+                        continue;
+                    }
+                };
+
+                serialize_notification::<DidOpenTextDocument>(
+                    DidOpenTextDocumentParams {
+                        text_document: lsp_types::TextDocumentItem {
+                            uri: parse_path_as_uri(&path),
+                            language_id: language_id.to_owned(),
+                            version: 0,
+                            text,
+                        }
+                    }
+                )
+            }
+            Request::ChangeFile { path, text, version } => {
+                info!("DidChangeTextDocument(path={})", path.display());
+                serialize_notification::<DidChangeTextDocument>(
+                    DidChangeTextDocumentParams {
+                        text_document: VersionedTextDocumentIdentifier {
+                            uri: parse_path_as_uri(&path),
+                            version: Some(version as i64),
+                        },
+                        content_changes: vec![TextDocumentContentChangeEvent {
+                            range: None,
+                            range_length: None,
+                            text,
+                        }]
+                    }
+                )
+            }
+        };
+
+        use std::io::Write;
+        write!(stdin, "Content-Length: {}\r\n\r\n{}", body.len(), body).ok();
     }
 }
 
@@ -32,7 +172,7 @@ fn receive_responses(event_queue: Sender<Event>, stdout: ChildStdout) {
                 Err(_) => break 'thread_loop,
             }
 
-            if line.is_empty() {
+            if line.trim().is_empty() {
                 break;
             }
 
@@ -67,15 +207,29 @@ fn receive_responses(event_queue: Sender<Event>, stdout: ChildStdout) {
         };
 
         // Parse the JSON.
+        trace!("body = '{}'", body);
         let resp = match serde_json::from_str::<jsonrpc_core::Output>(&body) {
             Ok(jsonrpc_core::Output::Success(json)) => json,
             Ok(jsonrpc_core::Output::Failure(failure)) => {
                 warn!("LSP: {:?}", failure);
                 continue 'thread_loop;
             }
-            Err(err) => {
-                warn!("failed to parse the boddy from the LSP server: {}", err);
-                continue 'thread_loop;
+            Err(_) => {
+                // Perhaps it is a notification from the server.
+                match serde_json::from_str::<jsonrpc_core::Request>(&body) {
+                    Ok(jsonrpc_core::Request::Single(req)) => {
+                        trace!("request from server = {:?}", req);
+                        continue 'thread_loop;
+                    }
+                    Ok(jsonrpc_core::Request::Batch(reqs)) => {
+                        trace!("request from server = {:?}", reqs);
+                        continue 'thread_loop;
+                    }
+                    Err(err) => {
+                        warn!("failed to parse the body from the LSP server: {}", err);
+                        continue 'thread_loop;
+                    }
+                }
             }
         };
 
@@ -100,10 +254,10 @@ impl Lsp {
 
         // Start the LSP server.
         let mut server = Command::new("clangd")
-            .args(&["--pretty"])
+            .args(&["-j=8", "--log=verbose", "--pretty"])
+            .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+            .stderr(Stdio::from(open_log_file("clangd.log").unwrap()))
             .spawn()?;
 
         let stdin = server.stdin.take().unwrap();
@@ -128,7 +282,8 @@ impl Lsp {
         })
     }
 
-    pub fn tx_mut(&mut self) -> &mut Sender<Request> {
-        &mut self.tx
+    pub fn send(&mut self, req: Request) {
+        self.tx.send(req).ok();
     }
 }
+
