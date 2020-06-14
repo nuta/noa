@@ -196,7 +196,7 @@ mod tests {
 
     #[test]
     fn test_highlight() {
-        let lang = &crate::language::CXX;
+        let lang = &crate::language::C;
 
         assert_eq!(Highlight::new(lang).highlight_line(""), vec![]);
         assert_eq!(Highlight::new(lang).highlight_line("foo"), vec![(Normal, "foo")]);
@@ -223,7 +223,7 @@ mod tests {
 
     #[test]
     fn test_string_highlighting() {
-        let lang = &crate::language::CXX;
+        let lang = &crate::language::C;
 
         assert_eq!(
             Highlight::new(lang).highlight_line("abc // if"),
