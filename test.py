@@ -3,10 +3,10 @@ import argparse
 import subprocess
 import tempfile
 
-def run():
+def run(bin):
     with tempfile.NamedTemporaryFile() as tmp:
         p = subprocess.Popen(
-            ["./target/debug/noa", "--headless"],
+            [bin, "--headless"],
             stdin=subprocess.PIPE,
             bufsize=0,
         )
@@ -15,9 +15,10 @@ def run():
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--bin", default="./target/debug/noa")
     args = parser.parse_args()
 
-    run()
+    run(args.bin)
 
 if __name__ == "__main__":
     main()
