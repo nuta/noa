@@ -25,4 +25,4 @@ jobs:
       - name: Unit Test
         run: cargo test
       - name: Integration Test
-        run: ./test.py
+        run: ./test.py --bin target/release/noa
