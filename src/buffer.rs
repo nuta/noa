@@ -618,10 +618,11 @@ impl Buffer {
 
         self.modified = true;
         if pos.x == self.lines[pos.y].len() {
-            self.apply_diff(Diff::Remove(*pos, *pos, '\n'.to_string()));
+            let end = Point::new(0, pos.y + 1);
+            self.apply_diff(Diff::Remove(*pos, end, '\n'.to_string()));
         } else {
             let mut end = *pos;
-            end.x = self.lines[pos.y].len() - 1;
+            end.x = self.lines[pos.y].len();
             let removed = self.lines[pos.y].substr_from(pos.x).to_owned();
             self.apply_diff(Diff::Remove(*pos, end, removed));
         }
