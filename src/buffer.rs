@@ -99,6 +99,12 @@ impl Buffer {
         }
     }
 
+    pub fn from_str(s: &str) -> Buffer {
+        let mut buffer = Buffer::new();
+        buffer.insert_str(s);
+        buffer
+    }
+
     pub fn open_file(path: &Path) -> Result<Buffer, std::io::Error> {
         use std::hash::Hasher;
         use std::io::BufRead;
@@ -510,6 +516,12 @@ impl Buffer {
         self.process_command(Command::Insert(ch));
     }
 
+    pub fn insert_str(&mut self, s: &str) {
+        for ch in s.chars() {
+            self.insert(ch);
+        }
+    }
+
     pub fn backspace(&mut self) {
         self.process_command(Command::Backspace);
     }
@@ -546,7 +558,7 @@ impl Buffer {
         self.process_command(Command::MoveToEnd);
     }
 
-    pub fn apply_diff(&mut self, diff: Diff) -> Point {
+    fn apply_diff(&mut self, diff: Diff) -> Point {
         match diff {
             Diff::Move(_) => { /* Move does not modify the buffer. */ }
             _ => { self.version += 1; }
@@ -569,7 +581,7 @@ impl Buffer {
         }
     }
 
-    pub fn do_backspace(&mut self, pos: &mut Point) {
+    fn do_backspace(&mut self, pos: &mut Point) {
         if pos.y == 0 && pos.x == 0 {
             return;
         }
@@ -595,7 +607,7 @@ impl Buffer {
         self.modified = true;
     }
 
-    pub fn do_delete(&mut self, pos: &mut Point) {
+    fn do_delete(&mut self, pos: &mut Point) {
         let eol = pos.x == self.lines[pos.y].len();
         if pos.y == self.num_lines() - 1 && eol {
             return;
@@ -611,7 +623,7 @@ impl Buffer {
         self.modified = true;
     }
 
-    pub fn do_truncate(&mut self, pos: &mut Point) {
+    fn do_truncate(&mut self, pos: &mut Point) {
         if pos.y == self.num_lines() - 1 && pos.x == self.lines[pos.y].len() {
             return;
         }
@@ -628,7 +640,7 @@ impl Buffer {
         }
     }
 
-    pub fn do_tab(&mut self, pos: &mut Point, after_newline: bool) {
+    fn do_tab(&mut self, pos: &mut Point, after_newline: bool) {
         self.modified = true;
         match self.config.indent_style {
             IndentStyle::Tab => self.do_insert(pos, '\t'),
@@ -657,7 +669,7 @@ impl Buffer {
         }
     }
 
-    pub fn do_move_by(&mut self, pos: &mut Point, y_diff: isize, x_diff: isize) {
+    fn do_move_by(&mut self, pos: &mut Point, y_diff: isize, x_diff: isize) {
         debug_assert!(y_diff.abs() <= 1 && x_diff.abs() <= 1);
         if x_diff < 0 {
             if (pos.x as isize) < x_diff.abs() && pos.y > 0 {
@@ -689,7 +701,7 @@ impl Buffer {
         pos.x = min(pos.x, self.lines[pos.y].len());
     }
 
-    pub fn do_scroll_up(&mut self, pos: &mut Point, height: usize) {
+    fn do_scroll_up(&mut self, pos: &mut Point, height: usize) {
         if pos.y < height {
             pos.y = 0;
         } else {
@@ -701,7 +713,7 @@ impl Buffer {
         pos.x = min(pos.x, self.lines[pos.y].len());
     }
 
-    pub fn do_scroll_down(&mut self, pos: &mut Point, height: usize) {
+    fn do_scroll_down(&mut self, pos: &mut Point, height: usize) {
         if self.num_lines() < self.top_left.y + height {
             pos.y = self.num_lines() - 1;
         } else {
@@ -713,7 +725,7 @@ impl Buffer {
         pos.x = min(pos.x, self.lines[pos.y].len());
     }
 
-    pub fn do_move_to_begin(&mut self, pos: &mut Point) {
+    fn do_move_to_begin(&mut self, pos: &mut Point) {
         let old = pos.x;
         pos.x = 0;
         while pos.x < self.lines[pos.y].len() {
@@ -729,7 +741,7 @@ impl Buffer {
         }
     }
 
-    pub fn do_move_to_end(&mut self, pos: &mut Point) {
+    fn do_move_to_end(&mut self, pos: &mut Point) {
         pos.x = self.lines[pos.y].len();
     }
 
@@ -867,5 +879,53 @@ impl Buffer {
             }
             self.undo_stack.push(diff);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_editing() {
+        let mut b = Buffer::from_str("ab\nc");
+        assert_eq!(b.text(), "ab\nc\n");
+        b.backspace();
+        assert_eq!(b.text(), "ab\n\n");
+        b.backspace();
+        assert_eq!(b.text(), "ab\n");
+        b.move_by(0, -1);
+        b.backspace();
+        assert_eq!(b.text(), "b\n");
+        b.delete();
+        assert_eq!(b.text(), "\n");
+
+        // Nothing to be deleted. It should not panic.
+        b.backspace();
+        b.delete();
+        assert_eq!(b.text(), "\n");
+    }
+
+    #[test]
+    fn test_truncate() {
+        let mut b = Buffer::from_str("abcd\n123");
+        b.move_by(0, -1);
+        b.truncate();
+        assert_eq!(b.text(), "abcd\n12\n");
+        b.truncate();
+        assert_eq!(b.text(), "abcd\n12\n");
+        b.move_to_begin();
+        b.truncate();
+        assert_eq!(b.text(), "abcd\n\n");
+        b.move_by(0, -1);
+        b.truncate();
+        assert_eq!(b.text(), "abcd\n");
+        b.truncate();
+        assert_eq!(b.text(), "abcd\n");
+        b.move_to_begin();
+        b.truncate();
+        assert_eq!(b.text(), "\n");
+        b.truncate();
+        assert_eq!(b.text(), "\n");
     }
 }
