@@ -8,7 +8,7 @@ pub struct Point {
 }
 
 impl Point {
-    pub const fn new(x: usize, y: usize) -> Point {
+    pub const fn new(y: usize, x: usize) -> Point {
         Point { x, y }
     }
 
@@ -23,7 +23,7 @@ impl Point {
 
 impl fmt::Debug for Point {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({}, {})", self.x, self.y)
+        write!(f, "(y={}, x={})", self.y, self.x)
     }
 }
 
@@ -85,6 +85,12 @@ impl Cursor {
     pub fn position_mut(&mut self) -> &mut Point {
         assert_eq!(self.start(), self.end());
         self.start_mut()
+    }
+
+    pub fn move_to(&mut self, y: usize, x: usize) {
+        self.selection.start.y = y;
+        self.selection.start.x = x;
+        self.selection.end = self.selection.start;
     }
 
     pub fn selection(&self) -> &Range {

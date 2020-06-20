@@ -46,6 +46,10 @@ enum Command {
     Delete,
     Truncate,
     Tab(bool),
+    MoveTo {
+        y: usize,
+        x: usize,
+    },
     MoveBy {
         y_diff: isize,
         x_diff: isize,
@@ -380,6 +384,9 @@ impl Buffer {
                         self.do_truncate(cursor.start_mut());
                     }
                 }
+                Command::MoveTo { y, x } => {
+                    cursor.move_to(y, x);
+                }
                 Command::MoveBy { y_diff, x_diff } => {
                     if self.selection.is_some() && cursor.start() == cursor.end() {
                         if x_diff < 0 || y_diff < 0 {
@@ -429,26 +436,18 @@ impl Buffer {
             }
             self.cursors[cursor_i] = cursor.clone();
 
-            // Move other cursors after the current one if a newline is inserted
-            // or removed.
-            let num_lines = self.num_lines();
-            for (i, c) in self.cursors.iter_mut().enumerate() {
-                if i != cursor_i && c.start().y >= cursor.start().y {
-                    let diff = num_lines as isize - prev_num_lines as isize;
-                    c.start_mut().move_y_by(diff);
-                    c.end_mut().move_y_by(diff);
-                }
-            }
-
             // Look for duplicated or out-of-range cursors.
             let num_cursors = self.cursors.len();
             for i in 0..num_cursors {
                 let c = self.cursors[i].clone();
                 let duplicated =
-                self.cursors.iter().enumerate().any(|(j, other)|
-                i != j && !removed_cursors.contains(&j) && c.intersects_with(other));
+                    self.cursors.iter().enumerate().any(|(j, other)|
+                        i != j
+                        && !removed_cursors.contains(&j)
+                        && c.intersects_with(other)
+                    );
                 let out_of_range =
-                    c.end().y >= num_lines
+                    c.end().y >= self.num_lines()
                     || c.end().x > self.lines[c.end().y].len();
                 if duplicated || out_of_range {
                     removed_cursors.insert(i);
@@ -538,6 +537,10 @@ impl Buffer {
         self.process_command(Command::Tab(after_newline));
     }
 
+    pub fn move_to(&mut self, y: usize, x: usize) {
+        self.process_command(Command::MoveTo { y, x });
+    }
+
     pub fn move_by(&mut self, y_diff: isize, x_diff: isize) {
         self.process_command(Command::MoveBy { y_diff, x_diff });
     }
@@ -615,9 +618,9 @@ impl Buffer {
 
         let (removed_char, end) =
             if eol {
-                ('\n', Point::new(0, pos.y + 1))
+                ('\n', Point::new(pos.y + 1, 0))
             } else {
-                (self.lines[pos.y].at(pos.x), Point::new(pos.x + 1, pos.y))
+                (self.lines[pos.y].at(pos.x), Point::new(pos.y, pos.x + 1))
             };
         self.apply_diff(Diff::Remove(*pos, end, removed_char.to_string()));
         self.modified = true;
@@ -630,7 +633,7 @@ impl Buffer {
 
         self.modified = true;
         if pos.x == self.lines[pos.y].len() {
-            let end = Point::new(0, pos.y + 1);
+            let end = Point::new(pos.y + 1, 0);
             self.apply_diff(Diff::Remove(*pos, end, '\n'.to_string()));
         } else {
             let mut end = *pos;
@@ -927,5 +930,101 @@ mod tests {
         assert_eq!(b.text(), "\n");
         b.truncate();
         assert_eq!(b.text(), "\n");
+    }
+
+    #[test]
+    fn test_cursor_movements() {
+        let mut b = Buffer::from_str("abcd\n123");
+        assert_eq!(*b.cursors()[0].position(), Point::new(1, 3));
+        b.move_by(0, -1);
+        assert_eq!(*b.cursors()[0].position(), Point::new(1, 2));
+        b.move_by(-1, 0);
+        assert_eq!(*b.cursors()[0].position(), Point::new(0, 2));
+        b.move_to_end();
+        assert_eq!(*b.cursors()[0].position(), Point::new(0, 4));
+        b.move_by(1, 0);
+        assert_eq!(*b.cursors()[0].position(), Point::new(1, 3));
+        b.move_to_begin();
+        b.move_by(0, -1);
+        assert_eq!(*b.cursors()[0].position(), Point::new(0, 4));
+    }
+
+    #[test]
+    fn test_multiple_cursors() {
+        let mut b = Buffer::from_str("abcd\n123\nXY");
+        b.move_to(0, 0);
+        b.add_cursor(Point::new(1, 0));
+        b.add_cursor(Point::new(2, 0));
+        b.insert_str("._");
+        assert_eq!(b.cursors().len(), 3);
+        assert_eq!(b.text(), "._abcd\n._123\n._XY\n");
+
+        b.move_by(0, -1);
+        b.backspace();
+        assert_eq!(b.cursors().len(), 3);
+        assert_eq!(b.text(), "_abcd\n_123\n_XY\n");
+
+        b.move_to_end();
+        b.insert_str("_");
+        assert_eq!(b.cursors().len(), 3);
+        assert_eq!(b.text(), "_abcd_\n_123_\n_XY_\n");
+
+        for _ in 0..4 {
+            b.backspace();
+        }
+        assert_eq!(b.cursors().len(), 3);
+        dbg!(b.cursors());
+        assert_eq!(b.text(), "_a\n_\n\n");
+
+        b.backspace();
+        dbg!(b.cursors());
+        assert_eq!(b.cursors().len(), 2);
+        assert_eq!(b.text(), "_\n\n");
+
+        b.backspace();
+        assert_eq!(b.cursors().len(), 1);
+        assert_eq!(b.text(), "\n");
+
+        let mut b = Buffer::from_str("a\n\n");
+        b.move_to(0, 0);
+        b.add_cursor(Point::new(1, 0));
+        b.add_cursor(Point::new(2, 0));
+        b.delete();
+        assert_eq!(b.cursors().len(), 2);
+        assert_eq!(b.text(), "\n\n");
+    }
+
+    #[test]
+    fn test_selection() {
+        let mut b = Buffer::from_str("abcd\n123");
+        // select "bc" and replace it with "X".
+        b.move_to(0, 1);
+        b.start_selection();
+        b.move_by(0, 1);
+        b.move_by(0, 1);
+        b.insert('X');
+        assert_eq!(b.text(), "aXd\n123\n");
+        b.end_selection();
+
+        // select "d\n1" and replace it with "Y".
+        b.start_selection();
+        b.move_by(0, 1);
+        b.move_by(0, 1);
+        b.move_by(0, 1);
+        b.insert('Y');
+        assert_eq!(b.text(), "aXY23\n");
+        b.end_selection();
+    }
+
+    #[test]
+    fn test_clipboard() {
+        // let mut b = Buffer::from_str("abcd\n123");
+        // TODO:
+    }
+
+    #[test]
+    fn test_undo() {
+        // let mut b = Buffer::from_str("abcd\n123");
+        // TODO:
     }
 }

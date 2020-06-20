@@ -218,7 +218,7 @@ impl Terminal {
                         }
 
                         if cursor.is_selection()
-                            && cursor.contains(&Point::new(x, y)) {
+                            && cursor.contains(&Point::new(y, x)) {
                             invert = true;
                         }
                     }
