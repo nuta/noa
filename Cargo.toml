@@ -1,0 +1,13 @@
+[package]
+name = "noa"
+version = "0.0.0"
+authors = ["Seiya Nuta <nuta@seiya.me>"]
+edition = "2018"
+
+[dependencies]
+lazy_static = "1"
+log = { version = "^0.4.6", features = ["max_level_trace", "release_max_level_warn"] }
+phf = { version = "0.8", features = ["macros"] }
+
+[dev-dependencies]
+pretty_assertions = "0"
