@@ -128,6 +128,10 @@ mod tests {
         assert_eq!(gb.text(), "123abcdef");
         gb.insert("XYZ", 6);
         assert_eq!(gb.text(), "123abcXYZdef");
+        gb.insert("Hello ", 0);
+        assert_eq!(gb.text(), "Hello 123abcXYZdef");
+        gb.insert("!", gb.len());
+        assert_eq!(gb.text(), "Hello 123abcXYZdef!");
     }
 
     #[test]
