@@ -1,28 +1,29 @@
 use std::fmt;
+use std::collections::HashSet;
 use ropey::Rope;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Point {
-    pub line: usize,
-    pub col: usize,
+    pub y: usize,
+    pub x: usize,
 }
 
 impl Point {
-    pub fn new(line: usize, col: usize) -> Point {
+    pub fn new(y: usize, x: usize) -> Point {
         Point {
-            line,
-            col,
+            y,
+            x,
         }
     }
 
     pub fn index_in_rope(&self, rope: &Rope) -> usize {
-        rope.line_to_char(self.line) + self.col
+        rope.line_to_char(self.y) + self.x
     }
 }
 
 impl fmt::Display for Point {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({}, {})", self.line, self.col)
+        write!(f, "({}, {})", self.y, self.x)
     }
 }
 
@@ -33,11 +34,8 @@ pub struct Range {
 }
 
 impl Range {
-    pub fn new(start_line: usize, start_col: usize, end_line: usize, end_col: usize) -> Range {
-        Range::from_points(
-            Point::new(start_line, start_col),
-            Point::new(end_line, end_col)
-        )
+    pub fn new(start_y: usize, start_x: usize, end_y: usize, end_x: usize) -> Range {
+        Range::from_points(Point::new(start_y, start_x), Point::new(end_y, end_x))
     }
 
     pub fn from_points(start: Point, end: Point) -> Range {
@@ -79,36 +77,55 @@ impl CursorSet {
         let y_diff = string.matches('\n').count();
         let x_diff = string.rfind('\n').unwrap_or(string.len());
 
-        let old_cursors = self.cursors.clone();
+        let cursors = self.cursors.clone();
+        let mut lines_changed = HashSet::new();
         for cursor in &mut self.cursors {
-            let new_pos = match cursor {
-                Cursor::Normal(Point { line, col }) => {
-                    Point::new(*line + y_diff, *col + x_diff)
+            let insert_at = match cursor {
+                Cursor::Normal(pos) => {
+                    pos
                 }
                 Cursor::Selection(Range { start, .. }) => {
-                    Point::new(start.line + y_diff, start.col + x_diff)
+                    start
                 }
             };
 
             // TODO: Adjust other cursors.
+            let x = if string.contains('\n') {
+                x_diff
+            } else {
+                insert_at.x + x_diff
+            };
+
+            let new_pos = Point::new(insert_at.y + y_diff, x);
             *cursor = Cursor::Normal(new_pos);
+            if lines_changed.contains(&new_pos.y) {
+            }
+
+            lines_changed.insert(new_pos.y);
         }
 
-        old_cursors
+        cursors
     }
 }
 
 pub struct Buffer {
     buf: Rope,
     cursors: CursorSet,
+    undo_stack: Vec<Rope>,
+    redo_stack: Vec<Rope>,
 }
 
 impl Buffer {
     pub fn new() -> Buffer {
-        Buffer {
+        let mut buffer = Buffer {
             buf: Rope::new(),
             cursors: CursorSet::new(),
-        }
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
+        };
+
+        buffer.mark_undo_point();
+        buffer
     }
 
     pub fn text(&self) -> String {
@@ -129,16 +146,34 @@ impl Buffer {
         }
     }
 
-    pub fn begin_undo_group(&mut self) {
-    }
-
-    pub fn end_undo_group(&mut self) {
+    pub fn mark_undo_point(&mut self) {
+        self.undo_stack.push(self.buf.clone());
     }
 
     pub fn undo(&mut self) {
+        if let Some(top) = self.undo_stack.last() {
+            if *top == self.buf {
+                self.undo_stack.pop();
+            }
+        }
+
+        if let Some(buf) = self.undo_stack.pop() {
+            self.redo_stack.push(self.buf.clone());
+            self.buf = buf.clone();
+        }
     }
 
     pub fn redo(&mut self) {
+        if let Some(top) = self.redo_stack.last() {
+            if *top == self.buf {
+                self.redo_stack.pop();
+            }
+        }
+
+        if let Some(buf) = self.redo_stack.pop() {
+            self.undo_stack.push(self.buf.clone());
+            self.buf = buf.clone();
+        }
     }
 
     fn insert_range(&mut self, string: &str, pos: &Point) {
@@ -162,5 +197,47 @@ mod test {
         b.insert("Hello");
         b.insert(" World!");
         assert_eq!(b.text(), "Hello World!");
+    }
+
+    #[test]
+    fn undo() {
+        let mut b = Buffer::new();
+        b.undo();
+        b.redo();
+        assert_eq!(b.text(), "");
+        b.insert("abc");
+        b.mark_undo_point();
+        assert_eq!(b.text(), "abc");
+        b.redo(); // Do nothing.
+        assert_eq!(b.text(), "abc");
+        b.undo();
+        assert_eq!(b.text(), "");
+        b.redo();
+        assert_eq!(b.text(), "abc");
+
+        let mut b = Buffer::new();
+        b.insert("abc");
+        b.mark_undo_point();
+        b.insert("123");
+        b.mark_undo_point();
+        b.insert("xyz");
+        b.mark_undo_point();
+        assert_eq!(b.text(), "abc123xyz");
+        b.undo();
+        assert_eq!(b.text(), "abc123");
+        b.undo();
+        assert_eq!(b.text(), "abc");
+        b.redo();
+        assert_eq!(b.text(), "abc123");
+        b.redo();
+        assert_eq!(b.text(), "abc123xyz");
+        b.undo();
+        assert_eq!(b.text(), "abc123");
+        b.undo();
+        assert_eq!(b.text(), "abc");
+        b.undo();
+        assert_eq!(b.text(), "");
+        b.undo();
+        assert_eq!(b.text(), "");
     }
 }
