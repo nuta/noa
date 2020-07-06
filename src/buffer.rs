@@ -1,4 +1,5 @@
 use std::fmt;
+use std::cmp::min;
 use std::collections::HashSet;
 use ropey::Rope;
 
@@ -44,6 +45,13 @@ impl Range {
             end,
         }
     }
+
+    pub fn overlaps_with(&self, other: &Range) -> bool {
+        self.end.y < other.start.y
+        || self.start.y > other.end.y
+        || (self.end.y == other.start.y && self.end.x < other.start.x)
+        || (self.start.y == other.end.y && self.start.x > other.end.x)
+    }
 }
 
 impl fmt::Display for Range {
@@ -73,9 +81,46 @@ impl CursorSet {
         &self.cursors
     }
 
+    pub fn move_by_offsets(
+        &mut self,
+        rope: &Rope,
+        up: usize,
+        down: usize,
+        left: usize,
+        right: usize
+    ) {
+        let num_lines = rope.len_lines();
+        for cursor in &mut self.cursors {
+            let mut new_pos = match cursor {
+                Cursor::Normal(pos) => {
+                    pos.y = pos.y.saturating_add(down);
+                    pos.y = pos.y.saturating_sub(up);
+                    pos.x = pos.x.saturating_add(right);
+                    pos.x = pos.x.saturating_sub(left);
+                    *pos
+                }
+                Cursor::Selection(Range { start, end }) => {
+                    *start
+                }
+            };
+
+            dbg!(new_pos, rope.len_chars(), num_lines);
+            new_pos.y = min(new_pos.y, num_lines);
+            new_pos.x = min(new_pos.y, rope.line(new_pos.y).len_chars());
+        }
+
+        for i in 0..rope.len_lines() {
+            dbg!(i, rope.line(i).len_chars());
+        }
+
+        self.dedup();
+    }
+
     pub fn move_by_insertion(&mut self, string: &str) -> Vec<Cursor> {
         let y_diff = string.matches('\n').count();
-        let x_diff = string.rfind('\n').unwrap_or(string.len());
+        let x_diff = string.rfind('\n')
+            .map(|x| string.len() - x - 1)
+            .unwrap_or(string.len());
 
         let cursors = self.cursors.clone();
         let mut lines_changed = HashSet::new();
@@ -106,6 +151,50 @@ impl CursorSet {
 
         cursors
     }
+
+    fn dedup(&mut self) {
+        let duplicated =
+            self.cursors
+                .iter()
+                .enumerate()
+                .map(|(i, c)| {
+                    match c {
+                        Cursor::Normal(pos) => {
+                            (&self.cursors[(i+1)..])
+                                .iter()
+                                .any(|other| {
+                                    match other {
+                                        Cursor::Normal(ref other) => {
+                                            *pos == *other
+                                        }
+                                        _ => unreachable!()
+                                    }
+                                })
+                        }
+                        Cursor::Selection(range) => {
+                            (&self.cursors[(i+1)..])
+                                .iter()
+                                .any(|other| {
+                                    match other {
+                                        Cursor::Selection(ref other) => {
+                                            range.overlaps_with(other)
+                                        }
+                                        _ => unreachable!()
+                                    }
+                                })
+                        }
+                    }
+                });
+
+        let mut new_cursors = Vec::new();
+        for (cursor, skip) in self.cursors.iter().zip(duplicated) {
+            if !skip {
+                new_cursors.push(cursor.clone());
+            }
+        }
+
+        self.cursors = new_cursors;
+    }
 }
 
 pub struct Buffer {
@@ -132,6 +221,20 @@ impl Buffer {
         self.buf.to_string()
     }
 
+    pub fn cursors(&self) -> &[Cursor] {
+        self.cursors.cursors()
+    }
+
+    pub fn move_cursors(
+        &mut self,
+        up: usize,
+        down: usize,
+        left: usize,
+        right: usize
+    ) {
+        self.cursors.move_by_offsets(&self.buf, up, down, left, right);
+    }
+
     pub fn insert(&mut self, string: &str) {
         for cursor in self.cursors.move_by_insertion(&string) {
             match cursor {
@@ -146,11 +249,30 @@ impl Buffer {
         }
     }
 
+    pub fn backspace(&mut self) {
+        /*
+        for cursor in self.cursors.move_by_deletion(-1) {
+            match cursor {
+                Cursor::Normal(pos) => {
+                    self.delete_range(&Range::from_points(pos, pos));
+                }
+                Cursor::Selection(range) => {
+                    self.delete_range(&range);
+                }
+            };
+        }
+        */
+    }
+
     pub fn mark_undo_point(&mut self) {
         self.undo_stack.push(self.buf.clone());
     }
 
     pub fn undo(&mut self) {
+        if self.undo_stack.len() == 1 && self.buf.len_chars() == 0 {
+            return;
+        }
+
         if let Some(top) = self.undo_stack.last() {
             if *top == self.buf {
                 self.undo_stack.pop();
@@ -164,12 +286,6 @@ impl Buffer {
     }
 
     pub fn redo(&mut self) {
-        if let Some(top) = self.redo_stack.last() {
-            if *top == self.buf {
-                self.redo_stack.pop();
-            }
-        }
-
         if let Some(buf) = self.redo_stack.pop() {
             self.undo_stack.push(self.buf.clone());
             self.buf = buf.clone();
@@ -192,7 +308,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn single_cursor() {
+    fn insertion() {
         let mut b = Buffer::new();
         b.insert("Hello");
         b.insert(" World!");
@@ -200,10 +316,24 @@ mod test {
     }
 
     #[test]
+    fn single_cursor() {
+        let mut b = Buffer::new();
+        b.move_cursors(1, 0, 0, 0); // Do nothing
+        b.insert("A\nDEF\n12345");
+        assert_eq!(b.cursors(), &[Cursor::Normal(Point::new(2, 5))]);
+        b.move_cursors(0, 0, 1, 0); // Move right
+        assert_eq!(b.cursors(), &[Cursor::Normal(Point::new(2, 4))]);
+        b.move_cursors(1, 0, 0, 0); // Move up
+        assert_eq!(b.cursors(), &[Cursor::Normal(Point::new(1, 3))]);
+        b.move_cursors(0, 3, 0, 0); // Move down
+        assert_eq!(b.cursors(), &[Cursor::Normal(Point::new(3, 0))]);
+    }
+
+    #[test]
     fn undo() {
         let mut b = Buffer::new();
-        b.undo();
         b.redo();
+        b.undo();
         assert_eq!(b.text(), "");
         b.insert("abc");
         b.mark_undo_point();
@@ -212,6 +342,14 @@ mod test {
         assert_eq!(b.text(), "abc");
         b.undo();
         assert_eq!(b.text(), "");
+        b.redo();
+        assert_eq!(b.text(), "abc");
+        b.undo();
+        assert_eq!(b.text(), "");
+        b.undo();
+        assert_eq!(b.text(), "");
+        b.redo();
+        assert_eq!(b.text(), "abc");
         b.redo();
         assert_eq!(b.text(), "abc");
 
