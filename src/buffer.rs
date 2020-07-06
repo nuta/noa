@@ -1,7 +1,6 @@
 use std::fmt;
 use std::cmp::min;
 use std::collections::HashSet;
-use ropey::Rope;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Point {
@@ -15,10 +14,6 @@ impl Point {
             y,
             x,
         }
-    }
-
-    pub fn index_in_rope(&self, rope: &Rope) -> usize {
-        rope.line_to_char(self.y) + self.x
     }
 }
 
@@ -61,7 +56,7 @@ impl fmt::Display for Range {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-enum Cursor {
+pub enum Cursor {
     Normal(Point),
     Selection(Range),
 }
@@ -89,7 +84,7 @@ impl CursorSet {
         left: usize,
         right: usize
     ) {
-        let num_lines = rope.len_lines();
+        let num_lines = rope.num_lines();
         for cursor in &mut self.cursors {
             let mut new_pos = match cursor {
                 Cursor::Normal(pos) => {
@@ -104,13 +99,14 @@ impl CursorSet {
                 }
             };
 
-            dbg!(new_pos, rope.len_chars(), num_lines);
             new_pos.y = min(new_pos.y, num_lines);
-            new_pos.x = min(new_pos.y, rope.line(new_pos.y).len_chars());
-        }
-
-        for i in 0..rope.len_lines() {
-            dbg!(i, rope.line(i).len_chars());
+            dbg!(new_pos.y, num_lines);
+            if new_pos.y == num_lines {
+                new_pos.x = 0;
+            } else {
+                new_pos.x = min(new_pos.x, rope.line_len(new_pos.y));
+            }
+            *cursor = Cursor::Normal(new_pos);
         }
 
         self.dedup();
@@ -197,6 +193,70 @@ impl CursorSet {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+struct Rope(ropey::Rope);
+
+impl Rope {
+    pub fn new() -> Rope {
+        Rope(ropey::Rope::new())
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.len_chars() == 0
+    }
+
+    /// Returns the number of characters in the buffer.
+    pub fn len(&self) -> usize {
+        self.0.len_chars()
+    }
+
+    /// Returns the number of characters in the buffer.
+    pub fn num_lines(&self) -> usize {
+        self.0.len_lines()
+    }
+
+    /// Returns a line except new line characters.
+    pub fn line(&self, line: usize) -> ropey::RopeSlice<'_> {
+        let slice = self.0.line(line);
+
+        // The slice contains newline characters. Trim them.
+        let mut len = slice.len_chars();
+        while len > 0 {
+            if slice.char(len - 1) != '\n' {
+                break;
+            }
+
+            len -= 1;
+        }
+
+        slice.slice(..len)
+    }
+
+    /// Returns the number of characters in a line except new line characters.
+    pub fn line_len(&self, line: usize) -> usize {
+        self.line(line).len_chars()
+    }
+
+    pub fn to_string(&self) -> String {
+        self.0.to_string()
+    }
+
+    pub fn insert(&mut self, pos: &Point, string: &str) {
+        self.0.insert(self.index_in_rope(pos), string);
+    }
+
+    fn delete(&mut self, range: &Range) {
+        let start = self.index_in_rope(&range.start);
+        let end = self.index_in_rope(&range.end);
+        self.0.remove(start..end);
+    }
+
+    fn index_in_rope(&self, pos: &Point) -> usize {
+        self.0.line_to_char(pos.y) + pos.x
+    }
+}
+
+
 pub struct Buffer {
     buf: Rope,
     cursors: CursorSet,
@@ -239,11 +299,11 @@ impl Buffer {
         for cursor in self.cursors.move_by_insertion(&string) {
             match cursor {
                 Cursor::Normal(pos) => {
-                    self.insert_range(string, &pos);
+                    self.buf.insert(&pos, string);
                 }
                 Cursor::Selection(range) => {
-                    self.delete_range(&range);
-                    self.insert_range(string, &range.start);
+                    self.buf.delete(&range);
+                    self.buf.insert(&range.start, string);
                 }
             };
         }
@@ -269,7 +329,7 @@ impl Buffer {
     }
 
     pub fn undo(&mut self) {
-        if self.undo_stack.len() == 1 && self.buf.len_chars() == 0 {
+        if self.undo_stack.len() == 1 && self.buf.is_empty() {
             return;
         }
 
@@ -290,16 +350,6 @@ impl Buffer {
             self.undo_stack.push(self.buf.clone());
             self.buf = buf.clone();
         }
-    }
-
-    fn insert_range(&mut self, string: &str, pos: &Point) {
-        self.buf.insert(pos.index_in_rope(&self.buf), string);
-    }
-
-    fn delete_range(&mut self, range: &Range) {
-        let start = range.start.index_in_rope(&self.buf);
-        let end = range.end.index_in_rope(&self.buf);
-        self.buf.remove(start..end);
     }
 }
 
