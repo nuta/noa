@@ -86,6 +86,15 @@ impl CursorSet {
     ) {
         let num_lines = rope.num_lines();
         for cursor in &mut self.cursors {
+            // Cancel selections.
+            match cursor {
+                Cursor::Normal(_) => {}
+                Cursor::Selection(Range { start, end }) => {
+                    *cursor = Cursor::Normal(*start)
+                }
+            };
+
+            // Move the cursors.
             let mut new_pos = match cursor {
                 Cursor::Normal(pos) => {
                     let mut r = right;
@@ -124,9 +133,7 @@ impl CursorSet {
                     pos.y = pos.y.saturating_sub(up);
                     *pos
                 }
-                Cursor::Selection(Range { start, end }) => {
-                    *start
-                }
+                Cursor::Selection(_) => unreachable!()
             };
 
             new_pos.y = min(new_pos.y, num_lines);
