@@ -15,6 +15,54 @@ impl Point {
             x,
         }
     }
+
+    fn move_by_offsets(
+        &mut self,
+        rope: &Rope,
+        up: usize,
+        down: usize,
+        left: usize,
+        right: usize
+    ) {
+        let num_lines = rope.num_lines();
+        let mut r = right;
+        loop {
+            let max_x = rope.line_len(self.y);
+            if self.x + r <= max_x {
+                self.x += r;
+                break;
+            } if self.y >= num_lines {
+                break;
+            } else {
+                r -= max_x - self.x;
+                self.x = 0;
+                self.y += 1;
+            }
+        }
+
+        let mut l = left;
+        loop {
+            if l <= self.x {
+                self.x -= l;
+                break;
+            } else if self.y == 0 {
+                break;
+            } else {
+                l -= self.x;
+                if l > 0 {
+                    l -= 1;
+                    self.y -= 1;
+                    self.x = rope.line_len(self.y);
+                }
+            }
+        }
+
+        self.y = self.y.saturating_add(down);
+        self.y = self.y.saturating_sub(up);
+
+        self.y = min(self.y, num_lines);
+        self.x = min(self.x, rope.line_len(self.y));
+    }
 }
 
 impl fmt::Display for Point {
@@ -84,9 +132,8 @@ impl CursorSet {
         left: usize,
         right: usize
     ) {
-        let num_lines = rope.num_lines();
         for cursor in &mut self.cursors {
-            // Cancel selections.
+            // Cancel the selection.
             match cursor {
                 Cursor::Normal(_) => {}
                 Cursor::Selection(Range { start, end }) => {
@@ -94,51 +141,13 @@ impl CursorSet {
                 }
             };
 
-            // Move the cursors.
+            // Move the cursor.
             let mut new_pos = match cursor {
                 Cursor::Normal(pos) => {
-                    let mut r = right;
-                    loop {
-                        let max_x = rope.line_len(pos.y);
-                        if pos.x + r <= max_x {
-                            pos.x += r;
-                            break;
-                        } if pos.y >= num_lines {
-                            break;
-                        } else {
-                            r -= max_x - pos.x;
-                            pos.x = 0;
-                            pos.y += 1;
-                        }
-                    }
-
-                    let mut l = left;
-                    loop {
-                        if l <= pos.x {
-                            pos.x -= l;
-                            break;
-                        } else if pos.y == 0 {
-                            break;
-                        } else {
-                            l -= pos.x;
-                            if l > 0 {
-                                l -= 1;
-                                pos.y -= 1;
-                                pos.x = rope.line_len(pos.y);
-                            }
-                        }
-                    }
-
-                    pos.y = pos.y.saturating_add(down);
-                    pos.y = pos.y.saturating_sub(up);
-                    *pos
+                    pos.move_by_offsets(rope, up, down, left, right);
                 }
                 Cursor::Selection(_) => unreachable!()
             };
-
-            new_pos.y = min(new_pos.y, num_lines);
-            new_pos.x = min(new_pos.x, rope.line_len(new_pos.y));
-            *cursor = Cursor::Normal(new_pos);
         }
 
         self.dedup();
@@ -281,7 +290,7 @@ impl Rope {
         self.0.insert(self.index_in_rope(pos), string);
     }
 
-    fn delete(&mut self, range: &Range) {
+    fn remove(&mut self, range: &Range) {
         let start = self.index_in_rope(&range.start);
         let end = self.index_in_rope(&range.end);
         self.0.remove(start..end);
@@ -338,7 +347,7 @@ impl Buffer {
                     self.buf.insert(&pos, string);
                 }
                 Cursor::Selection(range) => {
-                    self.buf.delete(&range);
+                    self.buf.remove(&range);
                     self.buf.insert(&range.start, string);
                 }
             };
