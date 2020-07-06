@@ -88,10 +88,40 @@ impl CursorSet {
         for cursor in &mut self.cursors {
             let mut new_pos = match cursor {
                 Cursor::Normal(pos) => {
+                    let mut r = right;
+                    loop {
+                        let max_x = rope.line_len(pos.y);
+                        if pos.x + r <= max_x {
+                            pos.x += r;
+                            break;
+                        } if pos.y >= num_lines {
+                            break;
+                        } else {
+                            r -= max_x - pos.x;
+                            pos.x = 0;
+                            pos.y += 1;
+                        }
+                    }
+
+                    let mut l = left;
+                    loop {
+                        if l <= pos.x {
+                            pos.x -= l;
+                            break;
+                        } else if pos.y == 0 {
+                            break;
+                        } else {
+                            l -= pos.x;
+                            if l > 0 {
+                                l -= 1;
+                                pos.y -= 1;
+                                pos.x = rope.line_len(pos.y);
+                            }
+                        }
+                    }
+
                     pos.y = pos.y.saturating_add(down);
                     pos.y = pos.y.saturating_sub(up);
-                    pos.x = pos.x.saturating_add(right);
-                    pos.x = pos.x.saturating_sub(left);
                     *pos
                 }
                 Cursor::Selection(Range { start, end }) => {
@@ -100,12 +130,7 @@ impl CursorSet {
             };
 
             new_pos.y = min(new_pos.y, num_lines);
-            dbg!(new_pos.y, num_lines);
-            if new_pos.y == num_lines {
-                new_pos.x = 0;
-            } else {
-                new_pos.x = min(new_pos.x, rope.line_len(new_pos.y));
-            }
+            new_pos.x = min(new_pos.x, rope.line_len(new_pos.y));
             *cursor = Cursor::Normal(new_pos);
         }
 
@@ -234,7 +259,11 @@ impl Rope {
 
     /// Returns the number of characters in a line except new line characters.
     pub fn line_len(&self, line: usize) -> usize {
-        self.line(line).len_chars()
+        if line == self.num_lines() {
+            0
+        } else {
+            self.line(line).len_chars()
+        }
     }
 
     pub fn to_string(&self) -> String {
@@ -376,6 +405,10 @@ mod test {
         b.move_cursors(1, 0, 0, 0); // Move up
         assert_eq!(b.cursors(), &[Cursor::Normal(Point::new(1, 3))]);
         b.move_cursors(0, 3, 0, 0); // Move down
+        assert_eq!(b.cursors(), &[Cursor::Normal(Point::new(3, 0))]);
+        b.move_cursors(0, 0, 1, 0); // Move left
+        assert_eq!(b.cursors(), &[Cursor::Normal(Point::new(2, 5))]);
+        b.move_cursors(0, 0, 0, 1); // Move right
         assert_eq!(b.cursors(), &[Cursor::Normal(Point::new(3, 0))]);
     }
 
