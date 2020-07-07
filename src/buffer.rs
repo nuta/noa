@@ -142,30 +142,6 @@ mod test {
     use super::*;
 
     #[test]
-    fn cursor_set() {
-        // .a|b.c|
-        // .d.e|f.
-        // .x|y.z.
-        let mut b = Buffer::new();
-        let mut cursors = CursorSet::new();
-        b.insert("abc\ndef\nxyz");
-
-        // Make sure cursors gets sorted.
-        cursors.set_cursors(vec![
-            Cursor::Normal(Point::new(1, 2)),
-            Cursor::Normal(Point::new(0, 3)),
-            Cursor::Normal(Point::new(2, 1)),
-            Cursor::Normal(Point::new(0, 1)),
-        ]);
-        assert_eq!(cursors.cursors(), &[
-            Cursor::Normal(Point::new(0, 1)),
-            Cursor::Normal(Point::new(0, 3)),
-            Cursor::Normal(Point::new(1, 2)),
-            Cursor::Normal(Point::new(2, 1)),
-        ]);
-    }
-
-    #[test]
     fn insertion_and_deletion() {
         let mut b = Buffer::new();
         b.insert("Hello");
