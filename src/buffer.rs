@@ -208,6 +208,36 @@ impl CursorSet {
         cursors
     }
 
+    pub fn move_by_backspace(&mut self, rope: &Rope) -> Vec<Cursor> {
+        let mut cursors = self.cursors.clone();
+        let mut num_newlines_deleted = 0;
+        for cursor in &mut self.cursors {
+            match cursor {
+                Cursor::Normal(pos) => {
+                    if pos.y == 0 && pos.x == 0 {
+                        // Do nothing
+                    } else if pos.x == 0 {
+                        // Remove a newline.
+                        pos.x = rope.line_len(pos.y - 1);
+                        num_newlines_deleted += 1;
+                        pos.y -= num_newlines_deleted;
+                    } else {
+                        pos.x -= 1;
+                    }
+                }
+                Cursor::Selection(_) => { /* Do nothing. */ }
+            }
+        }
+
+        self.sort_and_dedup();
+        // Reverse the deletion positions to avoid doing error-prone offset
+        // calculation cause by deleting newlines.
+        cursors.reverse();
+        cursors
+    }
+
+    /// Sorts the cursors and removes overlapped ones. Don't forget to call this
+    /// method when you made a change.
     fn sort_and_dedup(&mut self) {
         self.cursors.sort_by(|a, b| {
             let a = match a {
@@ -346,6 +376,7 @@ impl Rope {
     }
 
     fn remove(&mut self, range: &Range) {
+        dbg!(range);
         let start = self.index_in_rope(&range.start);
         let end = self.index_in_rope(&range.end);
         self.0.remove(start..end);
@@ -399,6 +430,10 @@ impl Buffer {
         self.cursors.move_by_offsets(&self.buf, up, down, left, right);
     }
 
+    pub fn insert_char(&mut self, ch: char) {
+        self.insert(&ch.to_string())
+    }
+
     pub fn insert(&mut self, string: &str) {
         for cursor in self.cursors.move_by_insertion(&string) {
             match cursor {
@@ -414,18 +449,24 @@ impl Buffer {
     }
 
     pub fn backspace(&mut self) {
-        /*
-        for cursor in self.cursors.move_by_deletion(-1) {
-            match cursor {
+        for c in self.cursors.move_by_backspace(&self.buf) {
+            match c {
                 Cursor::Normal(pos) => {
-                    self.delete_range(&Range::from_points(pos, pos));
+                    let start = if pos.y == 0 && pos.x == 0 {
+                        continue;
+                    } else if pos.x == 0 {
+                        Point::new(pos.y - 1, self.buf.line_len(pos.y - 1))
+                    } else {
+                        Point::new(pos.y, pos.x - 1)
+                    };
+
+                    self.buf.remove(&Range::from_points(start, pos));
                 }
                 Cursor::Selection(range) => {
-                    self.delete_range(&range);
+                    self.buf.remove(&range);
                 }
             };
         }
-        */
     }
 
     pub fn mark_undo_point(&mut self) {
@@ -486,10 +527,14 @@ mod test {
     }
 
     #[test]
-    fn insertion() {
+    fn insertion_and_deletion() {
         let mut b = Buffer::new();
         b.insert("Hello");
-        b.insert(" World!");
+        b.insert(" World?");
+        assert_eq!(b.text(), "Hello World?");
+        b.backspace();
+        assert_eq!(b.text(), "Hello World");
+        b.insert_char('!');
         assert_eq!(b.text(), "Hello World!");
     }
 
@@ -514,11 +559,64 @@ mod test {
     #[test]
     fn multiple_cursors() {
         let mut b = Buffer::new();
+        // abc|
+        // d|e
+        // |xyz
         b.insert("abc\nde\nxyz");
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(0, 2)),
+            Cursor::Normal(Point::new(0, 3)),
             Cursor::Normal(Point::new(1, 1)),
             Cursor::Normal(Point::new(2, 0)),
+        ]);
+
+        // abc123|
+        // d123|e
+        // 123|xyz
+        b.insert("123");
+        assert_eq!(b.text(), "abc123\nd123e\n123xyz");
+        assert_eq!(b.cursors(), &[
+            Cursor::Normal(Point::new(0, 6)),
+            Cursor::Normal(Point::new(1, 4)),
+            Cursor::Normal(Point::new(2, 3)),
+        ]);
+
+        // abc123[
+        // ]|
+        // d123[
+        // ]|e
+        // 123[
+        // ]|xyz
+        b.insert("[\n]");
+        assert_eq!(b.text(), "abc123[\n]\nd123[\n]e\n123[\n]xyz");
+        assert_eq!(b.cursors(), &[
+            Cursor::Normal(Point::new(1, 1)),
+            Cursor::Normal(Point::new(3, 1)),
+            Cursor::Normal(Point::new(5, 1)),
+        ]);
+
+        // abc123[
+        // |
+        // d123[
+        // |e
+        // 123[
+        // |xyz
+        b.backspace();
+        assert_eq!(b.text(), "abc123[\n\nd123[\ne\n123[\nxyz");
+        assert_eq!(b.cursors(), &[
+            Cursor::Normal(Point::new(1, 0)),
+            Cursor::Normal(Point::new(3, 0)),
+            Cursor::Normal(Point::new(5, 0)),
+        ]);
+
+        // abc123[|
+        // d123[|e
+        // 123[|xyz
+        b.backspace();
+        assert_eq!(b.text(), "abc123[\nd123[e\n123[xyz");
+        assert_eq!(b.cursors(), &[
+            Cursor::Normal(Point::new(0, 7)),
+            Cursor::Normal(Point::new(1, 5)),
+            Cursor::Normal(Point::new(2, 4)),
         ]);
     }
 
