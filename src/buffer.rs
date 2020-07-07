@@ -1,6 +1,7 @@
 use std::fmt;
 use std::cmp::min;
-use std::collections::HashSet;
+use std::cmp::Ordering;
+use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Point {
@@ -31,7 +32,7 @@ impl Point {
             if self.x + r <= max_x {
                 self.x += r;
                 break;
-            } if self.y >= num_lines {
+            } else if self.y >= num_lines {
                 break;
             } else {
                 r -= max_x - self.x;
@@ -124,6 +125,11 @@ impl CursorSet {
         &self.cursors
     }
 
+    pub fn set_cursors(&mut self, cursors: Vec<Cursor>) {
+        self.cursors = cursors;
+        self.sort_and_dedup();
+    }
+
     pub fn move_by_offsets(
         &mut self,
         rope: &Rope,
@@ -150,19 +156,21 @@ impl CursorSet {
             };
         }
 
-        self.dedup();
+        self.sort_and_dedup();
     }
 
     pub fn move_by_insertion(&mut self, string: &str) -> Vec<Cursor> {
         let y_diff = string.matches('\n').count();
         let x_diff = string.rfind('\n')
             .map(|x| string.len() - x - 1)
-            .unwrap_or(string.len());
+            .unwrap_or_else(|| string.len());
 
-        let cursors = self.cursors.clone();
-        let mut lines_changed = HashSet::new();
+        let mut cursors = Vec::new();
+        let mut acc_y_diff = 0;
+        let mut acc_x_diff = 0;
+        let mut prev_pos: Option<Point> = None;
         for cursor in &mut self.cursors {
-            let insert_at = match cursor {
+            let current = match cursor {
                 Cursor::Normal(pos) => {
                     pos
                 }
@@ -171,25 +179,72 @@ impl CursorSet {
                 }
             };
 
-            // TODO: Adjust other cursors.
-            let x = if string.contains('\n') {
+            // Handle multiple cursors.
+            let mut insert_at = current.clone();
+            insert_at.y += acc_y_diff;
+            acc_y_diff += y_diff;
+            match prev_pos {
+                Some(prev) if prev.y == current.y => {
+                    insert_at.x += acc_x_diff;
+                    acc_x_diff += x_diff;
+                }
+                _ => {
+                    acc_x_diff = 0;
+                }
+            }
+
+            let mut x = if string.contains('\n') {
                 x_diff
             } else {
                 insert_at.x + x_diff
             };
 
+            prev_pos = Some(*current);
             let new_pos = Point::new(insert_at.y + y_diff, x);
             *cursor = Cursor::Normal(new_pos);
-            if lines_changed.contains(&new_pos.y) {
-            }
-
-            lines_changed.insert(new_pos.y);
+            cursors.push(Cursor::Normal(insert_at));
         }
 
         cursors
     }
 
-    fn dedup(&mut self) {
+    fn sort_and_dedup(&mut self) {
+        self.cursors.sort_by(|a, b| {
+            let a = match a {
+                Cursor::Normal(pos) => {
+                    pos
+                }
+                Cursor::Selection(Range { start, .. }) => {
+                    start
+                }
+            };
+
+            let b = match b {
+                Cursor::Normal(pos) => {
+                    pos
+                }
+                Cursor::Selection(Range { start, .. }) => {
+                    start
+                }
+            };
+
+            if a == b {
+                Ordering::Equal
+            } else {
+                if a.y < b.y {
+                    Ordering::Less
+                } else if a.y > b.y {
+                    Ordering::Greater
+                } else {
+                    if a.x < b.x {
+                        Ordering::Less
+                    } else {
+                        Ordering::Greater
+                    }
+                }
+            }
+        });
+
         let duplicated =
             self.cursors
                 .iter()
@@ -330,6 +385,10 @@ impl Buffer {
         self.cursors.cursors()
     }
 
+    pub fn set_cursors(&mut self, cursors: Vec<Cursor>) {
+        self.cursors.set_cursors(cursors);
+    }
+
     pub fn move_cursors(
         &mut self,
         up: usize,
@@ -386,14 +445,14 @@ impl Buffer {
 
         if let Some(buf) = self.undo_stack.pop() {
             self.redo_stack.push(self.buf.clone());
-            self.buf = buf.clone();
+            self.buf = buf;
         }
     }
 
     pub fn redo(&mut self) {
         if let Some(buf) = self.redo_stack.pop() {
             self.undo_stack.push(self.buf.clone());
-            self.buf = buf.clone();
+            self.buf = buf;
         }
     }
 }
@@ -401,6 +460,30 @@ impl Buffer {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn cursor_set() {
+        // .a|b.c|
+        // .d.e|f.
+        // .x|y.z.
+        let mut b = Buffer::new();
+        let mut cursors = CursorSet::new();
+        b.insert("abc\ndef\nxyz");
+
+        // Make sure cursors gets sorted.
+        cursors.set_cursors(vec![
+            Cursor::Normal(Point::new(1, 2)),
+            Cursor::Normal(Point::new(0, 3)),
+            Cursor::Normal(Point::new(2, 1)),
+            Cursor::Normal(Point::new(0, 1)),
+        ]);
+        assert_eq!(cursors.cursors(), &[
+            Cursor::Normal(Point::new(0, 1)),
+            Cursor::Normal(Point::new(0, 3)),
+            Cursor::Normal(Point::new(1, 2)),
+            Cursor::Normal(Point::new(2, 1)),
+        ]);
+    }
 
     #[test]
     fn insertion() {
@@ -426,6 +509,17 @@ mod test {
         assert_eq!(b.cursors(), &[Cursor::Normal(Point::new(2, 5))]);
         b.move_cursors(0, 0, 0, 1); // Move right
         assert_eq!(b.cursors(), &[Cursor::Normal(Point::new(3, 0))]);
+    }
+
+    #[test]
+    fn multiple_cursors() {
+        let mut b = Buffer::new();
+        b.insert("abc\nde\nxyz");
+        b.set_cursors(vec![
+            Cursor::Normal(Point::new(0, 2)),
+            Cursor::Normal(Point::new(1, 1)),
+            Cursor::Normal(Point::new(2, 0)),
+        ]);
     }
 
     #[test]
