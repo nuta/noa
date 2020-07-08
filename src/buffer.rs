@@ -265,16 +265,17 @@ mod test {
             Cursor::Normal(Point::new(0, 6)),
         ]);
 
-        // ab|   =>  a|c
-        // |c
+        // ab|   =>  a|d
+        // |c|d
         let mut b = Buffer::new();
-        b.insert("ab\nc");
+        b.insert("ab\ncd");
         b.set_cursors(vec![
             Cursor::Normal(Point::new(0, 2)),
             Cursor::Normal(Point::new(1, 0)),
+            Cursor::Normal(Point::new(1, 1)),
         ]);
         b.backspace();
-        assert_eq!(b.text(), "ac");
+        assert_eq!(b.text(), "ad");
         assert_eq!(b.cursors(), &[
             Cursor::Normal(Point::new(0, 1)),
         ]);
