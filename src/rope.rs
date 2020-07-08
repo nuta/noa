@@ -210,20 +210,66 @@ impl CursorSet {
 
     pub fn move_by_backspace(&mut self, rope: &Rope) -> Vec<Cursor> {
         let mut cursors = self.cursors.clone();
-        let mut num_newlines_deleted = 0;
+
+        // First, handle newline deletions.
+        let mut nl_deleted = 0;
+        let mut prev_deleted: Option<(usize, usize)> = None;
+        let mut cursors_at_newline = Vec::new();
         for cursor in &mut self.cursors {
             match cursor {
+                Cursor::Normal(pos) if pos.x == 0 && pos.y > 0 => {
+                    // Remove the newline right before the cursor.
+                    dbg!(prev_deleted, &pos);
+                    let line_len = rope.line_len(pos.y);
+                    nl_deleted += 1;
+                    pos.y -= nl_deleted;
+                    prev_deleted = match prev_deleted {
+                        Some((y, len)) if y == pos.y => {
+                            pos.x = len;
+                            Some((pos.y, len + line_len))
+                        }
+                        _ => {
+                            pos.x = rope.line_len(pos.y);
+                            Some((pos.y, pos.x + line_len))
+                        }
+                    };
+                    cursors_at_newline.push(*pos);
+                }
                 Cursor::Normal(pos) => {
-                    if pos.y == 0 && pos.x == 0 {
-                        // Do nothing
-                    } else if pos.x == 0 {
-                        // Remove a newline.
-                        pos.x = rope.line_len(pos.y - 1);
-                        num_newlines_deleted += 1;
-                        pos.y -= num_newlines_deleted;
-                    } else {
-                        pos.x -= 1;
+                    pos.y -= nl_deleted;
+                    if let Some((y, len)) = prev_deleted {
+                        if pos.y == y {
+                            pos.x += len;
+                        }
                     }
+                }
+                Cursor::Selection(Range { start, end }) => {
+                    start.y -= nl_deleted;
+                    if let Some((y, len)) = prev_deleted {
+                        if start.y == y {
+                            start.x += len;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Move left by a character.
+        let mut num_deleted = HashMap::new();
+        for cursor in &mut self.cursors {
+            match cursor {
+                Cursor::Normal(pos) if cursors_at_newline.contains(pos) => {
+                    if let Some(n) = num_deleted.get(&pos.y) {
+                        pos.x -= n;
+                    }
+                }
+                Cursor::Normal(pos) if pos.y == 0 && pos.x == 0 => {
+                    // Do nothing.
+                }
+                Cursor::Normal(pos) => {
+                    num_deleted.entry(pos.y)
+                        .and_modify(|n| *n += 1).or_insert(1);
+                    pos.x -= num_deleted[&pos.y];
                 }
                 Cursor::Selection(Range { start, .. }) => {
                     *cursor = Cursor::Normal(*start);
@@ -413,7 +459,6 @@ impl Rope {
     }
 
     pub fn remove(&mut self, range: &Range) {
-        dbg!(range);
         let start = self.index_in_rope(&range.start);
         let end = self.index_in_rope(&range.end);
         self.0.remove(start..end);
@@ -430,10 +475,10 @@ mod test {
     use crate::buffer::Buffer;
 
     #[test]
-    fn cursor_set() {
-        // .a|b.c|
-        // .d.e|f.
-        // .x|y.z.
+    fn sorting_cursors() {
+        // a|bc|
+        // de|f
+        // x|yz
         let mut b = Buffer::new();
         let mut cursors = CursorSet::new();
         b.insert("abc\ndef\nxyz");

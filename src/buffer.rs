@@ -128,7 +128,6 @@ impl Buffer {
             self.buf = buf;
         }
     }
-
     pub fn redo(&mut self) {
         if let Some(buf) = self.redo_stack.pop() {
             self.undo_stack.push(self.buf.clone());
@@ -230,22 +229,23 @@ mod test {
             Cursor::Normal(Point::new(1, 2)),
         ]);
 
-        // |abc      |abc|12|xyz
+        // 0
+        // |abc      0|abc|12|xyz
         // |12   =>
         // |xyz
         let mut b = Buffer::new();
-        b.insert("abc\n12\nxyz");
+        b.insert("0\nabc\n12\nxyz");
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(0, 0)),
             Cursor::Normal(Point::new(1, 0)),
             Cursor::Normal(Point::new(2, 0)),
+            Cursor::Normal(Point::new(3, 0)),
         ]);
         b.backspace();
-        assert_eq!(b.text(), "abc12xyz");
+        assert_eq!(b.text(), "0abc12xyz");
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 0)),
-            Cursor::Normal(Point::new(0, 3)),
-            Cursor::Normal(Point::new(0, 5)),
+            Cursor::Normal(Point::new(0, 1)),
+            Cursor::Normal(Point::new(0, 4)),
+            Cursor::Normal(Point::new(0, 6)),
         ]);
     }
 
