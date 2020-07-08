@@ -211,6 +211,23 @@ mod test {
 
     #[test]
     fn backspace_on_multi_cursors() {
+        // 1230|a|b|c|d|e|f => 123|f
+        let mut b = Buffer::new();
+        b.insert("1230abcdef");
+        b.set_cursors(vec![
+            Cursor::Normal(Point::new(0, 4)),
+            Cursor::Normal(Point::new(0, 5)),
+            Cursor::Normal(Point::new(0, 6)),
+            Cursor::Normal(Point::new(0, 7)),
+            Cursor::Normal(Point::new(0, 8)),
+            Cursor::Normal(Point::new(0, 9)),
+        ]);
+        b.backspace();
+        assert_eq!(b.text(), "123f");
+        assert_eq!(b.cursors(), &[
+            Cursor::Normal(Point::new(0, 3)),
+        ]);
+
         // a|bc      |bc|12
         // |12   =>  xy|
         // xyz|
@@ -246,6 +263,20 @@ mod test {
             Cursor::Normal(Point::new(0, 1)),
             Cursor::Normal(Point::new(0, 4)),
             Cursor::Normal(Point::new(0, 6)),
+        ]);
+
+        // ab|   =>  a|c
+        // |c
+        let mut b = Buffer::new();
+        b.insert("ab\nc");
+        b.set_cursors(vec![
+            Cursor::Normal(Point::new(0, 2)),
+            Cursor::Normal(Point::new(1, 0)),
+        ]);
+        b.backspace();
+        assert_eq!(b.text(), "ac");
+        assert_eq!(b.cursors(), &[
+            Cursor::Normal(Point::new(0, 1)),
         ]);
     }
 

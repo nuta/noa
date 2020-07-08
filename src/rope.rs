@@ -211,15 +211,15 @@ impl CursorSet {
     pub fn move_by_backspace(&mut self, rope: &Rope) -> Vec<Cursor> {
         let mut cursors = self.cursors.clone();
 
+        dbg!("-------------");
         // First, handle newline deletions.
         let mut nl_deleted = 0;
         let mut prev_deleted: Option<(usize, usize)> = None;
         let mut cursors_at_newline = Vec::new();
-        for cursor in &mut self.cursors {
+        for (i, cursor) in self.cursors.iter_mut().enumerate() {
             match cursor {
                 Cursor::Normal(pos) if pos.x == 0 && pos.y > 0 => {
                     // Remove the newline right before the cursor.
-                    dbg!(prev_deleted, &pos);
                     let line_len = rope.line_len(pos.y);
                     nl_deleted += 1;
                     pos.y -= nl_deleted;
@@ -233,7 +233,7 @@ impl CursorSet {
                             Some((pos.y, pos.x + line_len))
                         }
                     };
-                    cursors_at_newline.push(*pos);
+                    cursors_at_newline.push(i);
                 }
                 Cursor::Normal(pos) => {
                     pos.y -= nl_deleted;
@@ -256,9 +256,9 @@ impl CursorSet {
 
         // Move left by a character.
         let mut num_deleted = HashMap::new();
-        for cursor in &mut self.cursors {
+        for (i, cursor) in self.cursors.iter_mut().enumerate() {
             match cursor {
-                Cursor::Normal(pos) if cursors_at_newline.contains(pos) => {
+                Cursor::Normal(pos) if cursors_at_newline.contains(&i) => {
                     if let Some(n) = num_deleted.get(&pos.y) {
                         pos.x -= n;
                     }
