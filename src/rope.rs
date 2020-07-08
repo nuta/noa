@@ -211,7 +211,6 @@ impl CursorSet {
     pub fn move_by_backspace(&mut self, rope: &Rope) -> Vec<Cursor> {
         let mut cursors = self.cursors.clone();
 
-        dbg!("-------------");
         // First, handle newline deletions.
         let mut nl_deleted = 0;
         let mut prev_deleted: Option<(usize, usize)> = None;
