@@ -736,6 +736,18 @@ mod test {
         assert_eq!(b.cursors(), &[
             Cursor::Normal(Point::new(0, 1)),
         ]);
+
+        // ab|  =>  ab|
+        // c        |c
+        let mut b = Buffer::new();
+        b.insert("ab\nc");
+        b.set_cursors(vec![
+            Cursor::Normal(Point::new(0, 2))
+        ]);
+        b.select(0, 0, 0, 1);
+        assert_eq!(b.cursors(), &[
+            Cursor::Selection(Range::new(0, 2, 1, 0)),
+        ]);
     }
 
     #[test]

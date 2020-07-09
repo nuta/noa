@@ -34,7 +34,7 @@ impl Point {
             } else if self.y >= num_lines {
                 break;
             } else {
-                r -= max_x - self.x;
+                r -= max_x - self.x + 1;
                 self.x = 0;
                 self.y += 1;
             }
