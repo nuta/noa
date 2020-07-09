@@ -79,15 +79,15 @@ impl Ord for Point {
         if a == b {
             Ordering::Equal
         } else {
-            if a.y < b.y {
-                Ordering::Less
-            } else if a.y > b.y {
-                Ordering::Greater
-            } else {
-                if a.x < b.x {
-                    Ordering::Less
-                } else {
-                    Ordering::Greater
+            match a.y.cmp(&b.y) {
+                Ordering::Less => Ordering::Less,
+                Ordering::Greater => Ordering::Greater,
+                Ordering::Equal => {
+                    if a.x < b.x {
+                        Ordering::Less
+                    } else {
+                        Ordering::Greater
+                    }
                 }
             }
         }
@@ -207,7 +207,7 @@ impl Rope {
         }
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn text(&self) -> String {
         self.0.to_string()
     }
 

@@ -62,7 +62,7 @@ impl Buffer {
     }
 
     pub fn text(&self) -> String {
-        self.buf.to_string()
+        self.buf.text()
     }
 
     pub fn cursors(&self) -> &[Cursor] {
@@ -175,8 +175,7 @@ impl Buffer {
         */
 
         let mut new_cursors = Vec::new();
-        let mut iter = self.cursors.iter().rev().peekable();
-        while let Some(c) = iter.next() {
+        for c in self.cursors.iter().rev() {
             let (remove, insert_at, end) = match c {
                 Cursor::Normal(pos) => {
                     (None, pos, pos)
@@ -251,7 +250,7 @@ impl Buffer {
                 }
             };
 
-            remove_range(&mut self.buf, &range, iter.peek().map(|r| *r), &mut new_cursors);
+            remove_range(&mut self.buf, &range, iter.peek().copied(), &mut new_cursors);
         }
 
         self.set_cursors(new_cursors);
@@ -281,7 +280,7 @@ impl Buffer {
                 }
             };
 
-            remove_range(&mut self.buf, &range, iter.peek().map(|r| *r), &mut new_cursors);
+            remove_range(&mut self.buf, &range, iter.peek().copied(), &mut new_cursors);
         }
 
         self.set_cursors(new_cursors);
