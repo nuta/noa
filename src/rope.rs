@@ -122,6 +122,10 @@ impl Range {
         min(&self.start, &self.end)
     }
 
+    pub fn end(&self) -> &Point {
+        max(&self.start, &self.end)
+    }
+
     pub fn overlaps_with(&self, other: &Range) -> bool {
         !(self.end.y < other.start.y
             || self.start.y > other.end.y
@@ -185,6 +189,10 @@ impl CursorSet {
 
     pub fn cursors(&self) -> &[Cursor] {
         &self.cursors
+    }
+
+    pub fn cursors_mut(&mut self) -> &mut [Cursor] {
+        &mut self.cursors
     }
 
     pub fn set_cursors(&mut self, cursors: Vec<Cursor>) {

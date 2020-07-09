@@ -79,8 +79,10 @@ impl Buffer {
     }
 
     pub fn backspace(&mut self) {
-        for c in self.cursors.move_by_backspace(&self.buf) {
-            match c {
+        let mut iter = self.cursors.cursors().iter().rev().peekable();
+        let mut new_cursors = Vec::new();
+        while let Some(c) = iter.next() {
+            let range = match c {
                 Cursor::Normal(pos) => {
                     let start = if pos.y == 0 && pos.x == 0 {
                         continue;
@@ -90,13 +92,44 @@ impl Buffer {
                         Point::new(pos.y, pos.x - 1)
                     };
 
-                    self.buf.remove(&Range::from_points(start, pos));
+                    Range::from_points(start, *pos)
                 }
                 Cursor::Selection(range) => {
-                    self.buf.remove(&range);
+                    range.clone()
                 }
             };
+
+            self.buf.remove(&range);
+            let front = range.front();
+            let end = range.end();
+            let num_newlines_deleted = end.y - front.y;
+            for c2 in &mut new_cursors {
+                match c2 {
+                    Cursor::Normal(pos) if pos.y == end.y => {
+                        pos.x = front.x + (pos.x - end.x);
+                        pos.y = front.y;
+                    }
+                    Cursor::Normal(pos) => {
+                        pos.y -= num_newlines_deleted;
+                    }
+                    Cursor::Selection(_) => {
+                        continue;
+                    }
+                }
+            }
+
+            match iter.peek() {
+                Some(Cursor::Normal(pos)) if pos == front => {
+                    // Multiple cursors at the same position. Don't add `c`
+                    // into `new_cursors`.
+                }
+                _ => {
+                    new_cursors.push(Cursor::Normal(*front));
+                }
+            }
         }
+
+        self.cursors.set_cursors(new_cursors);
     }
 
     pub fn delete(&mut self) {
@@ -502,6 +535,23 @@ mod test {
         assert_eq!(b.text(), "acd");
         assert_eq!(b.cursors(), &[
             Cursor::Normal(Point::new(0, 1)),
+        ]);
+    }
+
+    #[test]
+    fn single_selection_including_newlines() {
+        // xy|A     xy|z
+        // BCD  =>
+        // E|z
+        let mut b = Buffer::new();
+        b.insert("xyA\nBCD\nEz");
+        b.set_cursors(vec![
+            Cursor::Selection(Range::new(0, 2, 2, 1))
+        ]);
+        b.backspace();
+        assert_eq!(b.text(), "xyz");
+        assert_eq!(b.cursors(), &[
+            Cursor::Normal(Point::new(0, 2)),
         ]);
     }
 
