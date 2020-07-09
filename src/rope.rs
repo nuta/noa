@@ -213,42 +213,63 @@ impl CursorSet {
 
         // First, handle newline deletions.
         let mut nl_deleted = 0;
-        let mut prev_deleted: Option<(usize, usize)> = None;
         let mut cursors_at_newline = Vec::new();
-        for (i, cursor) in self.cursors.iter_mut().enumerate() {
+        let mut iter = self.cursors.iter_mut().enumerate().peekable();
+        let mut acc_prev_line_len = None;
+        while let Some((i, cursor)) = iter.next() {
             match cursor {
                 Cursor::Normal(pos) if pos.x == 0 && pos.y > 0 => {
-                    // Remove the newline right before the cursor.
-                    let line_len = rope.line_len(pos.y);
+                    // Remove the newline right before the cursor and handle
+                    // cursors at the same line.
+                    let orig_y = pos.y;
+                    let line_len = rope.line_len(orig_y);
                     nl_deleted += 1;
                     pos.y -= nl_deleted;
-                    prev_deleted = match prev_deleted {
-                        Some((y, len)) if y == pos.y => {
-                            pos.x = len;
-                            Some((pos.y, len + line_len))
-                        }
-                        _ => {
-                            pos.x = rope.line_len(pos.y);
-                            Some((pos.y, pos.x + line_len))
-                        }
+                    let new_y = pos.y;
+                    let prev_line_len = match acc_prev_line_len {
+                        Some((y, len)) if y == new_y => len,
+                        _ =>  rope.line_len(new_y),
                     };
+                    acc_prev_line_len = Some((new_y, prev_line_len + line_len));
+                    pos.x = prev_line_len;
+
+                    // Handle cursors at the same line.
+                    while let Some((i, cursor)) = iter.peek() {
+                        match cursor {
+                            Cursor::Normal(pos) if pos.y == orig_y => {
+                                // Needs update.
+                            }
+                            Cursor::Selection(Range { start, .. })
+                                if start.y == orig_y => {
+                                // Needs update.
+                            }
+                            _ => {
+                                // Cursors at different line.
+                                break;
+                            }
+                        };
+
+                        // The cursor is at the same line. Pop and update it.
+                        let (_, cursor) = iter.next().unwrap();
+                        match cursor {
+                            Cursor::Normal(pos) => {
+                                pos.y -= nl_deleted;
+                                pos.x += prev_line_len;
+                            }
+                            Cursor::Selection(Range { start, .. }) => {
+                                start.y -= nl_deleted;
+                                pos.x += prev_line_len;
+                            }
+                        }
+                    }
+
                     cursors_at_newline.push(i);
                 }
                 Cursor::Normal(pos) => {
                     pos.y -= nl_deleted;
-                    if let Some((y, len)) = prev_deleted {
-                        if pos.y == y {
-                            pos.x += len;
-                        }
-                    }
                 }
                 Cursor::Selection(Range { start, end }) => {
                     start.y -= nl_deleted;
-                    if let Some((y, len)) = prev_deleted {
-                        if start.y == y {
-                            start.x += len;
-                        }
-                    }
                 }
             }
         }
@@ -285,32 +306,74 @@ impl CursorSet {
 
     pub fn move_by_delete(&mut self, rope: &Rope) -> Vec<Cursor> {
         let mut cursors = self.cursors.clone();
-        let mut num_newlines_deleted = 0;
-        let max_y = rope.num_lines();
-        // let mut prev_y = None;
-        // let mut prev_len = None;
-        for cursor in &mut self.cursors {
+
+        let mut nl_deleted = 0;
+        let mut iter = self.cursors.iter_mut().enumerate().peekable();
+        let mut acc_prev_line_len = None;
+        let num_lines = rope.num_lines();
+        while let Some((i, cursor)) = iter.peek() {
             match cursor {
                 Cursor::Normal(pos) => {
-                    let max_x = rope.line_len(pos.y);
-                    let end = if pos.y == max_y && pos.x == max_x {
-                        pos.y -= num_newlines_deleted;
-                        continue;
-                    } else if pos.x == max_x {
-                        num_newlines_deleted += 1;
-                        pos.y -= num_newlines_deleted;
-                        pos.x = rope.line_len(pos.y);
-                    } else {
-                        // Nothing to do
-                        pos.y -= num_newlines_deleted;
+                    let orig_y = pos.y;
+                    let new_y = orig_y - nl_deleted;
+                    let line_len = rope.line_len(orig_y);
+                    let prev_line_len = match acc_prev_line_len {
+                        Some((y, len)) if y == new_y => len,
+                        _ =>  0,
                     };
+                    acc_prev_line_len = Some((new_y, prev_line_len + line_len));
+
+                    // Handle cursors at the same line.
+                    let mut col_deleted = 0;
+                    while let Some((i, cursor)) = iter.peek() {
+                        match cursor {
+                            Cursor::Normal(pos)
+                                if pos.y == orig_y => {
+                                // Needs update.
+                            }
+                            Cursor::Selection(Range { start, .. })
+                                if start.y == orig_y => {
+                                // Needs update.
+                            }
+                            _ => {
+                                // Cursors at different line.
+                                break;
+                            }
+                        };
+
+                        // The cursor is at the same line. Pop and update it.
+                        let (_, cursor) = iter.next().unwrap();
+                        let pos = match cursor {
+                            Cursor::Normal(pos) => {
+                                pos
+                            }
+                            Cursor::Selection(Range { start, .. }) => {
+                                start
+                            }
+                        };
+
+                        let eol = pos.x == line_len;
+                        pos.y -= nl_deleted;
+                        pos.x += prev_line_len;
+                        pos.x -= col_deleted;
+                        if eol {
+                            nl_deleted += 1;
+                        } else {
+                            col_deleted += 1;
+                        }
+                    }
                 }
-                Cursor::Selection(Range { start, .. }) => {
-                    *cursor = Cursor::Normal(*start);
+                Cursor::Selection(..) => {
+                    let (_, cursor) = iter.next().unwrap();
+                    match cursor {
+                        Cursor::Selection(Range { start, .. }) => {
+                            start.y -= nl_deleted;
+                        }
+                        _ => unreachable!(),
+                    }
                 }
             }
         }
-
         self.sort_and_dedup();
         // Reverse the deletion positions to avoid doing error-prone offset
         // calculation cause by deleting newlines.
