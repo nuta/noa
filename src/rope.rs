@@ -1,4 +1,6 @@
 use std::fmt;
+use std::fs::File;
+use std::path::Path;
 use std::cmp::{min, max};
 use std::cmp::Ordering;
 
@@ -208,6 +210,10 @@ impl Rope {
 
     pub fn text(&self) -> String {
         self.0.to_string()
+    }
+
+    pub fn save_into_file(&self, path: &Path) -> std::io::Result<()> {
+        self.0.write_to(File::open(path)?)
     }
 
     pub fn insert(&mut self, pos: &Point, string: &str) {

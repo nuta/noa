@@ -8,6 +8,7 @@ extern crate pretty_assertions;
 extern crate log;
 
 mod buffer;
+mod editor;
 mod rope;
 mod logger;
 
@@ -27,7 +28,7 @@ fn main() {
             out.finish(format_args!(
                 "[{}\t] {}: {}",
                 log_colors.color(record.level()),
-                record.file().unwrap_or(record.target()),
+                record.file().unwrap_or_else(|| record.target()),
                 message,
             ))
         })
@@ -41,7 +42,7 @@ fn main() {
     }));
 
     trace!("starting noa...");
-    info!("starting noa...");
-    warn!("starting noa...");
     let opt = Opt::from_args();
+    let mut editor = editor::Editor::new();
+    editor.run();
 }

@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use crate::rope::*;
 
 fn remove_range(
@@ -40,6 +41,7 @@ fn remove_range(
 
 pub struct Buffer {
     buf: Rope,
+    file: Option<PathBuf>,
     cursors: Vec<Cursor>,
     undo_stack: Vec<Rope>,
     redo_stack: Vec<Rope>,
@@ -49,6 +51,7 @@ impl Buffer {
     pub fn new() -> Buffer {
         let mut buffer = Buffer {
             buf: Rope::new(),
+            file: None,
             cursors: vec![Cursor::Normal(Point::new(0, 0))],
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
@@ -64,6 +67,14 @@ impl Buffer {
 
     pub fn text(&self) -> String {
         self.buf.text()
+    }
+
+    pub fn save(&self) -> std::io::Result<()> {
+        if let Some(path) = &self.file {
+            self.buf.save_into_file(path)
+        } else {
+            Ok(())
+        }
     }
 
     pub fn cursors(&self) -> &[Cursor] {
