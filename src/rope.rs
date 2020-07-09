@@ -198,23 +198,6 @@ impl Rope {
         self.0.len_lines()
     }
 
-    /// Returns a line except new line characters.
-    pub fn line(&self, line: usize) -> ropey::RopeSlice<'_> {
-        let slice = self.0.line(line);
-
-        // The slice contains newline characters. Trim them.
-        let mut len = slice.len_chars();
-        while len > 0 {
-            if slice.char(len - 1) != '\n' {
-                break;
-            }
-
-            len -= 1;
-        }
-
-        slice.slice(..len)
-    }
-
     /// Returns the number of characters in a line except new line characters.
     pub fn line_len(&self, line: usize) -> usize {
         if line == self.num_lines() {
@@ -235,8 +218,24 @@ impl Rope {
     pub fn remove(&mut self, range: &Range) {
         let start = self.index_in_rope(&range.start);
         let end = self.index_in_rope(&range.end);
-        dbg!(min(start, end)..max(start, end));
         self.0.remove(min(start, end)..max(start, end));
+    }
+
+    /// Returns a line except new line characters.
+    fn line(&self, line: usize) -> ropey::RopeSlice<'_> {
+        let slice = self.0.line(line);
+
+        // The slice contains newline characters. Trim them.
+        let mut len = slice.len_chars();
+        while len > 0 {
+            if slice.char(len - 1) != '\n' {
+                break;
+            }
+
+            len -= 1;
+        }
+
+        slice.slice(..len)
     }
 
     fn index_in_rope(&self, pos: &Point) -> usize {

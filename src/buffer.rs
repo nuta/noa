@@ -127,6 +127,7 @@ impl Buffer {
     }
 
     pub fn insert(&mut self, string: &str) {
+        /*
         let y_diff = string.matches('\n').count();
         let x_diff = string.rfind('\n')
             .map(|x| string.len() - x - 1)
@@ -171,18 +172,61 @@ impl Buffer {
             *cursor = Cursor::Normal(new_pos);
             insert_cursors.push(Cursor::Normal(insert_at));
         }
+        */
 
-        for cursor in insert_cursors {
-            match cursor {
+        let mut new_cursors = Vec::new();
+        let mut iter = self.cursors.iter().rev().peekable();
+        while let Some(c) = iter.next() {
+            let (remove, insert_at, end) = match c {
                 Cursor::Normal(pos) => {
-                    self.buf.insert(&pos, string);
+                    (None, pos, pos)
                 }
                 Cursor::Selection(range) => {
-                    self.buf.remove(&range);
-                    self.buf.insert(range.front(), string);
+                    (Some(range), range.front(), range.end())
                 }
             };
+
+            if let Some(remove) = remove {
+                self.buf.remove(&remove);
+            }
+            self.buf.insert(insert_at, string);
+
+            let num_newlines_added = string.matches('\n').count();
+            let num_newlines_deleted =
+                remove.map(|r| r.end().y - r.front().y).unwrap_or(0);
+
+            // Move cursors after the current cursor.
+            for c2 in new_cursors.iter_mut() {
+                match c2 {
+                    Cursor::Normal(pos) if pos.y == end.y => {
+                        pos.x = insert_at.x + (pos.x - end.x);
+                        pos.y = insert_at.y;
+                    }
+                    Cursor::Normal(pos) => {
+                        pos.y = pos.y + num_newlines_added - num_newlines_deleted;
+                    }
+                    Cursor::Selection(_) => {
+                        continue;
+                    }
+                }
+            }
+
+            let x_diff = string.rfind('\n')
+                .map(|x| string.len() - x - 1)
+                .unwrap_or_else(|| string.len());
+
+            let y = insert_at.y + num_newlines_added - num_newlines_deleted;
+            let x = if string.contains('\n') {
+                x_diff
+            } else {
+                insert_at.x + x_diff
+            };
+
+            let new_pos = Point::new(y, x);
+            new_cursors.push(Cursor::Normal(new_pos));
         }
+
+        self.set_cursors(new_cursors);
     }
 
     pub fn backspace(&mut self) {
