@@ -4,6 +4,39 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use crate::rope::*;
 
+fn remove_range(buf: &mut Rope, range: &Range, next_cursor: Option<&Cursor>, new_cursors: &mut Vec<Cursor>) {
+            // Remove the text in the range.
+            buf.remove(&range);
+
+            // Move cursors after the current cursor.
+            let front = range.front();
+            let end = range.end();
+            let num_newlines_deleted = end.y - front.y;
+            for c2 in new_cursors.iter_mut() {
+                match c2 {
+                    Cursor::Normal(pos) if pos.y == end.y => {
+                        pos.x = front.x + (pos.x - end.x);
+                        pos.y = front.y;
+                    }
+                    Cursor::Normal(pos) => {
+                        pos.y -= num_newlines_deleted;
+                    }
+                    Cursor::Selection(_) => {
+                        continue;
+                    }
+                }
+            }
+
+            // Preserve the current cursor if it's unique (no other cursors at
+            // the same position).
+            match next_cursor {
+                Some(Cursor::Normal(pos)) if pos == front => {}
+                _ => {
+                    new_cursors.push(Cursor::Normal(*front));
+                }
+            }
+}
+
 pub struct Buffer {
     buf: Rope,
     cursors: CursorSet,
@@ -79,9 +112,10 @@ impl Buffer {
     }
 
     pub fn backspace(&mut self) {
-        let mut iter = self.cursors.cursors().iter().rev().peekable();
         let mut new_cursors = Vec::new();
+        let mut iter = self.cursors.cursors().iter().rev().peekable();
         while let Some(c) = iter.next() {
+            // Determine the range to be deleted.
             let range = match c {
                 Cursor::Normal(pos) => {
                     let start = if pos.y == 0 && pos.x == 0 {
@@ -99,42 +133,18 @@ impl Buffer {
                 }
             };
 
-            self.buf.remove(&range);
-            let front = range.front();
-            let end = range.end();
-            let num_newlines_deleted = end.y - front.y;
-            for c2 in &mut new_cursors {
-                match c2 {
-                    Cursor::Normal(pos) if pos.y == end.y => {
-                        pos.x = front.x + (pos.x - end.x);
-                        pos.y = front.y;
-                    }
-                    Cursor::Normal(pos) => {
-                        pos.y -= num_newlines_deleted;
-                    }
-                    Cursor::Selection(_) => {
-                        continue;
-                    }
-                }
-            }
-
-            match iter.peek() {
-                Some(Cursor::Normal(pos)) if pos == front => {
-                    // Multiple cursors at the same position. Don't add `c`
-                    // into `new_cursors`.
-                }
-                _ => {
-                    new_cursors.push(Cursor::Normal(*front));
-                }
-            }
+            remove_range(&mut self.buf, &range, iter.peek().map(|r| *r), &mut new_cursors);
         }
 
         self.cursors.set_cursors(new_cursors);
     }
 
     pub fn delete(&mut self) {
-        for c in self.cursors.move_by_delete(&self.buf) {
-            match c {
+        let mut new_cursors = Vec::new();
+        let mut iter = self.cursors.cursors().iter().rev().peekable();
+        while let Some(c) = iter.next() {
+            // Determine the range to be deleted.
+            let range = match c {
                 Cursor::Normal(pos) => {
                     let max_y = self.buf.num_lines();
                     let max_x = self.buf.line_len(pos.y);
@@ -146,13 +156,17 @@ impl Buffer {
                         Point::new(pos.y, pos.x + 1)
                     };
 
-                    self.buf.remove(&Range::from_points(pos, end));
+                    Range::from_points(*pos, end)
                 }
                 Cursor::Selection(range) => {
-                    self.buf.remove(&range);
+                    range.clone()
                 }
             };
+
+            remove_range(&mut self.buf, &range, iter.peek().map(|r| *r), &mut new_cursors);
         }
+
+        self.cursors.set_cursors(new_cursors);
     }
 
     pub fn mark_undo_point(&mut self) {
@@ -437,6 +451,27 @@ mod test {
             Cursor::Normal(Point::new(2, 1)),
         ]);
 
+        // a|
+        // b|X
+        // c|Y
+        // d|
+        let mut b = Buffer::new();
+        b.insert("a\nbX\ncY\nd");
+        b.set_cursors(vec![
+            Cursor::Normal(Point::new(0, 1)),
+            Cursor::Normal(Point::new(1, 1)),
+            Cursor::Normal(Point::new(2, 1)),
+            Cursor::Normal(Point::new(3, 1)),
+        ]);
+        b.delete();
+        assert_eq!(b.text(), "ab\nc\nd");
+        assert_eq!(b.cursors(), &[
+            Cursor::Normal(Point::new(0, 1)),
+            Cursor::Normal(Point::new(0, 2)),
+            Cursor::Normal(Point::new(1, 1)),
+            Cursor::Normal(Point::new(2, 1)),
+        ]);
+
         // ab|
         // cde|
         let mut b = Buffer::new();
@@ -587,12 +622,12 @@ mod test {
             Cursor::Selection(Range::new(2, 3, 3, 1)),
         ]);
         b.backspace();
-        // assert_eq!(b.text(), "abcdefg");
-        // assert_eq!(b.cursors(), &[
-        //     Cursor::Normal(Point::new(0, 2)),
-        //     Cursor::Normal(Point::new(0, 4)),
-        //     Cursor::Normal(Point::new(0, 6)),
-        // ]);
+        assert_eq!(b.text(), "abcdefg");
+        assert_eq!(b.cursors(), &[
+            Cursor::Normal(Point::new(0, 2)),
+            Cursor::Normal(Point::new(0, 4)),
+            Cursor::Normal(Point::new(0, 6)),
+        ]);
     }
 
     #[test]
