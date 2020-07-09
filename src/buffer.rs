@@ -1,6 +1,11 @@
 use crate::rope::*;
 
-fn remove_range(buf: &mut Rope, range: &Range, next_cursor: Option<&Cursor>, new_cursors: &mut Vec<Cursor>) {
+fn remove_range(
+    buf: &mut Rope,
+    range: &Range,
+    next_cursor: Option<&Cursor>,
+    new_cursors: &mut Vec<Cursor>
+) {
     // Remove the text in the range.
     buf.remove(&range);
 
@@ -18,7 +23,7 @@ fn remove_range(buf: &mut Rope, range: &Range, next_cursor: Option<&Cursor>, new
                 pos.y -= num_newlines_deleted;
             }
             Cursor::Selection(_) => {
-                continue;
+                unreachable!();
             }
         }
     }
@@ -200,7 +205,7 @@ impl Buffer {
                         pos.y = pos.y + num_newlines_added - num_newlines_deleted;
                     }
                     Cursor::Selection(_) => {
-                        continue;
+                        unreachable!();
                     }
                 }
             }

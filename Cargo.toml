@@ -5,10 +5,25 @@ authors = ["Seiya Nuta <nuta@seiya.me>"]
 edition = "2018"
 
 [dependencies]
-# lazy_static = "1"
-# log = { version = "^0.4.6", features = ["max_level_off", "release_max_level_warn"] }
-# phf = { version = "0.8", features = ["macros"] }
+log = { version = "0", features = ["max_level_trace", "release_max_level_info"] }
+fern = { version = "0", features = ["colored"] }
+backtrace = "0"
+structopt = "0"
+crossterm = "0"
+unicode-width = "0"
 ropey = "1"
+dirs = "3"
 
 [dev-dependencies]
 pretty_assertions = "0"
+
+[profile.release]
+opt-level = 3
+debug = true
+rpath = false
+lto = true
+debug-assertions = false
+codegen-units = 1
+panic = 'unwind'
+incremental = false
+overflow-checks = false
