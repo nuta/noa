@@ -104,6 +104,32 @@ impl Buffer {
         self.sort_and_merge_cursors();
     }
 
+    pub fn move_to_end_of_line(&mut self) {
+        for cursor in &mut self.cursors {
+            let y = match cursor {
+                Cursor::Normal(pos) => pos.y,
+                Cursor::Selection(Range { end, .. }) => end.y,
+            };
+
+            *cursor = Cursor::Normal(Point::new(y, self.buf.line_len(y)));
+        }
+
+        self.sort_and_merge_cursors();
+    }
+
+    pub fn move_to_beginning_of_line(&mut self) {
+        for cursor in &mut self.cursors {
+            let y = match cursor {
+                Cursor::Normal(pos) => pos.y,
+                Cursor::Selection(Range { end, .. }) => end.y,
+            };
+
+            *cursor = Cursor::Normal(Point::new(y, 0));
+        }
+
+        self.sort_and_merge_cursors();
+    }
+
     pub fn select(
         &mut self,
         up: usize,
@@ -747,6 +773,44 @@ mod test {
             Cursor::Normal(Point::new(0, 2)),
             Cursor::Normal(Point::new(0, 4)),
             Cursor::Normal(Point::new(0, 6)),
+        ]);
+    }
+
+    #[test]
+    fn move_to_beginning_of_line() {
+        let mut b = Buffer::new();
+        // |ab|c|  =>  abc|
+        // d|e         de|
+        b.insert("abc\nde");
+        b.set_cursors(vec![
+            Cursor::Normal(Point::new(0, 0)),
+            Cursor::Normal(Point::new(0, 2)),
+            Cursor::Normal(Point::new(0, 3)),
+            Cursor::Normal(Point::new(1, 1)),
+        ]);
+        b.move_to_beginning_of_line();
+        assert_eq!(b.cursors(), &[
+            Cursor::Normal(Point::new(0, 0)),
+            Cursor::Normal(Point::new(1, 0)),
+        ]);
+    }
+
+    #[test]
+    fn move_to_end_of_line() {
+        let mut b = Buffer::new();
+        // |ab|c|  =>  abc|
+        // d|e         de|
+        b.insert("abc\nde");
+        b.set_cursors(vec![
+            Cursor::Normal(Point::new(0, 0)),
+            Cursor::Normal(Point::new(0, 2)),
+            Cursor::Normal(Point::new(0, 3)),
+            Cursor::Normal(Point::new(1, 1)),
+        ]);
+        b.move_to_end_of_line();
+        assert_eq!(b.cursors(), &[
+            Cursor::Normal(Point::new(0, 3)),
+            Cursor::Normal(Point::new(1, 2)),
         ]);
     }
 
