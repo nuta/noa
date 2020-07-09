@@ -150,6 +150,20 @@ impl Buffer {
         self.sort_and_merge_cursors();
     }
 
+    pub fn select_until_end_of_line(&mut self) {
+        for cursor in &mut self.cursors {
+            let (start, mut end) = match cursor {
+                Cursor::Normal(pos) => (*pos, *pos),
+                Cursor::Selection(Range { start, end }) => (*start, *end),
+            };
+
+            end.x = self.buf.line_len(end.y);
+            *cursor = Cursor::Selection(Range::from_points(start, end));
+        }
+
+        self.sort_and_merge_cursors();
+    }
+
     pub fn insert_char(&mut self, ch: char) {
         self.insert(&ch.to_string())
     }
@@ -306,7 +320,7 @@ impl Buffer {
                 .map(|(i, c)| {
                     match c {
                         Cursor::Normal(pos) => {
-                            (&self.cursors[(i+1)..])
+                            (&self.cursors[..i])
                                 .iter()
                                 .any(|other| {
                                     match other {
@@ -318,7 +332,7 @@ impl Buffer {
                                 })
                         }
                         Cursor::Selection(range) => {
-                            (&self.cursors[(i+1)..])
+                            (&self.cursors[..i])
                                 .iter()
                                 .any(|other| {
                                     match other {
@@ -811,6 +825,25 @@ mod test {
         assert_eq!(b.cursors(), &[
             Cursor::Normal(Point::new(0, 3)),
             Cursor::Normal(Point::new(1, 2)),
+        ]);
+    }
+
+    #[test]
+    fn select_until_end_of_line() {
+        let mut b = Buffer::new();
+        // |ab|c|  =>  |abc|
+        // d|e         d|e|
+        b.insert("abc\nde");
+        b.set_cursors(vec![
+            Cursor::Normal(Point::new(0, 0)),
+            Cursor::Normal(Point::new(0, 2)),
+            Cursor::Normal(Point::new(0, 3)),
+            Cursor::Normal(Point::new(1, 1)),
+        ]);
+        b.select_until_end_of_line();
+        assert_eq!(b.cursors(), &[
+            Cursor::Selection(Range::new(0, 0, 0, 3)),
+            Cursor::Selection(Range::new(1, 1, 1, 2)),
         ]);
     }
 
