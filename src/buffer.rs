@@ -281,6 +281,11 @@ impl Buffer {
         self.set_cursors(new_cursors);
     }
 
+    pub fn truncate(&mut self) {
+        self.select_until_end_of_line();
+        self.delete();
+    }
+
     pub fn mark_undo_point(&mut self) {
         self.undo_stack.push(self.buf.clone());
     }
@@ -844,6 +849,43 @@ mod test {
         assert_eq!(b.cursors(), &[
             Cursor::Selection(Range::new(0, 0, 0, 3)),
             Cursor::Selection(Range::new(1, 1, 1, 2)),
+        ]);
+    }
+
+
+    #[test]
+    fn truncate() {
+        // abc|XYZ  =>  abc|
+        let mut b = Buffer::new();
+        b.insert("abcXYZ");
+        b.set_cursors(vec![
+            Cursor::Normal(Point::new(0, 3)),
+        ]);
+        b.truncate();
+        assert_eq!(b.text(), "abc");
+        assert_eq!(b.cursors(), &[
+            Cursor::Normal(Point::new(0, 3)),
+        ]);
+
+        // abc|      abc|
+        // d|XY  =>  d|
+        // |         |
+        // |Z        |
+        let mut b = Buffer::new();
+        b.insert("abc\ndXY\n\nZ");
+        b.set_cursors(vec![
+            Cursor::Normal(Point::new(0, 3)),
+            Cursor::Normal(Point::new(1, 1)),
+            Cursor::Normal(Point::new(2, 0)),
+            Cursor::Normal(Point::new(3, 0)),
+        ]);
+        b.truncate();
+        assert_eq!(b.text(), "abc\nd\n\n");
+        assert_eq!(b.cursors(), &[
+            Cursor::Normal(Point::new(0, 3)),
+            Cursor::Normal(Point::new(1, 1)),
+            Cursor::Normal(Point::new(2, 0)),
+            Cursor::Normal(Point::new(3, 0)),
         ]);
     }
 
