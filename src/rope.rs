@@ -1,9 +1,9 @@
 use std::fmt;
-use std::cmp::min;
+use std::cmp::{min, max};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Point {
     pub y: usize,
     pub x: usize,
@@ -72,7 +72,35 @@ impl fmt::Display for Point {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+impl Ord for Point {
+    fn cmp(&self, other: &Point) -> Ordering {
+        let a = self;
+        let b = other;
+        if a == b {
+            Ordering::Equal
+        } else {
+            if a.y < b.y {
+                Ordering::Less
+            } else if a.y > b.y {
+                Ordering::Greater
+            } else {
+                if a.x < b.x {
+                    Ordering::Less
+                } else {
+                    Ordering::Greater
+                }
+            }
+        }
+    }
+}
+
+impl PartialOrd for Point {
+    fn partial_cmp(&self, other: &Point) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Range {
     pub start: Point,
     pub end: Point,
@@ -90,11 +118,15 @@ impl Range {
         }
     }
 
+    pub fn front(&self) -> &Point {
+        min(&self.start, &self.end)
+    }
+
     pub fn overlaps_with(&self, other: &Range) -> bool {
-        self.end.y < other.start.y
-        || self.start.y > other.end.y
-        || (self.end.y == other.start.y && self.end.x < other.start.x)
-        || (self.start.y == other.end.y && self.start.x > other.end.x)
+        !(self.end.y < other.start.y
+            || self.start.y > other.end.y
+            || (self.end.y == other.start.y && self.end.x < other.start.x)
+            || (self.start.y == other.end.y && self.start.x > other.end.x))
     }
 }
 
@@ -104,10 +136,40 @@ impl fmt::Display for Range {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Cursor {
     Normal(Point),
     Selection(Range),
+}
+
+impl Ord for Cursor {
+    fn cmp(&self, other: &Cursor) -> Ordering {
+        let a = match self {
+            Cursor::Normal(pos) => {
+                pos
+            }
+            Cursor::Selection(Range { start, .. }) => {
+                start
+            }
+        };
+
+        let b = match other {
+            Cursor::Normal(pos) => {
+                pos
+            }
+            Cursor::Selection(Range { start, .. }) => {
+                start
+            }
+        };
+
+        a.cmp(b)
+    }
+}
+
+impl PartialOrd for Cursor {
+    fn partial_cmp(&self, other: &Cursor) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 pub struct CursorSet {
@@ -159,6 +221,27 @@ impl CursorSet {
         self.sort_and_dedup();
     }
 
+    pub fn select_by_offsets(
+        &mut self,
+        rope: &Rope,
+        up: usize,
+        down: usize,
+        left: usize,
+        right: usize
+    ) {
+        for cursor in &mut self.cursors {
+            let (start, mut end) = match cursor {
+                Cursor::Normal(pos) => (*pos, *pos),
+                Cursor::Selection(Range { start, end }) => (*start, *end),
+            };
+
+            end.move_by_offsets(rope, up, down, left, right);
+            *cursor = Cursor::Selection(Range::from_points(start, end));
+        }
+
+        self.sort_and_dedup();
+    }
+
     pub fn move_by_insertion(&mut self, string: &str) -> Vec<Cursor> {
         let y_diff = string.matches('\n').count();
         let x_diff = string.rfind('\n')
@@ -174,8 +257,8 @@ impl CursorSet {
                 Cursor::Normal(pos) => {
                     pos
                 }
-                Cursor::Selection(Range { start, .. }) => {
-                    start
+                Cursor::Selection(Range { start, end }) => {
+                    min(start, end)
                 }
             };
 
@@ -239,8 +322,8 @@ impl CursorSet {
                             Cursor::Normal(pos) if pos.y == orig_y => {
                                 // Needs update.
                             }
-                            Cursor::Selection(Range { start, .. })
-                                if start.y == orig_y => {
+                            Cursor::Selection(Range { start, end })
+                                if min(start, end).y == orig_y => {
                                 // Needs update.
                             }
                             _ => {
@@ -256,8 +339,9 @@ impl CursorSet {
                                 pos.y -= nl_deleted;
                                 pos.x += prev_line_len;
                             }
-                            Cursor::Selection(Range { start, .. }) => {
+                            Cursor::Selection(Range { start, end }) => {
                                 start.y -= nl_deleted;
+                                end.y -= nl_deleted;
                                 pos.x += prev_line_len;
                             }
                         }
@@ -270,6 +354,7 @@ impl CursorSet {
                 }
                 Cursor::Selection(Range { start, end }) => {
                     start.y -= nl_deleted;
+                    end.y -= nl_deleted;
                 }
             }
         }
@@ -291,8 +376,8 @@ impl CursorSet {
                         .and_modify(|n| *n += 1).or_insert(1);
                     pos.x -= num_deleted[&pos.y];
                 }
-                Cursor::Selection(Range { start, .. }) => {
-                    *cursor = Cursor::Normal(*start);
+                Cursor::Selection(Range { start, end }) => {
+                    *cursor = Cursor::Normal(min(*start, *end));
                 }
             }
         }
@@ -331,8 +416,8 @@ impl CursorSet {
                                 if pos.y == orig_y => {
                                 // Needs update.
                             }
-                            Cursor::Selection(Range { start, .. })
-                                if start.y == orig_y => {
+                            Cursor::Selection(Range { start, end })
+                                if min(start, end).y == orig_y => {
                                 // Needs update.
                             }
                             _ => {
@@ -347,8 +432,8 @@ impl CursorSet {
                             Cursor::Normal(pos) => {
                                 pos
                             }
-                            Cursor::Selection(Range { start, .. }) => {
-                                start
+                            Cursor::Selection(Range { start, end }) => {
+                                min(start, end)
                             }
                         };
 
@@ -366,8 +451,10 @@ impl CursorSet {
                 Cursor::Selection(..) => {
                     let (_, cursor) = iter.next().unwrap();
                     match cursor {
-                        Cursor::Selection(Range { start, .. }) => {
+                        Cursor::Selection(Range { start, end }) => {
                             start.y -= nl_deleted;
+                            end.y -= nl_deleted;
+                            *cursor = Cursor::Normal(min(*start, *end));
                         }
                         _ => unreachable!(),
                     }
@@ -384,42 +471,7 @@ impl CursorSet {
     /// Sorts the cursors and removes overlapped ones. Don't forget to call this
     /// method when you made a change.
     fn sort_and_dedup(&mut self) {
-        self.cursors.sort_by(|a, b| {
-            let a = match a {
-                Cursor::Normal(pos) => {
-                    pos
-                }
-                Cursor::Selection(Range { start, .. }) => {
-                    start
-                }
-            };
-
-            let b = match b {
-                Cursor::Normal(pos) => {
-                    pos
-                }
-                Cursor::Selection(Range { start, .. }) => {
-                    start
-                }
-            };
-
-            if a == b {
-                Ordering::Equal
-            } else {
-                if a.y < b.y {
-                    Ordering::Less
-                } else if a.y > b.y {
-                    Ordering::Greater
-                } else {
-                    if a.x < b.x {
-                        Ordering::Less
-                    } else {
-                        Ordering::Greater
-                    }
-                }
-            }
-        });
-
+        self.cursors.sort();
         let duplicated =
             self.cursors
                 .iter()
@@ -523,7 +575,8 @@ impl Rope {
     pub fn remove(&mut self, range: &Range) {
         let start = self.index_in_rope(&range.start);
         let end = self.index_in_rope(&range.end);
-        self.0.remove(start..end);
+        dbg!(min(start, end)..max(start, end));
+        self.0.remove(min(start, end)..max(start, end));
     }
 
     fn index_in_rope(&self, pos: &Point) -> usize {

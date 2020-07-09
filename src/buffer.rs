@@ -24,6 +24,10 @@ impl Buffer {
         buffer
     }
 
+    pub fn len(&self) -> usize {
+        self.buf.len()
+    }
+
     pub fn text(&self) -> String {
         self.buf.to_string()
     }
@@ -46,6 +50,16 @@ impl Buffer {
         self.cursors.move_by_offsets(&self.buf, up, down, left, right);
     }
 
+    pub fn select(
+        &mut self,
+        up: usize,
+        down: usize,
+        left: usize,
+        right: usize
+    ) {
+        self.cursors.select_by_offsets(&self.buf, up, down, left, right);
+    }
+
     pub fn insert_char(&mut self, ch: char) {
         self.insert(&ch.to_string())
     }
@@ -58,7 +72,7 @@ impl Buffer {
                 }
                 Cursor::Selection(range) => {
                     self.buf.remove(&range);
-                    self.buf.insert(&range.start, string);
+                    self.buf.insert(range.front(), string);
                 }
             };
         }
@@ -439,6 +453,96 @@ mod test {
             Cursor::Normal(Point::new(0, 4)),
             Cursor::Normal(Point::new(0, 5)),
         ]);
+    }
+
+    #[test]
+    fn multibyte_characters() {
+        let mut b = Buffer::new();
+        b.insert("Hello 世界!");
+        b.set_cursors(vec![Cursor::Normal(Point::new(0, 7))]);
+        assert_eq!(b.len(), 9);
+
+        // Hello 世|界! => Hello |界!
+        b.backspace();
+        assert_eq!(b.text(), "Hello 界!");
+        // Hello 世|界! => Hell|界!
+        b.backspace();
+        b.backspace();
+        assert_eq!(b.text(), "Hell界!");
+        // Hello 世|界! => Hell|界!
+        b.insert("o こんにちは 世");
+        assert_eq!(b.text(), "Hello こんにちは 世界!");
+    }
+
+    #[test]
+    fn single_selection() {
+        let mut b = Buffer::new();
+        b.insert("abXYZcd");
+        b.set_cursors(vec![
+            Cursor::Normal(Point::new(0, 2))
+        ]);
+
+        // ab|XYZ|cd
+        b.select(0, 0, 0, 3);
+        assert_eq!(b.cursors(), &[
+            Cursor::Selection(Range::new(0, 2, 0, 5)),
+        ]);
+
+        // a|b|XYZcd  =>  a|XYZcd
+        b.select(0, 0, 4, 0);
+        b.backspace();
+        assert_eq!(b.text(), "aXYZcd");
+        assert_eq!(b.cursors(), &[
+            Cursor::Normal(Point::new(0, 1)),
+        ]);
+
+        // a|XYZ|cd  =>  a|cd
+        b.select(0, 0, 0, 3);
+        b.backspace();
+        assert_eq!(b.text(), "acd");
+        assert_eq!(b.cursors(), &[
+            Cursor::Normal(Point::new(0, 1)),
+        ]);
+    }
+
+    #[test]
+    fn multi_selections() {
+        // ab|XYZ  =>  ab|
+        // cd|XYZ  =>  cd|
+        // ef|XYZ  =>  ef|
+        let mut b = Buffer::new();
+        b.insert("abXYZ\ncdXYZ\nefXYZ");
+        b.set_cursors(vec![
+            Cursor::Selection(Range::new(0, 2, 0, 5)),
+            Cursor::Selection(Range::new(1, 2, 1, 5)),
+            Cursor::Selection(Range::new(2, 2, 2, 5)),
+        ]);
+        b.delete();
+        assert_eq!(b.text(), "ab\ncd\nef");
+        assert_eq!(b.cursors(), &[
+            Cursor::Normal(Point::new(0, 2)),
+            Cursor::Normal(Point::new(1, 2)),
+            Cursor::Normal(Point::new(2, 2)),
+        ]);
+
+        // ab|XY        ab|cd|ef|g
+        // Z|cd|XY  =>
+        // Z|ef|XY
+        // Z|g
+        let mut b = Buffer::new();
+        b.insert("abXY\nZcdXY\nZefXY\nZg");
+        b.set_cursors(vec![
+            Cursor::Selection(Range::new(0, 2, 1, 1)),
+            Cursor::Selection(Range::new(1, 3, 2, 1)),
+            Cursor::Selection(Range::new(2, 3, 3, 1)),
+        ]);
+        b.backspace();
+        // assert_eq!(b.text(), "abcdefg");
+        // assert_eq!(b.cursors(), &[
+        //     Cursor::Normal(Point::new(0, 2)),
+        //     Cursor::Normal(Point::new(0, 4)),
+        //     Cursor::Normal(Point::new(0, 6)),
+        // ]);
     }
 
     #[test]
