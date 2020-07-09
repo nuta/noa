@@ -5,41 +5,41 @@ use std::collections::HashMap;
 use crate::rope::*;
 
 fn remove_range(buf: &mut Rope, range: &Range, next_cursor: Option<&Cursor>, new_cursors: &mut Vec<Cursor>) {
-            // Remove the text in the range.
-            buf.remove(&range);
+    // Remove the text in the range.
+    buf.remove(&range);
 
-            // Move cursors after the current cursor.
-            let front = range.front();
-            let end = range.end();
-            let num_newlines_deleted = end.y - front.y;
-            for c2 in new_cursors.iter_mut() {
-                match c2 {
-                    Cursor::Normal(pos) if pos.y == end.y => {
-                        pos.x = front.x + (pos.x - end.x);
-                        pos.y = front.y;
-                    }
-                    Cursor::Normal(pos) => {
-                        pos.y -= num_newlines_deleted;
-                    }
-                    Cursor::Selection(_) => {
-                        continue;
-                    }
-                }
+    // Move cursors after the current cursor.
+    let front = range.front();
+    let end = range.end();
+    let num_newlines_deleted = end.y - front.y;
+    for c2 in new_cursors.iter_mut() {
+        match c2 {
+            Cursor::Normal(pos) if pos.y == end.y => {
+                pos.x = front.x + (pos.x - end.x);
+                pos.y = front.y;
             }
+            Cursor::Normal(pos) => {
+                pos.y -= num_newlines_deleted;
+            }
+            Cursor::Selection(_) => {
+                continue;
+            }
+        }
+    }
 
-            // Preserve the current cursor if it's unique (no other cursors at
-            // the same position).
-            match next_cursor {
-                Some(Cursor::Normal(pos)) if pos == front => {}
-                _ => {
-                    new_cursors.push(Cursor::Normal(*front));
-                }
-            }
+    // Preserve the current cursor if it's unique (no other cursors at
+    // the same position).
+    match next_cursor {
+        Some(Cursor::Normal(pos)) if pos == front => {}
+        _ => {
+            new_cursors.push(Cursor::Normal(*front));
+        }
+    }
 }
 
 pub struct Buffer {
     buf: Rope,
-    cursors: CursorSet,
+    cursors: Vec<Cursor>,
     undo_stack: Vec<Rope>,
     redo_stack: Vec<Rope>,
 }
@@ -48,7 +48,7 @@ impl Buffer {
     pub fn new() -> Buffer {
         let mut buffer = Buffer {
             buf: Rope::new(),
-            cursors: CursorSet::new(),
+            cursors: vec![Cursor::Normal(Point::new(0, 0))],
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
         };
@@ -66,11 +66,12 @@ impl Buffer {
     }
 
     pub fn cursors(&self) -> &[Cursor] {
-        self.cursors.cursors()
+        &self.cursors
     }
 
     pub fn set_cursors(&mut self, cursors: Vec<Cursor>) {
-        self.cursors.set_cursors(cursors);
+        self.cursors = cursors;
+        self.sort_and_merge_cursors();
     }
 
     pub fn move_cursors(
@@ -80,7 +81,25 @@ impl Buffer {
         left: usize,
         right: usize
     ) {
-        self.cursors.move_by_offsets(&self.buf, up, down, left, right);
+        for cursor in &mut self.cursors {
+            // Cancel the selection.
+            match cursor {
+                Cursor::Normal(_) => {}
+                Cursor::Selection(Range { start, end }) => {
+                    *cursor = Cursor::Normal(*start)
+                }
+            };
+
+            // Move the cursor.
+            let mut new_pos = match cursor {
+                Cursor::Normal(pos) => {
+                    pos.move_by(&self.buf, up, down, left, right);
+                }
+                Cursor::Selection(_) => unreachable!()
+            };
+        }
+
+        self.sort_and_merge_cursors();
     }
 
     pub fn select(
@@ -90,7 +109,17 @@ impl Buffer {
         left: usize,
         right: usize
     ) {
-        self.cursors.select_by_offsets(&self.buf, up, down, left, right);
+        for cursor in &mut self.cursors {
+            let (start, mut end) = match cursor {
+                Cursor::Normal(pos) => (*pos, *pos),
+                Cursor::Selection(Range { start, end }) => (*start, *end),
+            };
+
+            end.move_by(&self.buf, up, down, left, right);
+            *cursor = Cursor::Selection(Range::from_points(start, end));
+        }
+
+        self.sort_and_merge_cursors();
     }
 
     pub fn insert_char(&mut self, ch: char) {
@@ -98,7 +127,52 @@ impl Buffer {
     }
 
     pub fn insert(&mut self, string: &str) {
-        for cursor in self.cursors.move_by_insertion(&string) {
+        let y_diff = string.matches('\n').count();
+        let x_diff = string.rfind('\n')
+            .map(|x| string.len() - x - 1)
+            .unwrap_or_else(|| string.len());
+
+        let mut insert_cursors = Vec::new();
+        let mut acc_y_diff = 0;
+        let mut acc_x_diff = 0;
+        let mut prev_pos: Option<Point> = None;
+        for cursor in &mut self.cursors {
+            let current = match cursor {
+                Cursor::Normal(pos) => {
+                    pos
+                }
+                Cursor::Selection(Range { start, end }) => {
+                    min(start, end)
+                }
+            };
+
+            // Handle multiple cursors.
+            let mut insert_at = current.clone();
+            insert_at.y += acc_y_diff;
+            acc_y_diff += y_diff;
+            match prev_pos {
+                Some(prev) if prev.y == current.y => {
+                    insert_at.x += acc_x_diff;
+                    acc_x_diff += x_diff;
+                }
+                _ => {
+                    acc_x_diff = 0;
+                }
+            }
+
+            let mut x = if string.contains('\n') {
+                x_diff
+            } else {
+                insert_at.x + x_diff
+            };
+
+            prev_pos = Some(*current);
+            let new_pos = Point::new(insert_at.y + y_diff, x);
+            *cursor = Cursor::Normal(new_pos);
+            insert_cursors.push(Cursor::Normal(insert_at));
+        }
+
+        for cursor in insert_cursors {
             match cursor {
                 Cursor::Normal(pos) => {
                     self.buf.insert(&pos, string);
@@ -113,7 +187,7 @@ impl Buffer {
 
     pub fn backspace(&mut self) {
         let mut new_cursors = Vec::new();
-        let mut iter = self.cursors.cursors().iter().rev().peekable();
+        let mut iter = self.cursors.iter().rev().peekable();
         while let Some(c) = iter.next() {
             // Determine the range to be deleted.
             let range = match c {
@@ -136,12 +210,12 @@ impl Buffer {
             remove_range(&mut self.buf, &range, iter.peek().map(|r| *r), &mut new_cursors);
         }
 
-        self.cursors.set_cursors(new_cursors);
+        self.set_cursors(new_cursors);
     }
 
     pub fn delete(&mut self) {
         let mut new_cursors = Vec::new();
-        let mut iter = self.cursors.cursors().iter().rev().peekable();
+        let mut iter = self.cursors.iter().rev().peekable();
         while let Some(c) = iter.next() {
             // Determine the range to be deleted.
             let range = match c {
@@ -166,7 +240,7 @@ impl Buffer {
             remove_range(&mut self.buf, &range, iter.peek().map(|r| *r), &mut new_cursors);
         }
 
-        self.cursors.set_cursors(new_cursors);
+        self.set_cursors(new_cursors);
     }
 
     pub fn mark_undo_point(&mut self) {
@@ -189,11 +263,59 @@ impl Buffer {
             self.buf = buf;
         }
     }
+
     pub fn redo(&mut self) {
         if let Some(buf) = self.redo_stack.pop() {
             self.undo_stack.push(self.buf.clone());
             self.buf = buf;
         }
+    }
+
+    /// Sorts the cursors and removes overlapped ones. Don't forget to call this
+    /// method when you made a change.
+    fn sort_and_merge_cursors(&mut self) {
+        self.cursors.sort();
+        let duplicated =
+            self.cursors
+                .iter()
+                .enumerate()
+                .map(|(i, c)| {
+                    match c {
+                        Cursor::Normal(pos) => {
+                            (&self.cursors[(i+1)..])
+                                .iter()
+                                .any(|other| {
+                                    match other {
+                                        Cursor::Normal(ref other) => {
+                                            *pos == *other
+                                        }
+                                        _ => unreachable!()
+                                    }
+                                })
+                        }
+                        Cursor::Selection(range) => {
+                            (&self.cursors[(i+1)..])
+                                .iter()
+                                .any(|other| {
+                                    match other {
+                                        Cursor::Selection(ref other) => {
+                                            range.overlaps_with(other)
+                                        }
+                                        _ => unreachable!()
+                                    }
+                                })
+                        }
+                    }
+                });
+
+        let mut new_cursors = Vec::new();
+        for (cursor, skip) in self.cursors.iter().zip(duplicated) {
+            if !skip {
+                new_cursors.push(cursor.clone());
+            }
+        }
+
+        self.cursors = new_cursors;
     }
 }
 
