@@ -1,7 +1,3 @@
-use std::fmt;
-use std::cmp::min;
-use std::cmp::Ordering;
-use std::collections::HashMap;
 use crate::rope::*;
 
 fn remove_range(buf: &mut Rope, range: &Range, next_cursor: Option<&Cursor>, new_cursors: &mut Vec<Cursor>) {
@@ -85,13 +81,19 @@ impl Buffer {
             // Cancel the selection.
             match cursor {
                 Cursor::Normal(_) => {}
-                Cursor::Selection(Range { start, end }) => {
-                    *cursor = Cursor::Normal(*start)
+                Cursor::Selection(range) => {
+                    let pos = if left > 0 || up > 0 {
+                        range.front()
+                    } else {
+                        range.end()
+                    };
+
+                    *cursor = Cursor::Normal(*pos);
                 }
             };
 
             // Move the cursor.
-            let mut new_pos = match cursor {
+            match cursor {
                 Cursor::Normal(pos) => {
                     pos.move_by(&self.buf, up, down, left, right);
                 }
@@ -127,53 +129,6 @@ impl Buffer {
     }
 
     pub fn insert(&mut self, string: &str) {
-        /*
-        let y_diff = string.matches('\n').count();
-        let x_diff = string.rfind('\n')
-            .map(|x| string.len() - x - 1)
-            .unwrap_or_else(|| string.len());
-
-        let mut insert_cursors = Vec::new();
-        let mut acc_y_diff = 0;
-        let mut acc_x_diff = 0;
-        let mut prev_pos: Option<Point> = None;
-        for cursor in &mut self.cursors {
-            let current = match cursor {
-                Cursor::Normal(pos) => {
-                    pos
-                }
-                Cursor::Selection(Range { start, end }) => {
-                    min(start, end)
-                }
-            };
-
-            // Handle multiple cursors.
-            let mut insert_at = current.clone();
-            insert_at.y += acc_y_diff;
-            acc_y_diff += y_diff;
-            match prev_pos {
-                Some(prev) if prev.y == current.y => {
-                    insert_at.x += acc_x_diff;
-                    acc_x_diff += x_diff;
-                }
-                _ => {
-                    acc_x_diff = 0;
-                }
-            }
-
-            let mut x = if string.contains('\n') {
-                x_diff
-            } else {
-                insert_at.x + x_diff
-            };
-
-            prev_pos = Some(*current);
-            let new_pos = Point::new(insert_at.y + y_diff, x);
-            *cursor = Cursor::Normal(new_pos);
-            insert_cursors.push(Cursor::Normal(insert_at));
-        }
-        */
-
         let mut new_cursors = Vec::new();
         for c in self.cursors.iter().rev() {
             let (remove, insert_at, end) = match c {

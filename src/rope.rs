@@ -1,7 +1,6 @@
 use std::fmt;
 use std::cmp::{min, max};
 use std::cmp::Ordering;
-use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Point {
