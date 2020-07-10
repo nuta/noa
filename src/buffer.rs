@@ -91,6 +91,10 @@ impl Buffer {
         self.buf.line(line)
     }
 
+    pub fn line_len(&self, line: usize) -> usize {
+        self.buf.line_len(line)
+    }
+
     pub fn save(&self) -> std::io::Result<()> {
         if let Some(path) = &self.file {
             self.buf.save_into_file(path)

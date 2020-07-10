@@ -122,15 +122,19 @@ impl Terminal {
         let buffer = view.buffer().borrow();
         let top_left = view.top_left();
         let lineno_width = num_of_digits(buffer.num_lines()) + 2;
+        let text_offset = lineno_width + 1;
         let text_height = self.rows - 2;
         let text_width = self.cols - (2 + lineno_width);
 
         // Draw buffer contents.
+        use std::collections::HashMap;
+        let mut num_drawed_chars = HashMap::new();
         for i in 0..text_height {
             queue!(stdout, MoveTo(0, i as u16));
 
             // Line number.
-            let lineno = top_left.y + i + 1;
+            let y = top_left.y + i;
+            let lineno = y + 1; // 1-origin
             let out_of_bounds = lineno > buffer.num_lines();
             if out_of_bounds {
                 queue!(stdout,
@@ -155,7 +159,8 @@ impl Terminal {
             // Text.
             if !out_of_bounds {
                 let mut remaining = text_width;
-                let slice = buffer.line(top_left.y + i);
+                let slice = buffer.line(y);
+                let mut n = 0;
                 'outer: for chunk in slice.chunks() {
                     let width = UnicodeWidthStr::width_cjk(chunk);
                     if remaining < width {
@@ -166,11 +171,15 @@ impl Terminal {
                             }
 
                             queue!(stdout, Print(ch));
+                            n += 1;
                         }
                     } else {
                         queue!(stdout, Print(chunk));
+                        n += chunk.chars().count();
                     }
                 }
+
+                num_drawed_chars.insert(y, n);
             }
 
             queue!(stdout, Clear(ClearType::UntilNewLine));
@@ -201,17 +210,57 @@ impl Terminal {
             );
         }
 
-        // Draw the command line.
+        // Draw the notification.
         // TODO:
 
         // Draw cursors and selections.
+        for (i, c) in buffer.cursors().iter().enumerate() {
+            match c {
+                Cursor::Normal(pos) if i == 0 => {
+                    // Do nothing: we use the "real" cursor for it.
+                }
+                Cursor::Normal(pos) => {
+                    // Draw a "fake" cursor.
+                    // TODO::
+                }
+                Cursor::Selection(range) => {
+                    let mut pos = range.front().clone();
+                    let end = range.end();
+                    if pos.y < top_left.y || pos.y >= buffer.num_lines() {
+                        continue;
+                    }
+
+                    queue!(stdout, SetAttribute(Attribute::Reverse));
+                    while pos != *end
+                        && pos.y < top_left.y + text_height
+                        && pos.x - top_left.x < num_drawed_chars[&pos.y]
+                    {
+                        if pos.x >= buffer.line_len(pos.y) {
+                            pos.y += 1;
+                            pos.x = 0;
+                        } else {
+                            queue!(stdout,
+                                MoveTo(
+                                    (pos.x - top_left.x + text_offset) as u16,
+                                    (pos.y - top_left.y) as u16,
+                                ),
+                                Print(buffer.line(pos.y).char(pos.x)),
+                            );
+                            pos.x += 1;
+                        }
+                    }
+
+                    queue!(stdout, SetAttribute(Attribute::NoReverse));
+                }
+            }
+        }
 
         // Draw the main cursor.
         match buffer.cursors()[0] {
             Cursor::Normal(pos) => {
                 queue!(stdout,
                     MoveTo(
-                        (pos.x - top_left.x + lineno_width + 1) as u16,
+                        (pos.x - top_left.x + text_offset) as u16,
                         (pos.y - top_left.y) as u16
                     ),
                     cursor::Show,
