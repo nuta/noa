@@ -129,14 +129,22 @@ impl Terminal {
             queue!(stdout, MoveTo(0, i as u16));
 
             // Line number.
-            let lineno = top_left.y + i;
-            queue!(stdout,
-                SetBackgroundColor(Color::Grey),
-                Print(whitespaces(lineno_width - num_of_digits(lineno) - 1)),
-                Print(lineno),
-                Print(" "),
-                SetAttribute(Attribute::Reset),
-            );
+            let lineno = top_left.y + i + 1;
+            if lineno > buffer.num_lines() {
+                queue!(stdout,
+                    SetBackgroundColor(Color::AnsiValue(240)),
+                    Print(whitespaces(lineno_width)),
+                    SetAttribute(Attribute::Reset),
+                );
+            } else {
+                queue!(stdout,
+                    SetBackgroundColor(Color::AnsiValue(236)),
+                    Print(whitespaces(lineno_width - num_of_digits(lineno) - 1)),
+                    Print(lineno),
+                    Print(" "),
+                    SetAttribute(Attribute::Reset),
+                );
+            }
 
             // Line map.
             // TODO:
@@ -146,8 +154,11 @@ impl Terminal {
         }
 
         // Draw the status bar.
-        queue!(stdout, MoveTo(1, text_height as u16));
         queue!(stdout,
+            MoveTo(0, text_height as u16),
+            SetBackgroundColor(Color::AnsiValue(250)),
+            SetForegroundColor(Color::AnsiValue(233)),
+            Print(" "),
             Print(buffer.name()),
             Print(" "),
         );
@@ -155,7 +166,7 @@ impl Terminal {
         if buffer.is_dirty() {
             queue!(stdout,
                 SetAttribute(Attribute::Bold),
-                SetBackgroundColor(Color::Yellow),
+            SetBackgroundColor(Color::AnsiValue(226)),
                 Print("[+]"),
                 SetAttribute(Attribute::Reset),
             );
