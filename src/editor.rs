@@ -110,6 +110,18 @@ impl Editor {
             (KeyCode::Right, NONE) => {
                 buffer.move_cursors(0, 0, 0, 1);
             }
+            (KeyCode::Up, SHIFT) => {
+                buffer.select(1, 0, 0, 0);
+            }
+            (KeyCode::Down, SHIFT) => {
+                buffer.select(0, 1, 0, 0);
+            }
+            (KeyCode::Left, SHIFT) => {
+                buffer.select(0, 0, 1, 0);
+            }
+            (KeyCode::Right, SHIFT) => {
+                buffer.select(0, 0, 0, 1);
+            }
             _ => {
             }
         }

@@ -152,7 +152,6 @@ impl Terminal {
             // TODO:
             queue!(stdout, Print(' '));
 
-
             // Text.
             if !out_of_bounds {
                 let mut remaining = text_width;
@@ -186,7 +185,10 @@ impl Terminal {
             SetBackgroundColor(Color::AnsiValue(250)),
             SetForegroundColor(Color::AnsiValue(233)),
             Print(" "),
+            SetAttribute(Attribute::Bold),
+            SetAttribute(Attribute::Underlined),
             Print(buffer.name()),
+            SetAttribute(Attribute::NoUnderline),
             Print(" "),
         );
 

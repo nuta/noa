@@ -357,6 +357,8 @@ impl Buffer {
     /// Sorts the cursors and removes overlapped ones. Don't forget to call this
     /// method when you made a change.
     fn sort_and_merge_cursors(&mut self) {
+        debug_assert!(!self.cursors.is_empty());
+
         self.cursors.sort();
         let duplicated =
             self.cursors
