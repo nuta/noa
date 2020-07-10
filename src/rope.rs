@@ -227,7 +227,7 @@ impl Rope {
     }
 
     /// Returns a line except new line characters.
-    fn line(&self, line: usize) -> ropey::RopeSlice<'_> {
+    pub fn line(&self, line: usize) -> ropey::RopeSlice {
         let slice = self.0.line(line);
 
         // The slice contains newline characters. Trim them.

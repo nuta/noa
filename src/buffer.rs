@@ -87,6 +87,10 @@ impl Buffer {
         self.buf.text()
     }
 
+    pub fn line(&self, line: usize) -> ropey::RopeSlice {
+        self.buf.line(line)
+    }
+
     pub fn save(&self) -> std::io::Result<()> {
         if let Some(path) = &self.file {
             self.buf.save_into_file(path)

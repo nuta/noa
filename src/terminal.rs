@@ -100,6 +100,7 @@ impl Terminal {
     }
 
     pub fn draw(&mut self, view: &View) {
+        use unicode_width::{UnicodeWidthStr, UnicodeWidthChar};
         use crossterm::cursor::{self, MoveTo, MoveDown};
         use crossterm::terminal::{Clear, ClearType};
         use crossterm::style::{
@@ -144,6 +145,25 @@ impl Terminal {
                     Print(" "),
                     SetAttribute(Attribute::Reset),
                 );
+            }
+
+            // Text.
+            let mut remaining = text_width;
+            let slice = buffer.line(top_left.y + i);
+            'outer: for chunk in slice.chunks() {
+                let width = UnicodeWidthStr::width_cjk(chunk);
+                if remaining < width {
+                    for ch in chunk.chars() {
+                        let width = UnicodeWidthChar::width_cjk(ch).unwrap_or(1);
+                        if remaining < width {
+                            break 'outer;
+                        }
+
+                        queue!(stdout, Print(ch));
+                    }
+                } else {
+                    queue!(stdout, Print(chunk));
+                }
             }
 
             // Line map.
