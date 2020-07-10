@@ -8,13 +8,14 @@ use crate::terminal::{Terminal, KeyCode, KeyModifiers, KeyEvent};
 pub enum Event {
     Key(KeyEvent),
     Resize {
-        rows: usize,
-        cols: usize,
+        rows: u16,
+        cols: u16,
     }
 }
 
 pub struct Editor {
     terminal: Terminal,
+    current: Rc<RefCell<Buffer>>,
     buffers: Vec<Rc<RefCell<Buffer>>>,
     event_queue: Receiver<Event>,
     exited: bool,
@@ -23,9 +24,11 @@ pub struct Editor {
 impl Editor {
     pub fn new() -> Editor {
         let (tx, rx) = channel();
+        let scratch = Rc::new(RefCell::new(Buffer::new()));
         Editor {
             terminal: Terminal::new(tx),
-            buffers: vec![Rc::new(RefCell::new(Buffer::new()))],
+            current: scratch.clone(),
+            buffers: vec![scratch],
             event_queue: rx,
             exited: false,
         }
@@ -60,6 +63,8 @@ impl Editor {
                 self.terminal.resize(rows, cols);
             }
         }
+
+        self.terminal.draw(&*self.current.borrow());
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) {
