@@ -122,9 +122,9 @@ impl Terminal {
         let buffer = view.buffer().borrow();
         let top_left = view.top_left();
         let lineno_width = num_of_digits(buffer.num_lines()) + 2;
-        let text_offset = lineno_width + 1;
+        let text_offset = lineno_width + 2;
         let text_height = self.rows - 2;
-        let text_width = self.cols - (2 + lineno_width);
+        let text_width = self.cols - (3 + lineno_width);
 
         // Draw buffer contents.
         use std::collections::HashMap;
@@ -154,6 +154,13 @@ impl Terminal {
 
             // Line map.
             // TODO:
+            queue!(stdout,
+                SetBackgroundColor(Color::AnsiValue(238)),
+                Print(' '),
+                SetAttribute(Attribute::Reset),
+            );
+
+            // Margin.
             queue!(stdout, Print(' '));
 
             // Text.
