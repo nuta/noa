@@ -131,7 +131,8 @@ impl Terminal {
 
             // Line number.
             let lineno = top_left.y + i + 1;
-            if lineno > buffer.num_lines() {
+            let out_of_bounds = lineno > buffer.num_lines();
+            if out_of_bounds {
                 queue!(stdout,
                     SetBackgroundColor(Color::AnsiValue(240)),
                     Print(whitespaces(lineno_width)),
@@ -147,27 +148,33 @@ impl Terminal {
                 );
             }
 
-            // Text.
-            let mut remaining = text_width;
-            let slice = buffer.line(top_left.y + i);
-            'outer: for chunk in slice.chunks() {
-                let width = UnicodeWidthStr::width_cjk(chunk);
-                if remaining < width {
-                    for ch in chunk.chars() {
-                        let width = UnicodeWidthChar::width_cjk(ch).unwrap_or(1);
-                        if remaining < width {
-                            break 'outer;
-                        }
+            // Line map.
+            // TODO:
+            queue!(stdout, Print(' '));
 
-                        queue!(stdout, Print(ch));
+
+            // Text.
+            if !out_of_bounds {
+                let mut remaining = text_width;
+                let slice = buffer.line(top_left.y + i);
+                'outer: for chunk in slice.chunks() {
+                    let width = UnicodeWidthStr::width_cjk(chunk);
+                    if remaining < width {
+                        for ch in chunk.chars() {
+                            let width = UnicodeWidthChar::width_cjk(ch).unwrap_or(1);
+                            if remaining < width {
+                                break 'outer;
+                            }
+
+                            queue!(stdout, Print(ch));
+                        }
+                    } else {
+                        queue!(stdout, Print(chunk));
                     }
-                } else {
-                    queue!(stdout, Print(chunk));
                 }
             }
 
-            // Line map.
-            // TODO:
+            queue!(stdout, Clear(ClearType::UntilNewLine));
 
             // Scroll bar.
             // TODO:
