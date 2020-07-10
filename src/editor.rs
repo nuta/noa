@@ -72,6 +72,7 @@ impl Editor {
     fn handle_key_event(&mut self, key: KeyEvent) {
         const NONE: KeyModifiers = KeyModifiers::NONE;
         const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
         let view = self.current.borrow_mut();
         let mut buffer = view.buffer().borrow_mut();
@@ -79,8 +80,23 @@ impl Editor {
             (KeyCode::Char('q'), CTRL) => {
                 self.exited = true;
             }
-            (KeyCode::Char(ch), NONE) => {
+            (KeyCode::Char('s'), CTRL) => {
+                buffer.save();
+            }
+            (KeyCode::Char('k'), CTRL) => {
+                buffer.truncate();
+            }
+            (KeyCode::Char(ch), NONE) | (KeyCode::Char(ch), SHIFT) => {
                 buffer.insert_char(ch);
+            }
+            (KeyCode::Enter, NONE) => {
+                buffer.insert_char('\n');
+            }
+            (KeyCode::Backspace, NONE) => {
+                buffer.backspace();
+            }
+            (KeyCode::Delete, NONE) | (KeyCode::Char('d'), CTRL) => {
+                buffer.delete();
             }
             (KeyCode::Up, NONE) => {
                 buffer.move_cursors(1, 0, 0, 0);

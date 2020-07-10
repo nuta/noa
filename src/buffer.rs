@@ -269,6 +269,7 @@ impl Buffer {
             let range = match c {
                 Cursor::Normal(pos) => {
                     let start = if pos.y == 0 && pos.x == 0 {
+                        new_cursors.push(c.clone());
                         continue;
                     } else if pos.x == 0 {
                         Point::new(pos.y - 1, self.buf.line_len(pos.y - 1))
@@ -299,6 +300,7 @@ impl Buffer {
                     let max_y = self.buf.num_lines();
                     let max_x = self.buf.line_len(pos.y);
                     let end = if pos.y == max_y && pos.x == max_x {
+                        new_cursors.push(c.clone());
                         continue;
                     } else if pos.x == max_x {
                         Point::new(pos.y + 1, 0)
@@ -407,6 +409,7 @@ mod test {
     #[test]
     fn insertion_and_deletion() {
         let mut b = Buffer::new();
+        b.backspace();
         b.insert("Hello");
         b.insert(" World?");
         assert_eq!(b.text(), "Hello World?");
