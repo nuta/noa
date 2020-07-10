@@ -1,5 +1,7 @@
 use crate::editor::Event;
-use crate::buffer::Buffer;
+use crate::rope::Cursor;
+use crate::view::View;
+use std::cell::RefCell;
 use std::io::{stdout, Write};
 use std::thread;
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -11,9 +13,43 @@ use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen,
 };
 
+static mut WHITESPACES: String = String::new();
+
+fn whitespaces(n: usize) -> &'static str {
+    // It's safe since this function will be called only in the single-threaded
+    // main loop.
+    unsafe {
+        if WHITESPACES.len() < n {
+            WHITESPACES = " ".repeat(n);
+        }
+
+        &WHITESPACES[0..n]
+    }
+}
+
+fn num_of_digits(mut n: usize) -> usize {
+    match n {
+        0..=9 => 1,
+        10..=99 => 2,
+        100..=999 => 3,
+        1000..=9999 => 4,
+        _ => {
+            let mut num = 1;
+            loop {
+                n /= 10;
+                if n == 0 {
+                    break;
+                }
+                num += 1;
+            }
+            num
+        }
+    }
+}
+
 pub struct Terminal {
-    rows: u16,
-    cols: u16,
+    rows: usize,
+    cols: usize,
 }
 
 impl Terminal {
@@ -38,7 +74,10 @@ impl Terminal {
                                 trace!("unhandled event: {:?}", mice);
                             }
                             TermEvent::Resize(cols, rows) => {
-                                event_queue.send(Event::Resize { cols, rows });
+                                event_queue.send(Event::Resize {
+                                    cols: cols as usize,
+                                    rows: rows as usize,
+                                });
                             }
                         }
                     }
@@ -50,23 +89,26 @@ impl Terminal {
         });
 
         Terminal {
-            rows,
-            cols,
+            rows: rows as usize,
+            cols: cols as usize,
         }
     }
 
-    pub fn resize(&mut self, rows: u16, cols: u16) {
+    pub fn resize(&mut self, rows: usize, cols: usize) {
         self.rows = rows;
         self.cols = cols;
     }
 
-    pub fn draw(&mut self, buffer: &Buffer) {
-        use crossterm::cursor::{MoveTo};
-        use crossterm::style::{Print};
+    pub fn draw(&mut self, view: &View) {
+        use crossterm::cursor::{self, MoveTo, MoveDown};
         use crossterm::terminal::{Clear, ClearType};
+        use crossterm::style::{
+            Print, Color, SetForegroundColor, SetBackgroundColor,
+            Attribute, SetAttribute
+        };
 
         let mut stdout = stdout();
-        if self.cols < 5 || self.rows < 5 {
+        if self.cols < 10 || self.rows < 5 {
             queue!(stdout,
                 Clear(ClearType::All),
                 MoveTo(0, 0),
@@ -76,7 +118,69 @@ impl Terminal {
             return;
         }
 
+        let buffer = view.buffer().borrow();
+        let top_left = view.top_left();
+        let lineno_width = num_of_digits(buffer.num_lines()) + 2;
+        let text_height = self.rows - 2;
+        let text_width = self.cols - (2 + lineno_width);
 
+        // Draw buffer contents.
+        for i in 0..text_height {
+            queue!(stdout, MoveTo(0, i as u16));
+
+            // Line number.
+            let lineno = top_left.y + i;
+            queue!(stdout,
+                SetBackgroundColor(Color::Grey),
+                Print(whitespaces(lineno_width - num_of_digits(lineno) - 1)),
+                Print(lineno),
+                Print(" "),
+                SetAttribute(Attribute::Reset),
+            );
+
+            // Line map.
+            // TODO:
+
+            // Scroll bar.
+            // TODO:
+        }
+
+        // Draw the status bar.
+        queue!(stdout, MoveTo(1, text_height as u16));
+        queue!(stdout,
+            Print(buffer.name()),
+            Print(" "),
+        );
+
+        if buffer.is_dirty() {
+            queue!(stdout,
+                SetAttribute(Attribute::Bold),
+                SetBackgroundColor(Color::Yellow),
+                Print("[+]"),
+                SetAttribute(Attribute::Reset),
+            );
+        }
+
+        // Draw the command line.
+        // TODO:
+
+        // Draw cursors and selections.
+
+        // Draw the main cursor.
+        match buffer.cursors()[0] {
+            Cursor::Normal(pos) => {
+                queue!(stdout,
+                    MoveTo(
+                        (pos.x - top_left.x + lineno_width + 1) as u16,
+                        (pos.y - top_left.y) as u16
+                    ),
+                    cursor::Show,
+                );
+            }
+            _ => {
+                queue!(stdout, cursor::Hide);
+            }
+        }
         stdout.flush();
     }
 }

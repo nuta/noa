@@ -11,22 +11,26 @@ mod buffer;
 mod editor;
 mod rope;
 mod terminal;
+mod view;
 
 use structopt::StructOpt;
+use fern::{
+    colors::{Color, ColoredLevelConfig, WithFgColor}
+};
 
 #[derive(StructOpt)]
 struct Opt {
 }
 
 fn main() {
-    let log_colors = fern::colors::ColoredLevelConfig::new()
-        .info(fern::colors::Color::Green);
+    let log_colors = ColoredLevelConfig::new()
+        .info(Color::Green);
     let log_file = fern::log_file(dirs::home_dir().unwrap().join(".noa.log"))
         .expect("failed to open ~/.noa.log");
     fern::Dispatch::new()
         .format(move |out, message, record| {
             out.finish(format_args!(
-                "[{}\t] {}: {}",
+                "\x1b[1m[{}\t]\x1b[0m \x1b[36m{}\x1b[0m: {}",
                 log_colors.color(record.level()),
                 record.file().unwrap_or_else(|| record.target()),
                 message,

@@ -41,6 +41,7 @@ fn remove_range(
 
 pub struct Buffer {
     buf: Rope,
+    name: String,
     file: Option<PathBuf>,
     cursors: Vec<Cursor>,
     undo_stack: Vec<Rope>,
@@ -51,6 +52,7 @@ impl Buffer {
     pub fn new() -> Buffer {
         let mut buffer = Buffer {
             buf: Rope::new(),
+            name: String::new(),
             file: None,
             cursors: vec![Cursor::Normal(Point::new(0, 0))],
             undo_stack: Vec::new(),
@@ -63,6 +65,22 @@ impl Buffer {
 
     pub fn len(&self) -> usize {
         self.buf.len()
+    }
+
+    pub fn num_lines(&self) -> usize {
+        self.buf.num_lines()
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        self.undo_stack.len() == 1
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn set_name<T: Into<String>>(&mut self, name: T) {
+        self.name = name.into();
     }
 
     pub fn text(&self) -> String {
