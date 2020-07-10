@@ -10,7 +10,7 @@ extern crate log;
 mod buffer;
 mod editor;
 mod rope;
-mod logger;
+mod terminal;
 
 use structopt::StructOpt;
 
