@@ -70,11 +70,29 @@ impl Editor {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) {
-        let ctrl = KeyModifiers::CONTROL;
+        const NONE: KeyModifiers = KeyModifiers::NONE;
+        const CTRL: KeyModifiers = KeyModifiers::CONTROL;
 
+        let view = self.current.borrow_mut();
+        let mut buffer = view.buffer().borrow_mut();
         match (key.code, key.modifiers) {
-            (KeyCode::Char('q'), ctrl) => {
+            (KeyCode::Char('q'), CTRL) => {
                 self.exited = true;
+            }
+            (KeyCode::Char(ch), NONE) => {
+                buffer.insert_char(ch);
+            }
+            (KeyCode::Up, NONE) => {
+                buffer.move_cursors(1, 0, 0, 0);
+            }
+            (KeyCode::Down, NONE) => {
+                buffer.move_cursors(0, 1, 0, 0);
+            }
+            (KeyCode::Left, NONE) => {
+                buffer.move_cursors(0, 0, 1, 0);
+            }
+            (KeyCode::Right, NONE) => {
+                buffer.move_cursors(0, 0, 0, 1);
             }
             _ => {
             }
