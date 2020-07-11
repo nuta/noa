@@ -1,6 +1,7 @@
-use crate::editor::Event;
+use crate::editor::{Event, Notification};
 use crate::rope::Cursor;
 use crate::view::View;
+use std::cmp::min;
 use std::io::{stdout, Write};
 use std::thread;
 use std::sync::mpsc::Sender;
@@ -11,6 +12,10 @@ use crossterm::terminal::{
     size, enable_raw_mode, disable_raw_mode,
     EnterAlternateScreen, LeaveAlternateScreen,
 };
+
+fn truncate(s: &str, width: usize) -> &str {
+    &s[..min(s.len(), width)]
+}
 
 fn whitespaces(n: usize) -> String {
     " ".repeat(n)
@@ -89,7 +94,7 @@ impl Terminal {
         self.cols = cols;
     }
 
-    pub fn draw(&mut self, view: &View) {
+    pub fn draw(&mut self, view: &View, notifications: &[Notification]) {
         use unicode_width::{UnicodeWidthStr, UnicodeWidthChar};
         use crossterm::cursor::{self, MoveTo};
         use crossterm::terminal::{Clear, ClearType};
@@ -115,6 +120,7 @@ impl Terminal {
         let text_offset = lineno_width + 2;
         let text_height = self.rows - 2;
         let text_width = self.cols - (3 + lineno_width);
+        let status_bar_y = text_height;
 
         queue!(stdout,
             cursor::Hide,
@@ -193,7 +199,7 @@ impl Terminal {
 
         // Draw the status bar.
         queue!(stdout,
-            MoveTo(0, text_height as u16),
+            MoveTo(0, status_bar_y as u16),
             SetBackgroundColor(Color::AnsiValue(250)),
             SetForegroundColor(Color::AnsiValue(233)),
             Print(" "),
@@ -202,19 +208,38 @@ impl Terminal {
             Print(buffer.name()),
             SetAttribute(Attribute::NoUnderline),
             Print(" "),
+            SetAttribute(Attribute::Reset),
         ).unwrap();
 
         if buffer.is_dirty() {
             queue!(stdout,
                 SetAttribute(Attribute::Bold),
-            SetBackgroundColor(Color::AnsiValue(226)),
+                SetBackgroundColor(Color::AnsiValue(226)),
                 Print("[+]"),
                 SetAttribute(Attribute::Reset),
             ).unwrap();
         }
 
         // Draw the notification.
-        // TODO:
+        let mut iter = notifications.iter().rev();
+        if let Some(noti) = iter.next() {
+            let num_duplicated = iter.take_while(|x| *x == noti).count() + 1;
+            queue!(stdout, MoveTo(0, status_bar_y as u16 + 1)).unwrap();
+            if num_duplicated > 1 {
+                queue!(
+                    stdout,
+                    Print(&format!("({}) {}",
+                        num_duplicated,
+                        truncate(&noti.message,
+                            self.cols - 3 - num_of_digits(num_duplicated))
+                    )
+                )).unwrap();
+            } else {
+                queue!(stdout, Print(truncate(&noti.message, self.cols))).unwrap();
+            }
+
+            queue!(stdout, Clear(ClearType::UntilNewLine)).unwrap();
+        }
 
         // Draw cursors and selections.
         for (i, c) in buffer.cursors().iter().enumerate() {

@@ -1,10 +1,28 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::sync::mpsc::{channel, Receiver, RecvTimeoutError};
-use std::time::Duration;
+use std::time::{Instant, Duration};
 use crate::buffer::Buffer;
 use crate::view::View;
 use crate::terminal::{Terminal, KeyCode, KeyModifiers, KeyEvent};
+
+pub enum NotificationLevel {
+    Report,
+    Info,
+    Error,
+}
+
+pub struct Notification {
+    pub level: NotificationLevel,
+    pub message: String,
+    pub created_at: Instant,
+}
+
+impl PartialEq for Notification {
+    fn eq(&self, other: &Notification) -> bool {
+        self.message == other.message
+    }
+}
 
 pub enum Event {
     Key(KeyEvent),
@@ -20,6 +38,7 @@ pub struct Editor {
     views: Vec<Rc<RefCell<View>>>,
     event_queue: Receiver<Event>,
     exited: bool,
+    notifications: RefCell<Vec<Notification>>,
 }
 
 impl Editor {
@@ -34,6 +53,7 @@ impl Editor {
             views: vec![scratch_view],
             event_queue: rx,
             exited: false,
+            notifications: RefCell::new(Vec::new()),
         }
     }
 
@@ -43,7 +63,10 @@ impl Editor {
                 return;
             }
 
-            self.terminal.draw(&*self.current.borrow());
+            self.terminal.draw(
+                &*self.current.borrow(),
+                &*self.notifications.borrow()
+            );
 
             match self.event_queue.recv_timeout(Duration::from_millis(100)) {
                Ok(ev) => {
@@ -59,6 +82,26 @@ impl Editor {
                }
             }
         }
+    }
+
+    fn notify<T: Into<String>>(&self, level: NotificationLevel, message: T) {
+        self.notifications.borrow_mut().push(Notification {
+            level,
+            created_at: Instant::now(),
+            message: message.into(),
+        });
+    }
+
+    fn report<T: Into<String>>(&self, message: T) {
+        self.notify(NotificationLevel::Report, message);
+    }
+
+    fn info<T: Into<String>>(&self, message: T) {
+        self.notify(NotificationLevel::Info, message);
+    }
+
+    fn error<T: Into<String>>(&self, message: T) {
+        self.notify(NotificationLevel::Error, message);
     }
 
     fn handle_event(&mut self, ev: Event) {
@@ -85,16 +128,26 @@ impl Editor {
                 self.exited = true;
             }
             (KeyCode::Char('s'), CTRL) => {
-                buffer.save();
+                match buffer.save() {
+                    Ok(_) => {
+                        self.info(format!("saved ({} lines)", buffer.num_lines()));
+                    }
+                    Err(err) => {
+                        self.error(format!("failed to save: {}", err));
+                    }
+                }
             }
             (KeyCode::Char('k'), CTRL) => {
                 buffer.truncate();
+                self.report("truncated");
             }
             (KeyCode::Char('z'), CTRL) => {
                 buffer.undo();
+                self.report("undo");
             }
             (KeyCode::Char('r'), CTRL) => {
                 buffer.redo();
+                self.report("redo");
             }
             (KeyCode::Char('a'), CTRL) => {
                 buffer.move_to_beginning_of_line();
