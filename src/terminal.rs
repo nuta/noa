@@ -269,7 +269,7 @@ impl Terminal {
             match (popup, main_cursor) {
                 (Some(popup), Cursor::Normal { pos, .. }) => {
                     let cursor_y = pos.y - top_left.y;
-                    let cursor_x = pos.y - top_left.x;
+                    let cursor_x = pos.x - top_left.x;
                     let longest =
                         popup.lines.iter().map(String::len).max().unwrap_or(0);
                     let popup_width = min(longest + 1, text_width - 3);
@@ -279,15 +279,24 @@ impl Terminal {
                         text_width - popup_width
                     };
 
-                    let (y, popup_height) = if cursor_y + popup.lines.len() < text_height {
-                        (cursor_y, popup.lines.len())
+                    let (y, popup_height) = if cursor_y + 1 + popup.lines.len() < text_height {
+                        (cursor_y + 1, popup.lines.len())
                     } else {
-                        (text_height - cursor_y - 1, text_height - cursor_y - 1)
+                        (cursor_y + 1, text_height - cursor_y - 1)
                     };
 
                     for i in 0..popup_height {
                         let item = &popup.lines[i];
-                        trace!("item = {}", item);
+                        trace!("item = {}, y = ({}, {}) ({}, {})", item, y, x, cursor_x, longest);
+                        queue!(
+                            stdout,
+                            MoveTo((text_offset + x) as u16, (y + i) as u16),
+                            SetBackgroundColor(Color::AnsiValue(89)),
+                            SetAttribute(Attribute::Bold),
+                            Print(truncate(&item, popup_width - 1)),
+                            Print(whitespaces(popup_width - item.len())),
+                            SetAttribute(Attribute::Reset),
+                        ).unwrap();
                     }
                 }
                 _ => {}
