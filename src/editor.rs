@@ -99,6 +99,7 @@ impl Editor {
                     }
 
                     self.draw();
+                    self.run_jobs();
                }
                Err(RecvTimeoutError::Timeout) => {
                }
@@ -114,6 +115,16 @@ impl Editor {
             &mut *self.current.borrow_mut(),
             &*self.notifications.borrow(),
             &self.popup,
+        );
+    }
+
+    fn run_jobs(&mut self) {
+        use crate::completion::WordCompJob;
+        let current_view = self.current.borrow();
+        let current_buffer =current_view.buffer().borrow();
+
+        self.worker.request(
+            Box::new(WordCompJob::new(current_buffer.snapshot()))
         );
     }
 

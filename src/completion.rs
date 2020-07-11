@@ -1,9 +1,8 @@
-use std::sync::mpsc::Sender;
 use std::time::{Instant, Duration};
 use std::collections::HashMap;
 use std::sync::RwLock;
 use lazy_static::lazy_static;
-use crate::editor::{Event, EventQueue};
+use crate::editor::EventQueue;
 use crate::buffer::{BufferId, Snapshot};
 use crate::worker::Job;
 use crate::fuzzy::FuzzyVec;
@@ -41,12 +40,15 @@ impl WordCompJob {
                 current_word.push(ch);
             } else {
                 if current_word.len() >= MIN_WORD_LEN {
-                    trace!("word_comp: words = {:?}", current_word);
                     words.append(current_word.clone());
                 }
 
                 current_word.clear();
             }
+        }
+
+        if current_word.len() >= MIN_WORD_LEN {
+            words.append(current_word.clone());
         }
 
         words
@@ -55,7 +57,7 @@ impl WordCompJob {
 
 impl Job for WordCompJob {
     fn execute(&mut self, event_queue: &EventQueue) {
-        let current_word = ""; // TODO:
+        let current_word = "abc"; // TODO:
         if current_word.len() < 3 {
             return;
         }
