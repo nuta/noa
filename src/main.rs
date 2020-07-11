@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 #[cfg(test)]
 #[macro_use]
 extern crate pretty_assertions;
@@ -15,7 +13,7 @@ mod view;
 
 use structopt::StructOpt;
 use fern::{
-    colors::{Color, ColoredLevelConfig, WithFgColor}
+    colors::{Color, ColoredLevelConfig}
 };
 
 #[derive(StructOpt)]

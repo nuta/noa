@@ -1,10 +1,9 @@
 use crate::editor::Event;
 use crate::rope::Cursor;
 use crate::view::View;
-use std::cell::RefCell;
 use std::io::{stdout, Write};
 use std::thread;
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::mpsc::Sender;
 pub use crossterm::event::{KeyCode, KeyModifiers, KeyEvent};
 use crossterm::event::{self, Event as TermEvent};
 use crossterm::{execute, queue};
@@ -13,18 +12,8 @@ use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen,
 };
 
-static mut WHITESPACES: String = String::new();
-
-fn whitespaces(n: usize) -> &'static str {
-    // It's safe since this function will be called only in the single-threaded
-    // main loop.
-    unsafe {
-        if WHITESPACES.len() < n {
-            WHITESPACES = " ".repeat(n);
-        }
-
-        &WHITESPACES[0..n]
-    }
+fn whitespaces(n: usize) -> String {
+    " ".repeat(n)
 }
 
 fn num_of_digits(mut n: usize) -> usize {
@@ -33,6 +22,7 @@ fn num_of_digits(mut n: usize) -> usize {
         10..=99 => 2,
         100..=999 => 3,
         1000..=9999 => 4,
+        10000..=99999 => 5,
         _ => {
             let mut num = 1;
             loop {
@@ -68,7 +58,7 @@ impl Terminal {
                     Ok(ev) => {
                         match ev {
                             TermEvent::Key(key) => {
-                                event_queue.send(Event::Key(key));
+                                event_queue.send(Event::Key(key)).ok();
                             }
                             TermEvent::Mouse(mice) => {
                                 trace!("unhandled event: {:?}", mice);
@@ -77,7 +67,7 @@ impl Terminal {
                                 event_queue.send(Event::Resize {
                                     cols: cols as usize,
                                     rows: rows as usize,
-                                });
+                                }).ok();
                             }
                         }
                     }
@@ -101,7 +91,7 @@ impl Terminal {
 
     pub fn draw(&mut self, view: &View) {
         use unicode_width::{UnicodeWidthStr, UnicodeWidthChar};
-        use crossterm::cursor::{self, MoveTo, MoveDown};
+        use crossterm::cursor::{self, MoveTo};
         use crossterm::terminal::{Clear, ClearType};
         use crossterm::style::{
             Print, Color, SetForegroundColor, SetBackgroundColor,
@@ -114,8 +104,8 @@ impl Terminal {
                 Clear(ClearType::All),
                 MoveTo(0, 0),
                 Print("too small!"),
-            );
-            stdout.flush();
+            ).unwrap();
+            stdout.flush().unwrap();
             return;
         }
 
@@ -128,13 +118,13 @@ impl Terminal {
 
         queue!(stdout,
             cursor::Hide,
-        );
+        ).unwrap();
 
         // Draw buffer contents.
         use std::collections::HashMap;
         let mut num_drawed_chars = HashMap::new();
         for i in 0..text_height {
-            queue!(stdout, MoveTo(0, i as u16));
+            queue!(stdout, MoveTo(0, i as u16)).unwrap();
 
             // Line number.
             let y = top_left.y + i;
@@ -145,7 +135,7 @@ impl Terminal {
                     SetBackgroundColor(Color::AnsiValue(240)),
                     Print(whitespaces(lineno_width)),
                     SetAttribute(Attribute::Reset),
-                );
+                ).unwrap();
             } else {
                 queue!(stdout,
                     SetBackgroundColor(Color::AnsiValue(236)),
@@ -153,7 +143,7 @@ impl Terminal {
                     Print(lineno),
                     Print(" "),
                     SetAttribute(Attribute::Reset),
-                );
+                ).unwrap();
             }
 
             // Line map.
@@ -162,10 +152,10 @@ impl Terminal {
                 SetBackgroundColor(Color::AnsiValue(238)),
                 Print(' '),
                 SetAttribute(Attribute::Reset),
-            );
+            ).unwrap();
 
             // Margin.
-            queue!(stdout, Print(' '));
+            queue!(stdout, Print(' ')).unwrap();
 
             // Text.
             if !out_of_bounds {
@@ -176,24 +166,26 @@ impl Terminal {
                     let width = UnicodeWidthStr::width_cjk(chunk);
                     if remaining < width {
                         for ch in chunk.chars() {
-                            let width = UnicodeWidthChar::width_cjk(ch).unwrap_or(1);
-                            if remaining < width {
+                            let w = UnicodeWidthChar::width_cjk(ch).unwrap_or(1);
+                            if remaining < w {
                                 break 'outer;
                             }
 
-                            queue!(stdout, Print(ch));
+                            queue!(stdout, Print(ch)).unwrap();
                             n += 1;
+                            remaining -= w;
                         }
                     } else {
-                        queue!(stdout, Print(chunk));
+                        queue!(stdout, Print(chunk)).unwrap();
                         n += chunk.chars().count();
+                        remaining -= width;
                     }
                 }
 
                 num_drawed_chars.insert(y, n);
             }
 
-            queue!(stdout, Clear(ClearType::UntilNewLine));
+            queue!(stdout, Clear(ClearType::UntilNewLine)).unwrap();
 
             // Scroll bar.
             // TODO:
@@ -210,7 +202,7 @@ impl Terminal {
             Print(buffer.name()),
             SetAttribute(Attribute::NoUnderline),
             Print(" "),
-        );
+        ).unwrap();
 
         if buffer.is_dirty() {
             queue!(stdout,
@@ -218,7 +210,7 @@ impl Terminal {
             SetBackgroundColor(Color::AnsiValue(226)),
                 Print("[+]"),
                 SetAttribute(Attribute::Reset),
-            );
+            ).unwrap();
         }
 
         // Draw the notification.
@@ -227,7 +219,7 @@ impl Terminal {
         // Draw cursors and selections.
         for (i, c) in buffer.cursors().iter().enumerate() {
             match c {
-                Cursor::Normal { pos, .. } if i == 0 => {
+                Cursor::Normal { .. } if i == 0 => {
                     // Do nothing: we use the "real" cursor for it.
                 }
                 Cursor::Normal { pos, .. } => {
@@ -243,7 +235,7 @@ impl Terminal {
                             SetAttribute(Attribute::Reverse),
                             Print(buffer.line(pos.y).char(pos.x)),
                             SetAttribute(Attribute::NoReverse)
-                        );
+                        ).unwrap();
                     }
                 }
                 Cursor::Selection(range) => {
@@ -253,7 +245,7 @@ impl Terminal {
                         continue;
                     }
 
-                    queue!(stdout, SetAttribute(Attribute::Reverse));
+                    queue!(stdout, SetAttribute(Attribute::Reverse)).unwrap();
                     while pos != *end
                         && pos.y < top_left.y + text_height
                         && pos.x - top_left.x < num_drawed_chars[&pos.y]
@@ -268,12 +260,12 @@ impl Terminal {
                                     (pos.y - top_left.y) as u16,
                                 ),
                                 Print(buffer.line(pos.y).char(pos.x)),
-                            );
+                            ).unwrap();
                             pos.x += 1;
                         }
                     }
 
-                    queue!(stdout, SetAttribute(Attribute::NoReverse));
+                    queue!(stdout, SetAttribute(Attribute::NoReverse)).unwrap();
                 }
             }
         }
@@ -287,19 +279,19 @@ impl Terminal {
                         (pos.y - top_left.y) as u16
                     ),
                     cursor::Show,
-                );
+                ).unwrap();
             }
             _ => {
-                queue!(stdout, cursor::Hide);
+                queue!(stdout, cursor::Hide).unwrap();
             }
         }
-        stdout.flush();
+        stdout.flush().unwrap();
     }
 }
 
 impl Drop for Terminal {
     fn drop(&mut self) {
-        execute!(stdout(), LeaveAlternateScreen);
-        disable_raw_mode();
+        execute!(stdout(), LeaveAlternateScreen).unwrap();
+        disable_raw_mode().unwrap();
     }
 }

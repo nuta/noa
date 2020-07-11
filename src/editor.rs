@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::sync::mpsc::{channel, Receiver, RecvTimeoutError};
-use std::time::{Instant, Duration};
+use std::time::Duration;
 use crate::buffer::Buffer;
 use crate::view::View;
 use crate::terminal::{Terminal, KeyCode, KeyModifiers, KeyEvent};
@@ -89,6 +89,18 @@ impl Editor {
             }
             (KeyCode::Char('k'), CTRL) => {
                 buffer.truncate();
+            }
+            (KeyCode::Char('z'), CTRL) => {
+                buffer.undo();
+            }
+            (KeyCode::Char('r'), CTRL) => {
+                buffer.redo();
+            }
+            (KeyCode::Char('a'), CTRL) => {
+                buffer.move_to_beginning_of_line();
+            }
+            (KeyCode::Char('e'), CTRL) => {
+                buffer.move_to_end_of_line();
             }
             (KeyCode::Char(ch), NONE) | (KeyCode::Char(ch), SHIFT) => {
                 buffer.insert_char(ch);

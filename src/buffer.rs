@@ -63,6 +63,7 @@ impl Buffer {
         buffer
     }
 
+    #[cfg(test)]
     pub fn len(&self) -> usize {
         self.buf.len()
     }
@@ -83,6 +84,7 @@ impl Buffer {
         self.name = name.into();
     }
 
+    #[cfg(test)]
     pub fn text(&self) -> String {
         self.buf.text()
     }
