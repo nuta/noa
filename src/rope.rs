@@ -262,6 +262,10 @@ impl Rope {
 
     pub fn word_at(&self, pos: &Point) -> String {
         let mut word = String::new();
+        if pos.y >= self.num_lines() {
+            return word;
+        }
+
         for (i, ch) in self.0.line(pos.y).chars().enumerate() {
             if i >= pos.x {
                 break;
