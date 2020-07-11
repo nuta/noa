@@ -41,6 +41,7 @@ impl WordCompJob {
                 current_word.push(ch);
             } else {
                 if current_word.len() >= MIN_WORD_LEN {
+                    trace!("word_comp: words = {:?}", current_word);
                     words.append(current_word.clone());
                 }
 
