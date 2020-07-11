@@ -3,6 +3,7 @@ use crate::rope::Cursor;
 use crate::view::View;
 use std::cmp::min;
 use std::io::{stdout, Write};
+use std::time::Duration;
 use std::thread;
 use std::sync::mpsc::Sender;
 pub use crossterm::event::{KeyCode, KeyModifiers, KeyEvent};
@@ -223,19 +224,21 @@ impl Terminal {
         // Draw the notification.
         let mut iter = notifications.iter().rev();
         if let Some(noti) = iter.next() {
-            let num_duplicated = iter.take_while(|x| *x == noti).count() + 1;
             queue!(stdout, MoveTo(0, status_bar_y as u16 + 1)).unwrap();
-            if num_duplicated > 1 {
-                queue!(
-                    stdout,
-                    Print(&format!("({}) {}",
+            if noti.created_at.elapsed() < Duration::from_secs(3) {
+                let num_duplicated = iter.take_while(|x| *x == noti).count() + 1;
+                if num_duplicated > 1 {
+                    queue!(
+                        stdout,
+                        Print(&format!("({}) {}",
                         num_duplicated,
-                        truncate(&noti.message,
-                            self.cols - 3 - num_of_digits(num_duplicated))
-                    )
-                )).unwrap();
-            } else {
-                queue!(stdout, Print(truncate(&noti.message, self.cols))).unwrap();
+                            truncate(&noti.message,
+                                self.cols - 3 - num_of_digits(num_duplicated))
+                            )
+                    )).unwrap();
+                } else {
+                    queue!(stdout, Print(truncate(&noti.message, self.cols))).unwrap();
+                }
             }
 
             queue!(stdout, Clear(ClearType::UntilNewLine)).unwrap();

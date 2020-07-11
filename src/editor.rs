@@ -127,6 +127,9 @@ impl Editor {
             (KeyCode::Char('q'), CTRL) => {
                 self.exited = true;
             }
+            (KeyCode::Char('l'), CTRL) => {
+                // TODO: centering and force redraw
+            }
             (KeyCode::Char('s'), CTRL) => {
                 match buffer.save() {
                     Ok(_) => {
