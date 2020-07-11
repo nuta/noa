@@ -1,4 +1,4 @@
-use crate::editor::{Event, Notification, Popup};
+use crate::editor::{EventQueue, Event, Notification, Popup};
 use crate::rope::Cursor;
 use crate::view::View;
 use std::cmp::min;
@@ -49,7 +49,7 @@ pub struct Terminal {
 }
 
 impl Terminal {
-    pub fn new(event_queue: Sender<Event>) -> Terminal {
+    pub fn new(event_queue: EventQueue) -> Terminal {
 
         let (cols, rows) = size()
             .expect("failed to get the terminal size");
@@ -64,16 +64,16 @@ impl Terminal {
                     Ok(ev) => {
                         match ev {
                             TermEvent::Key(key) => {
-                                event_queue.send(Event::Key(key)).ok();
+                                event_queue.enqueue(Event::Key(key));
                             }
                             TermEvent::Mouse(mice) => {
                                 trace!("unhandled event: {:?}", mice);
                             }
                             TermEvent::Resize(cols, rows) => {
-                                event_queue.send(Event::Resize {
+                                event_queue.enqueue(Event::Resize {
                                     cols: cols as usize,
                                     rows: rows as usize,
-                                }).ok();
+                                });
                             }
                         }
                     }

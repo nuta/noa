@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::path::PathBuf;
 use crate::rope::*;
 
@@ -39,7 +40,25 @@ fn remove_range(
     }
 }
 
+pub struct Snapshot {
+    pub id: BufferId,
+    pub buf: Rope,
+    pub main_cursor: Option<Point>,
+}
+
+static NEXT_BUFFER_ID: AtomicUsize = AtomicUsize::new(0);
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BufferId(usize);
+
+impl BufferId {
+    pub fn alloc() -> BufferId {
+        BufferId(NEXT_BUFFER_ID.fetch_add(1, Ordering::SeqCst))
+    }
+}
+
 pub struct Buffer {
+    id: BufferId,
     buf: Rope,
     name: String,
     file: Option<PathBuf>,
@@ -51,6 +70,7 @@ pub struct Buffer {
 impl Buffer {
     pub fn new() -> Buffer {
         let mut buffer = Buffer {
+            id: BufferId::alloc(),
             buf: Rope::new(),
             name: String::new(),
             file: None,
@@ -95,6 +115,19 @@ impl Buffer {
 
     pub fn line_len(&self, line: usize) -> usize {
         self.buf.line_len(line)
+    }
+
+    pub fn snapshot(&self) -> Snapshot {
+        let main_cursor = match self.cursors[0] {
+            Cursor::Normal { pos, .. } => Some(pos),
+            _ => None,
+        };
+
+        Snapshot {
+            id: self.id,
+            buf: self.buf.clone(),
+            main_cursor,
+        }
     }
 
     pub fn save(&self) -> std::io::Result<()> {
@@ -414,6 +447,12 @@ impl Buffer {
         }
 
         self.cursors = new_cursors;
+    }
+}
+
+impl PartialEq for Buffer {
+    fn eq(&self, other: &Buffer) -> bool {
+        self.id == other.id
     }
 }
 

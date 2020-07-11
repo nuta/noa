@@ -1,9 +1,10 @@
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::sync::mpsc::{channel, Receiver, RecvTimeoutError};
+use std::sync::mpsc::{channel, Sender, Receiver, RecvTimeoutError};
 use std::time::{Instant, Duration};
 use crate::buffer::Buffer;
 use crate::view::View;
+use crate::worker::Worker;
 use crate::terminal::{Terminal, KeyCode, KeyModifiers, KeyEvent};
 
 pub enum NotificationLevel {
@@ -37,6 +38,23 @@ pub enum Event {
     }
 }
 
+#[derive(Clone)]
+pub struct EventQueue {
+    tx: Sender<Event>,
+}
+
+impl EventQueue {
+    pub fn new(tx: Sender<Event>) -> EventQueue {
+        EventQueue {
+            tx,
+        }
+    }
+
+    pub fn enqueue(&self, ev: Event) {
+        self.tx.send(ev).unwrap();
+    }
+}
+
 pub struct Editor {
     terminal: Terminal,
     current: Rc<RefCell<View>>,
@@ -45,6 +63,7 @@ pub struct Editor {
     exited: bool,
     notifications: RefCell<Vec<Notification>>,
     popup: Option<Popup>,
+    worker: Worker,
 }
 
 impl Editor {
@@ -54,13 +73,14 @@ impl Editor {
         scratch_buffer.borrow_mut().set_name("*scratch*");
         let scratch_view = Rc::new(RefCell::new(View::new(scratch_buffer)));
         Editor {
-            terminal: Terminal::new(tx),
+            terminal: Terminal::new(EventQueue::new(tx.clone())),
             current: scratch_view.clone(),
             views: vec![scratch_view],
             event_queue: rx,
             exited: false,
             notifications: RefCell::new(Vec::new()),
             popup: None,
+            worker: Worker::new(EventQueue::new(tx)),
         }
     }
 

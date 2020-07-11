@@ -10,6 +10,9 @@ mod editor;
 mod rope;
 mod terminal;
 mod view;
+mod worker;
+mod completion;
+mod fuzzy;
 
 use structopt::StructOpt;
 use fern::{

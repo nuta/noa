@@ -7,6 +7,7 @@ edition = "2018"
 [dependencies]
 log = { version = "0", features = ["max_level_trace", "release_max_level_info"] }
 fern = { version = "0", features = ["colored"] }
+lazy_static = "1"
 backtrace = "0"
 structopt = "0"
 crossterm = "0"
