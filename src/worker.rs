@@ -18,11 +18,11 @@ impl Worker {
         let mut queues = Vec::new();
         for _ in 0..NUM_WORKER_THREADS {
             let (tx, rx) = channel::<Box<dyn Job + Send>>();
-            let mut eq = event_queue.clone();
+            let eq = event_queue.clone();
             queues.push(tx);
             thread::spawn(move || {
                 while let Ok(mut job) = rx.recv() {
-                    job.execute(&mut eq);
+                    job.execute(&eq);
                 }
             });
         }
@@ -33,7 +33,7 @@ impl Worker {
         }
     }
 
-    pub fn request(&mut self, job: Box<Job + Send>) {
+    pub fn request(&mut self, job: Box<dyn Job + Send>) {
         let index = self.roundrobin_index % self.queues.len();
         self.roundrobin_index = self.roundrobin_index.wrapping_add(1);
         self.queues[index].send(job).unwrap();

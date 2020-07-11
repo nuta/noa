@@ -48,7 +48,7 @@ impl WordCompJob {
         }
 
         if current_word.len() >= MIN_WORD_LEN {
-            words.append(current_word.clone());
+            words.append(current_word);
         }
 
         words
