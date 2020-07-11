@@ -1,4 +1,4 @@
-use crate::editor::{Event, Notification};
+use crate::editor::{Event, Notification, Popup};
 use crate::rope::Cursor;
 use crate::view::View;
 use std::cmp::min;
@@ -95,7 +95,12 @@ impl Terminal {
         self.cols = cols;
     }
 
-    pub fn draw(&mut self, view: &mut View, notifications: &[Notification]) {
+    pub fn draw(
+        &mut self,
+        view: &mut View,
+        notifications: &[Notification],
+        popup: &Option<Popup>,
+    ) {
         use unicode_width::{UnicodeWidthStr, UnicodeWidthChar};
         use crossterm::cursor::{self, MoveTo};
         use crossterm::terminal::{Clear, ClearType};
@@ -251,6 +256,44 @@ impl Terminal {
             queue!(stdout, Clear(ClearType::UntilNewLine)).unwrap();
         }
 
+        // FIXME:
+        let popup2 = Some(Popup {
+            index: None,
+            lines: vec!["task_switch".to_owned(), "task_create".to_owned(), "task_destroy".to_owned()],
+        });
+        let popup = &popup2;
+
+        // Draw popup.
+        let main_cursor = &buffer.cursors()[0];
+        if buffer.cursors().len() == 1 {
+            match (popup, main_cursor) {
+                (Some(popup), Cursor::Normal { pos, .. }) => {
+                    let cursor_y = pos.y - top_left.y;
+                    let cursor_x = pos.y - top_left.x;
+                    let longest =
+                        popup.lines.iter().map(String::len).max().unwrap_or(0);
+                    let popup_width = min(longest + 1, text_width - 3);
+                    let x = if cursor_x + popup_width < text_width {
+                        cursor_x
+                    } else {
+                        text_width - popup_width
+                    };
+
+                    let (y, popup_height) = if cursor_y + popup.lines.len() < text_height {
+                        (cursor_y, popup.lines.len())
+                    } else {
+                        (text_height - cursor_y - 1, text_height - cursor_y - 1)
+                    };
+
+                    for i in 0..popup_height {
+                        let item = &popup.lines[i];
+                        trace!("item = {}", item);
+                    }
+                }
+                _ => {}
+            }
+        }
+
         // Draw cursors and selections.
         for (i, c) in buffer.cursors().iter().enumerate() {
             match c {
@@ -306,7 +349,7 @@ impl Terminal {
         }
 
         // Draw the main cursor.
-        match buffer.cursors()[0] {
+        match main_cursor {
             Cursor::Normal { pos, .. } => {
                 queue!(stdout,
                     MoveTo(

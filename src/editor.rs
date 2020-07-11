@@ -24,6 +24,11 @@ impl PartialEq for Notification {
     }
 }
 
+pub struct Popup {
+    pub lines: Vec<String>,
+    pub index: Option<usize>,
+}
+
 pub enum Event {
     Key(KeyEvent),
     Resize {
@@ -39,6 +44,7 @@ pub struct Editor {
     event_queue: Receiver<Event>,
     exited: bool,
     notifications: RefCell<Vec<Notification>>,
+    popup: Option<Popup>,
 }
 
 impl Editor {
@@ -54,19 +60,16 @@ impl Editor {
             event_queue: rx,
             exited: false,
             notifications: RefCell::new(Vec::new()),
+            popup: None,
         }
     }
 
     pub fn run(&mut self) {
+        self.draw();
         loop {
             if self.exited {
                 return;
             }
-
-            self.terminal.draw(
-                &mut *self.current.borrow_mut(),
-                &*self.notifications.borrow()
-            );
 
             match self.event_queue.recv_timeout(Duration::from_millis(100)) {
                Ok(ev) => {
@@ -74,6 +77,8 @@ impl Editor {
                     while let Ok(ev) = self.event_queue.try_recv() {
                         self.handle_event(ev);
                     }
+
+                    self.draw();
                }
                Err(RecvTimeoutError::Timeout) => {
                }
@@ -82,6 +87,14 @@ impl Editor {
                }
             }
         }
+    }
+
+    fn draw(&mut self) {
+        self.terminal.draw(
+            &mut *self.current.borrow_mut(),
+            &*self.notifications.borrow(),
+            &self.popup,
+        );
     }
 
     fn notify<T: Into<String>>(&self, level: NotificationLevel, message: T) {
