@@ -223,15 +223,27 @@ impl Terminal {
         // Draw cursors and selections.
         for (i, c) in buffer.cursors().iter().enumerate() {
             match c {
-                Cursor::Normal(pos) if i == 0 => {
+                Cursor::Normal { pos, .. } if i == 0 => {
                     // Do nothing: we use the "real" cursor for it.
                 }
-                Cursor::Normal(pos) => {
+                Cursor::Normal { pos, .. } => {
                     // Draw a "fake" cursor.
-                    // TODO::
+                    if pos.y < top_left.y + text_height
+                        && pos.x - top_left.x < num_drawed_chars[&pos.y]
+                    {
+                        queue!(stdout,
+                            MoveTo(
+                                (pos.x - top_left.x + text_offset) as u16,
+                                (pos.y - top_left.y) as u16,
+                            ),
+                            SetAttribute(Attribute::Reverse),
+                            Print(buffer.line(pos.y).char(pos.x)),
+                            SetAttribute(Attribute::NoReverse)
+                        );
+                    }
                 }
                 Cursor::Selection(range) => {
-                    let mut pos = range.front().clone();
+                    let mut pos = *range.front();
                     let end = range.end();
                     if pos.y < top_left.y || pos.y >= buffer.num_lines() {
                         continue;
@@ -264,7 +276,7 @@ impl Terminal {
 
         // Draw the main cursor.
         match buffer.cursors()[0] {
-            Cursor::Normal(pos) => {
+            Cursor::Normal { pos, .. } => {
                 queue!(stdout,
                     MoveTo(
                         (pos.x - top_left.x + text_offset) as u16,

@@ -16,11 +16,11 @@ fn remove_range(
     let num_newlines_deleted = end.y - front.y;
     for c2 in new_cursors.iter_mut() {
         match c2 {
-            Cursor::Normal(pos) if pos.y == end.y => {
+            Cursor::Normal { pos, .. } if pos.y == end.y => {
                 pos.x = front.x + (pos.x - end.x);
                 pos.y = front.y;
             }
-            Cursor::Normal(pos) => {
+            Cursor::Normal { pos, .. } => {
                 pos.y -= num_newlines_deleted;
             }
             Cursor::Selection(_) => {
@@ -32,9 +32,9 @@ fn remove_range(
     // Preserve the current cursor if it's unique (no other cursors at
     // the same position).
     match next_cursor {
-        Some(Cursor::Normal(pos)) if pos == front => {}
+        Some(Cursor::Normal { pos, .. }) if pos == front => {}
         _ => {
-            new_cursors.push(Cursor::Normal(*front));
+            new_cursors.push(Cursor::new(front.y, front.x));
         }
     }
 }
@@ -54,7 +54,7 @@ impl Buffer {
             buf: Rope::new(),
             name: String::new(),
             file: None,
-            cursors: vec![Cursor::Normal(Point::new(0, 0))],
+            cursors: vec![Cursor::new(0, 0)],
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
         };
@@ -122,7 +122,7 @@ impl Buffer {
         for cursor in &mut self.cursors {
             // Cancel the selection.
             match cursor {
-                Cursor::Normal(_) => {}
+                Cursor::Normal { .. } => {}
                 Cursor::Selection(range) => {
                     let pos = if left > 0 || up > 0 {
                         range.front()
@@ -130,13 +130,13 @@ impl Buffer {
                         range.end()
                     };
 
-                    *cursor = Cursor::Normal(*pos);
+                    *cursor = Cursor::new(pos.y, pos.x);
                 }
             };
 
             // Move the cursor.
             match cursor {
-                Cursor::Normal(pos) => {
+                Cursor::Normal { pos, .. } => {
                     pos.move_by(&self.buf, up, down, left, right);
                 }
                 Cursor::Selection(_) => unreachable!()
@@ -149,11 +149,11 @@ impl Buffer {
     pub fn move_to_end_of_line(&mut self) {
         for cursor in &mut self.cursors {
             let y = match cursor {
-                Cursor::Normal(pos) => pos.y,
+                Cursor::Normal { pos, .. } => pos.y,
                 Cursor::Selection(Range { end, .. }) => end.y,
             };
 
-            *cursor = Cursor::Normal(Point::new(y, self.buf.line_len(y)));
+            *cursor = Cursor::new(y, self.buf.line_len(y));
         }
 
         self.sort_and_merge_cursors();
@@ -162,11 +162,11 @@ impl Buffer {
     pub fn move_to_beginning_of_line(&mut self) {
         for cursor in &mut self.cursors {
             let y = match cursor {
-                Cursor::Normal(pos) => pos.y,
+                Cursor::Normal { pos, .. } => pos.y,
                 Cursor::Selection(Range { end, .. }) => end.y,
             };
 
-            *cursor = Cursor::Normal(Point::new(y, 0));
+            *cursor = Cursor::new(y, 0);
         }
 
         self.sort_and_merge_cursors();
@@ -181,7 +181,7 @@ impl Buffer {
     ) {
         for cursor in &mut self.cursors {
             let (start, mut end) = match cursor {
-                Cursor::Normal(pos) => (*pos, *pos),
+                Cursor::Normal { pos, .. } => (*pos, *pos),
                 Cursor::Selection(Range { start, end }) => (*start, *end),
             };
 
@@ -195,7 +195,7 @@ impl Buffer {
     pub fn select_until_end_of_line(&mut self) {
         for cursor in &mut self.cursors {
             let (start, mut end) = match cursor {
-                Cursor::Normal(pos) => (*pos, *pos),
+                Cursor::Normal { pos, .. } => (*pos, *pos),
                 Cursor::Selection(Range { start, end }) => (*start, *end),
             };
 
@@ -214,7 +214,7 @@ impl Buffer {
         let mut new_cursors = Vec::new();
         for c in self.cursors.iter().rev() {
             let (remove, insert_at, end) = match c {
-                Cursor::Normal(pos) => {
+                Cursor::Normal { pos, .. } => {
                     (None, pos, pos)
                 }
                 Cursor::Selection(range) => {
@@ -234,11 +234,11 @@ impl Buffer {
             // Move cursors after the current cursor.
             for c2 in new_cursors.iter_mut() {
                 match c2 {
-                    Cursor::Normal(pos) if pos.y == end.y => {
+                    Cursor::Normal { pos, .. } if pos.y == end.y => {
                         pos.x = insert_at.x + (pos.x - end.x);
                         pos.y = insert_at.y;
                     }
-                    Cursor::Normal(pos) => {
+                    Cursor::Normal { pos, .. } => {
                         pos.y = pos.y + num_newlines_added - num_newlines_deleted;
                     }
                     Cursor::Selection(_) => {
@@ -259,7 +259,7 @@ impl Buffer {
             };
 
             let new_pos = Point::new(y, x);
-            new_cursors.push(Cursor::Normal(new_pos));
+            new_cursors.push(Cursor::new(new_pos.y, new_pos.x));
         }
 
         self.set_cursors(new_cursors);
@@ -271,7 +271,7 @@ impl Buffer {
         while let Some(c) = iter.next() {
             // Determine the range to be deleted.
             let range = match c {
-                Cursor::Normal(pos) => {
+                Cursor::Normal { pos, .. } => {
                     let start = if pos.y == 0 && pos.x == 0 {
                         new_cursors.push(c.clone());
                         continue;
@@ -300,7 +300,7 @@ impl Buffer {
         while let Some(c) = iter.next() {
             // Determine the range to be deleted.
             let range = match c {
-                Cursor::Normal(pos) => {
+                Cursor::Normal { pos, .. } => {
                     let max_y = self.buf.num_lines();
                     let max_x = self.buf.line_len(pos.y);
                     let end = if pos.y == max_y && pos.x == max_x {
@@ -370,12 +370,12 @@ impl Buffer {
                 .enumerate()
                 .map(|(i, c)| {
                     match c {
-                        Cursor::Normal(pos) => {
+                        Cursor::Normal { pos, .. } => {
                             (&self.cursors[..i])
                                 .iter()
                                 .any(|other| {
                                     match other {
-                                        Cursor::Normal(ref other) => {
+                                        Cursor::Normal { pos: ref other } => {
                                             *pos == *other
                                         }
                                         _ => unreachable!()
@@ -435,17 +435,17 @@ mod test {
         let mut b = Buffer::new();
         b.move_cursors(1, 0, 0, 0); // Do nothing
         b.insert("A\nDEF\n12345");
-        assert_eq!(b.cursors(), &[Cursor::Normal(Point::new(2, 5))]);
+        assert_eq!(b.cursors(), &[Cursor::new(2, 5)]);
         b.move_cursors(0, 0, 1, 0); // Move right
-        assert_eq!(b.cursors(), &[Cursor::Normal(Point::new(2, 4))]);
+        assert_eq!(b.cursors(), &[Cursor::new(2, 4)]);
         b.move_cursors(1, 0, 0, 0); // Move up
-        assert_eq!(b.cursors(), &[Cursor::Normal(Point::new(1, 3))]);
+        assert_eq!(b.cursors(), &[Cursor::new(1, 3)]);
         b.move_cursors(0, 3, 0, 0); // Move down
-        assert_eq!(b.cursors(), &[Cursor::Normal(Point::new(3, 0))]);
+        assert_eq!(b.cursors(), &[Cursor::new(3, 0)]);
         b.move_cursors(0, 0, 1, 0); // Move left
-        assert_eq!(b.cursors(), &[Cursor::Normal(Point::new(2, 5))]);
+        assert_eq!(b.cursors(), &[Cursor::new(2, 5)]);
         b.move_cursors(0, 0, 0, 1); // Move right
-        assert_eq!(b.cursors(), &[Cursor::Normal(Point::new(3, 0))]);
+        assert_eq!(b.cursors(), &[Cursor::new(3, 0)]);
     }
 
     #[test]
@@ -456,9 +456,9 @@ mod test {
         // |xyz
         b.insert("abc\nde\nxyz");
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(0, 3)),
-            Cursor::Normal(Point::new(1, 1)),
-            Cursor::Normal(Point::new(2, 0)),
+            Cursor::new(0, 3),
+            Cursor::new(1, 1),
+            Cursor::new(2, 0),
         ]);
 
         // abc123|
@@ -467,9 +467,9 @@ mod test {
         b.insert("123");
         assert_eq!(b.text(), "abc123\nd123e\n123xyz");
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 6)),
-            Cursor::Normal(Point::new(1, 4)),
-            Cursor::Normal(Point::new(2, 3)),
+            Cursor::new(0, 6),
+            Cursor::new(1, 4),
+            Cursor::new(2, 3),
         ]);
 
         // abc123[
@@ -481,9 +481,9 @@ mod test {
         b.insert("[\n]");
         assert_eq!(b.text(), "abc123[\n]\nd123[\n]e\n123[\n]xyz");
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(1, 1)),
-            Cursor::Normal(Point::new(3, 1)),
-            Cursor::Normal(Point::new(5, 1)),
+            Cursor::new(1, 1),
+            Cursor::new(3, 1),
+            Cursor::new(5, 1),
         ]);
     }
 
@@ -495,16 +495,16 @@ mod test {
         let mut b = Buffer::new();
         b.insert("abc\ndef\nxyz");
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(0, 3)),
-            Cursor::Normal(Point::new(1, 3)),
-            Cursor::Normal(Point::new(2, 3)),
+            Cursor::new(0, 3),
+            Cursor::new(1, 3),
+            Cursor::new(2, 3),
         ]);
         b.backspace();
         assert_eq!(b.text(), "ab\nde\nxy");
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 2)),
-            Cursor::Normal(Point::new(1, 2)),
-            Cursor::Normal(Point::new(2, 2)),
+            Cursor::new(0, 2),
+            Cursor::new(1, 2),
+            Cursor::new(2, 2),
         ]);
 
         // abc|      ab|
@@ -513,33 +513,33 @@ mod test {
         let mut b = Buffer::new();
         b.insert("abc\n1\nxyz");
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(0, 3)),
-            Cursor::Normal(Point::new(1, 1)),
-            Cursor::Normal(Point::new(2, 2)),
+            Cursor::new(0, 3),
+            Cursor::new(1, 1),
+            Cursor::new(2, 2),
         ]);
         b.backspace();
         assert_eq!(b.text(), "ab\n\nxz");
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 2)),
-            Cursor::Normal(Point::new(1, 0)),
-            Cursor::Normal(Point::new(2, 1)),
+            Cursor::new(0, 2),
+            Cursor::new(1, 0),
+            Cursor::new(2, 1),
         ]);
 
         // 1230|a|b|c|d|e|f => 123|f
         let mut b = Buffer::new();
         b.insert("1230abcdef");
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(0, 4)),
-            Cursor::Normal(Point::new(0, 5)),
-            Cursor::Normal(Point::new(0, 6)),
-            Cursor::Normal(Point::new(0, 7)),
-            Cursor::Normal(Point::new(0, 8)),
-            Cursor::Normal(Point::new(0, 9)),
+            Cursor::new(0, 4),
+            Cursor::new(0, 5),
+            Cursor::new(0, 6),
+            Cursor::new(0, 7),
+            Cursor::new(0, 8),
+            Cursor::new(0, 9),
         ]);
         b.backspace();
         assert_eq!(b.text(), "123f");
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 3)),
+            Cursor::new(0, 3),
         ]);
 
         // a|bc      |bc|12
@@ -548,16 +548,16 @@ mod test {
         let mut b = Buffer::new();
         b.insert("abc\n12\nxyz");
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(0, 1)),
-            Cursor::Normal(Point::new(1, 0)),
-            Cursor::Normal(Point::new(2, 3)),
+            Cursor::new(0, 1),
+            Cursor::new(1, 0),
+            Cursor::new(2, 3),
         ]);
         b.backspace();
         assert_eq!(b.text(), "bc12\nxy");
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 0)),
-            Cursor::Normal(Point::new(0, 2)),
-            Cursor::Normal(Point::new(1, 2)),
+            Cursor::new(0, 0),
+            Cursor::new(0, 2),
+            Cursor::new(1, 2),
         ]);
 
         // 0
@@ -567,16 +567,16 @@ mod test {
         let mut b = Buffer::new();
         b.insert("0\nabc\n12\nxyz");
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(1, 0)),
-            Cursor::Normal(Point::new(2, 0)),
-            Cursor::Normal(Point::new(3, 0)),
+            Cursor::new(1, 0),
+            Cursor::new(2, 0),
+            Cursor::new(3, 0),
         ]);
         b.backspace();
         assert_eq!(b.text(), "0abc12xyz");
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 1)),
-            Cursor::Normal(Point::new(0, 4)),
-            Cursor::Normal(Point::new(0, 6)),
+            Cursor::new(0, 1),
+            Cursor::new(0, 4),
+            Cursor::new(0, 6),
         ]);
 
         // ab|     =>  a|def|g
@@ -585,16 +585,16 @@ mod test {
         let mut b = Buffer::new();
         b.insert("ab\ncdef\ng");
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(0, 2)),
-            Cursor::Normal(Point::new(1, 0)),
-            Cursor::Normal(Point::new(1, 1)),
-            Cursor::Normal(Point::new(2, 0)),
+            Cursor::new(0, 2),
+            Cursor::new(1, 0),
+            Cursor::new(1, 1),
+            Cursor::new(2, 0),
         ]);
         b.backspace();
         assert_eq!(b.text(), "adefg");
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 1)),
-            Cursor::Normal(Point::new(0, 4)),
+            Cursor::new(0, 1),
+            Cursor::new(0, 4),
         ]);
 
         // ab|   =>  a|def|g
@@ -603,16 +603,16 @@ mod test {
         let mut b = Buffer::new();
         b.insert("ab\ncdef\ng");
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(0, 2)),
-            Cursor::Normal(Point::new(1, 0)),
-            Cursor::Normal(Point::new(1, 1)),
-            Cursor::Normal(Point::new(2, 0)),
+            Cursor::new(0, 2),
+            Cursor::new(1, 0),
+            Cursor::new(1, 1),
+            Cursor::new(2, 0),
         ]);
         b.backspace();
         assert_eq!(b.text(), "adefg");
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 1)),
-            Cursor::Normal(Point::new(0, 4)),
+            Cursor::new(0, 1),
+            Cursor::new(0, 4),
         ]);
     }
 
@@ -622,27 +622,27 @@ mod test {
         let mut b = Buffer::new();
         b.insert("aXbcYd");
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(0, 1)),
-            Cursor::Normal(Point::new(0, 4)),
+            Cursor::new(0, 1),
+            Cursor::new(0, 4),
         ]);
         b.delete();
         assert_eq!(b.text(), "abcd");
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 1)),
-            Cursor::Normal(Point::new(0, 3)),
+            Cursor::new(0, 1),
+            Cursor::new(0, 3),
         ]);
 
         // a|b|
         let mut b = Buffer::new();
         b.insert("ab");
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(0, 1)),
-            Cursor::Normal(Point::new(0, 2)),
+            Cursor::new(0, 1),
+            Cursor::new(0, 2),
         ]);
         b.delete();
         assert_eq!(b.text(), "a");
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 1)),
+            Cursor::new(0, 1),
         ]);
 
         // a|bc
@@ -651,16 +651,16 @@ mod test {
         let mut b = Buffer::new();
         b.insert("abc\ndef\nghi");
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(0, 1)),
-            Cursor::Normal(Point::new(1, 1)),
-            Cursor::Normal(Point::new(2, 1)),
+            Cursor::new(0, 1),
+            Cursor::new(1, 1),
+            Cursor::new(2, 1),
         ]);
         b.delete();
         assert_eq!(b.text(), "ac\ndf\ngi");
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 1)),
-            Cursor::Normal(Point::new(1, 1)),
-            Cursor::Normal(Point::new(2, 1)),
+            Cursor::new(0, 1),
+            Cursor::new(1, 1),
+            Cursor::new(2, 1),
         ]);
 
         // a|
@@ -670,18 +670,18 @@ mod test {
         let mut b = Buffer::new();
         b.insert("a\nbX\ncY\nd");
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(0, 1)),
-            Cursor::Normal(Point::new(1, 1)),
-            Cursor::Normal(Point::new(2, 1)),
-            Cursor::Normal(Point::new(3, 1)),
+            Cursor::new(0, 1),
+            Cursor::new(1, 1),
+            Cursor::new(2, 1),
+            Cursor::new(3, 1),
         ]);
         b.delete();
         assert_eq!(b.text(), "ab\nc\nd");
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 1)),
-            Cursor::Normal(Point::new(0, 2)),
-            Cursor::Normal(Point::new(1, 1)),
-            Cursor::Normal(Point::new(2, 1)),
+            Cursor::new(0, 1),
+            Cursor::new(0, 2),
+            Cursor::new(1, 1),
+            Cursor::new(2, 1),
         ]);
 
         // ab|
@@ -689,14 +689,14 @@ mod test {
         let mut b = Buffer::new();
         b.insert("ab\ncde");
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(0, 2)),
-            Cursor::Normal(Point::new(1, 3)),
+            Cursor::new(0, 2),
+            Cursor::new(1, 3),
         ]);
         b.delete();
         assert_eq!(b.text(), "abcde");
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 2)),
-            Cursor::Normal(Point::new(0, 5)),
+            Cursor::new(0, 2),
+            Cursor::new(0, 5),
         ]);
 
         // abc|
@@ -705,16 +705,16 @@ mod test {
         let mut b = Buffer::new();
         b.insert("abc\ndef\nghi");
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(0, 3)),
-            Cursor::Normal(Point::new(1, 0)),
-            Cursor::Normal(Point::new(1, 1)),
-            Cursor::Normal(Point::new(2, 3)),
+            Cursor::new(0, 3),
+            Cursor::new(1, 0),
+            Cursor::new(1, 1),
+            Cursor::new(2, 3),
         ]);
         b.delete();
         assert_eq!(b.text(), "abcf\nghi");
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 3)),
-            Cursor::Normal(Point::new(1, 3)),
+            Cursor::new(0, 3),
+            Cursor::new(1, 3),
         ]);
 
         // abc|     => abc|d|e|f
@@ -722,16 +722,16 @@ mod test {
         let mut b = Buffer::new();
         b.insert("abc\ndXeYf");
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(0, 3)),
-            Cursor::Normal(Point::new(1, 1)),
-            Cursor::Normal(Point::new(1, 3)),
+            Cursor::new(0, 3),
+            Cursor::new(1, 1),
+            Cursor::new(1, 3),
         ]);
         b.delete();
         assert_eq!(b.text(), "abcdef");
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 3)),
-            Cursor::Normal(Point::new(0, 4)),
-            Cursor::Normal(Point::new(0, 5)),
+            Cursor::new(0, 3),
+            Cursor::new(0, 4),
+            Cursor::new(0, 5),
         ]);
     }
 
@@ -739,7 +739,7 @@ mod test {
     fn multibyte_characters() {
         let mut b = Buffer::new();
         b.insert("Hello 世界!");
-        b.set_cursors(vec![Cursor::Normal(Point::new(0, 7))]);
+        b.set_cursors(vec![Cursor::new(0, 7)]);
         assert_eq!(b.len(), 9);
 
         // Hello 世|界! => Hello |界!
@@ -759,7 +759,7 @@ mod test {
         let mut b = Buffer::new();
         b.insert("abXYZcd");
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(0, 2))
+            Cursor::new(0, 2)
         ]);
 
         // ab|XYZ|cd
@@ -773,7 +773,7 @@ mod test {
         b.backspace();
         assert_eq!(b.text(), "aXYZcd");
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 1)),
+            Cursor::new(0, 1),
         ]);
 
         // a|XYZ|cd  =>  a|cd
@@ -781,7 +781,7 @@ mod test {
         b.backspace();
         assert_eq!(b.text(), "acd");
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 1)),
+            Cursor::new(0, 1),
         ]);
 
         // ab|  =>  ab|
@@ -789,7 +789,7 @@ mod test {
         let mut b = Buffer::new();
         b.insert("ab\nc");
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(0, 2))
+            Cursor::new(0, 2)
         ]);
         b.select(0, 0, 0, 1);
         assert_eq!(b.cursors(), &[
@@ -810,7 +810,7 @@ mod test {
         b.backspace();
         assert_eq!(b.text(), "xyz");
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 2)),
+            Cursor::new(0, 2),
         ]);
     }
 
@@ -829,9 +829,9 @@ mod test {
         b.delete();
         assert_eq!(b.text(), "ab\ncd\nef");
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 2)),
-            Cursor::Normal(Point::new(1, 2)),
-            Cursor::Normal(Point::new(2, 2)),
+            Cursor::new(0, 2),
+            Cursor::new(1, 2),
+            Cursor::new(2, 2),
         ]);
 
         // ab|XY        ab|cd|ef|g
@@ -848,9 +848,9 @@ mod test {
         b.backspace();
         assert_eq!(b.text(), "abcdefg");
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 2)),
-            Cursor::Normal(Point::new(0, 4)),
-            Cursor::Normal(Point::new(0, 6)),
+            Cursor::new(0, 2),
+            Cursor::new(0, 4),
+            Cursor::new(0, 6),
         ]);
     }
 
@@ -861,15 +861,15 @@ mod test {
         // d|e         de|
         b.insert("abc\nde");
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(0, 0)),
-            Cursor::Normal(Point::new(0, 2)),
-            Cursor::Normal(Point::new(0, 3)),
-            Cursor::Normal(Point::new(1, 1)),
+            Cursor::new(0, 0),
+            Cursor::new(0, 2),
+            Cursor::new(0, 3),
+            Cursor::new(1, 1),
         ]);
         b.move_to_beginning_of_line();
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 0)),
-            Cursor::Normal(Point::new(1, 0)),
+            Cursor::new(0, 0),
+            Cursor::new(1, 0),
         ]);
     }
 
@@ -880,15 +880,15 @@ mod test {
         // d|e         de|
         b.insert("abc\nde");
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(0, 0)),
-            Cursor::Normal(Point::new(0, 2)),
-            Cursor::Normal(Point::new(0, 3)),
-            Cursor::Normal(Point::new(1, 1)),
+            Cursor::new(0, 0),
+            Cursor::new(0, 2),
+            Cursor::new(0, 3),
+            Cursor::new(1, 1),
         ]);
         b.move_to_end_of_line();
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 3)),
-            Cursor::Normal(Point::new(1, 2)),
+            Cursor::new(0, 3),
+            Cursor::new(1, 2),
         ]);
     }
 
@@ -899,10 +899,10 @@ mod test {
         // d|e         d|e|
         b.insert("abc\nde");
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(0, 0)),
-            Cursor::Normal(Point::new(0, 2)),
-            Cursor::Normal(Point::new(0, 3)),
-            Cursor::Normal(Point::new(1, 1)),
+            Cursor::new(0, 0),
+            Cursor::new(0, 2),
+            Cursor::new(0, 3),
+            Cursor::new(1, 1),
         ]);
         b.select_until_end_of_line();
         assert_eq!(b.cursors(), &[
@@ -918,12 +918,12 @@ mod test {
         let mut b = Buffer::new();
         b.insert("abcXYZ");
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(0, 3)),
+            Cursor::new(0, 3),
         ]);
         b.truncate();
         assert_eq!(b.text(), "abc");
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 3)),
+            Cursor::new(0, 3),
         ]);
 
         // abc|      abc|
@@ -933,18 +933,18 @@ mod test {
         let mut b = Buffer::new();
         b.insert("abc\ndXY\n\nZ");
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(0, 3)),
-            Cursor::Normal(Point::new(1, 1)),
-            Cursor::Normal(Point::new(2, 0)),
-            Cursor::Normal(Point::new(3, 0)),
+            Cursor::new(0, 3),
+            Cursor::new(1, 1),
+            Cursor::new(2, 0),
+            Cursor::new(3, 0),
         ]);
         b.truncate();
         assert_eq!(b.text(), "abc\nd\n\n");
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 3)),
-            Cursor::Normal(Point::new(1, 1)),
-            Cursor::Normal(Point::new(2, 0)),
-            Cursor::Normal(Point::new(3, 0)),
+            Cursor::new(0, 3),
+            Cursor::new(1, 1),
+            Cursor::new(2, 0),
+            Cursor::new(3, 0),
         ]);
     }
 

@@ -143,14 +143,24 @@ impl fmt::Display for Range {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Cursor {
-    Normal(Point),
+    Normal {
+        pos: Point,
+    },
     Selection(Range),
+}
+
+impl Cursor {
+    pub fn new(y: usize, x: usize) -> Cursor {
+        Cursor::Normal {
+            pos: Point::new(y, x),
+        }
+    }
 }
 
 impl Ord for Cursor {
     fn cmp(&self, other: &Cursor) -> Ordering {
         let a = match self {
-            Cursor::Normal(pos) => {
+            Cursor::Normal { pos, .. } => {
                 pos
             }
             Cursor::Selection(Range { start, .. }) => {
@@ -159,7 +169,7 @@ impl Ord for Cursor {
         };
 
         let b = match other {
-            Cursor::Normal(pos) => {
+            Cursor::Normal { pos, .. } => {
                 pos
             }
             Cursor::Selection(Range { start, .. }) => {
@@ -263,16 +273,16 @@ mod test {
 
         // Make sure cursors gets sorted.
         b.set_cursors(vec![
-            Cursor::Normal(Point::new(1, 2)),
-            Cursor::Normal(Point::new(0, 3)),
-            Cursor::Normal(Point::new(2, 1)),
-            Cursor::Normal(Point::new(0, 1)),
+            Cursor::new(1, 2),
+            Cursor::new(0, 3),
+            Cursor::new(2, 1),
+            Cursor::new(0, 1),
         ]);
         assert_eq!(b.cursors(), &[
-            Cursor::Normal(Point::new(0, 1)),
-            Cursor::Normal(Point::new(0, 3)),
-            Cursor::Normal(Point::new(1, 2)),
-            Cursor::Normal(Point::new(2, 1)),
+            Cursor::new(0, 1),
+            Cursor::new(0, 3),
+            Cursor::new(1, 2),
+            Cursor::new(2, 1),
         ]);
     }
 }
