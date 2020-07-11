@@ -15,41 +15,6 @@ impl FuzzyVec {
         }
     }
 
-    /// Creates a `FuzzyVec` with the given capacity.
-    pub fn with_capacity(cap: usize) -> FuzzyVec {
-        FuzzyVec {
-            entries: Vec::with_capacity(cap),
-        }
-    }
-
-    pub fn iter(&self) -> std::slice::Iter<String> {
-        self.entries.iter()
-    }
-
-    /// Returns the number of entiries.
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.entries.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
-
-    // Clears the contents.
-    pub fn clear(&mut self) {
-        self.entries.clear();
-    }
-
-    /// Returns the nth entry from the end of the entries.
-    pub fn nth_last(&self, nth: usize) -> Option<String> {
-        if self.entries.is_empty() {
-            return None;
-        }
-
-        self.entries.get(self.entries.len() - nth - 1).map(|s| s.to_owned())
-    }
-
     /// appends a entry.
     pub fn append(&mut self, entry: String) {
         self.entries.push(entry);
@@ -59,11 +24,6 @@ impl FuzzyVec {
     /// ordered by the similarity.
     pub fn search(&self, query: &str, max_num: usize) -> Vec<&str> {
         fuzzy_search(&self.entries, query, max_num)
-    }
-
-    /// Sorts the entries by string values.
-    pub fn sort(&mut self) {
-        self.entries.sort_by(|a, b| a.cmp(b));
     }
 }
 
