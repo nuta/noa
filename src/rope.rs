@@ -263,13 +263,13 @@ impl Rope {
     pub fn word_at(&self, pos: &Point) -> String {
         let mut word = String::new();
         for (i, ch) in self.0.line(pos.y).chars().enumerate() {
+            if i >= pos.x {
+                break;
+            }
+
             if char::is_ascii_alphanumeric(&ch) || ch == '_' {
                 word.push(ch);
             } else {
-                if i > pos.x {
-                    break;
-                }
-
                 word.clear();
             }
         }
