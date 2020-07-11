@@ -62,10 +62,14 @@ impl Job for WordCompJob {
             Some(pos) => {
                 self.snapshot.buf.word_at(&pos)
             }
-            _ => return,
+            _ => {
+                event_queue.enqueue(Event::NoCompletion);
+                return;
+            }
         };
 
         if current_word.len() < CURRENT_WORD_MIN_LEN {
+            event_queue.enqueue(Event::NoCompletion);
             return;
         }
 

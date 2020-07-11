@@ -33,6 +33,7 @@ pub struct Popup {
 
 pub enum Event {
     Key(KeyEvent),
+    NoCompletion,
     Completion {
         id: BufferId,
         items: FuzzySet,
@@ -99,10 +100,10 @@ impl Editor {
             match self.event_queue.recv_timeout(Duration::from_millis(100)) {
                Ok(ev) => {
                     let mut contains_comp = false; // FIXME:
-                    if let Event::Completion { .. } = &ev { contains_comp = true }
+                    match &ev { Event::NoCompletion | Event::Completion { .. } => contains_comp = true, _ => {} }
                     self.handle_event(ev);
                     while let Ok(ev) = self.event_queue.try_recv() {
-                        if let Event::Completion { .. } = &ev { contains_comp = true }
+                        match &ev { Event::NoCompletion | Event::Completion { .. } => contains_comp = true, _ => {} }
                         self.handle_event(ev);
                     }
 
@@ -166,32 +167,44 @@ impl Editor {
             Event::Resize { rows, cols } => {
                 self.terminal.resize(rows, cols);
             }
+            Event::NoCompletion => {
+                self.clear_completion();
+            }
             Event::Completion { id, items } => {
                 self.handle_completion_event(id, items);
             }
         }
     }
 
+    fn clear_completion(&mut self) {
+        self.popup = None;
+    }
+
     fn handle_completion_event(&mut self, id: BufferId, items: FuzzySet) {
         let view = self.current.borrow();
         let buffer = view.buffer().borrow();
-        if buffer.id() == id {
-            self.popup =  match buffer.current_word() {
-                Some(current_word) => {
-                    let mut lines = Vec::new();
-                    for item in items.search(&current_word, 5) {
-                        lines.push(item.to_owned());
-                    }
-
-                    if lines.is_empty() {
-                        None
-                    } else {
-                        Some(Popup { lines, index: Some(0) })
-                    }
-                }
-                None => None,
-            };
+        if buffer.id() != id {
+            drop(buffer);
+            drop(view);
+            self.clear_completion();
+            return;
         }
+
+        self.popup =  match buffer.current_word() {
+            Some(current_word) => {
+                let mut lines = Vec::new();
+                for item in items.search(&current_word, 5) {
+                    lines.push(item.to_owned());
+                }
+
+                if lines.is_empty() {
+                    None
+                } else {
+                    Some(Popup { lines, index: Some(0) })
+                }
+            }
+            None => None,
+        };
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) {
