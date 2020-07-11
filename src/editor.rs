@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::sync::mpsc::{channel, Receiver, RecvTimeoutError};
-use std::time::Duration;
+use std::time::{Instant, Duration};
 use crate::buffer::Buffer;
 use crate::view::View;
 use crate::terminal::{Terminal, KeyCode, KeyModifiers, KeyEvent};
@@ -44,9 +44,13 @@ impl Editor {
             }
 
             self.terminal.draw(&*self.current.borrow());
+
             match self.event_queue.recv_timeout(Duration::from_millis(100)) {
                Ok(ev) => {
-                   self.handle_event(ev);
+                    self.handle_event(ev);
+                    while let Ok(ev) = self.event_queue.try_recv() {
+                        self.handle_event(ev);
+                    }
                }
                Err(RecvTimeoutError::Timeout) => {
                }

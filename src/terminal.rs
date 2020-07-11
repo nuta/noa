@@ -126,6 +126,10 @@ impl Terminal {
         let text_height = self.rows - 2;
         let text_width = self.cols - (3 + lineno_width);
 
+        queue!(stdout,
+            cursor::Hide,
+        );
+
         // Draw buffer contents.
         use std::collections::HashMap;
         let mut num_drawed_chars = HashMap::new();
