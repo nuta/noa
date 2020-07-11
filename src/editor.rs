@@ -194,7 +194,9 @@ impl Editor {
             Some(current_word) => {
                 let mut lines = Vec::new();
                 for item in items.search(&current_word, 5) {
-                    lines.push(item.to_owned());
+                    if item != current_word {
+                        lines.push(item.to_owned());
+                    }
                 }
 
                 if lines.is_empty() {
