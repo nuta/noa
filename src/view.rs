@@ -1,6 +1,7 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 use crate::buffer::Buffer;
+use crate::rope::{Cursor, Range};
 
 pub struct TopLeft {
     pub y: usize,
@@ -35,5 +36,34 @@ impl View {
 
     pub fn top_left(&self) -> &TopLeft {
         &self.top_left
+    }
+
+    pub fn adjust_top_left(&mut self, rows: usize, cols: usize) {
+        let buffer = self.buffer.borrow();
+        let cursor = &buffer.cursors()[0];
+        let pos = match cursor {
+            Cursor::Normal { pos, .. } => pos,
+            Cursor::Selection(Range { end, .. }) => end,
+        };
+
+        // Scroll Up.
+        if pos.y < self.top_left.y {
+            self.top_left.y = pos.y;
+        }
+
+        // Scroll Down.
+        if pos.y >= self.top_left.y + rows {
+            self.top_left.y = pos.y - rows + 1;
+        }
+
+        // Scroll Right.
+        if pos.x >= self.top_left.x + cols {
+            self.top_left.x = pos.x - cols + 1;
+        }
+
+        // Scroll Left.
+        if pos.x < self.top_left.x {
+            self.top_left.x = pos.x;
+        }
     }
 }

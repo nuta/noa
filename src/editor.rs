@@ -64,7 +64,7 @@ impl Editor {
             }
 
             self.terminal.draw(
-                &*self.current.borrow(),
+                &mut *self.current.borrow_mut(),
                 &*self.notifications.borrow()
             );
 
@@ -170,6 +170,12 @@ impl Editor {
             (KeyCode::Delete, NONE) | (KeyCode::Char('d'), CTRL) => {
                 buffer.delete();
             }
+            (KeyCode::PageUp, NONE) => {
+                buffer.move_cursors(30, 0, 0, 0);
+            }
+            (KeyCode::PageDown, NONE) => {
+                buffer.move_cursors(0, 30, 0, 0);
+            }
             (KeyCode::Up, NONE) => {
                 buffer.move_cursors(1, 0, 0, 0);
             }
@@ -195,6 +201,7 @@ impl Editor {
                 buffer.select(0, 0, 0, 1);
             }
             _ => {
+                trace!("unhandled key event: {:?}", key);
             }
         }
     }

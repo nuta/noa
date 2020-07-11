@@ -95,7 +95,7 @@ impl Terminal {
         self.cols = cols;
     }
 
-    pub fn draw(&mut self, view: &View, notifications: &[Notification]) {
+    pub fn draw(&mut self, view: &mut View, notifications: &[Notification]) {
         use unicode_width::{UnicodeWidthStr, UnicodeWidthChar};
         use crossterm::cursor::{self, MoveTo};
         use crossterm::terminal::{Clear, ClearType};
@@ -115,14 +115,18 @@ impl Terminal {
             return;
         }
 
-        let buffer = view.buffer().borrow();
-        let top_left = view.top_left();
-        let lineno_width = num_of_digits(buffer.num_lines()) + 2;
+        let lineno_width = num_of_digits(view.buffer().borrow().num_lines()) + 2;
         let text_offset = lineno_width + 2;
         let text_height = self.rows - 2;
         let text_width = self.cols - (3 + lineno_width);
         let status_bar_y = text_height;
 
+        // Adjust top left.
+        view.adjust_top_left(text_height, text_width);
+        let buffer = view.buffer().borrow();
+        let top_left = view.top_left();
+
+        // Hide the cursor to prevent flickering.
         queue!(stdout,
             cursor::Hide,
         ).unwrap();

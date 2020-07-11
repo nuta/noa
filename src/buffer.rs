@@ -227,6 +227,13 @@ impl Buffer {
             if let Some(remove) = remove {
                 self.buf.remove(&remove);
             }
+
+            // Handle insertion at the end of file.
+            if insert_at.y == self.num_lines() && string != "\n" {
+                debug_assert!(insert_at.x == 0);
+                self.buf.insert(insert_at, "\n");
+            }
+
             self.buf.insert(insert_at, string);
 
             let num_newlines_added = string.matches('\n').count();
@@ -430,6 +437,20 @@ mod test {
         assert_eq!(b.text(), "Hello World");
         b.delete();
         assert_eq!(b.text(), "Hello World");
+    }
+
+    #[test]
+    fn insert_at_eof() {
+        let mut b = Buffer::new();
+        b.insert("abc");
+        b.move_cursors(0, 1, 0, 0); // Move down
+        assert_eq!(b.cursors(), &[Cursor::new(1, 0)]);
+        b.insert_char('x');
+        assert_eq!(b.text(), "abc\nx");
+        assert_eq!(b.cursors(), &[Cursor::new(1, 1)]);
+        b.insert_char('y');
+        assert_eq!(b.text(), "abc\nxy");
+        assert_eq!(b.cursors(), &[Cursor::new(1, 2)]);
     }
 
     #[test]
