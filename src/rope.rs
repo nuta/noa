@@ -256,50 +256,12 @@ impl Rope {
         slice.slice(..len)
     }
 
-    pub fn iter(&self) -> RopeIter<'_> {
-        RopeIter {
-            chunks: self.0.chunks(),
-            current_chunk: "".chars(),
-        }
+    pub fn chars(&self) -> ropey::iter::Chars<'_> {
+        self.0.chars()
     }
 
     fn index_in_rope(&self, pos: &Point) -> usize {
         self.0.line_to_char(pos.y) + pos.x
-    }
-}
-
-pub struct RopeIter<'a> {
-    chunks: ropey::iter::Chunks<'a>,
-    current_chunk: std::str::Chars<'a>,
-}
-
-impl<'a> Iterator for RopeIter<'a> {
-    type Item = char;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            return match self.current_chunk.next() {
-                Some(ch) => Some(ch),
-                None => {
-                    match self.chunks.next() {
-                        Some(chunk) => {
-                            self.current_chunk = chunk.chars();
-                            continue;
-                        }
-                        None => None,
-                    }
-                }
-            };
-        }
-    }
-}
-
-impl<'a> IntoIterator for &'a Rope {
-    type Item = char;
-    type IntoIter = RopeIter<'a>;
-
-    fn into_iter(self) -> RopeIter<'a> {
-        self.iter()
     }
 }
 

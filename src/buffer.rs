@@ -46,6 +46,28 @@ pub struct Snapshot {
     pub main_cursor: Option<Point>,
 }
 
+impl Snapshot {
+    pub fn current_word(&self) -> Option<String> {
+        self.main_cursor
+            .map(|pos| {
+                let mut word = String::new();
+                for (i, ch) in self.buf.line(pos.y).chars().enumerate() {
+                    if char::is_ascii_alphanumeric(&ch) || ch == '_' {
+                        word.push(ch);
+                    } else {
+                        if i > pos.x {
+                            break;
+                        }
+
+                        word.clear();
+                    }
+                }
+
+                word
+            })
+    }
+}
+
 static NEXT_BUFFER_ID: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]

@@ -1,23 +1,25 @@
+use std::collections::HashSet;
+
 ///
 /// A ordered `Vec` which supports fuzzy search.
 ///
 #[derive(Clone)]
-pub struct FuzzyVec {
+pub struct FuzzySet {
     /// The *unordered* array of a haystack.
-    entries: Vec<String>,
+    entries: HashSet<String>,
 }
 
-impl FuzzyVec {
-    /// Creates a `FuzzyVec`.
-    pub fn new() -> FuzzyVec {
-        FuzzyVec {
-            entries: Vec::new(),
+impl FuzzySet {
+    /// Creates a `FuzzySet`.
+    pub fn new() -> FuzzySet {
+        FuzzySet {
+            entries: HashSet::new(),
         }
     }
 
     /// appends a entry.
     pub fn append(&mut self, entry: String) {
-        self.entries.push(entry);
+        self.entries.insert(entry);
     }
 
     /// Searches entiries for `query` in a fuzzy way and returns the result
@@ -30,7 +32,7 @@ impl FuzzyVec {
 /// Searches `entiries` for `query` in *fuzzy* way and returns the result
 /// ordered by the similarity.
 fn fuzzy_search<'a>(
-    entries: &'a [String],
+    entries: &'a HashSet<String>,
     query: &str,
     max_num: usize,
 ) -> Vec<&'a str> {
@@ -55,11 +57,11 @@ fn fuzzy_search<'a>(
     }
 
     // Filter entries by the query.
-    let mut filtered = entries
+    let mut filtered: Vec<&str> = entries
         .iter()
         .filter(|s| is_fuzzily_matched(s, query))
         .map(|s| s.as_str())
-        .collect::<Vec<_>>();
+        .collect();
 
     filtered.sort_by_cached_key(|entry| compute_score(entry, query));
     filtered.iter().take(max_num).copied().collect::<Vec<&str>>()

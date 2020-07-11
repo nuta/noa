@@ -5,10 +5,11 @@ use lazy_static::lazy_static;
 use crate::editor::EventQueue;
 use crate::buffer::{BufferId, Snapshot};
 use crate::worker::Job;
-use crate::fuzzy::FuzzyVec;
+use crate::fuzzy::FuzzySet;
 
 const NUM_COMP_ITEMS: usize = 5;
 const MIN_WORD_LEN: usize = 5;
+const CURRENT_WORD_MIN_LEN: usize = 2;
 
 lazy_static! {
     static ref CACHES: RwLock<HashMap<BufferId, WordCompCache>> = {
@@ -17,7 +18,7 @@ lazy_static! {
 }
 
 pub struct WordCompCache {
-    words: FuzzyVec,
+    words: FuzzySet,
     created_at: Instant,
 }
 
@@ -32,10 +33,10 @@ impl WordCompJob {
         }
     }
 
-    pub fn parse(&self) -> FuzzyVec {
-        let mut words = FuzzyVec::new();
+    pub fn parse(&self) -> FuzzySet {
+        let mut words = FuzzySet::new();
         let mut current_word = String::new();
-        for ch in &self.snapshot.buf {
+        for ch in self.snapshot.buf.chars() {
             if char::is_ascii_alphanumeric(&ch) || ch == '_' {
                 current_word.push(ch);
             } else {
@@ -57,10 +58,12 @@ impl WordCompJob {
 
 impl Job for WordCompJob {
     fn execute(&mut self, event_queue: &EventQueue) {
-        let current_word = "abc"; // TODO:
-        if current_word.len() < 3 {
-            return;
-        }
+        let current_word = match self.snapshot.current_word() {
+            Some(current_word) if current_word.len() >= CURRENT_WORD_MIN_LEN => {
+                current_word
+            }
+            _ => return,
+        };
 
         let needs_update = match CACHES.read().unwrap().get(&self.snapshot.id) {
             None => true,
@@ -80,7 +83,7 @@ impl Job for WordCompJob {
         // Fiter by the current word.
         let filtered: Vec<String> = CACHES.read().unwrap()
             .get(&self.snapshot.id).unwrap()
-            .words.search(current_word, NUM_COMP_ITEMS)
+            .words.search(&current_word, NUM_COMP_ITEMS)
             .iter().map(|s| s.to_string())
             .collect();
     }
