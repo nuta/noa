@@ -2,9 +2,10 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::sync::mpsc::{channel, Sender, Receiver, RecvTimeoutError};
 use std::time::{Instant, Duration};
-use crate::buffer::Buffer;
+use crate::buffer::{Buffer, BufferId};
 use crate::view::View;
 use crate::worker::Worker;
+use crate::fuzzy::FuzzySet;
 use crate::terminal::{Terminal, KeyCode, KeyModifiers, KeyEvent};
 
 pub enum NotificationLevel {
@@ -32,6 +33,10 @@ pub struct Popup {
 
 pub enum Event {
     Key(KeyEvent),
+    Completion {
+        id: BufferId,
+        items: FuzzySet,
+    },
     Resize {
         rows: usize,
         cols: usize,
@@ -93,13 +98,18 @@ impl Editor {
 
             match self.event_queue.recv_timeout(Duration::from_millis(100)) {
                Ok(ev) => {
+                    let mut contains_comp = false; // FIXME:
+                    if let Event::Completion { .. } = &ev { contains_comp = true }
                     self.handle_event(ev);
                     while let Ok(ev) = self.event_queue.try_recv() {
+                        if let Event::Completion { .. } = &ev { contains_comp = true }
                         self.handle_event(ev);
                     }
 
                     self.draw();
-                    self.run_jobs();
+                    if !contains_comp {
+                        self.run_jobs();
+                    }
                }
                Err(RecvTimeoutError::Timeout) => {
                }
@@ -156,6 +166,22 @@ impl Editor {
             }
             Event::Resize { rows, cols } => {
                 self.terminal.resize(rows, cols);
+            }
+            Event::Completion { id, items } => {
+                let view = self.current.borrow();
+                let buffer = view.buffer().borrow();
+                if buffer.id() == id {
+                    if let Some(current_word) = buffer.current_word() {
+                        let mut lines = Vec::new();
+                        for item in items.search(&current_word, 5) {
+                            lines.push(item.to_owned());
+                        }
+
+                        if !lines.is_empty() {
+                            self.popup = Some(Popup { lines, index: Some(0) });
+                        }
+                    }
+                }
             }
         }
     }

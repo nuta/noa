@@ -2,7 +2,7 @@ use std::time::{Instant, Duration};
 use std::collections::HashMap;
 use std::sync::RwLock;
 use lazy_static::lazy_static;
-use crate::editor::EventQueue;
+use crate::editor::{EventQueue, Event};
 use crate::buffer::{BufferId, Snapshot};
 use crate::worker::Job;
 use crate::fuzzy::FuzzySet;
@@ -58,13 +58,18 @@ impl WordCompJob {
 
 impl Job for WordCompJob {
     fn execute(&mut self, event_queue: &EventQueue) {
-        let current_word = match self.snapshot.current_word() {
-            Some(current_word) if current_word.len() >= CURRENT_WORD_MIN_LEN => {
-                current_word
+        let current_word = match self.snapshot.main_cursor {
+            Some(pos) => {
+                self.snapshot.buf.word_at(&pos)
             }
             _ => return,
         };
 
+        if current_word.len() < CURRENT_WORD_MIN_LEN {
+            return;
+        }
+
+        trace!("parsing...");
         let needs_update = match CACHES.read().unwrap().get(&self.snapshot.id) {
             None => true,
             Some(cache) if cache.created_at.elapsed() > Duration::from_secs(3) => true,
@@ -81,10 +86,20 @@ impl Job for WordCompJob {
         }
 
         // Fiter by the current word.
-        let filtered: Vec<String> = CACHES.read().unwrap()
+        trace!("filter...");
+        let mut filtered = FuzzySet::new();
+        let lock = CACHES.read().unwrap();
+        let iter = lock
             .get(&self.snapshot.id).unwrap()
-            .words.search(&current_word, NUM_COMP_ITEMS)
-            .iter().map(|s| s.to_string())
-            .collect();
+            .words.search(&current_word, NUM_COMP_ITEMS);
+        for s in iter {
+            filtered.append(s.to_string());
+        }
+
+        trace!("respond...");
+        event_queue.enqueue(Event::Completion {
+            id: self.snapshot.id,
+            items: filtered,
+        });
     }
 }

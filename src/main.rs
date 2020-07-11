@@ -1,4 +1,4 @@
-#[allow(unused)]
+#![allow(unused)]
 
 #[cfg(test)]
 #[macro_use]
