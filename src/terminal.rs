@@ -170,26 +170,29 @@ impl Terminal {
 
             // Text.
             if !out_of_bounds {
+                let line = buffer.line(y);
                 let mut remaining = text_width;
-                let slice = buffer.line(y);
                 let mut n = 0;
-                'outer: for chunk in slice.chunks() {
-                    let width = UnicodeWidthStr::width_cjk(chunk);
-                    if remaining < width {
-                        for ch in chunk.chars() {
-                            let w = UnicodeWidthChar::width_cjk(ch).unwrap_or(1);
-                            if remaining < w {
-                                break 'outer;
-                            }
+                if line.len_chars() > top_left.x {
+                    let slice = line.slice(top_left.x..);
+                    'outer: for chunk in slice.chunks() {
+                        let width = UnicodeWidthStr::width_cjk(chunk);
+                        if remaining < width {
+                            for ch in chunk.chars() {
+                                let w = UnicodeWidthChar::width_cjk(ch).unwrap_or(1);
+                                if remaining < w {
+                                    break 'outer;
+                                }
 
-                            queue!(stdout, Print(ch)).unwrap();
-                            n += 1;
-                            remaining -= w;
+                                queue!(stdout, Print(ch)).unwrap();
+                                n += 1;
+                                remaining -= w;
+                            }
+                        } else {
+                            queue!(stdout, Print(chunk)).unwrap();
+                            n += chunk.chars().count();
+                            remaining -= width;
                         }
-                    } else {
-                        queue!(stdout, Print(chunk)).unwrap();
-                        n += chunk.chars().count();
-                        remaining -= width;
                     }
                 }
 
