@@ -161,28 +161,36 @@ impl Editor {
     fn handle_event(&mut self, ev: Event) {
         match ev {
             Event::Key(key) => {
-                trace!("key = {:?}", key);
                 self.handle_key_event(key);
             }
             Event::Resize { rows, cols } => {
                 self.terminal.resize(rows, cols);
             }
             Event::Completion { id, items } => {
-                let view = self.current.borrow();
-                let buffer = view.buffer().borrow();
-                if buffer.id() == id {
-                    if let Some(current_word) = buffer.current_word() {
-                        let mut lines = Vec::new();
-                        for item in items.search(&current_word, 5) {
-                            lines.push(item.to_owned());
-                        }
+                self.handle_completion_event(id, items);
+            }
+        }
+    }
 
-                        if !lines.is_empty() {
-                            self.popup = Some(Popup { lines, index: Some(0) });
-                        }
+    fn handle_completion_event(&mut self, id: BufferId, items: FuzzySet) {
+        let view = self.current.borrow();
+        let buffer = view.buffer().borrow();
+        if buffer.id() == id {
+            self.popup =  match buffer.current_word() {
+                Some(current_word) => {
+                    let mut lines = Vec::new();
+                    for item in items.search(&current_word, 5) {
+                        lines.push(item.to_owned());
+                    }
+
+                    if lines.is_empty() {
+                        None
+                    } else {
+                        Some(Popup { lines, index: Some(0) })
                     }
                 }
-            }
+                None => None,
+            };
         }
     }
 

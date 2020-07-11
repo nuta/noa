@@ -69,7 +69,6 @@ impl Job for WordCompJob {
             return;
         }
 
-        trace!("parsing...");
         let needs_update = match CACHES.read().unwrap().get(&self.snapshot.id) {
             None => true,
             Some(cache) if cache.created_at.elapsed() > Duration::from_secs(3) => true,
@@ -86,7 +85,6 @@ impl Job for WordCompJob {
         }
 
         // Fiter by the current word.
-        trace!("filter...");
         let mut filtered = FuzzySet::new();
         let lock = CACHES.read().unwrap();
         let iter = lock
@@ -96,7 +94,6 @@ impl Job for WordCompJob {
             filtered.append(s.to_string());
         }
 
-        trace!("respond...");
         event_queue.enqueue(Event::Completion {
             id: self.snapshot.id,
             items: filtered,
