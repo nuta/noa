@@ -190,8 +190,8 @@ impl Editor {
             return;
         }
 
-        self.popup =  match buffer.current_word() {
-            Some(current_word) => {
+        self.popup = buffer.current_word()
+            .and_then(|current_word| {
                 let mut lines = Vec::new();
                 for item in items.search(&current_word, 5) {
                     if item != current_word {
@@ -204,9 +204,7 @@ impl Editor {
                 } else {
                     Some(Popup { lines, index: Some(0) })
                 }
-            }
-            None => None,
-        };
+            });
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) {
