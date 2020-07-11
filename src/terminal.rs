@@ -256,13 +256,6 @@ impl Terminal {
             queue!(stdout, Clear(ClearType::UntilNewLine)).unwrap();
         }
 
-        // FIXME:
-        let popup2 = Some(Popup {
-            index: None,
-            lines: vec!["task_switch".to_owned(), "task_create".to_owned(), "task_destroy".to_owned()],
-        });
-        let popup = &popup2;
-
         // Draw popup.
         let main_cursor = &buffer.cursors()[0];
         if buffer.cursors().len() == 1 {
@@ -287,7 +280,6 @@ impl Terminal {
 
                     for i in 0..popup_height {
                         let item = &popup.lines[i];
-                        trace!("item = {}, y = ({}, {}) ({}, {})", item, y, x, cursor_x, longest);
                         queue!(
                             stdout,
                             MoveTo((text_offset + x) as u16, (y + i) as u16),
