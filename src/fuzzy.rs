@@ -57,8 +57,8 @@ impl FuzzyVec {
 
     /// Searches entiries for `query` in a fuzzy way and returns the result
     /// ordered by the similarity.
-    pub fn search(&self, query: &str) -> Vec<&str> {
-        fuzzy_search(&self.entries, query)
+    pub fn search(&self, query: &str, max_num: usize) -> Vec<&str> {
+        fuzzy_search(&self.entries, query, max_num)
     }
 
     /// Sorts the entries by string values.
@@ -71,11 +71,12 @@ impl FuzzyVec {
 /// ordered by the similarity.
 fn fuzzy_search<'a>(
     entries: &'a [String],
-    query: &str
+    query: &str,
+    max_num: usize,
 ) -> Vec<&'a str> {
     if query.is_empty() {
         // Return the all entries.
-        return entries.iter().map(|s| s.as_str()).collect();
+        return vec![];
     }
 
     /// Check if entries contain the query characters with correct order.
@@ -99,8 +100,9 @@ fn fuzzy_search<'a>(
         .filter(|s| is_fuzzily_matched(s, query))
         .map(|s| s.as_str())
         .collect::<Vec<_>>();
+
     filtered.sort_by_cached_key(|entry| compute_score(entry, query));
-    filtered
+    filtered.iter().take(max_num).copied().collect::<Vec<&str>>()
 }
 
 /// Computes the similarity. Lower is more similar.
