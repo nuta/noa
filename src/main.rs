@@ -14,6 +14,7 @@ mod terminal;
 mod view;
 mod worker;
 mod completion;
+mod highlight;
 mod fuzzy;
 
 use structopt::StructOpt;
