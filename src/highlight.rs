@@ -58,6 +58,10 @@ impl HighlightedText {
         }
     }
 
+    pub fn add_provider(&mut self, provider: Box<dyn HighlightProvider>) {
+        self.providers.push(provider);
+    }
+
     /// Invalidates (or clears) highlighted spans from the given line.
     pub fn invalidate(&mut self, line_from: usize) {
         self.lines.truncate(line_from);
@@ -68,7 +72,8 @@ impl HighlightedText {
         &self.lines[line]
     }
 
-    /// Invokes highlight providers and update the higlights.
+    /// Invokes highlight providers. Note that highlighted spans are not
+    /// collected from them until `update` is called.
     pub fn highlight(&mut self, lines: RangeInclusive<usize>, rope: &Rope) {
         if self.lines.len() > *lines.end() {
             // We already have a cache in `self.lines`.
@@ -81,6 +86,7 @@ impl HighlightedText {
         }
     }
 
+    /// Collects and merges highlight spans from providers.
     pub fn update(&mut self, lines: std::ops::RangeInclusive<usize>) {
         let start = self.lines.len();
         for i in lines {
