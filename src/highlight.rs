@@ -1,6 +1,7 @@
+use std::ops::RangeInclusive;
 use std::collections::HashMap;
 use ropey::RopeSlice;
-use crate::rope::{Rope, Range};
+use crate::rope::Rope;
 
 pub enum Decoration {
     Normal,
@@ -8,7 +9,7 @@ pub enum Decoration {
 }
 
 pub struct Span {
-    range: Range,
+    range: RangeInclusive<usize>,
     deco: Decoration
 }
 
@@ -22,20 +23,20 @@ impl Eq for Span {}
 
 impl Ord for Span {
     fn cmp(&self, other: &Span) -> std::cmp::Ordering {
-        self.range.start.cmp(&other.range.start)
+        self.range.start().cmp(other.range.start())
     }
 }
 
 impl PartialOrd for Span {
     fn partial_cmp(&self, other: &Span) -> Option<std::cmp::Ordering> {
-        Some(self.range.end.cmp(&other.range.end))
+        Some(self.range.start().cmp(other.range.start()))
     }
 }
 
 pub trait HighlightProvider {
     fn name(&self) -> &'static str;
     fn priority(&self) -> usize;
-    fn highlight(&mut self, lines: std::ops::Range<usize>, rope: &Rope);
+    fn highlight(&mut self, lines: RangeInclusive<usize>, rope: &Rope);
     fn provide(&self, line: usize) -> &[Span];
 }
 
@@ -68,19 +69,19 @@ impl HighlightedText {
     }
 
     /// Invokes highlight providers and update the higlights.
-    pub fn highlight(&mut self, lines: std::ops::Range<usize>, rope: &Rope) {
-        if self.lines.len() > lines.end {
+    pub fn highlight(&mut self, lines: RangeInclusive<usize>, rope: &Rope) {
+        if self.lines.len() > *lines.end() {
             // We already have a cache in `self.lines`.
             return;
         }
 
         let start = self.lines.len();
         for provider in &mut self.providers {
-            provider.highlight(start..lines.end, rope);
+            provider.highlight(start..=*lines.end(), rope);
         }
     }
 
-    pub fn update(&mut self, lines: std::ops::Range<usize>) {
+    pub fn update(&mut self, lines: std::ops::RangeInclusive<usize>) {
         let start = self.lines.len();
         for i in lines {
             let mut merged = Vec::new();
@@ -134,9 +135,9 @@ impl HighlightProvider for SyntaxHighlighter {
         100
     }
 
-    fn highlight(&mut self, lines: std::ops::Range<usize>, rope: &Rope) {
-        self.lines.truncate(lines.start);
-        self.states.truncate(lines.start);
+    fn highlight(&mut self, lines: std::ops::RangeInclusive<usize>, rope: &Rope) {
+        self.lines.truncate(*lines.start());
+        self.states.truncate(*lines.start());
         let mut spans = Vec::new();
         for i in lines.clone() {
             let mut state = if i == 0 {
