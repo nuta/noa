@@ -1,6 +1,7 @@
 use crate::editor::{EventQueue, Event, Notification, Popup};
 use crate::rope::Cursor;
 use crate::view::View;
+use crate::highlight::Highlighter;
 use std::cmp::min;
 use std::io::{stdout, Write};
 use std::time::Duration;
@@ -97,6 +98,7 @@ impl Terminal {
     pub fn draw(
         &mut self,
         view: &mut View,
+        highlighter: &mut Highlighter,
         notifications: &[Notification],
         popup: &Option<Popup>,
     ) {
