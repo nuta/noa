@@ -197,3 +197,51 @@ impl HighlightProvider for SyntaxHighlighter {
         (&self.lines[line], self.snapshot.as_ref().unwrap())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::buffer::Buffer;
+
+    #[test]
+    fn highlight_empty_buffer() {
+        let mut buffer = Buffer::new();
+        let mut highlighter = Highlighter::new(buffer.snapshot());
+        highlighter.add_provider(Box::new(SyntaxHighlighter::new()));
+        highlighter.highlight(0..=0, buffer.snapshot());
+    }
+
+    #[test]
+    fn highlight_simple_c_function() {
+        let mut buffer = Buffer::new();
+        buffer.insert("int min(int a, int b) {\n");
+        buffer.insert("    return (a < b) ? a : b;\n");
+        buffer.insert("}\n");
+
+        let mut highlighter = Highlighter::new(buffer.snapshot());
+        highlighter.add_provider(Box::new(SyntaxHighlighter::new()));
+
+        highlighter.highlight(0..=2, buffer.snapshot());
+        highlighter.line_at(0);
+        highlighter.line_at(1);
+        highlighter.line_at(2);
+    }
+
+    #[test]
+    fn invalidation() {
+        let mut buffer = Buffer::new();
+        buffer.insert("int min(int a, int b) {\n");
+        buffer.insert("    return (a < b) ? a : b;\n");
+        buffer.insert("}\n");
+
+        let mut highlighter = Highlighter::new(buffer.snapshot());
+        highlighter.add_provider(Box::new(SyntaxHighlighter::new()));
+
+        highlighter.highlight(0..=2, buffer.snapshot());
+        highlighter.line_at(0);
+        highlighter.invalidate(1);
+        highlighter.highlight(1..=2, buffer.snapshot());
+        highlighter.line_at(1);
+        highlighter.line_at(2);
+    }
+}

@@ -2,7 +2,7 @@ use crate::editor::{EventQueue, Event, Notification, Popup};
 use crate::rope::Cursor;
 use crate::view::View;
 use crate::highlight::Highlighter;
-use std::cmp::min;
+use std::cmp::{min, max};
 use std::io::{stdout, Write};
 use std::time::Duration;
 use std::thread;
