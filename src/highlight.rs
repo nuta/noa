@@ -4,16 +4,16 @@ use ropey::RopeSlice;
 use crate::buffer::Snapshot;
 use crate::rope::Rope;
 
-#[derive(Clone, Copy)]
-pub enum Decoration {
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct Decoration {
     Normal,
-    Keyword,
+    TODO,
 }
 
 #[derive(Clone)]
 pub struct Span {
-    range: RangeInclusive<usize>,
-    deco: Decoration
+    pub range: RangeInclusive<usize>,
+    pub deco: Decoration
 }
 
 impl PartialEq for Span {
@@ -76,35 +76,29 @@ impl Highlighter {
     }
 
     /// Returns highlighted spans at the given line.
-    pub fn line_at(&mut self, line: usize, snapshot: &Snapshot) -> &[Span] {
+    pub fn line_at(&mut self, line: usize) -> &[Span] {
         &self.lines[line]
     }
 
-    /// Invokes highlight providers. Note that highlighted spans are not
-    /// collected from them until `update` is called. Returns update linenos.
+    /// Invokes highlight providers and update the highlights.
     pub fn highlight(
         &mut self,
         lines: RangeInclusive<usize>,
         snapshot: Snapshot
-    ) -> Option<RangeInclusive<usize>> {
+    ) {
         if self.lines.len() > *lines.end() {
             // We already have a cache in `self.lines`.
-            return None;
-        }
-
-        let range = self.lines.len()..=*lines.end();
-        for provider in &mut self.providers {
-            provider.highlight(range.clone(), &snapshot);
+            return;
         }
 
         self.snapshot = snapshot;
-        Some(range)
-    }
+        let range = self.lines.len()..=*lines.end();
+        for provider in &mut self.providers {
+            provider.highlight(range.clone(), &self.snapshot);
+        }
 
-    /// Collects and merges highlight spans from providers.
-    pub fn update(&mut self, lines: RangeInclusive<usize>) {
-        let start = self.lines.len();
-        for i in lines {
+        // Merge highlighted spans.
+        for i in range {
             let mut merged: Vec<Span> = Vec::new();
             for provider in &self.providers {
                 let (spans, snapshot) = provider.provide(i);
@@ -124,7 +118,7 @@ impl Highlighter {
                 }
             }
 
-            self.lines[i] = merged;
+            self.lines.push(merged);
         }
     }
 }

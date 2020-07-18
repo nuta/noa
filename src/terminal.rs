@@ -132,6 +132,15 @@ impl Terminal {
         let buffer = view.buffer().borrow();
         let top_left = view.top_left();
 
+        // Highlight the given text.
+        let snapshot = buffer.snapshot();
+        let modified_line = snapshot.modified_line;
+        if top_left.y <= snapshot.modified_line
+            && snapshot.modified_line <= top_left.y + text_height {
+            let range = modified_line..=modified_line + text_height;
+            highlighter.highlight(range, snapshot);
+        }
+
         // Hide the cursor to prevent flickering.
         queue!(stdout,
             cursor::Hide,
@@ -179,25 +188,53 @@ impl Terminal {
                 let line = buffer.line(y);
                 let mut remaining = text_width;
                 let mut n = 0;
+                let mut spans = highlighter.line_at(y).iter();
+                let mut span = None;
+                let mut x = top_left.x;
                 if line.len_chars() > top_left.x {
                     let slice = line.slice(top_left.x..);
                     'outer: for chunk in slice.chunks() {
                         let width = UnicodeWidthStr::width_cjk(chunk);
-                        if remaining < width {
-                            for ch in chunk.chars() {
-                                let w = UnicodeWidthChar::width_cjk(ch).unwrap_or(1);
-                                if remaining < w {
-                                    break 'outer;
+                        for ch in chunk.chars() {
+                            for _ in 0..1 {
+                                match span {
+                                    None => {
+                                        span = spans.next();
+                                        if span.is_none() {
+                                            break;
+                                        }
+                                        continue;
+                                    }
+                                    // Update text decoration.
+                                    Some(span) if span.range.contains(&x) => {
+                                        if i > 0 {
+                                            queue!(
+                                                stdout,
+                                                SetAttribute(Attribute::Bold)
+                                            ).unwrap();
+                                        }
+                                        break;
+                                    }
+                                    // Clear the text decoration.
+                                    Some(_) => {
+                                        queue!(
+                                            stdout,
+                                            SetAttribute(Attribute::Reset)
+                                        ).unwrap();
+                                        span = spans.next();
+                                        continue;
+                                    }
                                 }
-
-                                queue!(stdout, Print(ch)).unwrap();
-                                n += 1;
-                                remaining -= w;
                             }
-                        } else {
-                            queue!(stdout, Print(chunk)).unwrap();
-                            n += chunk.chars().count();
-                            remaining -= width;
+
+                            let w = UnicodeWidthChar::width_cjk(ch).unwrap_or(1);
+                            if remaining < w {
+                                break 'outer;
+                            }
+
+                            queue!(stdout, Print(ch)).unwrap();
+                            n += 1;
+                            remaining -= w;
                         }
                     }
                 }
