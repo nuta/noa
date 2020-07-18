@@ -40,7 +40,7 @@ pub trait HighlightProvider {
     fn name(&self) -> &'static str;
     fn priority(&self) -> usize;
     fn highlight(&mut self, lines: RangeInclusive<usize>, snapshot: &Snapshot);
-    fn provide(&self, line: usize) -> &[Span];
+    fn provide(&self, line: usize) -> (&[Span], &Snapshot);
 }
 
 /// Cached highlighted text and states.
@@ -78,32 +78,37 @@ impl HighlightedText {
     }
 
     /// Invokes highlight providers. Note that highlighted spans are not
-    /// collected from them until `update` is called.
-    pub fn highlight(&mut self, lines: RangeInclusive<usize>, snapshot: Snapshot) {
+    /// collected from them until `update` is called. Returns update linenos.
+    pub fn highlight(
+        &mut self,
+        lines: RangeInclusive<usize>,
+        snapshot: Snapshot
+    ) -> Option<RangeInclusive<usize>> {
         if self.lines.len() > *lines.end() {
             // We already have a cache in `self.lines`.
-            return;
+            return None;
         }
 
-        let start = self.lines.len();
+        let range = self.lines.len()..=*lines.end();
         for provider in &mut self.providers {
-            provider.highlight(start..=*lines.end(), &snapshot);
+            provider.highlight(range.clone(), &snapshot);
         }
 
         self.snapshot = snapshot;
+        Some(range)
     }
 
     /// Collects and merges highlight spans from providers.
-    pub fn update(&mut self, lines: RangeInclusive<usize>, snapshot: &Snapshot) {
-        if *snapshot != self.snapshot {
-            return;
-        }
-
+    pub fn update(&mut self, lines: RangeInclusive<usize>) {
         let start = self.lines.len();
         for i in lines {
             let mut merged: Vec<Span> = Vec::new();
             for provider in &self.providers {
-                let spans = provider.provide(i);
+                let (spans, snapshot) = provider.provide(i);
+                if *snapshot != self.snapshot {
+                    continue;
+                }
+
                 merged =
                     merged.drain(..).filter(|span| {
                         spans.iter().any(|new_span| {
@@ -137,6 +142,7 @@ impl SyntaxHighlighterState {
 
 /// Syntax highlighter.
 pub struct SyntaxHighlighter {
+    snapshot: Option<Snapshot>,
     lines: Vec<Vec<Span>>,
     states: Vec<SyntaxHighlighterState>,
 }
@@ -144,6 +150,7 @@ pub struct SyntaxHighlighter {
 impl SyntaxHighlighter {
     pub fn new() -> SyntaxHighlighter {
         SyntaxHighlighter {
+            snapshot: None,
             lines: Vec::new(),
             states: Vec::new(),
         }
@@ -159,7 +166,8 @@ impl HighlightProvider for SyntaxHighlighter {
         100
     }
 
-    fn highlight(&mut self, lines: std::ops::RangeInclusive<usize>, snapshot: &Snapshot){
+    fn highlight(&mut self, lines: std::ops::RangeInclusive<usize>, snapshot: &Snapshot) {
+        self.snapshot = Some(snapshot.clone());
         self.lines.truncate(*lines.start());
         self.states.truncate(*lines.start());
         let mut spans = Vec::new();
@@ -175,7 +183,7 @@ impl HighlightProvider for SyntaxHighlighter {
         }
     }
 
-    fn provide(&self, line: usize) -> &[Span] {
-        &self.lines[line]
+    fn provide(&self, line: usize) -> (&[Span], &Snapshot) {
+        (&self.lines[line], self.snapshot.as_ref().unwrap())
     }
 }
