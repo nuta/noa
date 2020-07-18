@@ -1,10 +1,13 @@
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::sync::mpsc::{channel, Sender, Receiver, RecvTimeoutError};
 use std::time::{Instant, Duration};
 use crate::buffer::{Buffer, BufferId};
+use crate::completion::WordCompJob;
 use crate::view::View;
 use crate::worker::Worker;
+use crate::highlight::Highlighter;
 use crate::fuzzy::FuzzySet;
 use crate::terminal::{Terminal, KeyCode, KeyModifiers, KeyEvent};
 
@@ -65,6 +68,7 @@ pub struct Editor {
     terminal: Terminal,
     current: Rc<RefCell<View>>,
     views: Vec<Rc<RefCell<View>>>,
+    highlighter: HashMap<BufferId, Highlighter>,
     event_queue: Receiver<Event>,
     exited: bool,
     notifications: RefCell<Vec<Notification>>,
@@ -82,6 +86,7 @@ impl Editor {
             terminal: Terminal::new(EventQueue::new(tx.clone())),
             current: scratch_view.clone(),
             views: vec![scratch_view],
+            highlighter: HashMap::new(),
             event_queue: rx,
             exited: false,
             notifications: RefCell::new(Vec::new()),
@@ -99,16 +104,17 @@ impl Editor {
 
             match self.event_queue.recv_timeout(Duration::from_millis(100)) {
                Ok(ev) => {
-                    let mut contains_comp = false; // FIXME:
-                    match &ev { Event::NoCompletion | Event::Completion { .. } => contains_comp = true, _ => {} }
+                    let snapshot = self.current
+                        .borrow().buffer().borrow().snapshot();
                     self.handle_event(ev);
                     while let Ok(ev) = self.event_queue.try_recv() {
-                        match &ev { Event::NoCompletion | Event::Completion { .. } => contains_comp = true, _ => {} }
                         self.handle_event(ev);
                     }
 
                     self.draw();
-                    if !contains_comp {
+                    let current = self.current
+                        .borrow().buffer().borrow().snapshot();
+                    if snapshot != current {
                         self.run_jobs();
                     }
                }
@@ -130,13 +136,16 @@ impl Editor {
     }
 
     fn run_jobs(&mut self) {
-        use crate::completion::WordCompJob;
-        let current_view = self.current.borrow();
-        let current_buffer =current_view.buffer().borrow();
+        let view = self.current.borrow();
+        let buffer = view.buffer().borrow();
+        let snapshot = buffer.snapshot();
 
-        self.worker.request(
-            Box::new(WordCompJob::new(current_buffer.snapshot()))
-        );
+        // Kick background jobs.
+        self.worker.request(Box::new(WordCompJob::new(snapshot.clone())));
+
+        // Parse and highlight the changed lines.
+        let highlighter = self.highlighter.entry(buffer.id())
+            .or_insert_with(|| Highlighter::new(snapshot.clone()));
     }
 
     fn notify<T: Into<String>>(&self, level: NotificationLevel, message: T) {

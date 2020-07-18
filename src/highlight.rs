@@ -38,25 +38,27 @@ impl PartialOrd for Span {
 
 pub trait HighlightProvider {
     fn name(&self) -> &'static str;
+    /// Returns the priority. Lower number is more prioritized (i.e.
+    /// overwrites other lower priority decorations).
     fn priority(&self) -> usize;
     fn highlight(&mut self, lines: RangeInclusive<usize>, snapshot: &Snapshot);
     fn provide(&self, line: usize) -> (&[Span], &Snapshot);
 }
 
 /// Cached highlighted text and states.
-pub struct HighlightedText {
+pub struct Highlighter {
     snapshot: Snapshot,
     /// The highlighted spans merged from `syntax` and `provided`. Each inner
     /// `Vec` represents each line.
     lines: Vec<Vec<Span>>,
     /// Highlighters (e.g. syntax highlighting and LSP clients). Sorted by their
-    /// priorities (ones with lower priorities are stored in eariler indices).
+    /// priorities (ones with higher priorities are stored in eariler indices).
     providers: Vec<Box<dyn HighlightProvider>>,
 }
 
-impl HighlightedText {
-    pub fn new(snapshot: Snapshot) -> HighlightedText {
-        HighlightedText {
+impl Highlighter {
+    pub fn new(snapshot: Snapshot) -> Highlighter {
+        Highlighter {
             snapshot,
             lines: Vec::new(),
             providers: Vec::new(),
@@ -65,6 +67,7 @@ impl HighlightedText {
 
     pub fn add_provider(&mut self, provider: Box<dyn HighlightProvider>) {
         self.providers.push(provider);
+        self.providers.sort_by(|a, b| a.priority().cmp(&b.priority()));
     }
 
     /// Invalidates (or clears) highlighted spans from the given line.
@@ -109,14 +112,16 @@ impl HighlightedText {
                     continue;
                 }
 
-                merged =
-                    merged.drain(..).filter(|span| {
-                        spans.iter().any(|new_span| {
-                            new_span.range.contains(span.range.start())
+                for span in spans {
+                    let overlaps = merged.iter().any(|new_span| {
+                        new_span.range.contains(span.range.start())
                             || new_span.range.contains(span.range.end())
-                        })
-                    }).collect::<Vec<Span>>();
-                merged.extend_from_slice(spans);
+                    });
+
+                    if !overlaps {
+                        merged.push(span.clone());
+                    }
+                }
             }
 
             self.lines[i] = merged;
