@@ -106,18 +106,20 @@ impl Editor {
                Ok(ev) => {
                     let snapshot = self.current
                         .borrow().buffer().borrow().snapshot();
+
                     self.handle_event(ev);
                     while let Ok(ev) = self.event_queue.try_recv() {
                         self.handle_event(ev);
                     }
 
-                    self.draw();
                     let current = self.current
                         .borrow().buffer().borrow().snapshot();
-                    if snapshot != current {
+                    if snapshot.buf != current.buf {
                         self.run_jobs();
                     }
-               }
+
+                    self.draw();
+                }
                Err(RecvTimeoutError::Timeout) => {
                }
                Err(err) => {
