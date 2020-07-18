@@ -1,19 +1,29 @@
+use std::cmp::min;
 use std::ops::RangeInclusive;
 use std::collections::HashMap;
 use ropey::RopeSlice;
 use crate::buffer::Snapshot;
 use crate::rope::Rope;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Decoration {
     Normal,
     TODO,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Span {
     pub range: RangeInclusive<usize>,
     pub deco: Decoration
+}
+
+impl Span {
+    pub fn new(range: RangeInclusive<usize>, deco: Decoration) -> Span {
+        Span {
+            range,
+            deco,
+        }
+    }
 }
 
 impl PartialEq for Span {
@@ -91,8 +101,9 @@ impl Highlighter {
             return;
         }
 
+        let end = min(*lines.end(), snapshot.buf.num_lines().saturating_sub(1));
         self.snapshot = snapshot;
-        let range = self.lines.len()..=*lines.end();
+        let range = self.lines.len()..=end;
         for provider in &mut self.providers {
             provider.highlight(range.clone(), &self.snapshot);
         }
@@ -135,6 +146,7 @@ impl SyntaxHighlighterState {
 
     pub fn highlight_line<'a>(&mut self, line: RopeSlice<'a>) -> Vec<Span> {
         let mut spans = Vec::new();
+        spans.push(Span::new(0..=std::cmp::min(line.len_chars().saturating_sub(1), 3), Decoration::TODO));
         spans
     }
 }
@@ -169,15 +181,14 @@ impl HighlightProvider for SyntaxHighlighter {
         self.snapshot = Some(snapshot.clone());
         self.lines.truncate(*lines.start());
         self.states.truncate(*lines.start());
-        let mut spans = Vec::new();
-        for i in lines.clone() {
+        for i in lines {
             let mut state = if i == 0 {
                 SyntaxHighlighterState::new()
             } else {
                 self.states[i - 1].clone()
             };
 
-            spans.extend(state.highlight_line(snapshot.buf.line(i)));
+            self.lines.push(state.highlight_line(snapshot.buf.line(i)));
             self.states.push(state);
         }
     }

@@ -196,6 +196,9 @@ impl Terminal {
                     let slice = line.slice(top_left.x..);
                     'outer: for mut chunk in slice.chunks() {
                         while remaining > 0 && !chunk.is_empty() {
+                            trace!("-------------------");
+                            trace!("x={}, range={}", x,
+                                current_span.map(|s| *s.range.start()).unwrap_or(99999));
                             match (&current_span, next_span) {
                                 (Some(span), _) | (_, Some(span))
                                     if span.range.contains(&x) =>
@@ -233,13 +236,14 @@ impl Terminal {
                                 num_chars = min(num_chars, span.range.start() - x);
                             }
 
+                            num_chars = max(num_chars, 1);
                             let next_ch = chunk.char_indices().skip(num_chars).next();
                             let index =
                                 next_ch.map(|(i, _)| i).unwrap_or(chunk.len());
 
                             queue!(stdout, Print(&chunk[..index])).unwrap();
 
-                            chunk = &chunk[min(index + 1, chunk.len())..];
+                            chunk = &chunk[min(index, chunk.len())..];
                             remaining -= width;
                             x += num_chars;
                             n += num_chars;

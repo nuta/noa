@@ -7,7 +7,7 @@ use crate::buffer::{Buffer, BufferId};
 use crate::completion::WordCompJob;
 use crate::view::View;
 use crate::worker::Worker;
-use crate::highlight::Highlighter;
+use crate::highlight::{Highlighter, SyntaxHighlighter};
 use crate::fuzzy::FuzzySet;
 use crate::terminal::{Terminal, KeyCode, KeyModifiers, KeyEvent};
 
@@ -83,7 +83,8 @@ impl Editor {
         scratch_buffer.borrow_mut().set_name("*scratch*");
 
         let mut highlighters = HashMap::new();
-        let highlighter = Highlighter::new(scratch_buffer.borrow().snapshot());
+        let mut highlighter = Highlighter::new(scratch_buffer.borrow().snapshot());
+        highlighter.add_provider(Box::new(SyntaxHighlighter::new()));
         highlighters.insert(scratch_buffer.borrow().id(), highlighter);
 
         let scratch_view = Rc::new(RefCell::new(View::new(scratch_buffer)));
@@ -103,7 +104,8 @@ impl Editor {
 
     pub fn add_buffer(&mut self, buffer: Buffer) {
         let buffer_id = buffer.id();
-        let highlighter = Highlighter::new(buffer.snapshot());
+        let mut highlighter = Highlighter::new(buffer.snapshot());
+        highlighter.add_provider(Box::new(SyntaxHighlighter::new()));
         let buffer_rc = Rc::new(RefCell::new(buffer));
         let scratch_view = Rc::new(RefCell::new(View::new(buffer_rc)));
         self.views.push(scratch_view);
@@ -117,8 +119,9 @@ impl Editor {
                 return;
             }
 
-            match self.event_queue.recv_timeout(Duration::from_millis(100)) {
+            match self.event_queue.recv() {
                Ok(ev) => {
+                    let started_at = Instant::now();
                     let snapshot = self.current
                         .borrow().buffer().borrow().snapshot();
 
@@ -130,17 +133,17 @@ impl Editor {
                     let current = self.current
                         .borrow().buffer().borrow().snapshot();
                     if snapshot != snapshot || snapshot.buf != current.buf {
-                        self.run_jobs();
+                        self.on_modified();
                     }
 
                     self.draw();
+                    info!("took {} ms", started_at.elapsed().as_micros());
                 }
-               Err(RecvTimeoutError::Timeout) => {
-               }
                Err(err) => {
                    warn!("failed recv from the event queue: {:?}", err);
                }
             }
+
         }
     }
 
@@ -155,7 +158,7 @@ impl Editor {
         );
     }
 
-    fn run_jobs(&mut self) {
+    fn on_modified(&mut self) {
         let view = self.current.borrow();
         let buffer = view.buffer().borrow();
         let snapshot = buffer.snapshot();
