@@ -5,7 +5,7 @@ use crate::buffer::Snapshot;
 use crate::rope::Rope;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub struct Decoration {
+pub enum Decoration {
     Normal,
     TODO,
 }

@@ -185,56 +185,64 @@ impl Terminal {
 
             // Text.
             if !out_of_bounds {
-                let line = buffer.line(y);
-                let mut remaining = text_width;
                 let mut n = 0;
-                let mut spans = highlighter.line_at(y).iter();
-                let mut span = None;
-                let mut x = top_left.x;
+                let line = buffer.line(y);
                 if line.len_chars() > top_left.x {
+                    let mut remaining = text_width;
+                    let mut spans = highlighter.line_at(y).iter().peekable();
+                    let mut current_span = spans.next();
+                    let mut next_span = spans.peek();
+                    let mut x = top_left.x;
                     let slice = line.slice(top_left.x..);
-                    'outer: for chunk in slice.chunks() {
-                        let width = UnicodeWidthStr::width_cjk(chunk);
-                        for ch in chunk.chars() {
-                            for _ in 0..1 {
-                                match span {
-                                    None => {
-                                        span = spans.next();
-                                        if span.is_none() {
-                                            break;
-                                        }
-                                        continue;
-                                    }
-                                    // Update text decoration.
-                                    Some(span) if span.range.contains(&x) => {
-                                        if i > 0 {
-                                            queue!(
-                                                stdout,
-                                                SetAttribute(Attribute::Bold)
-                                            ).unwrap();
-                                        }
-                                        break;
-                                    }
-                                    // Clear the text decoration.
-                                    Some(_) => {
-                                        queue!(
-                                            stdout,
-                                            SetAttribute(Attribute::Reset)
-                                        ).unwrap();
-                                        span = spans.next();
-                                        continue;
-                                    }
+                    'outer: for mut chunk in slice.chunks() {
+                        while remaining > 0 && !chunk.is_empty() {
+                            match (&current_span, next_span) {
+                                (Some(span), _) | (_, Some(span))
+                                    if span.range.contains(&x) =>
+                                {
+                                    queue!(
+                                        stdout,
+                                        SetAttribute(Attribute::Bold)
+                                    ).unwrap();
                                 }
+                                (Some(_), _) => {
+                                    current_span = spans.next();
+                                    next_span = spans.peek();
+                                    queue!(
+                                        stdout,
+                                        SetAttribute(Attribute::Reset)
+                                    ).unwrap();
+                                }
+                                (None, _) => {}
                             }
 
-                            let w = UnicodeWidthChar::width_cjk(ch).unwrap_or(1);
-                            if remaining < w {
-                                break 'outer;
+                            let mut num_chars = chunk.chars().count();
+                            let mut width = UnicodeWidthStr::width_cjk(chunk);
+                            let mut chars_rev = chunk.chars().into_iter().rev();
+                            while width > remaining {
+                                let ch = chars_rev.next().unwrap();
+                                width -= UnicodeWidthChar::width_cjk(ch).unwrap_or(1);
+                                num_chars -= 1;
                             }
 
-                            queue!(stdout, Print(ch)).unwrap();
-                            n += 1;
-                            remaining -= w;
+                            if let Some(span) = current_span {
+                                num_chars = min(num_chars, span.range.end() - x);
+                            }
+
+                            if let Some(span) = next_span {
+                                num_chars = min(num_chars, span.range.start() - x);
+                            }
+
+                            let next_ch = chunk.char_indices().skip(num_chars).next();
+                            let index =
+                                next_ch.map(|(i, _)| i).unwrap_or(chunk.len());
+
+                            queue!(stdout, Print(&chunk[..index])).unwrap();
+
+                            chunk = &chunk[min(index + 1, chunk.len())..];
+                            remaining -= width;
+                            x += num_chars;
+                            n += num_chars;
                         }
                     }
                 }
