@@ -40,13 +40,33 @@ fn remove_range(
     }
 }
 
+static NEXT_BUFFER_ID: AtomicUsize = AtomicUsize::new(0);
+static NEXT_SNAPSHOT_ID: AtomicUsize = AtomicUsize::new(0);
+
+#[derive(Clone)]
 pub struct Snapshot {
-    pub id: BufferId,
+    pub id: usize,
+    pub buffer_id: BufferId,
     pub buf: Rope,
     pub main_cursor: Option<Point>,
 }
 
-static NEXT_BUFFER_ID: AtomicUsize = AtomicUsize::new(0);
+impl Snapshot {
+    pub fn new(buffer_id: BufferId, buf: Rope, main_cursor: Option<Point>) -> Snapshot {
+        Snapshot {
+            id: NEXT_SNAPSHOT_ID.fetch_add(1, Ordering::SeqCst),
+            buffer_id,
+            buf,
+            main_cursor,
+        }
+    }
+}
+
+impl PartialEq for Snapshot {
+    fn eq(&self, other: &Snapshot) -> bool {
+        self.id == other.id
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BufferId(usize);
@@ -127,11 +147,7 @@ impl Buffer {
             _ => None,
         };
 
-        Snapshot {
-            id: self.id,
-            buf: self.buf.clone(),
-            main_cursor,
-        }
+        Snapshot::new(self.id, self.buf.clone(), main_cursor)
     }
 
     pub fn save(&self) -> std::io::Result<()> {

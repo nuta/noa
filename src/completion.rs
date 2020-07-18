@@ -73,7 +73,7 @@ impl Job for WordCompJob {
             return;
         }
 
-        let needs_update = match CACHES.read().unwrap().get(&self.snapshot.id) {
+        let needs_update = match CACHES.read().unwrap().get(&self.snapshot.buffer_id) {
             None => true,
             Some(cache) if cache.created_at.elapsed() > Duration::from_secs(3) => true,
             _ => false,
@@ -82,7 +82,7 @@ impl Job for WordCompJob {
         if needs_update {
             // Update the cache entry.
             let words = self.parse();
-            CACHES.write().unwrap().insert(self.snapshot.id, WordCompCache {
+            CACHES.write().unwrap().insert(self.snapshot.buffer_id, WordCompCache {
                 words,
                 created_at: Instant::now(),
             });
@@ -92,14 +92,14 @@ impl Job for WordCompJob {
         let mut filtered = FuzzySet::new();
         let lock = CACHES.read().unwrap();
         let iter = lock
-            .get(&self.snapshot.id).unwrap()
+            .get(&self.snapshot.buffer_id).unwrap()
             .words.search(&current_word, NUM_COMP_ITEMS);
         for s in iter {
             filtered.append(s.to_string());
         }
 
         event_queue.enqueue(Event::Completion {
-            id: self.snapshot.id,
+            id: self.snapshot.buffer_id,
             items: filtered,
         });
     }

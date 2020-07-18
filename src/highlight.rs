@@ -1,13 +1,16 @@
 use std::ops::RangeInclusive;
 use std::collections::HashMap;
 use ropey::RopeSlice;
+use crate::buffer::Snapshot;
 use crate::rope::Rope;
 
+#[derive(Clone, Copy)]
 pub enum Decoration {
     Normal,
     Keyword,
 }
 
+#[derive(Clone)]
 pub struct Span {
     range: RangeInclusive<usize>,
     deco: Decoration
@@ -36,12 +39,13 @@ impl PartialOrd for Span {
 pub trait HighlightProvider {
     fn name(&self) -> &'static str;
     fn priority(&self) -> usize;
-    fn highlight(&mut self, lines: RangeInclusive<usize>, rope: &Rope);
+    fn highlight(&mut self, lines: RangeInclusive<usize>, snapshot: &Snapshot);
     fn provide(&self, line: usize) -> &[Span];
 }
 
 /// Cached highlighted text and states.
 pub struct HighlightedText {
+    snapshot: Snapshot,
     /// The highlighted spans merged from `syntax` and `provided`. Each inner
     /// `Vec` represents each line.
     lines: Vec<Vec<Span>>,
@@ -51,8 +55,9 @@ pub struct HighlightedText {
 }
 
 impl HighlightedText {
-    pub fn new() -> HighlightedText {
+    pub fn new(snapshot: Snapshot) -> HighlightedText {
         HighlightedText {
+            snapshot,
             lines: Vec::new(),
             providers: Vec::new(),
         }
@@ -68,13 +73,13 @@ impl HighlightedText {
     }
 
     /// Returns highlighted spans at the given line.
-    pub fn line_at(&mut self, line: usize, rope: &Rope) -> &[Span] {
+    pub fn line_at(&mut self, line: usize, snapshot: &Snapshot) -> &[Span] {
         &self.lines[line]
     }
 
     /// Invokes highlight providers. Note that highlighted spans are not
     /// collected from them until `update` is called.
-    pub fn highlight(&mut self, lines: RangeInclusive<usize>, rope: &Rope) {
+    pub fn highlight(&mut self, lines: RangeInclusive<usize>, snapshot: Snapshot) {
         if self.lines.len() > *lines.end() {
             // We already have a cache in `self.lines`.
             return;
@@ -82,18 +87,31 @@ impl HighlightedText {
 
         let start = self.lines.len();
         for provider in &mut self.providers {
-            provider.highlight(start..=*lines.end(), rope);
+            provider.highlight(start..=*lines.end(), &snapshot);
         }
+
+        self.snapshot = snapshot;
     }
 
     /// Collects and merges highlight spans from providers.
-    pub fn update(&mut self, lines: std::ops::RangeInclusive<usize>) {
+    pub fn update(&mut self, lines: RangeInclusive<usize>, snapshot: &Snapshot) {
+        if *snapshot != self.snapshot {
+            return;
+        }
+
         let start = self.lines.len();
         for i in lines {
-            let mut merged = Vec::new();
+            let mut merged: Vec<Span> = Vec::new();
             for provider in &self.providers {
                 let spans = provider.provide(i);
-                // TODO: merge into merged
+                merged =
+                    merged.drain(..).filter(|span| {
+                        spans.iter().any(|new_span| {
+                            new_span.range.contains(span.range.start())
+                            || new_span.range.contains(span.range.end())
+                        })
+                    }).collect::<Vec<Span>>();
+                merged.extend_from_slice(spans);
             }
 
             self.lines[i] = merged;
@@ -141,7 +159,7 @@ impl HighlightProvider for SyntaxHighlighter {
         100
     }
 
-    fn highlight(&mut self, lines: std::ops::RangeInclusive<usize>, rope: &Rope) {
+    fn highlight(&mut self, lines: std::ops::RangeInclusive<usize>, snapshot: &Snapshot){
         self.lines.truncate(*lines.start());
         self.states.truncate(*lines.start());
         let mut spans = Vec::new();
@@ -152,7 +170,7 @@ impl HighlightProvider for SyntaxHighlighter {
                 self.states[i - 1].clone()
             };
 
-            spans.extend(state.highlight_line(rope.line(i)));
+            spans.extend(state.highlight_line(snapshot.buf.line(i)));
             self.states.push(state);
         }
     }
