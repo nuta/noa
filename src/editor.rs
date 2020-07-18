@@ -143,9 +143,10 @@ impl Editor {
         // Kick background jobs.
         self.worker.request(Box::new(WordCompJob::new(snapshot.clone())));
 
-        // Parse and highlight the changed lines.
+        // Invalidate the changed lines.
         let highlighter = self.highlighter.entry(buffer.id())
             .or_insert_with(|| Highlighter::new(snapshot.clone()));
+        highlighter.invalidate(snapshot.modified_line);
     }
 
     fn notify<T: Into<String>>(&self, level: NotificationLevel, message: T) {

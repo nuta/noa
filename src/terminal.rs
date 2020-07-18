@@ -315,7 +315,7 @@ impl Terminal {
                 }
                 Cursor::Selection(range) => {
                     let mut pos = *range.front();
-                    let end = range.end();
+                    let end = range.back();
                     if pos.y < top_left.y || pos.y >= buffer.num_lines() {
                         continue;
                     }

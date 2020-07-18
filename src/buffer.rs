@@ -13,7 +13,7 @@ fn remove_range(
 
     // Move cursors after the current cursor.
     let front = range.front();
-    let end = range.end();
+    let end = range.back();
     let num_newlines_deleted = end.y - front.y;
     for c2 in new_cursors.iter_mut() {
         match c2 {
@@ -49,15 +49,22 @@ pub struct Snapshot {
     pub buffer_id: BufferId,
     pub buf: Rope,
     pub main_cursor: Option<Point>,
+    pub modified_line: usize,
 }
 
 impl Snapshot {
-    pub fn new(buffer_id: BufferId, buf: Rope, main_cursor: Option<Point>) -> Snapshot {
+    pub fn new(
+        buffer_id: BufferId,
+        buf: Rope,
+        main_cursor: Option<Point>,
+        modified_line: usize,
+    ) -> Snapshot {
         Snapshot {
             id: NEXT_SNAPSHOT_ID.fetch_add(1, Ordering::SeqCst),
             buffer_id,
             buf,
             main_cursor,
+            modified_line,
         }
     }
 }
@@ -147,7 +154,8 @@ impl Buffer {
             _ => None,
         };
 
-        Snapshot::new(self.id, self.buf.clone(), main_cursor)
+        let modified_line = self.buf.modified_line().unwrap_or(0);
+        Snapshot::new(self.id, self.buf.clone(), main_cursor, modified_line)
     }
 
     pub fn save(&self) -> std::io::Result<()> {
@@ -182,7 +190,7 @@ impl Buffer {
                     let pos = if left > 0 || up > 0 {
                         range.front()
                     } else {
-                        range.end()
+                        range.back()
                     };
 
                     *cursor = Cursor::new(pos.y, pos.x);
@@ -266,6 +274,8 @@ impl Buffer {
     }
 
     pub fn insert(&mut self, string: &str) {
+        self.buf.reset_modified_line();
+
         let mut new_cursors = Vec::new();
         for c in self.cursors.iter().rev() {
             let (remove, insert_at, end) = match c {
@@ -273,7 +283,7 @@ impl Buffer {
                     (None, pos, pos)
                 }
                 Cursor::Selection(range) => {
-                    (Some(range), range.front(), range.end())
+                    (Some(range), range.front(), range.back())
                 }
             };
 
@@ -291,7 +301,7 @@ impl Buffer {
 
             let num_newlines_added = string.matches('\n').count();
             let num_newlines_deleted =
-                remove.map(|r| r.end().y - r.front().y).unwrap_or(0);
+                remove.map(|r| r.back().y - r.front().y).unwrap_or(0);
 
             // Move cursors after the current cursor.
             for c2 in new_cursors.iter_mut() {
@@ -328,6 +338,8 @@ impl Buffer {
     }
 
     pub fn backspace(&mut self) {
+        self.buf.reset_modified_line();
+
         let mut new_cursors = Vec::new();
         let mut iter = self.cursors.iter().rev().peekable();
         while let Some(c) = iter.next() {
@@ -357,6 +369,8 @@ impl Buffer {
     }
 
     pub fn delete(&mut self) {
+        self.buf.reset_modified_line();
+
         let mut new_cursors = Vec::new();
         let mut iter = self.cursors.iter().rev().peekable();
         while let Some(c) = iter.next() {
@@ -388,6 +402,8 @@ impl Buffer {
     }
 
     pub fn truncate(&mut self) {
+        self.buf.reset_modified_line();
+
         self.select_until_end_of_line();
         self.delete();
     }

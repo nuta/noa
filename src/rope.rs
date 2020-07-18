@@ -124,7 +124,7 @@ impl Range {
         min(&self.start, &self.end)
     }
 
-    pub fn end(&self) -> &Point {
+    pub fn back(&self) -> &Point {
         max(&self.start, &self.end)
     }
 
@@ -189,26 +189,32 @@ impl PartialOrd for Cursor {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Rope(ropey::Rope);
+pub struct Rope {
+    inner: ropey::Rope,
+    modified_line: Option<usize>,
+}
 
 impl Rope {
     pub fn new() -> Rope {
-        Rope(ropey::Rope::new())
+        Rope {
+            inner: ropey::Rope::new(),
+            modified_line: None,
+        }
     }
 
     pub fn is_empty(&self) -> bool {
-        self.0.len_chars() == 0
+        self.inner.len_chars() == 0
     }
 
     /// Returns the number of characters in the buffer.
     #[cfg(test)]
     pub fn len(&self) -> usize {
-        self.0.len_chars()
+        self.inner.len_chars()
     }
 
     /// Returns the number of characters in the buffer.
     pub fn num_lines(&self) -> usize {
-        self.0.len_lines()
+        self.inner.len_lines()
     }
 
     /// Returns the number of characters in a line except new line characters.
@@ -220,28 +226,36 @@ impl Rope {
         }
     }
 
+    pub fn modified_line(&self) -> &Option<usize> {
+        &self.modified_line
+    }
+
+    pub fn reset_modified_line(&mut self) {
+        self.modified_line = None;
+    }
+
     #[cfg(test)]
     pub fn text(&self) -> String {
-        self.0.to_string()
+        self.inner.to_string()
     }
 
     pub fn save_into_file(&self, path: &Path) -> std::io::Result<()> {
-        self.0.write_to(File::open(path)?)
+        self.inner.write_to(File::open(path)?)
     }
 
     pub fn insert(&mut self, pos: &Point, string: &str) {
-        self.0.insert(self.index_in_rope(pos), string);
+        self.inner.insert(self.index_in_rope(pos), string);
     }
 
     pub fn remove(&mut self, range: &Range) {
-        let start = self.index_in_rope(&range.start);
-        let end = self.index_in_rope(&range.end);
-        self.0.remove(min(start, end)..max(start, end));
+        let start = self.index_in_rope(range.front());
+        let end = self.index_in_rope(range.back());
+        self.inner.remove(start..end);
     }
 
     /// Returns a line except new line characters.
     pub fn line(&self, line: usize) -> ropey::RopeSlice {
-        let slice = self.0.line(line);
+        let slice = self.inner.line(line);
 
         // The slice contains newline characters. Trim them.
         let mut len = slice.len_chars();
@@ -257,7 +271,7 @@ impl Rope {
     }
 
     pub fn chars(&self) -> ropey::iter::Chars<'_> {
-        self.0.chars()
+        self.inner.chars()
     }
 
     pub fn word_at(&self, pos: &Point) -> String {
@@ -266,7 +280,7 @@ impl Rope {
             return word;
         }
 
-        for (i, ch) in self.0.line(pos.y).chars().enumerate() {
+        for (i, ch) in self.inner.line(pos.y).chars().enumerate() {
             if i >= pos.x {
                 break;
             }
@@ -282,7 +296,7 @@ impl Rope {
     }
 
     fn index_in_rope(&self, pos: &Point) -> usize {
-        self.0.line_to_char(pos.y) + pos.x
+        self.inner.line_to_char(pos.y) + pos.x
     }
 }
 
