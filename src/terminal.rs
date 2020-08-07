@@ -13,6 +13,8 @@ use crossterm::terminal::{
     size, enable_raw_mode, disable_raw_mode,
     EnterAlternateScreen, LeaveAlternateScreen,
 };
+use crate::buffer::Buffer;
+use crate::view::TopLeft;
 
 fn truncate(s: &str, width: usize) -> &str {
     &s[..min(s.len(), width)]
@@ -185,73 +187,18 @@ impl Terminal {
 
             // Text.
             if !out_of_bounds {
-                let mut n = 0;
                 let line = buffer.line(y);
                 if line.len_chars() > top_left.x {
-                    let mut remaining = text_width;
-                    let mut spans = highlighter.line_at(y).iter().peekable();
-                    let mut current_span = spans.next();
-                    let mut next_span = spans.peek();
-                    let mut x = top_left.x;
-                    let slice = line.slice(top_left.x..);
-                    'outer: for mut chunk in slice.chunks() {
-                        while remaining > 0 && !chunk.is_empty() {
-                            trace!("-------------------");
-                            trace!("x={}, range={}", x,
-                                current_span.map(|s| *s.range.start()).unwrap_or(99999));
-                            match (&current_span, next_span) {
-                                (Some(span), _) | (_, Some(span))
-                                    if span.range.contains(&x) =>
-                                {
-                                    queue!(
-                                        stdout,
-                                        SetAttribute(Attribute::Bold)
-                                    ).unwrap();
-                                }
-                                (Some(_), _) => {
-                                    current_span = spans.next();
-                                    next_span = spans.peek();
-                                    queue!(
-                                        stdout,
-                                        SetAttribute(Attribute::Reset)
-                                    ).unwrap();
-                                }
-                                (None, _) => {}
-                            }
-
-                            let mut num_chars = chunk.chars().count();
-                            let mut width = UnicodeWidthStr::width_cjk(chunk);
-                            let mut chars_rev = chunk.chars().into_iter().rev();
-                            while width > remaining {
-                                let ch = chars_rev.next().unwrap();
-                                width -= UnicodeWidthChar::width_cjk(ch).unwrap_or(1);
-                                num_chars -= 1;
-                            }
-
-                            if let Some(span) = current_span {
-                                num_chars = min(num_chars, span.range.end() - x);
-                            }
-
-                            if let Some(span) = next_span {
-                                num_chars = min(num_chars, span.range.start() - x);
-                            }
-
-                            num_chars = max(num_chars, 1);
-                            let next_ch = chunk.char_indices().skip(num_chars).next();
-                            let index =
-                                next_ch.map(|(i, _)| i).unwrap_or(chunk.len());
-
-                            queue!(stdout, Print(&chunk[..index])).unwrap();
-
-                            chunk = &chunk[min(index, chunk.len())..];
-                            remaining -= width;
-                            x += num_chars;
-                            n += num_chars;
-                        }
-                    }
+                    let n = self.draw_text_line(
+                        &mut stdout,
+                        highlighter,
+                        &line,
+                        &top_left,
+                        y,
+                        text_width,
+                    );
+                    num_drawed_chars.insert(y, n);
                 }
-
-                num_drawed_chars.insert(y, n);
             }
 
             queue!(stdout, Clear(ClearType::UntilNewLine)).unwrap();
@@ -412,6 +359,89 @@ impl Terminal {
             }
         }
         stdout.flush().unwrap();
+    }
+
+    fn draw_text_line(
+        &mut self,
+        stdout: &mut std::io::Stdout,
+        highlighter: &mut Highlighter,
+        line: &ropey::RopeSlice,
+        top_left: &TopLeft,
+        y: usize,
+        text_width: usize,
+    ) -> usize {
+        use unicode_width::{UnicodeWidthStr, UnicodeWidthChar};
+        use crossterm::cursor::{self, MoveTo};
+        use crossterm::terminal::{Clear, ClearType};
+        use crossterm::style::{
+            Print, Color, SetForegroundColor, SetBackgroundColor,
+            Attribute, SetAttribute
+        };
+
+        let mut n = 0;
+        let mut remaining = text_width;
+        let mut spans = highlighter.line_at(y).iter().peekable();
+        let mut current_span = spans.next();
+        let mut next_span = spans.peek();
+        let mut x = top_left.x;
+        let slice = line.slice(top_left.x..);
+        'outer: for mut chunk in slice.chunks() {
+            while remaining > 0 && !chunk.is_empty() {
+                trace!("-------------------");
+                trace!("x={}, range={}", x,
+                    current_span.map(|s| *s.range.start()).unwrap_or(99999));
+                match (&current_span, next_span) {
+                    (Some(span), _) | (_, Some(span))
+                        if span.range.contains(&x) =>
+                    {
+                        queue!(
+                            stdout,
+                            SetAttribute(Attribute::Bold)
+                        ).unwrap();
+                    }
+                    (Some(_), _) => {
+                        current_span = spans.next();
+                        next_span = spans.peek();
+                        queue!(
+                            stdout,
+                            SetAttribute(Attribute::Reset)
+                        ).unwrap();
+                    }
+                    (None, _) => {}
+                }
+
+                let mut num_chars = chunk.chars().count();
+                let mut width = UnicodeWidthStr::width_cjk(chunk);
+                let mut chars_rev = chunk.chars().into_iter().rev();
+                while width > remaining {
+                    let ch = chars_rev.next().unwrap();
+                    width -= UnicodeWidthChar::width_cjk(ch).unwrap_or(1);
+                    num_chars -= 1;
+                }
+
+                if let Some(span) = current_span {
+                    num_chars = min(num_chars, span.range.end() - x);
+                }
+
+                if let Some(span) = next_span {
+                    num_chars = min(num_chars, span.range.start() - x);
+                }
+
+                num_chars = max(num_chars, 1);
+                let next_ch = chunk.char_indices().skip(num_chars).next();
+                let index =
+                    next_ch.map(|(i, _)| i).unwrap_or(chunk.len());
+
+                queue!(stdout, Print(&chunk[..index])).unwrap();
+
+                chunk = &chunk[min(index, chunk.len())..];
+                remaining -= width;
+                x += num_chars;
+                n += num_chars;
+            }
+        }
+
+        n
     }
 }
 
