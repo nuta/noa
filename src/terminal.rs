@@ -391,21 +391,14 @@ impl Terminal {
                 trace!("x={}, range={}", x,
                     current_span.map(|s| *s.range.start()).unwrap_or(99999));
                 match (&current_span, next_span) {
-                    (Some(span), _) | (_, Some(span))
-                        if span.range.contains(&x) =>
-                    {
-                        queue!(
-                            stdout,
-                            SetAttribute(Attribute::Bold)
-                        ).unwrap();
+                    (Some(span), _) | (_, Some(span)) if span.range.contains(&x) => {
+                        trace!("span = {:?}", span.style);
+                        span.style.apply(stdout);
                     }
                     (Some(_), _) => {
                         current_span = spans.next();
                         next_span = spans.peek();
-                        queue!(
-                            stdout,
-                            SetAttribute(Attribute::Reset)
-                        ).unwrap();
+                        queue!(stdout, SetAttribute(Attribute::Reset)).unwrap();
                     }
                     (None, _) => {}
                 }

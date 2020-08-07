@@ -7,6 +7,9 @@ extern crate pretty_assertions;
 #[macro_use]
 extern crate log;
 
+#[macro_use]
+extern crate lazy_static;
+
 mod buffer;
 mod editor;
 mod rope;
