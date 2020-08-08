@@ -68,7 +68,6 @@ pub struct Editor {
     terminal: Terminal,
     current: Rc<RefCell<View>>,
     views: Vec<Rc<RefCell<View>>>,
-    highlighters: HashMap<BufferId, Highlighter>,
     event_queue: Receiver<Event>,
     exited: bool,
     notifications: RefCell<Vec<Notification>>,
@@ -81,18 +80,12 @@ impl Editor {
         let (tx, rx) = channel();
         let scratch_buffer = Rc::new(RefCell::new(Buffer::new()));
         scratch_buffer.borrow_mut().set_name("*scratch*");
-
-        let mut highlighters = HashMap::new();
-        let mut highlighter = Highlighter::new(scratch_buffer.borrow().snapshot());
-        highlighters.insert(scratch_buffer.borrow().id(), highlighter);
-
         let scratch_view = Rc::new(RefCell::new(View::new(scratch_buffer)));
 
         Editor {
             terminal: Terminal::new(EventQueue::new(tx.clone())),
             current: scratch_view.clone(),
             views: vec![scratch_view],
-            highlighters,
             event_queue: rx,
             exited: false,
             notifications: RefCell::new(Vec::new()),
@@ -102,12 +95,9 @@ impl Editor {
     }
 
     pub fn add_buffer(&mut self, buffer: Buffer) {
-        let buffer_id = buffer.id();
-        let mut highlighter = Highlighter::new(buffer.snapshot());
         let buffer_rc = Rc::new(RefCell::new(buffer));
         let scratch_view = Rc::new(RefCell::new(View::new(buffer_rc)));
         self.views.push(scratch_view);
-        self.highlighters.insert(buffer_id, highlighter);
     }
 
     pub fn run(&mut self) {
@@ -147,10 +137,8 @@ impl Editor {
 
     fn draw(&mut self) {
         let mut view = self.current.borrow_mut();
-        let buffer_id = view.buffer().borrow().id();
         self.terminal.draw(
             &mut *view,
-            self.highlighters.get_mut(&buffer_id).unwrap(),
             &*self.notifications.borrow(),
             &self.popup,
         );
@@ -163,11 +151,6 @@ impl Editor {
 
         // Kick background jobs.
         self.worker.request(Box::new(WordCompJob::new(snapshot.clone())));
-
-        // Invalidate the changed lines.
-        self.highlighters.get_mut(&buffer.id())
-            .unwrap()
-            .invalidate(snapshot.modified_line);
     }
 
     fn notify<T: Into<String>>(&self, level: NotificationLevel, message: T) {

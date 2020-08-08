@@ -1,5 +1,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::path::PathBuf;
+use std::ops::RangeInclusive;
+use crate::highlight::{Highlighter, Span};
 use crate::rope::*;
 
 fn remove_range(
@@ -92,6 +94,7 @@ pub struct Buffer {
     cursors: Vec<Cursor>,
     undo_stack: Vec<Rope>,
     redo_stack: Vec<Rope>,
+    highlighter: Highlighter,
 }
 
 impl Buffer {
@@ -104,6 +107,7 @@ impl Buffer {
             cursors: vec![Cursor::new(0, 0)],
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
+            highlighter: Highlighter::new(&crate::language::C),
         };
 
         buffer.mark_undo_point();
@@ -148,13 +152,17 @@ impl Buffer {
         self.buf.line_len(line)
     }
 
+    pub fn modified_line(&self) -> &Option<usize> {
+        &self.buf.modified_line()
+    }
+
     pub fn snapshot(&self) -> Snapshot {
         let main_cursor = match self.cursors[0] {
             Cursor::Normal { pos, .. } => Some(pos),
             _ => None,
         };
 
-        let modified_line = self.buf.modified_line().unwrap_or(0);
+        let modified_line = self.modified_line().unwrap_or(0);
         Snapshot::new(self.id, self.buf.clone(), main_cursor, modified_line)
     }
 
@@ -494,6 +502,14 @@ impl Buffer {
         } else {
             None
         }
+    }
+
+    pub fn highlighted_line(&self, y: usize) -> &[Span] {
+        self.highlighter.line(y)
+    }
+
+    pub fn highlight(&mut self, lines: RangeInclusive<usize>) {
+        self.highlighter.highlight(self.snapshot(), lines);
     }
 }
 

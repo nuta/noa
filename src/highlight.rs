@@ -5,6 +5,7 @@ use ropey::RopeSlice;
 use crossterm::style::{Attribute, Color};
 use crate::buffer::Snapshot;
 use crate::rope::Rope;
+use crate::language::Language;
 
 // The default theme.
 lazy_static! {
@@ -130,46 +131,30 @@ impl PartialOrd for Span {
 }
 
 pub trait HighlightProvider {
-    fn name(&self) -> &'static str;
-    /// Returns the priority. Lower number is more prioritized (i.e.
-    /// overwrites other lower priority stylings).
-    fn priority(&self) -> usize;
-    fn highlight(&mut self, lines: RangeInclusive<usize>, snapshot: &Snapshot);
-    fn provide(&self, line: usize) -> (&[Span], &Snapshot);
+    fn highlight(
+        &mut self,
+        snapshot: &Snapshot,
+        lines: RangeInclusive<usize>,
+    ) -> Vec<Vec<Span>>;
 }
 
 /// Cached highlighted text and states.
 pub struct Highlighter {
-    snapshot: Snapshot,
-    /// The highlighted spans merged from `syntax` and `provided`. Each inner
-    /// `Vec` represents each line.
+    lang: &'static Language,
+    /// The merged spans. Each inner `Vec` represents each line.
     lines: Vec<Vec<Span>>,
-    /// Highlighters (e.g. syntax highlighting and LSP clients). Sorted by their
-    /// priorities (ones with higher priorities are stored in eariler indices).
-    providers: Vec<Box<dyn HighlightProvider>>,
 }
 
 impl Highlighter {
-    pub fn new(snapshot: Snapshot) -> Highlighter {
+    pub fn new(lang: &'static Language) -> Highlighter {
         Highlighter {
-            snapshot,
+            lang,
             lines: Vec::new(),
-            providers: Vec::new(),
         }
     }
 
-    pub fn add_provider(&mut self, provider: Box<dyn HighlightProvider>) {
-        self.providers.push(provider);
-        self.providers.sort_by(|a, b| a.priority().cmp(&b.priority()));
-    }
-
-    /// Invalidates (or clears) highlighted spans from the given line.
-    pub fn invalidate(&mut self, line_from: usize) {
-        self.lines.truncate(line_from);
-    }
-
     /// Returns highlighted spans at the given line.
-    pub fn line_at(&mut self, line: usize) -> &[Span] {
+    pub fn line(&self, line: usize) -> &[Span] {
         if line >= self.lines.len() {
             return &[];
         }
@@ -180,30 +165,19 @@ impl Highlighter {
     /// Invokes highlight providers and update the highlights.
     pub fn highlight(
         &mut self,
+        snapshot: Snapshot,
         lines: RangeInclusive<usize>,
-        snapshot: Snapshot
     ) {
-        if self.lines.len() > *lines.end() {
-            // We already have a cache in `self.lines`.
-            return;
-        }
-
+        self.lines.truncate(*lines.start());
         let end = min(*lines.end(), snapshot.buf.num_lines().saturating_sub(1));
-        self.snapshot = snapshot;
         let range = self.lines.len()..=end;
-        for provider in &mut self.providers {
-            provider.highlight(range.clone(), &self.snapshot);
-        }
 
         // Merge highlighted spans.
         for i in range {
             let mut merged: Vec<Span> = Vec::new();
+            /*
             for provider in &self.providers {
                 let (spans, snapshot) = provider.provide(i);
-                if *snapshot != self.snapshot {
-                    continue;
-                }
-
                 for span in spans {
                     let overlaps = merged.iter().any(|new_span| {
                         new_span.range.contains(span.range.start())
@@ -215,6 +189,7 @@ impl Highlighter {
                     }
                 }
             }
+            */
 
             self.lines.push(merged);
         }

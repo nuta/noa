@@ -100,7 +100,6 @@ impl Terminal {
     pub fn draw(
         &mut self,
         view: &mut View,
-        highlighter: &mut Highlighter,
         notifications: &[Notification],
         popup: &Option<Popup>,
     ) {
@@ -131,16 +130,14 @@ impl Terminal {
 
         // Adjust top left.
         view.adjust_top_left(text_height, text_width);
-        let buffer = view.buffer().borrow();
+        let mut buffer = view.buffer().borrow_mut();
         let top_left = view.top_left();
 
         // Highlight the given text.
-        let snapshot = buffer.snapshot();
-        let modified_line = snapshot.modified_line;
-        if top_left.y <= snapshot.modified_line
-            && snapshot.modified_line <= top_left.y + text_height {
+        let modified_line = buffer.modified_line().unwrap_or(0);
+        if top_left.y <= modified_line && modified_line <= top_left.y + text_height {
             let range = modified_line..=modified_line + text_height;
-            highlighter.highlight(range, snapshot);
+            buffer.highlight(range);
         }
 
         // Hide the cursor to prevent flickering.
@@ -191,7 +188,7 @@ impl Terminal {
                 if line.len_chars() > top_left.x {
                     let n = self.draw_text_line(
                         &mut stdout,
-                        highlighter,
+                        &buffer,
                         &line,
                         &top_left,
                         y,
@@ -364,7 +361,7 @@ impl Terminal {
     fn draw_text_line(
         &mut self,
         stdout: &mut std::io::Stdout,
-        highlighter: &mut Highlighter,
+        buffer: &Buffer,
         line: &ropey::RopeSlice,
         top_left: &TopLeft,
         y: usize,
@@ -380,7 +377,7 @@ impl Terminal {
 
         let mut n = 0;
         let mut remaining = text_width;
-        let mut spans = highlighter.line_at(y).iter().peekable();
+        let mut spans = buffer.highlighted_line(y).iter().peekable();
         let mut current_span = spans.next();
         let mut next_span = spans.peek();
         let mut x = top_left.x;
