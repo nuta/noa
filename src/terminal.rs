@@ -149,7 +149,10 @@ impl Terminal {
         use std::collections::HashMap;
         let mut num_drawed_chars = HashMap::new();
         for i in 0..text_height {
-            queue!(stdout, MoveTo(0, i as u16)).unwrap();
+            queue!(stdout,
+                MoveTo(0, i as u16),
+                SetAttribute(Attribute::Reset),
+            ).unwrap();
 
             // Line number.
             let y = top_left.y + i;
@@ -384,13 +387,25 @@ impl Terminal {
         let slice = line.slice(top_left.x..);
         'outer: for mut chunk in slice.chunks() {
             while remaining > 0 && !chunk.is_empty() {
-                trace!("-------------------");
-                trace!("x={}, range={}", x,
-                    current_span.map(|s| *s.range.start()).unwrap_or(99999));
+                let mut num_chars = chunk.chars().count();
                 match (&current_span, next_span) {
-                    (Some(span), _) | (_, Some(span)) if span.range.contains(&x) => {
-                        trace!("span = {:?}", span.style);
+                    (Some(span), _) if span.range.contains(&x) => {
+                        num_chars = min(num_chars, span.range.end() + 1 - x);
                         span.style.apply(stdout);
+                    }
+                    (_, Some(span)) if span.range.contains(&x) => {
+                        num_chars = min(num_chars, span.range.end() + 1 - x);
+                        span.style.apply(stdout);
+                        current_span = spans.next();
+                        next_span = spans.peek();
+                    }
+                    (Some(span), _) if x < *span.range.start() => {
+                        num_chars = span.range.start() - x;
+                        queue!(stdout, SetAttribute(Attribute::Reset)).unwrap();
+                    }
+                    (_, Some(span)) if x < *span.range.start() => {
+                        num_chars = span.range.start() - x;
+                        queue!(stdout, SetAttribute(Attribute::Reset)).unwrap();
                     }
                     (Some(_), _) => {
                         current_span = spans.next();
@@ -400,28 +415,27 @@ impl Terminal {
                     (None, _) => {}
                 }
 
-                let mut num_chars = chunk.chars().count();
-                let mut width = UnicodeWidthStr::width_cjk(chunk);
+                debug_assert!(num_chars > 0);
+
+                // Truncated # of displayed chars until it fits the display
+                // width.
+                let index =
+                    chunk.char_indices().skip(num_chars).next()
+                        .map(|(i, _)| i).unwrap_or(chunk.len());
+                let mut width = UnicodeWidthStr::width_cjk(&chunk[..index]);
                 let mut chars_rev = chunk.chars().into_iter().rev();
                 while width > remaining {
                     let ch = chars_rev.next().unwrap();
                     width -= UnicodeWidthChar::width_cjk(ch).unwrap_or(1);
                     num_chars -= 1;
+                    if num_chars == 0 {
+                        break 'outer;
+                    }
                 }
 
-                if let Some(span) = current_span {
-                    num_chars = min(num_chars, span.range.end() - x);
-                }
-
-                if let Some(span) = next_span {
-                    num_chars = min(num_chars, span.range.start() - x);
-                }
-
-                num_chars = max(num_chars, 1);
-                let next_ch = chunk.char_indices().skip(num_chars).next();
                 let index =
-                    next_ch.map(|(i, _)| i).unwrap_or(chunk.len());
-
+                    chunk.char_indices().skip(num_chars).next()
+                        .map(|(i, _)| i).unwrap_or(chunk.len());
                 queue!(stdout, Print(&chunk[..index])).unwrap();
 
                 chunk = &chunk[min(index, chunk.len())..];

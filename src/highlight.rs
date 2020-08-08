@@ -199,9 +199,10 @@ fn highlight_line_by_regexes(
     'outer: loop {
         for regex in regexes {
             if let Some(m) = regex.find(remaining) {
+                info!("b={}, {}..{} (r='{}')", base, m.start(), m.end(), remaining);
                 spans.push(Span::new(span_type, base + m.start()..=(base + m.end() - 1)));
                 remaining = &remaining[m.end()..];
-                base += m.end() - m.start() + 1;
+                base += m.end();
                 continue 'outer;
             }
         }
