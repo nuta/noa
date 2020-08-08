@@ -170,6 +170,10 @@ impl Highlighter {
 
     /// Returns highlighted spans at the given line.
     pub fn line_at(&mut self, line: usize) -> &[Span] {
+        if line >= self.lines.len() {
+            return &[];
+        }
+
         &self.lines[line]
     }
 
