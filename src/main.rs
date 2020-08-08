@@ -19,7 +19,6 @@ mod worker;
 mod completion;
 mod language;
 mod highlight;
-mod syntax_highlight;
 mod fuzzy;
 
 use structopt::StructOpt;

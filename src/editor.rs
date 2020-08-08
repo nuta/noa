@@ -8,7 +8,6 @@ use crate::completion::WordCompJob;
 use crate::view::View;
 use crate::worker::Worker;
 use crate::highlight::Highlighter;
-use crate::syntax_highlight::SyntaxHighlighter;
 use crate::fuzzy::FuzzySet;
 use crate::terminal::{Terminal, KeyCode, KeyModifiers, KeyEvent};
 
@@ -85,7 +84,6 @@ impl Editor {
 
         let mut highlighters = HashMap::new();
         let mut highlighter = Highlighter::new(scratch_buffer.borrow().snapshot());
-        highlighter.add_provider(Box::new(SyntaxHighlighter::new()));
         highlighters.insert(scratch_buffer.borrow().id(), highlighter);
 
         let scratch_view = Rc::new(RefCell::new(View::new(scratch_buffer)));
@@ -106,7 +104,6 @@ impl Editor {
     pub fn add_buffer(&mut self, buffer: Buffer) {
         let buffer_id = buffer.id();
         let mut highlighter = Highlighter::new(buffer.snapshot());
-        highlighter.add_provider(Box::new(SyntaxHighlighter::new()));
         let buffer_rc = Rc::new(RefCell::new(buffer));
         let scratch_view = Rc::new(RefCell::new(View::new(buffer_rc)));
         self.views.push(scratch_view);
