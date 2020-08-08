@@ -11,7 +11,10 @@ lazy_static! {
     static ref THEME: HashMap<SpanType, Style> = {
         let mut hash = HashMap::new();
         hash.insert(SpanType::Normal, Style::normal());
-        hash.insert(SpanType::TODO, Style::bold());
+        hash.insert(SpanType::StringLiteral, Style::fg(Color::Cyan));
+        hash.insert(SpanType::EscapedChar, Style::fg(Color::Cyan));
+        hash.insert(SpanType::Comment, Style::fg(Color::Cyan));
+        hash.insert(SpanType::CtrlKeyword, Style::fg(Color::Cyan));
         hash
     };
 }
@@ -44,6 +47,10 @@ impl Style {
 
     pub fn normal() -> Style {
         Style::new(Color::Reset, Color::Reset, false, false, false)
+    }
+
+    pub fn fg(color: Color) -> Style {
+        Style::new(color, Color::Reset, false, false, false)
     }
 
     pub fn bold() -> Style {
@@ -81,7 +88,10 @@ impl Style {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum SpanType {
     Normal,
-    TODO,
+    StringLiteral,
+    EscapedChar,
+    Comment,
+    CtrlKeyword,
 }
 
 #[derive(Clone, Debug)]
@@ -204,119 +214,5 @@ impl Highlighter {
 
             self.lines.push(merged);
         }
-    }
-}
-
-#[derive(Clone)]
-struct SyntaxHighlighterState {
-}
-
-impl SyntaxHighlighterState {
-    pub fn new() -> SyntaxHighlighterState {
-        SyntaxHighlighterState {
-        }
-    }
-
-    pub fn highlight_line<'a>(&mut self, line: RopeSlice<'a>) -> Vec<Span> {
-        let mut spans = Vec::new();
-        spans.push(Span::new(SpanType::TODO,
-            0..=std::cmp::min(line.len_chars().saturating_sub(1), 3),
-            ));
-        spans
-    }
-}
-
-/// Syntax highlighter.
-pub struct SyntaxHighlighter {
-    snapshot: Option<Snapshot>,
-    lines: Vec<Vec<Span>>,
-    states: Vec<SyntaxHighlighterState>,
-}
-
-impl SyntaxHighlighter {
-    pub fn new() -> SyntaxHighlighter {
-        SyntaxHighlighter {
-            snapshot: None,
-            lines: Vec::new(),
-            states: Vec::new(),
-        }
-    }
-}
-
-impl HighlightProvider for SyntaxHighlighter {
-    fn name(&self) -> &'static str {
-        "syntax"
-    }
-
-    fn priority(&self) -> usize {
-        100
-    }
-
-    fn highlight(&mut self, lines: std::ops::RangeInclusive<usize>, snapshot: &Snapshot) {
-        self.snapshot = Some(snapshot.clone());
-        self.lines.truncate(*lines.start());
-        self.states.truncate(*lines.start());
-        for i in lines {
-            let mut state = if i == 0 {
-                SyntaxHighlighterState::new()
-            } else {
-                self.states[i - 1].clone()
-            };
-
-            self.lines.push(state.highlight_line(snapshot.buf.line(i)));
-            self.states.push(state);
-        }
-    }
-
-    fn provide(&self, line: usize) -> (&[Span], &Snapshot) {
-        (&self.lines[line], self.snapshot.as_ref().unwrap())
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::buffer::Buffer;
-
-    #[test]
-    fn highlight_empty_buffer() {
-        let mut buffer = Buffer::new();
-        let mut highlighter = Highlighter::new(buffer.snapshot());
-        highlighter.add_provider(Box::new(SyntaxHighlighter::new()));
-        highlighter.highlight(0..=0, buffer.snapshot());
-    }
-
-    #[test]
-    fn highlight_simple_c_function() {
-        let mut buffer = Buffer::new();
-        buffer.insert("int min(int a, int b) {\n");
-        buffer.insert("    return (a < b) ? a : b;\n");
-        buffer.insert("}\n");
-
-        let mut highlighter = Highlighter::new(buffer.snapshot());
-        highlighter.add_provider(Box::new(SyntaxHighlighter::new()));
-
-        highlighter.highlight(0..=2, buffer.snapshot());
-        highlighter.line_at(0);
-        highlighter.line_at(1);
-        highlighter.line_at(2);
-    }
-
-    #[test]
-    fn invalidation() {
-        let mut buffer = Buffer::new();
-        buffer.insert("int min(int a, int b) {\n");
-        buffer.insert("    return (a < b) ? a : b;\n");
-        buffer.insert("}\n");
-
-        let mut highlighter = Highlighter::new(buffer.snapshot());
-        highlighter.add_provider(Box::new(SyntaxHighlighter::new()));
-
-        highlighter.highlight(0..=2, buffer.snapshot());
-        highlighter.line_at(0);
-        highlighter.invalidate(1);
-        highlighter.highlight(1..=2, buffer.snapshot());
-        highlighter.line_at(1);
-        highlighter.line_at(2);
     }
 }

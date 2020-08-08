@@ -7,7 +7,8 @@ use crate::buffer::{Buffer, BufferId};
 use crate::completion::WordCompJob;
 use crate::view::View;
 use crate::worker::Worker;
-use crate::highlight::{Highlighter, SyntaxHighlighter};
+use crate::highlight::Highlighter;
+use crate::syntax_highlight::SyntaxHighlighter;
 use crate::fuzzy::FuzzySet;
 use crate::terminal::{Terminal, KeyCode, KeyModifiers, KeyEvent};
 
