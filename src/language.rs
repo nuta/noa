@@ -1,23 +1,25 @@
-use regex::RegexSet;
+use regex::Regex;
 
 pub struct Language {
     pub name: &'static str,
-    pub highlights: RegexSet,
+    pub highlights: Vec<Regex>,
 }
 
 // pub const PLAIN: Language = Language {
 //     name: "plain",
-//     highlights: RegexSet::new("")
+//     highlights: Regex::new("")
 // };
 
 lazy_static! {
-    pub static ref C: Language = {
-        let highlights = RegexSet::new(&[
-            "if|for|while|do|goto|break|continue|case|default|return|switch",
-        ]).unwrap();
+    pub static ref PLAIN: Language = {
+        let highlights = vec![
+            Regex::new(
+                "if|for|while|do|goto|break|continue|case|default|return|switch"
+            ).unwrap()
+        ];
 
         Language {
-            name: "c",
+            name: "plain",
             highlights,
         }
     };

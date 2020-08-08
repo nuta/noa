@@ -3,6 +3,7 @@ use std::ops::RangeInclusive;
 use std::collections::HashMap;
 use ropey::RopeSlice;
 use crossterm::style::{Attribute, Color};
+use regex::Regex;
 use crate::buffer::Snapshot;
 use crate::rope::Rope;
 use crate::language::Language;
@@ -140,15 +141,13 @@ pub trait HighlightProvider {
 
 /// Cached highlighted text and states.
 pub struct Highlighter {
-    lang: &'static Language,
     /// The merged spans. Each inner `Vec` represents each line.
     lines: Vec<Vec<Span>>,
 }
 
 impl Highlighter {
-    pub fn new(lang: &'static Language) -> Highlighter {
+    pub fn new() -> Highlighter {
         Highlighter {
-            lang,
             lines: Vec::new(),
         }
     }
@@ -167,31 +166,48 @@ impl Highlighter {
         &mut self,
         snapshot: Snapshot,
         lines: RangeInclusive<usize>,
+        lang: &'static Language,
     ) {
         self.lines.truncate(*lines.start());
         let end = min(*lines.end(), snapshot.buf.num_lines().saturating_sub(1));
         let range = self.lines.len()..=end;
 
-        // Merge highlighted spans.
+        // Invoke highlighters.
         for i in range {
             let mut merged: Vec<Span> = Vec::new();
-            /*
-            for provider in &self.providers {
-                let (spans, snapshot) = provider.provide(i);
-                for span in spans {
-                    let overlaps = merged.iter().any(|new_span| {
-                        new_span.range.contains(span.range.start())
-                            || new_span.range.contains(span.range.end())
-                    });
 
-                    if !overlaps {
-                        merged.push(span.clone());
-                    }
-                }
-            }
-            */
+            // Syntax highlighting.
+            let merged = highlight_line_by_regexes(
+                SpanType::CtrlKeyword,
+                &lang.highlights,
+                &snapshot.buf.line(i).to_string()
+            );
 
             self.lines.push(merged);
         }
     }
+}
+
+fn highlight_line_by_regexes(
+    span_type: SpanType,
+    regexes: &[Regex],
+    line: &str
+) -> Vec<Span> {
+    let mut spans = Vec::new();
+    let mut remaining = line;
+    let mut base = 0;
+    'outer: loop {
+        for regex in regexes {
+            if let Some(m) = regex.find(remaining) {
+                spans.push(Span::new(span_type, base + m.start()..=(base + m.end() - 1)));
+                remaining = &remaining[m.end()..];
+                base += m.end() - m.start() + 1;
+                continue 'outer;
+            }
+        }
+
+        break;
+    }
+
+    spans
 }

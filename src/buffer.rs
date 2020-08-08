@@ -2,6 +2,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::path::PathBuf;
 use std::ops::RangeInclusive;
 use crate::highlight::{Highlighter, Span};
+use crate::language::Language;
 use crate::rope::*;
 
 fn remove_range(
@@ -94,6 +95,7 @@ pub struct Buffer {
     cursors: Vec<Cursor>,
     undo_stack: Vec<Rope>,
     redo_stack: Vec<Rope>,
+    lang: &'static Language,
     highlighter: Highlighter,
 }
 
@@ -107,7 +109,8 @@ impl Buffer {
             cursors: vec![Cursor::new(0, 0)],
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
-            highlighter: Highlighter::new(&crate::language::C),
+            lang: &crate::language::PLAIN,
+            highlighter: Highlighter::new(),
         };
 
         buffer.mark_undo_point();
@@ -509,7 +512,7 @@ impl Buffer {
     }
 
     pub fn highlight(&mut self, lines: RangeInclusive<usize>) {
-        self.highlighter.highlight(self.snapshot(), lines);
+        self.highlighter.highlight(self.snapshot(), lines, self.lang);
     }
 }
 
