@@ -16,7 +16,7 @@ use crossterm::terminal::{
 use crate::buffer::Buffer;
 use crate::view::TopLeft;
 
-fn truncate(s: &str, width: usize) -> &str {
+pub fn truncate(s: &str, width: usize) -> &str {
     &s[..min(s.len(), width)]
 }
 
@@ -362,7 +362,7 @@ impl Terminal {
 
         // Draw the modal.
         if let Some(modal) = modal {
-            let max_height = 10;
+            let max_height = 8;
             let y = text_height.saturating_sub(max_height);
             modal.draw(&mut stdout, y, text_height - y, self.cols);
         }

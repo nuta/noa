@@ -15,6 +15,7 @@ unicode-width = "0"
 ropey = "1"
 dirs = "3"
 regex = "1"
+ignore = "0"
 
 [dev-dependencies]
 pretty_assertions = "0"

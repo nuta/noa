@@ -1,5 +1,6 @@
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use std::sync::mpsc::{channel, Sender, Receiver, RecvTimeoutError};
 use std::time::{Instant, Duration};
@@ -86,6 +87,7 @@ pub struct Editor {
     worker: Worker,
     modal: Option<Box<dyn Modal>>,
     modal_input: Buffer,
+    workspace_dir: PathBuf,
 }
 
 impl Editor {
@@ -106,7 +108,12 @@ impl Editor {
             worker: Worker::new(EventQueue::new(tx)),
             modal: None,
             modal_input: Buffer::new(),
+            workspace_dir: PathBuf::from("."),
         }
+    }
+
+    pub fn workspace_dir(&self) -> &Path {
+        &self.workspace_dir
     }
 
     pub fn add_buffer(&mut self, buffer: Buffer) {
@@ -305,7 +312,7 @@ impl Editor {
                 _ => unreachable!()
             };
 
-            modal.input(self, &self.modal_input.text(), cursor);
+            modal.input(self, &self.modal_input.text().trim_end(), cursor);
         }
 
         if close_modal {
