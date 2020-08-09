@@ -179,7 +179,7 @@ impl Highlighter {
             // Syntax highlighting.
             let merged = highlight_line_by_regexes(
                 SpanType::CtrlKeyword,
-                &lang.highlights,
+                &lang.keywords,
                 &snapshot.buf.line(i).to_string()
             );
 
