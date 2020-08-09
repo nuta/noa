@@ -171,7 +171,7 @@ impl Editor {
 
                     let current = self.current
                         .borrow().buffer().borrow().snapshot();
-                    if snapshot.id != current.id || snapshot.buf != current.buf {
+                    if snapshot.buffer_id != current.buffer_id || snapshot.buf != current.buf {
                         self.on_modified();
                     }
 
