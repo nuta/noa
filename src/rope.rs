@@ -236,7 +236,6 @@ impl Rope {
         self.modified_line = None;
     }
 
-    #[cfg(test)]
     pub fn text(&self) -> String {
         self.inner.to_string()
     }

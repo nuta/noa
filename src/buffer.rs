@@ -142,7 +142,6 @@ impl Buffer {
         self.name = name.into();
     }
 
-    #[cfg(test)]
     pub fn text(&self) -> String {
         self.buf.text()
     }

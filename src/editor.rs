@@ -234,10 +234,10 @@ impl Editor {
         const CTRL: KeyModifiers = KeyModifiers::CONTROL;
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
-        let view = self.current.borrow_mut();
+        let mut input_modified = false;
         match (key.code, key.modifiers) {
             (KeyCode::Enter, NONE) => {
-                self.modal_input.insert_char('\n');
+                self.modal.take().unwrap().execute(self);
             }
             (KeyCode::Char('g'), CTRL) => {
                 self.modal = None;
@@ -251,12 +251,35 @@ impl Editor {
             (KeyCode::Char('e'), CTRL) => {
                 self.modal_input.move_to_end_of_line();
             }
+            (KeyCode::Up, NONE) => {
+            }
+            (KeyCode::Down, NONE) => {
+            }
+            (KeyCode::Left, NONE) => {
+                self.modal_input.move_cursors(0, 0, 1, 0);
+            }
+            (KeyCode::Right, NONE) => {
+                self.modal_input.move_cursors(0, 0, 0, 1);
+            }
             (KeyCode::Char(ch), NONE) | (KeyCode::Char(ch), SHIFT) => {
                 self.modal_input.insert_char(ch);
+                input_modified = true;
+            }
+            (KeyCode::Backspace, NONE) => {
+                self.modal_input.backspace();
+                input_modified = true;
+            }
+            (KeyCode::Delete, NONE) | (KeyCode::Char('d'), CTRL) => {
+                self.modal_input.delete();
+                input_modified = true;
             }
             _ => {
                 trace!("unhandled key event: {:?}", key);
             }
+        }
+
+        if input_modified {
+            self.modal.as_mut().unwrap().input(self, &self.modal_input.text());
         }
     }
 
@@ -290,6 +313,8 @@ impl Editor {
                 }
             }
             (KeyCode::Char('f'), CTRL) => {
+                drop(buffer);
+                drop(view);
                 self.open_modal(Box::new(FinderModal::new()));
             }
             (KeyCode::Char('k'), CTRL) => {
