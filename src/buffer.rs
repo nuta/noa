@@ -131,7 +131,7 @@ impl Buffer {
     }
 
     pub fn is_dirty(&self) -> bool {
-        self.undo_stack.len() == 1
+        self.undo_stack.len() != 1
     }
 
     pub fn name(&self) -> &str {
