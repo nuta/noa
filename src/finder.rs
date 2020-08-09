@@ -2,17 +2,12 @@ use std::io::Stdout;
 use std::cmp::min;
 use crate::editor::Editor;
 use crate::view::TopLeft;
-
-pub trait Modal {
-    fn draw(&self, stdout: &mut Stdout, y: usize, height: usize, width: usize);
-    fn move_up(&mut self);
-    fn move_down(&mut self);
-    fn input(&mut self, editor: &mut Editor, new_text: &str, cursor: usize);
-    fn execute(&mut self, editor: &mut Editor);
-    }
+use crate::editor::Modal;
 
 pub struct FinderModal {
     input: String,
+    items: Vec<usize>,
+    active_item: usize,
     cursor: usize,
 }
 
@@ -20,8 +15,14 @@ impl FinderModal {
     pub fn new() -> FinderModal {
         FinderModal {
             input: String::new(),
+            items: Vec::new(),
+            active_item: 0,
             cursor: 0,
         }
+    }
+
+    fn clamp_active_item(&mut self) {
+        self.active_item = min(self.active_item, self.items.len().saturating_sub(1));
     }
 }
 
@@ -48,6 +49,10 @@ impl Modal for FinderModal {
             Print(&self.input[..min(self.input.len(), width - 7)])
         ).ok();
 
+        // List items.
+        for item in &self.items {
+        }
+
         // Move the cursor.
         queue!(
             stdout,
@@ -56,11 +61,13 @@ impl Modal for FinderModal {
     }
 
     fn move_up(&mut self) {
-
+        self.active_item = self.active_item.saturating_sub(1);
+        self.clamp_active_item();
     }
 
     fn move_down(&mut self) {
-
+        self.active_item += 1;
+        self.clamp_active_item();
     }
 
     fn input(&mut self, editor: &mut Editor, new_text: &str, cursor: usize) {

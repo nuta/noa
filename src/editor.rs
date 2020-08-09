@@ -10,7 +10,8 @@ use crate::worker::Worker;
 use crate::highlight::Highlighter;
 use crate::fuzzy::FuzzySet;
 use crate::terminal::{Terminal, KeyCode, KeyModifiers, KeyEvent};
-use crate::modal::{Modal, FinderModal};
+use std::io::Stdout;
+use crate::finder::FinderModal;
 use crate::rope::Cursor;
 
 pub enum NotificationLevel {
@@ -34,6 +35,14 @@ impl PartialEq for Notification {
 pub struct Popup {
     pub lines: Vec<String>,
     pub index: Option<usize>,
+}
+
+pub trait Modal {
+    fn draw(&self, stdout: &mut Stdout, y: usize, height: usize, width: usize);
+    fn move_up(&mut self);
+    fn move_down(&mut self);
+    fn input(&mut self, editor: &mut Editor, new_text: &str, cursor: usize);
+    fn execute(&mut self, editor: &mut Editor);
 }
 
 pub enum Event {

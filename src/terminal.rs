@@ -1,4 +1,4 @@
-use crate::editor::{EventQueue, Event, Notification, Popup};
+use crate::editor::{EventQueue, Event, Notification, Popup, Modal};
 use crate::rope::Cursor;
 use crate::view::View;
 use crate::highlight::Highlighter;
@@ -15,7 +15,6 @@ use crossterm::terminal::{
 };
 use crate::buffer::Buffer;
 use crate::view::TopLeft;
-use crate::modal::Modal;
 
 fn truncate(s: &str, width: usize) -> &str {
     &s[..min(s.len(), width)]
