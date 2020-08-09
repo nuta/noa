@@ -348,6 +348,11 @@ impl Buffer {
         self.set_cursors(new_cursors);
     }
 
+    pub fn clear(&mut self) {
+        self.buf = Rope::new();
+        self.cursors = vec![Cursor::new(0, 0)];
+    }
+
     pub fn backspace(&mut self) {
         self.buf.reset_modified_line();
 

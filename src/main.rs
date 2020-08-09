@@ -20,6 +20,7 @@ mod completion;
 mod language;
 mod highlight;
 mod fuzzy;
+mod modal;
 
 use structopt::StructOpt;
 use fern::{

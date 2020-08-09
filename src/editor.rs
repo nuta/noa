@@ -10,6 +10,7 @@ use crate::worker::Worker;
 use crate::highlight::Highlighter;
 use crate::fuzzy::FuzzySet;
 use crate::terminal::{Terminal, KeyCode, KeyModifiers, KeyEvent};
+use crate::modal::{Modal, FinderModal};
 
 pub enum NotificationLevel {
     Report,
@@ -73,6 +74,8 @@ pub struct Editor {
     notifications: RefCell<Vec<Notification>>,
     popup: Option<Popup>,
     worker: Worker,
+    modal: Option<Box<dyn Modal>>,
+    modal_input: Buffer,
 }
 
 impl Editor {
@@ -91,6 +94,8 @@ impl Editor {
             notifications: RefCell::new(Vec::new()),
             popup: None,
             worker: Worker::new(EventQueue::new(tx)),
+            modal: None,
+            modal_input: Buffer::new(),
         }
     }
 
@@ -175,7 +180,11 @@ impl Editor {
     fn handle_event(&mut self, ev: Event) {
         match ev {
             Event::Key(key) => {
-                self.handle_key_event(key);
+                if self.modal.is_some() {
+                    self.handle_key_event_in_modal(key);
+                } else {
+                    self.handle_key_event(key);
+                }
             }
             Event::Resize { rows, cols } => {
                 self.terminal.resize(rows, cols);
@@ -220,6 +229,42 @@ impl Editor {
             });
     }
 
+    fn handle_key_event_in_modal(&mut self, key: KeyEvent) {
+        const NONE: KeyModifiers = KeyModifiers::NONE;
+        const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
+
+        let view = self.current.borrow_mut();
+        match (key.code, key.modifiers) {
+            (KeyCode::Enter, NONE) => {
+                self.modal_input.insert_char('\n');
+            }
+            (KeyCode::Char('g'), CTRL) => {
+                self.modal = None;
+            }
+            (KeyCode::Char('k'), CTRL) => {
+                self.modal_input.truncate();
+            }
+            (KeyCode::Char('a'), CTRL) => {
+                self.modal_input.move_to_beginning_of_line();
+            }
+            (KeyCode::Char('e'), CTRL) => {
+                self.modal_input.move_to_end_of_line();
+            }
+            (KeyCode::Char(ch), NONE) | (KeyCode::Char(ch), SHIFT) => {
+                self.modal_input.insert_char(ch);
+            }
+            _ => {
+                trace!("unhandled key event: {:?}", key);
+            }
+        }
+    }
+
+    fn open_modal(&mut self, modal: Box<dyn Modal>) {
+        self.modal = Some(modal);
+        self.modal_input.clear();
+    }
+
     fn handle_key_event(&mut self, key: KeyEvent) {
         const NONE: KeyModifiers = KeyModifiers::NONE;
         const CTRL: KeyModifiers = KeyModifiers::CONTROL;
@@ -243,6 +288,9 @@ impl Editor {
                         self.error(format!("failed to save: {}", err));
                     }
                 }
+            }
+            (KeyCode::Char('f'), CTRL) => {
+                self.open_modal(Box::new(FinderModal::new()));
             }
             (KeyCode::Char('k'), CTRL) => {
                 buffer.truncate();
