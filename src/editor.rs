@@ -171,7 +171,7 @@ impl Editor {
 
                     let current = self.current
                         .borrow().buffer().borrow().snapshot();
-                    if snapshot != snapshot || snapshot.buf != current.buf {
+                    if snapshot.id != current.id || snapshot.buf != current.buf {
                         self.on_modified();
                     }
 
@@ -201,7 +201,7 @@ impl Editor {
         let snapshot = buffer.snapshot();
 
         // Kick background jobs.
-        self.worker.request(Box::new(WordCompJob::new(snapshot.clone())));
+        self.worker.request(Box::new(WordCompJob::new(snapshot)));
     }
 
     fn notify<T: Into<String>>(&self, level: NotificationLevel, message: T) {

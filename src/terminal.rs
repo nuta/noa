@@ -429,8 +429,8 @@ impl Terminal {
                 // Truncated # of displayed chars until it fits the display
                 // width.
                 let index =
-                    chunk.char_indices().skip(num_chars).next()
-                        .map(|(i, _)| i).unwrap_or(chunk.len());
+                    chunk.char_indices().nth(num_chars)
+                        .map(|(i, _)| i).unwrap_or_else(|| chunk.len());
                 let mut width = UnicodeWidthStr::width_cjk(&chunk[..index]);
                 let mut chars_rev = chunk.chars().into_iter().rev();
                 while width > remaining {
@@ -443,8 +443,8 @@ impl Terminal {
                 }
 
                 let index =
-                    chunk.char_indices().skip(num_chars).next()
-                        .map(|(i, _)| i).unwrap_or(chunk.len());
+                    chunk.char_indices().nth(num_chars)
+                        .map(|(i, _)| i).unwrap_or_else(|| chunk.len());
                 queue!(stdout, Print(&chunk[..index])).unwrap();
 
                 chunk = &chunk[min(index, chunk.len())..];

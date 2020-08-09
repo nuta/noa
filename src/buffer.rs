@@ -72,12 +72,6 @@ impl Snapshot {
     }
 }
 
-impl PartialEq for Snapshot {
-    fn eq(&self, other: &Snapshot) -> bool {
-        self.id == other.id
-    }
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BufferId(usize);
 
