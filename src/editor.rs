@@ -108,7 +108,7 @@ impl Editor {
             }
 
             match self.event_queue.recv() {
-               Ok(ev) => {
+                Ok(ev) => {
                     let started_at = Instant::now();
                     let snapshot = self.current
                         .borrow().buffer().borrow().snapshot();
@@ -127,11 +127,10 @@ impl Editor {
                     self.draw();
                     info!("took {} ms", started_at.elapsed().as_micros());
                 }
-               Err(err) => {
+                Err(err) => {
                    warn!("failed recv from the event queue: {:?}", err);
-               }
+                }
             }
-
         }
     }
 
