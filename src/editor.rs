@@ -145,6 +145,7 @@ impl Editor {
             &mut *view,
             &*self.notifications.borrow(),
             &self.popup,
+            &self.modal,
         );
     }
 
@@ -235,12 +236,14 @@ impl Editor {
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
         let mut input_modified = false;
+        let mut close_modal = false;
+        let mut modal = self.modal.take().unwrap();
         match (key.code, key.modifiers) {
             (KeyCode::Enter, NONE) => {
-                self.modal.take().unwrap().execute(self);
+                modal.execute(self);
             }
             (KeyCode::Char('g'), CTRL) => {
-                self.modal = None;
+                close_modal = true;
             }
             (KeyCode::Char('k'), CTRL) => {
                 self.modal_input.truncate();
@@ -252,8 +255,10 @@ impl Editor {
                 self.modal_input.move_to_end_of_line();
             }
             (KeyCode::Up, NONE) => {
+                modal.move_up();
             }
             (KeyCode::Down, NONE) => {
+                modal.move_down();
             }
             (KeyCode::Left, NONE) => {
                 self.modal_input.move_cursors(0, 0, 1, 0);
@@ -279,7 +284,11 @@ impl Editor {
         }
 
         if input_modified {
-            self.modal.as_mut().unwrap().input(self, &self.modal_input.text());
+            modal.input(self, &self.modal_input.text());
+        }
+
+        if close_modal {
+            self.modal = Some(modal);
         }
     }
 
@@ -316,6 +325,7 @@ impl Editor {
                 drop(buffer);
                 drop(view);
                 self.open_modal(Box::new(FinderModal::new()));
+                self.info("opened finder modal");
             }
             (KeyCode::Char('k'), CTRL) => {
                 buffer.truncate();

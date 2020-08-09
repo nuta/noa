@@ -15,6 +15,7 @@ use crossterm::terminal::{
 };
 use crate::buffer::Buffer;
 use crate::view::TopLeft;
+use crate::modal::Modal;
 
 fn truncate(s: &str, width: usize) -> &str {
     &s[..min(s.len(), width)]
@@ -102,6 +103,7 @@ impl Terminal {
         view: &mut View,
         notifications: &[Notification],
         popup: &Option<Popup>,
+        modal: &Option<Box<dyn Modal>>,
     ) {
         use unicode_width::{UnicodeWidthStr, UnicodeWidthChar};
         use crossterm::cursor::{self, MoveTo};
