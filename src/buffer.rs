@@ -1,5 +1,5 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::ops::RangeInclusive;
 use crate::highlight::{Highlighter, Span};
 use crate::language::Language;
@@ -117,6 +117,24 @@ impl Buffer {
         buffer
     }
 
+    pub fn open_file(path: &Path) -> std::io::Result<Buffer> {
+        let file = std::fs::File::open(path)?;
+        let mut buffer = Buffer {
+            id: BufferId::alloc(),
+            buf: Rope::from_reader(file)?,
+            name: String::new(),
+            file: Some(path.canonicalize()?),
+            cursors: vec![Cursor::new(0, 0)],
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
+            lang: &crate::language::PLAIN,
+            highlighter: Highlighter::new(),
+        };
+
+        buffer.mark_undo_point();
+        Ok(buffer)
+    }
+
     pub fn id(&self) -> BufferId {
         self.id
     }
@@ -132,6 +150,10 @@ impl Buffer {
 
     pub fn is_dirty(&self) -> bool {
         self.undo_stack.len() != 1
+    }
+
+    pub fn file(&self) -> &Option<PathBuf> {
+        &self.file
     }
 
     pub fn name(&self) -> &str {

@@ -116,10 +116,37 @@ impl Editor {
         &self.workspace_dir
     }
 
-    pub fn add_buffer(&mut self, buffer: Buffer) {
+    pub fn open_file(&mut self, path: &Path) {
+        let abspath = match path.canonicalize() {
+            Ok(abspath) => abspath,
+            Err(err) => {
+                self.error(format!("failed to resolve path: {} ({})", path.display(), err));
+                return;
+            }
+        };
+
+        for view in &self.views {
+            if let Some(view_path) = view.borrow().buffer().borrow().file() {
+                if abspath == *view_path {
+                    // We have already opened the file. Switch to the view.
+                    self.current = view.clone();
+                    return;
+                }
+            }
+        }
+
+        let buffer = match Buffer::open_file(path) {
+            Ok(buffer) => buffer,
+            Err(err) => {
+                self.error(format!("failed to open: {} ({})", path.display(), err));
+                return;
+            }
+        };
+
         let buffer_rc = Rc::new(RefCell::new(buffer));
-        let scratch_view = Rc::new(RefCell::new(View::new(buffer_rc)));
-        self.views.push(scratch_view);
+        let view = Rc::new(RefCell::new(View::new(buffer_rc)));
+        self.views.push(view.clone());
+        self.current = view;
     }
 
     pub fn run(&mut self) {

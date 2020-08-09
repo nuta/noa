@@ -59,7 +59,6 @@ impl Modal for FinderModal {
             Attribute, SetAttribute
         };
 
-        trace!("y={}, h={}, w={}", y, height, width);
         // The input line.
         queue!(
             stdout,
@@ -132,6 +131,12 @@ impl Modal for FinderModal {
     }
 
     fn execute(&mut self, editor: &mut Editor) {
-
+        if let Some(item) = self.items.get(self.active_item) {
+            match item {
+                Item::File(path) => {
+                    editor.open_file(path);
+                }
+            }
+        }
     }
 }

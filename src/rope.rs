@@ -204,6 +204,16 @@ impl Rope {
         }
     }
 
+    pub fn from_reader<T: std::io::Read>(
+        mut reader: T
+    ) -> std::io::Result<Rope> {
+        Ok(Rope {
+            inner: ropey::Rope::from_reader(reader)?,
+            modified_line: None,
+            cached_num_lines: 0,
+        })
+    }
+
     pub fn is_empty(&self) -> bool {
         self.inner.len_chars() == 0
     }
