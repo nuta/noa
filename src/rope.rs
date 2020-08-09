@@ -192,6 +192,7 @@ impl PartialOrd for Cursor {
 pub struct Rope {
     inner: ropey::Rope,
     modified_line: Option<usize>,
+    cached_num_lines: usize,
 }
 
 impl Rope {
@@ -199,6 +200,7 @@ impl Rope {
         Rope {
             inner: ropey::Rope::new(),
             modified_line: None,
+            cached_num_lines: 0,
         }
     }
 
@@ -214,7 +216,7 @@ impl Rope {
 
     /// Returns the number of characters in the buffer.
     pub fn num_lines(&self) -> usize {
-        self.inner.len_lines()
+        self.cached_num_lines
     }
 
     /// Returns the number of characters in a line except new line characters.
@@ -245,12 +247,19 @@ impl Rope {
 
     pub fn insert(&mut self, pos: &Point, string: &str) {
         self.inner.insert(self.index_in_rope(pos), string);
+        self.on_modified(pos.y);
     }
 
     pub fn remove(&mut self, range: &Range) {
         let start = self.index_in_rope(range.front());
         let end = self.index_in_rope(range.back());
         self.inner.remove(start..end);
+        self.on_modified(range.front().y);
+    }
+
+    fn on_modified(&mut self, start_y: usize) {
+        self.cached_num_lines = self.inner.len_lines();
+        self.modified_line = Some(start_y);
     }
 
     /// Returns a line except new line characters.

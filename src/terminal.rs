@@ -282,7 +282,7 @@ impl Terminal {
                         SetBackgroundColor(Color::AnsiValue(89)),
                         SetAttribute(Attribute::Bold),
                         Print(truncate(&item, popup_width - 1)),
-                        Print(whitespaces(popup_width - item.len())),
+                        Print(whitespaces(popup_width.saturating_sub(item.len()))),
                         SetAttribute(Attribute::Reset),
                     ).unwrap();
                 }

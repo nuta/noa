@@ -125,7 +125,7 @@ impl Editor {
                     }
 
                     self.draw();
-                    info!("took {} ms", started_at.elapsed().as_micros());
+                    info!("took {} us", started_at.elapsed().as_micros());
                 }
                 Err(err) => {
                    warn!("failed recv from the event queue: {:?}", err);
