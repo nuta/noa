@@ -200,17 +200,19 @@ impl Rope {
         Rope {
             inner: ropey::Rope::new(),
             modified_line: None,
-            cached_num_lines: 0,
+            cached_num_lines: 1,
         }
     }
 
     pub fn from_reader<T: std::io::Read>(
         mut reader: T
     ) -> std::io::Result<Rope> {
+        let inner = ropey::Rope::from_reader(reader)?;
+        let cached_num_lines = inner.len_lines();
         Ok(Rope {
-            inner: ropey::Rope::from_reader(reader)?,
+            inner,
             modified_line: None,
-            cached_num_lines: 0,
+            cached_num_lines,
         })
     }
 

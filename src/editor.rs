@@ -135,13 +135,15 @@ impl Editor {
             }
         }
 
-        let buffer = match Buffer::open_file(path) {
+        let mut buffer = match Buffer::open_file(path) {
             Ok(buffer) => buffer,
             Err(err) => {
                 self.error(format!("failed to open: {} ({})", path.display(), err));
                 return;
             }
         };
+
+        buffer.set_name(path.file_name().unwrap().to_str().unwrap());
 
         let buffer_rc = Rc::new(RefCell::new(buffer));
         let view = Rc::new(RefCell::new(View::new(buffer_rc)));
