@@ -360,6 +360,14 @@ impl Terminal {
                 queue!(stdout, cursor::Hide).unwrap();
             }
         }
+
+        // Draw the modal.
+        if let Some(modal) = modal {
+            let max_height = 10;
+            let y = text_height.saturating_sub(max_height);
+            modal.draw(&mut stdout, y, text_height - y, self.cols);
+        }
+
         stdout.flush().unwrap();
     }
 

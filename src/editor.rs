@@ -11,6 +11,7 @@ use crate::highlight::Highlighter;
 use crate::fuzzy::FuzzySet;
 use crate::terminal::{Terminal, KeyCode, KeyModifiers, KeyEvent};
 use crate::modal::{Modal, FinderModal};
+use crate::rope::Cursor;
 
 pub enum NotificationLevel {
     Report,
@@ -241,18 +242,22 @@ impl Editor {
         match (key.code, key.modifiers) {
             (KeyCode::Enter, NONE) => {
                 modal.execute(self);
+                close_modal = true;
             }
             (KeyCode::Char('g'), CTRL) => {
                 close_modal = true;
             }
             (KeyCode::Char('k'), CTRL) => {
                 self.modal_input.truncate();
+                input_modified = true;
             }
             (KeyCode::Char('a'), CTRL) => {
                 self.modal_input.move_to_beginning_of_line();
+                input_modified = true;
             }
             (KeyCode::Char('e'), CTRL) => {
                 self.modal_input.move_to_end_of_line();
+                input_modified = true;
             }
             (KeyCode::Up, NONE) => {
                 modal.move_up();
@@ -262,9 +267,11 @@ impl Editor {
             }
             (KeyCode::Left, NONE) => {
                 self.modal_input.move_cursors(0, 0, 1, 0);
+                input_modified = true;
             }
             (KeyCode::Right, NONE) => {
                 self.modal_input.move_cursors(0, 0, 0, 1);
+                input_modified = true;
             }
             (KeyCode::Char(ch), NONE) | (KeyCode::Char(ch), SHIFT) => {
                 self.modal_input.insert_char(ch);
@@ -284,10 +291,17 @@ impl Editor {
         }
 
         if input_modified {
-            modal.input(self, &self.modal_input.text());
+            let cursor = match self.modal_input.cursors()[0] {
+                Cursor::Normal { pos } => pos.x,
+                _ => unreachable!()
+            };
+
+            modal.input(self, &self.modal_input.text(), cursor);
         }
 
         if close_modal {
+            self.modal = None;
+        } else {
             self.modal = Some(modal);
         }
     }
