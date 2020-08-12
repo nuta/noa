@@ -532,7 +532,7 @@ impl Buffer {
     }
 
     pub fn highlight(&mut self, lines: RangeInclusive<usize>) {
-        self.highlighter.highlight(self.snapshot(), lines, self.lang);
+        self.highlighter.highlight(self.snapshot(), lines, self.lang, &self.cursors);
     }
 }
 

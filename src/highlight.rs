@@ -5,13 +5,14 @@ use ropey::RopeSlice;
 use crossterm::style::{Attribute, Color};
 use regex::Regex;
 use crate::buffer::Snapshot;
-use crate::rope::Rope;
+use crate::rope::{Rope, Range, Cursor};
 use crate::language::Language;
 
 // The default theme.
 lazy_static! {
     static ref THEME: HashMap<SpanType, Style> = {
         let mut hash = HashMap::new();
+        hash.insert(SpanType::Selection, Style::inverted());
         hash.insert(SpanType::Normal, Style::normal());
         hash.insert(SpanType::StringLiteral, Style::fg(Color::Cyan));
         hash.insert(SpanType::EscapedChar, Style::fg(Color::Cyan));
@@ -59,6 +60,10 @@ impl Style {
         Style::new(Color::Reset, Color::Reset, true, false, false)
     }
 
+    pub fn inverted() -> Style {
+        Style::new(Color::Reset, Color::Reset, true, false, true)
+    }
+
     pub fn apply(&self, stdout: &mut std::io::Stdout) -> crossterm::Result<()> {
         use crossterm::{queue, style::*};
         use std::io::Write;
@@ -89,6 +94,7 @@ impl Style {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum SpanType {
+    Selection,
     Normal,
     StringLiteral,
     EscapedChar,
@@ -167,6 +173,7 @@ impl Highlighter {
         snapshot: Snapshot,
         lines: RangeInclusive<usize>,
         lang: &'static Language,
+        cursors: &[Cursor],
     ) {
         self.lines.truncate(*lines.start());
         let end = min(*lines.end(), snapshot.buf.num_lines().saturating_sub(1));
@@ -174,16 +181,65 @@ impl Highlighter {
 
         // Invoke highlighters.
         for i in range {
-            let mut merged: Vec<Span> = Vec::new();
+            let line = snapshot.buf.line(i).to_string();
+            let num_chars = line.chars().count();
 
             // Syntax highlighting.
-            let merged = highlight_line_by_regexes(
+            let syntax_highlight_spans = highlight_line_by_regexes(
                 SpanType::CtrlKeyword,
                 &lang.keywords,
-                &snapshot.buf.line(i).to_string()
+                &line
             );
 
-            self.lines.push(merged);
+            let mut cursor_spans = Vec::new();
+            for cursor in cursors {
+                match cursor {
+                    Cursor::Normal { pos } => {
+                    }
+                    Cursor::Selection(range) => {
+                        use std::cmp::Ordering;
+                        let front = range.front();
+                        let back = range.back();
+                        match (i.cmp(&front.y), i.cmp(&back.y)) {
+                            (Ordering::Greater, Ordering::Less) => {
+                                cursor_spans.push(Span::new(
+                                    SpanType::Selection,
+                                    0..=num_chars
+                                ));
+                            }
+                            (Ordering::Equal, Ordering::Less) => {
+                                cursor_spans.push(Span::new(
+                                    SpanType::Selection,
+                                    front.x..=num_chars
+                                ));
+                            }
+                            (Ordering::Greater, Ordering::Equal) => {
+                                cursor_spans.push(Span::new(
+                                    SpanType::Selection,
+                                    0..=back.x.saturating_sub(1)
+                                ));
+                            }
+                            (Ordering::Equal, Ordering::Equal) => {
+                                cursor_spans.push(Span::new(
+                                    SpanType::Selection,
+                                    front.x..=back.x.saturating_sub(1)
+                                ));
+                            }
+                            _ => {
+                            // Out of the selection.
+                            }
+                        }
+                    }
+                }
+            }
+
+            trace!("cursors = {:?}", cursor_spans);
+
+            let mut spans = Vec::with_capacity(8);
+            merge_spans(&mut spans, syntax_highlight_spans);
+            merge_spans(&mut spans, cursor_spans);
+            trace!("{:?}", spans);
+            self.lines.push(spans);
         }
     }
 }
@@ -199,7 +255,8 @@ fn highlight_line_by_regexes(
     'outer: loop {
         for regex in regexes {
             if let Some(m) = regex.find(remaining) {
-                spans.push(Span::new(span_type, base + m.start()..=(base + m.end() - 1)));
+                let range = base + m.start()..=(base + m.end() - 1);
+                spans.push(Span::new(span_type, range));
                 remaining = &remaining[m.end()..];
                 base += m.end();
                 continue 'outer;
@@ -210,4 +267,16 @@ fn highlight_line_by_regexes(
     }
 
     spans
+}
+
+fn merge_spans(spans: &mut Vec<Span>, new_spans: Vec<Span>) {
+    // TODO:
+    if new_spans.is_empty() {
+        return;
+    }
+
+    spans.clear();
+    for span in new_spans {
+        spans.push(span);
+    }
 }

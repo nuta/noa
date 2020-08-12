@@ -148,7 +148,6 @@ impl Terminal {
 
         // Draw buffer contents.
         use std::collections::HashMap;
-        let mut num_drawed_chars = HashMap::new();
         for i in 0..text_height {
             queue!(stdout,
                 MoveTo(0, i as u16),
@@ -190,7 +189,7 @@ impl Terminal {
             if !out_of_bounds {
                 let line = buffer.line(y);
                 if line.len_chars() > top_left.x {
-                    let n = self.draw_text_line(
+                    self.draw_text_line(
                         &mut stdout,
                         &buffer,
                         &line,
@@ -198,7 +197,6 @@ impl Terminal {
                         y,
                         text_width,
                     );
-                    num_drawed_chars.insert(y, n);
                 }
             }
 
@@ -286,60 +284,6 @@ impl Terminal {
                         Print(whitespaces(popup_width.saturating_sub(item.len()))),
                         SetAttribute(Attribute::Reset),
                     ).unwrap();
-                }
-            }
-        }
-
-        // Draw cursors and selections.
-        for (i, c) in buffer.cursors().iter().enumerate() {
-            match c {
-                Cursor::Normal { .. } if i == 0 => {
-                    // Do nothing: we use the "real" cursor for it.
-                }
-                Cursor::Normal { pos, .. } => {
-                    // Draw a "fake" cursor.
-                    if pos.y < top_left.y + text_height
-                        && pos.x - top_left.x < num_drawed_chars[&pos.y]
-                    {
-                        queue!(stdout,
-                            MoveTo(
-                                (pos.x - top_left.x + text_offset) as u16,
-                                (pos.y - top_left.y) as u16,
-                            ),
-                            SetAttribute(Attribute::Reverse),
-                            Print(buffer.line(pos.y).char(pos.x)),
-                            SetAttribute(Attribute::NoReverse)
-                        ).unwrap();
-                    }
-                }
-                Cursor::Selection(range) => {
-                    let mut pos = *range.front();
-                    let end = range.back();
-                    if pos.y < top_left.y || pos.y >= buffer.num_lines() {
-                        continue;
-                    }
-
-                    queue!(stdout, SetAttribute(Attribute::Reverse)).unwrap();
-                    while pos != *end
-                        && pos.y < top_left.y + text_height
-                        && pos.x - top_left.x < num_drawed_chars[&pos.y]
-                    {
-                        if pos.x >= buffer.line_len(pos.y) {
-                            pos.y += 1;
-                            pos.x = 0;
-                        } else {
-                            queue!(stdout,
-                                MoveTo(
-                                    (pos.x - top_left.x + text_offset) as u16,
-                                    (pos.y - top_left.y) as u16,
-                                ),
-                                Print(buffer.line(pos.y).char(pos.x)),
-                            ).unwrap();
-                            pos.x += 1;
-                        }
-                    }
-
-                    queue!(stdout, SetAttribute(Attribute::NoReverse)).unwrap();
                 }
             }
         }
