@@ -111,6 +111,12 @@ impl Buffer {
         buffer
     }
 
+    pub fn from_str(text: &str) -> Buffer {
+        let mut buf = Buffer::new();
+        buf.insert(text);
+        buf
+    }
+
     pub fn open_file(path: &Path) -> std::io::Result<Buffer> {
         let file = std::fs::File::open(path)?;
         let mut buffer = Buffer {
@@ -517,15 +523,70 @@ impl Buffer {
         self.cursors = new_cursors;
     }
 
-    pub fn current_word(&self) -> Option<String> {
-        if self.cursors.len() == 1 {
-            match &self.cursors[0] {
-                Cursor::Normal { pos, .. } => Some(self.buf.word_at(pos)),
-                _ => None,
-            }
-        } else {
-            None
+    pub fn current_word(&self) -> String {
+        let pos = match &self.cursors[0] {
+            Cursor::Normal { pos, .. } => pos,
+            Cursor::Selection(Range { start, .. }) => start,
+        };
+
+        self.buf.word_at(pos)
+    }
+
+    pub fn find(&mut self, needle: &str) -> Vec<Range> {
+        if needle.is_empty() {
+            return Vec::new();
         }
+
+        // TODO: Implement a well-known better algorithm.
+        let needle_chars: Vec<char> = needle.chars().collect();
+        let mut matches = Vec::new();
+        let mut y = 0;
+        let mut x = 0;
+        for ch in self.buf.chars() {
+            for m in &mut matches {
+                match m {
+                    (0, _) => {
+                        // this `m` does not match.
+                    }
+                    (next_index, _) if *next_index == needle_chars.len() => {
+                        // This `m` matches to the needle.
+                    }
+                    (next_index, _) if needle_chars[*next_index] == ch => {
+                        // This `m` partially matches to the needle. Go to the
+                        // next char...
+                        *next_index += 1;
+                    }
+                    (next_index, _) => {
+                        // this `m` does not match.
+                        *next_index = 0;
+                    }
+                }
+            }
+
+            if ch == needle_chars[0] {
+                matches.push((1, Point::new(y, x)));
+            }
+
+            if ch == '\n' {
+                y += 1;
+                x = 0;
+            } else {
+                x += 1;
+            }
+        }
+
+        let y_len = needle.matches('\n').count();
+        let last_newline_idx = needle.rfind('\n');
+
+        matches.iter()
+            .filter(|(index, _)| *index == needle_chars.len())
+            .map(|(_, start)| {
+                let x = last_newline_idx
+                    .map(|i| needle.len() - i - 1)
+                    .unwrap_or_else(|| start.x + needle.len());
+                Range::new(start.y, start.x, start.y + y_len, x)
+            })
+            .collect::<Vec<Range>>()
     }
 
     pub fn highlighted_line(&self, y: usize) -> &[Span] {
@@ -1159,5 +1220,70 @@ mod test {
         assert_eq!(b.text(), "");
         b.undo();
         assert_eq!(b.text(), "");
+    }
+
+    #[test]
+    fn current_word() {
+        // hello wor|ld from rust
+        let mut b = Buffer::from_str("hello world from rust");
+        b.set_cursors(vec![Cursor::new(0, 9)]);
+        assert_eq!(&b.current_word(), "world");
+
+        // hello |world from rust
+        b.set_cursors(vec![Cursor::new(0, 6)]);
+        assert_eq!(&b.current_word(), "world");
+
+        // hello world| from rust
+        b.set_cursors(vec![Cursor::new(0, 11)]);
+        assert_eq!(&b.current_word(), "world");
+
+        // a b| c
+        let mut b = Buffer::from_str("a b c");
+        b.set_cursors(vec![Cursor::new(0, 3)]);
+        assert_eq!(&b.current_word(), "b");
+
+        // |a b c
+        let mut b = Buffer::from_str("a b c");
+        b.set_cursors(vec![Cursor::new(0, 0)]);
+        assert_eq!(&b.current_word(), "a");
+
+        // a | b
+        let mut b = Buffer::from_str("a  b");
+        b.set_cursors(vec![Cursor::new(0, 2)]);
+        assert_eq!(&b.current_word(), "");
+
+        // |
+        let mut b = Buffer::from_str("");
+        b.set_cursors(vec![Cursor::new(0, 0)]);
+        assert_eq!(&b.current_word(), "");
+    }
+
+    #[test]
+    fn find() {
+        // 012345678901234567890
+        // hello rust from rust
+        //       ^^^^      ^^^^
+        let mut b = Buffer::from_str("hello rust from rust");
+        assert_eq!(&b.find("rust"), &[
+            Range::new(0, 6, 0, 10),
+            Range::new(0, 16, 0, 20),
+        ]);
+
+        let mut b = Buffer::from_str("hello rust from rust");
+        assert_eq!(&b.find("rrrrr"), &[]);
+
+        let mut b = Buffer::from_str("abXYZ\nXYZab");
+        assert_eq!(&b.find("XYZ"), &[
+            Range::new(0, 2, 0, 5),
+            Range::new(1, 0, 1, 3),
+        ]);
+
+        let mut b = Buffer::from_str("abXY\nZab");
+        assert_eq!(&b.find("XY\nZ"), &[
+            Range::new(0, 2, 1, 1),
+        ]);
+
+        let mut b = Buffer::from_str("");
+        assert_eq!(&b.find("rrrrr"), &[]);
     }
 }

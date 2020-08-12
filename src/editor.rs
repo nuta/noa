@@ -259,21 +259,21 @@ impl Editor {
             return;
         }
 
-        self.popup = buffer.current_word()
-            .and_then(|current_word| {
-                let mut lines = Vec::new();
-                for item in items.search(&current_word, 5) {
-                    if item != current_word {
-                        lines.push(item.to_owned());
-                    }
+        self.popup = {
+            let current_word = buffer.current_word();
+            let mut lines = Vec::new();
+            for item in items.search(&current_word, 5) {
+                if item != current_word {
+                    lines.push(item.to_owned());
                 }
+            }
 
-                if lines.is_empty() {
-                    None
-                } else {
-                    Some(Popup { lines, index: Some(0) })
-                }
-            });
+            if lines.is_empty() {
+                None
+            } else {
+                Some(Popup { lines, index: Some(0) })
+            }
+        };
     }
 
     fn handle_key_event_in_modal(&mut self, key: KeyEvent) {

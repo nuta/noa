@@ -301,12 +301,10 @@ impl Rope {
         }
 
         for (i, ch) in self.inner.line(pos.y).chars().enumerate() {
-            if i >= pos.x {
-                break;
-            }
-
             if char::is_ascii_alphanumeric(&ch) || ch == '_' {
                 word.push(ch);
+            } else if i >= pos.x {
+                break;
             } else {
                 word.clear();
             }
