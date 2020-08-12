@@ -328,6 +328,7 @@ impl Buffer {
             let num_newlines_added = string.matches('\n').count();
             let num_newlines_deleted =
                 remove.map(|r| r.back().y - r.front().y).unwrap_or(0);
+            let y_diff = num_newlines_added.saturating_sub(num_newlines_deleted);
 
             // Move cursors after the current cursor.
             for c2 in new_cursors.iter_mut() {
@@ -337,7 +338,7 @@ impl Buffer {
                         pos.y = insert_at.y;
                     }
                     Cursor::Normal { pos, .. } => {
-                        pos.y = pos.y + num_newlines_added - num_newlines_deleted;
+                        pos.y = pos.y + y_diff;
                     }
                     Cursor::Selection(_) => {
                         unreachable!();
@@ -349,7 +350,7 @@ impl Buffer {
                 .map(|x| string.len() - x - 1)
                 .unwrap_or_else(|| string.len());
 
-            let y = insert_at.y + num_newlines_added - num_newlines_deleted;
+            let y = insert_at.y + y_diff;
             let x = if string.contains('\n') {
                 x_diff
             } else {
@@ -959,6 +960,20 @@ mod test {
         assert_eq!(b.text(), "xyz");
         assert_eq!(b.cursors(), &[
             Cursor::new(0, 2),
+        ]);
+
+        // ab|      abX|c
+        // |c   =>
+        //
+        let mut b = Buffer::new();
+        b.insert("ab\nc");
+        b.set_cursors(vec![
+            Cursor::Selection(Range::new(0, 2, 1, 0))
+        ]);
+        b.insert("X");
+        assert_eq!(b.text(), "abXc");
+        assert_eq!(b.cursors(), &[
+            Cursor::new(0, 3),
         ]);
     }
 
