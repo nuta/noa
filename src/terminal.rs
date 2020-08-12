@@ -134,12 +134,14 @@ impl Terminal {
         let mut buffer = view.buffer().borrow_mut();
         let top_left = view.top_left();
 
+        // TODO:
         // Highlight the given text.
-        let modified_line = buffer.modified_line().unwrap_or(0);
-        if top_left.y <= modified_line && modified_line <= top_left.y + text_height {
+        // let modified_line = buffer.modified_line().unwrap_or(0);
+        // if top_left.y <= modified_line && modified_line <= top_left.y + text_height {
+            let modified_line = 0;
             let range = modified_line..=modified_line + text_height;
             buffer.highlight(range);
-        }
+        // }
 
         // Hide the cursor to prevent flickering.
         queue!(stdout,

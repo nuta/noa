@@ -200,6 +200,7 @@ impl Highlighter {
                         use std::cmp::Ordering;
                         let front = range.front();
                         let back = range.back();
+                        trace!("front..back: line={}, {}..{}", i, front, back);
                         match (i.cmp(&front.y), i.cmp(&back.y)) {
                             (Ordering::Greater, Ordering::Less) => {
                                 cursor_spans.push(Span::new(
