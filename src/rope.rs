@@ -301,8 +301,8 @@ impl Rope {
         let mut word = String::new();
         let mut start = 0;
         let mut end = 0;
-        for (i, ch) in self.inner.line(pos.y).chars().enumerate() {
-            if char::is_ascii_alphanumeric(&ch) || ch == '_' {
+        for (i, ch) in self.line(pos.y).chars().enumerate() {
+            if is_word_char(ch) {
                 word.push(ch);
                 end = i + 1;
             } else if i >= pos.x {
@@ -320,9 +320,53 @@ impl Rope {
         }
     }
 
+    pub fn prev_word_end(&self, pos: &Point) -> Point {
+        assert!(pos.y < self.num_lines());
+
+        let line = self.line(pos.y).to_string();
+        let line_len = line.chars().count();
+        let end = line.chars()
+            .rev()
+            .skip(line_len - pos.x)
+            .enumerate()
+            .skip_while(|(_, ch)| !is_word_char(*ch))
+            .skip_while(|(_, ch)| is_word_char(*ch))
+            .next()
+            .map(|(i, ch)| {
+                pos.x - i
+            })
+            .unwrap_or(0);
+
+        Point::new(pos.y, end)
+    }
+
+    pub fn next_word_end(&self, pos: &Point) -> Point {
+        assert!(pos.y < self.num_lines());
+
+        let line = self.line(pos.y);
+        let end = line.chars()
+            .skip(pos.x)
+            .enumerate()
+            .skip_while(|(_, ch)| !is_word_char(*ch))
+            .skip_while(|(_, ch)| is_word_char(*ch))
+            .next()
+            .map(|(i, ch)| {
+                pos.x + i
+            })
+            .unwrap_or_else(|| {
+                line.len_chars()
+            });
+
+        Point::new(pos.y, end)
+    }
+
     fn index_in_rope(&self, pos: &Point) -> usize {
         self.inner.line_to_char(pos.y) + pos.x
     }
+}
+
+fn is_word_char(ch: char) -> bool {
+    char::is_ascii_alphanumeric(&ch) || ch == '_'
 }
 
 #[cfg(test)]

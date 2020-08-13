@@ -267,6 +267,34 @@ impl Buffer {
         self.sort_and_merge_cursors();
     }
 
+    pub fn move_to_prev_word(&mut self) {
+        for cursor in &mut self.cursors {
+            let pos = match cursor {
+                Cursor::Normal { pos, .. } => pos,
+                Cursor::Selection(Range { start, .. }) => start,
+            };
+
+            let new_pos = self.buf.prev_word_end(&pos);
+            *cursor = Cursor::new(new_pos.y, new_pos.x);
+        }
+
+        self.sort_and_merge_cursors();
+    }
+
+    pub fn move_to_next_word(&mut self) {
+        for cursor in &mut self.cursors {
+            let pos = match cursor {
+                Cursor::Normal { pos, .. } => pos,
+                Cursor::Selection(Range { start, .. }) => start,
+            };
+
+            let new_pos = self.buf.next_word_end(&pos);
+            *cursor = Cursor::new(new_pos.y, new_pos.x);
+        }
+
+        self.sort_and_merge_cursors();
+    }
+
     pub fn select(
         &mut self,
         up: usize,
@@ -1281,6 +1309,91 @@ mod test {
         b.set_cursors(vec![Cursor::new(0, 0)]);
         assert_eq!(b.current_word(), None);
         assert_eq!(b.current_word_range(), None);
+    }
+
+    #[test]
+    fn move_to_prev_word() {
+        // abc 123|  =>  abc |123
+        let mut b = Buffer::from_str("abc 123");
+        b.set_cursors(vec![Cursor::new(0, 7)]);
+        b.move_to_prev_word();
+        assert_eq!(b.cursors(), &[Cursor::new(0, 4)]);
+
+        // abc |123  =>  |abc 123
+        b.move_to_prev_word();
+        assert_eq!(b.cursors(), &[Cursor::new(0, 0)]);
+        b.move_to_prev_word();
+        assert_eq!(b.cursors(), &[Cursor::new(0, 0)]);
+
+        // abc 123  xy|z  =>  abc 123  |xyz  =>  abc |123  xyz  => |abc 123  xyz
+        let mut b = Buffer::from_str("abc 123  xyz");
+        b.set_cursors(vec![Cursor::new(0, 11)]);
+        b.move_to_prev_word();
+        assert_eq!(b.cursors(), &[Cursor::new(0, 9)]);
+        b.move_to_prev_word();
+        assert_eq!(b.cursors(), &[Cursor::new(0, 4)]);
+        b.move_to_prev_word();
+        assert_eq!(b.cursors(), &[Cursor::new(0, 0)]);
+
+        // a  =>  a
+        // |b     |b
+        let mut b = Buffer::from_str("a\nb");
+        b.set_cursors(vec![Cursor::new(1, 0)]);
+        b.move_to_prev_word();
+        assert_eq!(b.cursors(), &[Cursor::new(1, 0)]);
+
+        // (empty)
+        let mut b = Buffer::from_str("");
+        b.set_cursors(vec![Cursor::new(0, 0)]);
+        b.move_to_prev_word();
+        assert_eq!(b.cursors(), &[Cursor::new(0, 0)]);
+    }
+
+    #[test]
+    fn move_to_next_word() {
+        // |abc 123  =>  abc| 123
+        let mut b = Buffer::from_str("abc 123");
+        b.set_cursors(vec![Cursor::new(0, 0)]);
+        b.move_to_next_word();
+        assert_eq!(b.cursors(), &[Cursor::new(0, 3)]);
+
+        // abc| 123  =>  abc 123|
+        b.move_to_next_word();
+        assert_eq!(b.cursors(), &[Cursor::new(0, 7)]);
+        b.move_to_next_word();
+        assert_eq!(b.cursors(), &[Cursor::new(0, 7)]);
+
+        // a|bc 123  xyz  =>  abc| 123  xyz  =>  abc 123|  xyz  => abc 123  xyz|
+        let mut b = Buffer::from_str("abc 123  xyz");
+        b.set_cursors(vec![Cursor::new(0, 1)]);
+        b.move_to_next_word();
+        assert_eq!(b.cursors(), &[Cursor::new(0, 3)]);
+        b.move_to_next_word();
+        assert_eq!(b.cursors(), &[Cursor::new(0, 7)]);
+        b.move_to_next_word();
+        assert_eq!(b.cursors(), &[Cursor::new(0, 12)]);
+
+        // |  =>  |
+        //
+        let mut b = Buffer::from_str("\n");
+        b.set_cursors(vec![Cursor::new(0, 0)]);
+        b.move_to_next_word();
+        // assert_eq!(b.cursors(), &[Cursor::new(0, 0)]);
+
+        // (empty)
+        let mut b = Buffer::from_str("");
+        b.set_cursors(vec![Cursor::new(0, 0)]);
+        b.move_to_next_word();
+        assert_eq!(b.cursors(), &[Cursor::new(0, 0)]);
+
+        // |a  =>  a|
+        // b       b
+        let mut b = Buffer::from_str("a\nb");
+        b.set_cursors(vec![Cursor::new(0, 0)]);
+        b.move_to_next_word();
+        assert_eq!(b.cursors(), &[Cursor::new(0, 1)]);
+        b.move_to_next_word();
+        assert_eq!(b.cursors(), &[Cursor::new(0, 1)]);
     }
 
     #[test]

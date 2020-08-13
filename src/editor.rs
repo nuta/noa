@@ -408,6 +408,12 @@ impl Editor {
             (KeyCode::Char('e'), CTRL) => {
                 buffer.move_to_end_of_line();
             }
+            (KeyCode::Char('b'), ALT) => {
+                buffer.move_to_prev_word();
+            }
+            (KeyCode::Char('f'), ALT) => {
+                buffer.move_to_next_word();
+            }
             (KeyCode::Char('w'), ALT) => {
                 if let Some(current_word) = buffer.current_word() {
                     let matches = &buffer.find(&current_word);
