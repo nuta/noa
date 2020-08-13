@@ -234,12 +234,9 @@ impl Highlighter {
                 }
             }
 
-            trace!("cursors = {:?}", cursor_spans);
-
             let mut spans = Vec::with_capacity(8);
             merge_spans(&mut spans, syntax_highlight_spans);
             merge_spans(&mut spans, cursor_spans);
-            trace!("{:?}", spans);
             self.lines.push(spans);
         }
     }

@@ -589,6 +589,15 @@ impl Buffer {
             .collect::<Vec<Range>>()
     }
 
+    pub fn select_by_ranges(&mut self, selections: &[Range]) {
+        self.cursors.clear();
+        for selection in selections {
+            self.cursors.push(Cursor::Selection(selection.clone()));
+        }
+
+        self.sort_and_merge_cursors();
+    }
+
     pub fn highlighted_line(&self, y: usize) -> &[Span] {
         self.highlighter.line(y)
     }

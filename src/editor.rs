@@ -359,6 +359,7 @@ impl Editor {
     fn handle_key_event(&mut self, key: KeyEvent) {
         const NONE: KeyModifiers = KeyModifiers::NONE;
         const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        const ALT: KeyModifiers = KeyModifiers::ALT;
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
         let view = self.current.borrow_mut();
@@ -403,6 +404,11 @@ impl Editor {
             }
             (KeyCode::Char('e'), CTRL) => {
                 buffer.move_to_end_of_line();
+            }
+            (KeyCode::Char('w'), ALT) => {
+                let current_word = buffer.current_word();
+                let matches = &buffer.find(&current_word);
+                buffer.select_by_ranges(matches);
             }
             (KeyCode::Char(ch), NONE) | (KeyCode::Char(ch), SHIFT) => {
                 buffer.insert_char(ch);

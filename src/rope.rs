@@ -108,7 +108,6 @@ pub struct Range {
 }
 
 impl Range {
-    #[cfg(test)]
     pub fn new(start_y: usize, start_x: usize, end_y: usize, end_x: usize) -> Range {
         Range::from_points(Point::new(start_y, start_x), Point::new(end_y, end_x))
     }
