@@ -12,6 +12,7 @@ use crate::language::Language;
 lazy_static! {
     static ref THEME: HashMap<SpanType, Style> = {
         let mut hash = HashMap::new();
+        hash.insert(SpanType::Cursor, Style::inverted());
         hash.insert(SpanType::Selection, Style::inverted());
         hash.insert(SpanType::Normal, Style::normal());
         hash.insert(SpanType::StringLiteral, Style::fg(Color::Cyan));
@@ -94,6 +95,7 @@ impl Style {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum SpanType {
+    Cursor,
     Selection,
     Normal,
     StringLiteral,
@@ -192,15 +194,17 @@ impl Highlighter {
             );
 
             let mut cursor_spans = Vec::new();
-            for cursor in cursors {
+            for (j, cursor) in cursors.iter().enumerate() {
                 match cursor {
-                    Cursor::Normal { pos } => {
+                    Cursor::Normal { pos } if j > 0 && pos.y == i => {
+                        cursor_spans.push(Span::new(SpanType::Cursor, pos.x..=pos.x));
+                    }
+                    Cursor::Normal { .. } => {
                     }
                     Cursor::Selection(range) => {
                         use std::cmp::Ordering;
                         let front = range.front();
                         let back = range.back();
-                        trace!("front..back: line={}, {}..{}", i, front, back);
                         match (i.cmp(&front.y), i.cmp(&back.y)) {
                             (Ordering::Greater, Ordering::Less) => {
                                 cursor_spans.push(Span::new(
