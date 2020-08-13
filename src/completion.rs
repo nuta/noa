@@ -60,7 +60,10 @@ impl Job for WordCompJob {
     fn execute(&mut self, event_queue: &EventQueue) {
         let current_word = match self.snapshot.main_cursor {
             Some(pos) => {
-                self.snapshot.buf.word_at(&pos)
+                match self.snapshot.buf.word_at(&pos) {
+                    Some((_, word)) => word,
+                    None => return,
+                }
             }
             _ => {
                 event_queue.enqueue(Event::NoCompletion);

@@ -260,19 +260,22 @@ impl Editor {
         }
 
         self.popup = {
-            let current_word = buffer.current_word();
-            let mut lines = Vec::new();
-            for item in items.search(&current_word, 5) {
-                if item != current_word {
-                    lines.push(item.to_owned());
-                }
-            }
+            buffer.current_word()
+                .map(|current_word| {
+                    let mut lines = Vec::new();
+                    for item in items.search(&current_word, 5) {
+                        if item != current_word {
+                            lines.push(item.to_owned());
+                        }
+                    }
 
-            if lines.is_empty() {
-                None
-            } else {
-                Some(Popup { lines, index: Some(0) })
-            }
+                    if lines.is_empty() {
+                        None
+                    } else {
+                        Some(Popup { lines, index: Some(0) })
+                    }
+                })
+                .unwrap_or(None)
         };
     }
 
@@ -406,9 +409,16 @@ impl Editor {
                 buffer.move_to_end_of_line();
             }
             (KeyCode::Char('w'), ALT) => {
-                let current_word = buffer.current_word();
-                let matches = &buffer.find(&current_word);
-                buffer.select_by_ranges(matches);
+                if let Some(current_word) = buffer.current_word() {
+                    let matches = &buffer.find(&current_word);
+                    buffer.select_by_ranges(matches);
+                }
+            }
+            (KeyCode::Char('w'), CTRL) => {
+                if let Some(current_word_range) = buffer.current_word_range() {
+                    buffer.select_by_ranges(&[current_word_range]);
+                    buffer.backspace();
+                }
             }
             (KeyCode::Char(ch), NONE) | (KeyCode::Char(ch), SHIFT) => {
                 buffer.insert_char(ch);

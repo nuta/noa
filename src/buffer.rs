@@ -523,13 +523,22 @@ impl Buffer {
         self.cursors = new_cursors;
     }
 
-    pub fn current_word(&self) -> String {
+    pub fn current_word(&self) -> Option<String> {
         let pos = match &self.cursors[0] {
             Cursor::Normal { pos, .. } => pos,
             Cursor::Selection(Range { start, .. }) => start,
         };
 
-        self.buf.word_at(pos)
+        self.buf.word_at(pos).map(|(_, word)| word)
+    }
+
+    pub fn current_word_range(&self) -> Option<Range> {
+        let pos = match &self.cursors[0] {
+            Cursor::Normal { pos, .. } => pos,
+            Cursor::Selection(Range { start, .. }) => start,
+        };
+
+        self.buf.word_at(pos).map(|(range, _)| range)
     }
 
     pub fn find(&mut self, needle: &str) -> Vec<Range> {
@@ -1236,35 +1245,42 @@ mod test {
         // hello wor|ld from rust
         let mut b = Buffer::from_str("hello world from rust");
         b.set_cursors(vec![Cursor::new(0, 9)]);
-        assert_eq!(&b.current_word(), "world");
+        assert_eq!(b.current_word(), Some("world".to_owned()));
+        assert_eq!(b.current_word_range(), Some(Range::new(0, 6, 0, 11)));
 
         // hello |world from rust
         b.set_cursors(vec![Cursor::new(0, 6)]);
-        assert_eq!(&b.current_word(), "world");
+        assert_eq!(b.current_word(), Some("world".to_owned()));
+        assert_eq!(b.current_word_range(), Some(Range::new(0, 6, 0, 11)));
 
         // hello world| from rust
         b.set_cursors(vec![Cursor::new(0, 11)]);
-        assert_eq!(&b.current_word(), "world");
+        assert_eq!(b.current_word(), Some("world".to_owned()));
+        assert_eq!(b.current_word_range(), Some(Range::new(0, 6, 0, 11)));
 
         // a b| c
         let mut b = Buffer::from_str("a b c");
         b.set_cursors(vec![Cursor::new(0, 3)]);
-        assert_eq!(&b.current_word(), "b");
+        assert_eq!(b.current_word(), Some("b".to_owned()));
+        assert_eq!(b.current_word_range(), Some(Range::new(0, 2, 0, 3)));
 
         // |a b c
         let mut b = Buffer::from_str("a b c");
         b.set_cursors(vec![Cursor::new(0, 0)]);
-        assert_eq!(&b.current_word(), "a");
+        assert_eq!(b.current_word(), Some("a".to_owned()));
+        assert_eq!(b.current_word_range(), Some(Range::new(0, 0, 0, 1)));
 
         // a | b
         let mut b = Buffer::from_str("a  b");
         b.set_cursors(vec![Cursor::new(0, 2)]);
-        assert_eq!(&b.current_word(), "");
+        assert_eq!(b.current_word(), None);
+        assert_eq!(b.current_word_range(), None);
 
         // |
         let mut b = Buffer::from_str("");
         b.set_cursors(vec![Cursor::new(0, 0)]);
-        assert_eq!(&b.current_word(), "");
+        assert_eq!(b.current_word(), None);
+        assert_eq!(b.current_word_range(), None);
     }
 
     #[test]

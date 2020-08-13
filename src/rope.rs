@@ -293,23 +293,31 @@ impl Rope {
         self.inner.chars()
     }
 
-    pub fn word_at(&self, pos: &Point) -> String {
-        let mut word = String::new();
+    pub fn word_at(&self, pos: &Point) -> Option<(Range, String)> {
         if pos.y >= self.num_lines() {
-            return word;
+            return None;
         }
 
+        let mut word = String::new();
+        let mut start = 0;
+        let mut end = 0;
         for (i, ch) in self.inner.line(pos.y).chars().enumerate() {
             if char::is_ascii_alphanumeric(&ch) || ch == '_' {
                 word.push(ch);
+                end = i + 1;
             } else if i >= pos.x {
                 break;
             } else {
                 word.clear();
+                start = i + 1;
             }
         }
 
-        word
+        if word.is_empty() {
+            None
+        } else {
+            Some((Range::new(pos.y, start, pos.y, end), word))
+        }
     }
 
     fn index_in_rope(&self, pos: &Point) -> usize {
