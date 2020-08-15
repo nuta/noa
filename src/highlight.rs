@@ -139,7 +139,8 @@ pub struct Highlighter {
     /// The merged spans. Each inner `Vec` represents each line.
     lines: Vec<Vec<Span>>,
     lang: &'static Language,
-    patterns_stack: Vec<(&'static [&'static str], Option<(&'static Regex, &'static [SpanType])>)>,
+    patterns_stack: Vec<(&'static [&'static str],
+        Option<(SpanType, &'static Regex, &'static [SpanType])>)>,
 }
 
 impl Highlighter {
@@ -185,25 +186,10 @@ impl Highlighter {
         let mut spans = Vec::new();
         let mut index = 0;
         'outer: loop {
-            let current = &self.patterns_stack[0];
+            let current = self.patterns_stack.last().unwrap();
             let mut remaining = &line[index..];
-
-            if let Some((end, end_captures)) = current.1 {
-                // We're in a block...
-                if let Some(groups) = end.captures(remaining) {
-                    // End of the current block.
-                    add_captured_spans(
-                        &mut spans,
-                        &mut index,
-                        end_captures,
-                        &groups
-                    );
-
-                    // Leave the current block.
-                    self.patterns_stack.pop();
-                    continue 'outer;
-                }
-            }
+            let current_inner =
+                current.1.map(|(inner, _, _)| inner);
 
             for pattern_name in current.0 {
                 match &self.lang.patterns[pattern_name] {
@@ -213,26 +199,46 @@ impl Highlighter {
                                 &mut spans,
                                 &mut index,
                                 captures,
-                                &groups
+                                &groups,
+                                current_inner,
                             );
                             continue 'outer;
                         }
                     }
                     Pattern::Block {
                         start, end, start_captures,
-                        end_captures, patterns
+                        end_captures, inner, patterns
                     } => {
                         if let Some(groups) = start.captures(remaining) {
                             add_captured_spans(
                                 &mut spans,
                                 &mut index,
                                 start_captures,
-                                &groups
+                                &groups,
+                                current_inner,
                             );
-                            self.patterns_stack.push((patterns, Some((end, end_captures))));
+
+                            self.patterns_stack.push((patterns, Some((*inner, end, end_captures))));
                             continue 'outer;
                         }
                     }
+                }
+            }
+
+            if let Some((inner, end, end_captures)) = current.1 {
+                // Try end of the current block.
+                if let Some(groups) = end.captures(remaining) {
+                    add_captured_spans(
+                        &mut spans,
+                        &mut index,
+                        end_captures,
+                        &groups,
+                        Some(inner),
+                    );
+
+                    // Leave the current block.
+                    self.patterns_stack.pop();
+                    continue 'outer;
                 }
             }
 
@@ -243,19 +249,29 @@ impl Highlighter {
     }
 }
 
-// FIXME: This is one of the worst function definitions I've ever written :/
 fn add_captured_spans<'a>(
     spans: &mut Vec<Span>,
     index: &mut usize,
     captures: &[SpanType],
     groups: &regex::Captures,
+    mut inner: Option<SpanType>
 ) {
     let mut index_diff = 0;
-    // It skips the first group that matches the whole regex, not each group
+    // Skip the first group that matches the whole regex, not each group
     // enclosed by `(..)`.
     for (i, m) in groups.iter().skip(1).enumerate() {
         if let Some(m) = m {
-            dbg!(i, m, captures);
+            if let Some(span_type) = &inner {
+                if m.start() > 0 {
+                    let range =
+                        *index..=(*index + m.start() - 1);
+                    spans.push(Span::new(*span_type, range));
+                }
+
+                // Use .take() to do this operation only once.
+                inner.take();
+            }
+
             let span_type = captures[i];
             let range =
                 *index + m.start()..=(*index + m.end() - 1);
@@ -361,6 +377,36 @@ mod test {
 
     #[test]
     fn highlight_simple_blocks() {
+        // A string literal.
+        let mut h = Highlighter::new(&crate::language::PLAIN);
+        do_highlight(&mut h, "\"abc\"", 0..=0);
+        assert_eq!(h.line(0), &[
+            Span::new(SpanType::StringLiteral, 0..=0), // opening "
+            Span::new(SpanType::StringLiteral, 1..=3), // abc
+            Span::new(SpanType::StringLiteral, 4..=4), // closing "
+        ]);
+
+        // Escaped chars
+        let mut h = Highlighter::new(&crate::language::PLAIN);
+        do_highlight(&mut h, "\"a\\nb\"" /* "a\nb" */, 0..=0);
+        assert_eq!(h.line(0), &[
+            Span::new(SpanType::StringLiteral, 0..=0), // opening "
+            Span::new(SpanType::StringLiteral, 1..=1), // a
+            Span::new(SpanType::EscapedChar, 2..=3), // \n
+            Span::new(SpanType::StringLiteral, 4..=4), // b
+            Span::new(SpanType::StringLiteral, 5..=5), // closing "
+        ]);
+
+        // Escaped chars.
+        let mut h = Highlighter::new(&crate::language::PLAIN);
+        do_highlight(&mut h, "\"ab\\\"cd\"" /* "ab\"cd" */, 0..=0);
+        assert_eq!(h.line(0), &[
+            Span::new(SpanType::StringLiteral, 0..=0), // opening "
+            Span::new(SpanType::StringLiteral, 1..=2), // ab
+            Span::new(SpanType::EscapedChar, 3..=4), // \"
+            Span::new(SpanType::StringLiteral, 5..=6), // cd
+            Span::new(SpanType::StringLiteral, 7..=7), // closing "
+        ]);
     }
 
     #[test]

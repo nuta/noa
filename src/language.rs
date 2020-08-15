@@ -28,6 +28,7 @@ pub enum Pattern {
         end: Regex,
         start_captures: &'static [SpanType],
         end_captures: &'static [SpanType],
+        inner: SpanType,
         patterns: &'static [&'static str],
     },
 }
@@ -43,10 +44,11 @@ lazy_static! {
         Language {
             name: "plain",
             top_level_patterns: &[
-                "keyword",
+                "ctrl",
+                "string_lit",
             ],
             patterns: hashmap! {
-                "keyword" => Pattern::Inline {
+                "ctrl" => Pattern::Inline {
                     regex: Regex::new(
                         concat!(
                             r"\b(if|for|while|do|goto|break|continue|case|",
@@ -56,7 +58,25 @@ lazy_static! {
                     captures: &[
                         SpanType::CtrlKeyword,
                     ]
-                }
+                },
+                "escaped_chars" => Pattern::Inline {
+                    regex: Regex::new(
+                        "(\\\\[\"tn])"
+                    ).unwrap(),
+                    captures: &[
+                        SpanType::EscapedChar,
+                    ]
+                },
+                "string_lit" => Pattern::Block {
+                    start: Regex::new("(\")").unwrap(),
+                    end: Regex::new("(\")").unwrap(),
+                    start_captures: &[SpanType::StringLiteral],
+                    end_captures: &[SpanType::StringLiteral],
+                    inner: SpanType::StringLiteral,
+                    patterns: &[
+                        "escaped_chars",
+                    ],
+                },
             },
         }
     };
