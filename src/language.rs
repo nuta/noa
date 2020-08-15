@@ -23,6 +23,13 @@ pub enum Pattern {
         regex: Regex,
         captures: &'static [SpanType],
     },
+    Block {
+        start: Regex,
+        end: Regex,
+        start_captures: &'static [SpanType],
+        end_captures: &'static [SpanType],
+        patterns: &'static [&'static str],
+    },
 }
 
 pub struct Language {
