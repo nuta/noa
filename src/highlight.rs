@@ -6,7 +6,7 @@ use crossterm::style::{Attribute, Color};
 use regex::Regex;
 use crate::buffer::Snapshot;
 use crate::rope::{Rope, Range, Cursor};
-use crate::language::{SpanType, Language};
+use crate::language::{SpanType, Pattern, Language};
 
 // The default theme.
 lazy_static! {
@@ -138,12 +138,16 @@ pub trait HighlightProvider {
 pub struct Highlighter {
     /// The merged spans. Each inner `Vec` represents each line.
     lines: Vec<Vec<Span>>,
+    lang: &'static Language,
+    patterns_stack: Vec<&'static [&'static str]>,
 }
 
 impl Highlighter {
-    pub fn new() -> Highlighter {
+    pub fn new(lang: &'static Language) -> Highlighter {
         Highlighter {
             lines: Vec::new(),
+            lang,
+            patterns_stack: vec![lang.top_level_patterns],
         }
     }
 
@@ -161,7 +165,6 @@ impl Highlighter {
         &mut self,
         snapshot: Snapshot,
         lines: RangeInclusive<usize>,
-        lang: &'static Language,
         cursors: &[Cursor],
     ) {
         self.lines.truncate(*lines.start());
@@ -180,34 +183,34 @@ impl Highlighter {
 
     fn highlight_pattern(&mut self, line: &str) -> Vec<Span> {
         let mut spans = Vec::new();
+        let mut remaining = line;
+        let mut base = 0;
+        'outer: loop {
+            for pattern_name in self.patterns_stack[0] {
+                match &self.lang.patterns[pattern_name] {
+                    Pattern::Inline { regex, captures } => {
+                        if let Some(matches) = regex.captures(remaining) {
+                            for (i, m) in matches.iter().enumerate() {
+                                if let Some(m) = m {
+                                    let span_type = captures[i];
+                                    let range =
+                                        base + m.start()..=(base + m.end() - 1);
+                                    spans.push(Span::new(span_type, range));
+                                    remaining = &remaining[m.end()..];
+                                    base += m.end();
+                                    continue 'outer;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            break;
+        }
 
         spans
     }
-}
-
-fn highlight_line_by_regexes(
-    span_type: SpanType,
-    regexes: &[Regex],
-    line: &str
-) -> Vec<Span> {
-    let mut spans = Vec::new();
-    let mut remaining = line;
-    let mut base = 0;
-    'outer: loop {
-        for regex in regexes {
-            if let Some(m) = regex.find(remaining) {
-                let range = base + m.start()..=(base + m.end() - 1);
-                spans.push(Span::new(span_type, range));
-                remaining = &remaining[m.end()..];
-                base += m.end();
-                continue 'outer;
-            }
-        }
-
-        break;
-    }
-
-    spans
 }
 
 fn highlight_cursors(cursors: &[Cursor], i: usize, line: &str) -> Vec<Span> {
@@ -279,17 +282,16 @@ mod test {
     fn do_highlight(h: &mut Highlighter, text: &str, lines: RangeInclusive<usize>) {
         let mut buf = crate::buffer::Buffer::from_str(text);
         let snapshot = buf.snapshot();
-        let lang = &crate::language::PLAIN;
-        h.highlight(snapshot, lines, lang, &[Cursor::new(0, 0)]);
+        h.highlight(snapshot, lines, &[Cursor::new(0, 0)]);
     }
 
     #[test]
     fn highlight_simple_line() {
-        let mut h = Highlighter::new();
+        let mut h = Highlighter::new(&crate::language::PLAIN);
         do_highlight(&mut h, "", 0..=0);
         assert_eq!(h.line(0), &[]);
 
-        let mut h = Highlighter::new();
+        let mut h = Highlighter::new(&crate::language::PLAIN);
         do_highlight(&mut h, "if", 0..=0);
         assert_eq!(h.line(0), &[
             Span::new(SpanType::CtrlKeyword, 0..=1),

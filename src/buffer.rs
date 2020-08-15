@@ -95,6 +95,7 @@ pub struct Buffer {
 
 impl Buffer {
     pub fn new() -> Buffer {
+        let lang = &crate::language::PLAIN;
         let mut buffer = Buffer {
             id: BufferId::alloc(),
             buf: Rope::new(),
@@ -103,8 +104,8 @@ impl Buffer {
             cursors: vec![Cursor::new(0, 0)],
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
-            lang: &crate::language::PLAIN,
-            highlighter: Highlighter::new(),
+            lang,
+            highlighter: Highlighter::new(lang),
         };
 
         buffer.mark_undo_point();
@@ -118,6 +119,7 @@ impl Buffer {
     }
 
     pub fn open_file(path: &Path) -> std::io::Result<Buffer> {
+        let lang = &crate::language::PLAIN;
         let file = std::fs::File::open(path)?;
         let mut buffer = Buffer {
             id: BufferId::alloc(),
@@ -127,8 +129,8 @@ impl Buffer {
             cursors: vec![Cursor::new(0, 0)],
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
-            lang: &crate::language::PLAIN,
-            highlighter: Highlighter::new(),
+            lang,
+            highlighter: Highlighter::new(lang),
         };
 
         buffer.mark_undo_point();
@@ -640,7 +642,7 @@ impl Buffer {
     }
 
     pub fn highlight(&mut self, lines: RangeInclusive<usize>) {
-        self.highlighter.highlight(self.snapshot(), lines, self.lang, &self.cursors);
+        self.highlighter.highlight(self.snapshot(), lines, &self.cursors);
     }
 }
 
