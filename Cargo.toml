@@ -16,6 +16,7 @@ ropey = "1"
 dirs = "3"
 regex = "1"
 ignore = "0"
+maplit = "1"
 
 [dev-dependencies]
 pretty_assertions = "0"

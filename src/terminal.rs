@@ -1,7 +1,7 @@
 use crate::editor::{EventQueue, Event, Notification, Popup, Modal};
 use crate::rope::Cursor;
 use crate::view::View;
-use crate::highlight::Highlighter;
+use crate::highlight::{Highlighter, THEME};
 use std::cmp::{min, max};
 use std::io::{stdout, Write};
 use std::time::Duration;
@@ -346,11 +346,11 @@ impl Terminal {
                 match (&current_span, next_span) {
                     (Some(span), _) if span.range.contains(&x) => {
                         num_chars = min(num_chars, span.range.end() + 1 - x);
-                        span.style.apply(stdout);
+                        THEME[&span.span_type].apply(stdout);
                     }
                     (_, Some(span)) if span.range.contains(&x) => {
                         num_chars = min(num_chars, span.range.end() + 1 - x);
-                        span.style.apply(stdout);
+                        THEME[&span.span_type].apply(stdout);
                         current_span = spans.next();
                         next_span = spans.peek();
                     }
