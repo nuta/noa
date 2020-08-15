@@ -183,18 +183,18 @@ impl Highlighter {
 
     fn highlight_pattern(&mut self, line: &str) -> Vec<Span> {
         let mut spans = Vec::new();
-        let mut remaining = line;
-        let mut base = 0;
+        let mut index = 0;
         'outer: loop {
             let current = &self.patterns_stack[0];
+            let mut remaining = &line[index..];
+
             if let Some((end, end_captures)) = current.1 {
                 // We're in a block...
                 if let Some(groups) = end.captures(remaining) {
                     // End of the current block.
-                    remaining = add_captured_spans(
+                    add_captured_spans(
                         &mut spans,
-                        &mut base,
-                        &mut remaining,
+                        &mut index,
                         end_captures,
                         &groups
                     );
@@ -209,10 +209,9 @@ impl Highlighter {
                 match &self.lang.patterns[pattern_name] {
                     Pattern::Inline { regex, captures } => {
                         if let Some(groups) = regex.captures(remaining) {
-                            remaining = add_captured_spans(
+                            add_captured_spans(
                                 &mut spans,
-                                &mut base,
-                                &mut remaining,
+                                &mut index,
                                 captures,
                                 &groups
                             );
@@ -224,10 +223,9 @@ impl Highlighter {
                         end_captures, patterns
                     } => {
                         if let Some(groups) = start.captures(remaining) {
-                            remaining = add_captured_spans(
+                            add_captured_spans(
                                 &mut spans,
-                                &mut base,
-                                &mut remaining,
+                                &mut index,
                                 start_captures,
                                 &groups
                             );
@@ -248,24 +246,23 @@ impl Highlighter {
 // FIXME: This is one of the worst function definitions I've ever written :/
 fn add_captured_spans<'a>(
     spans: &mut Vec<Span>,
-    mut base: &mut usize,
-    mut remaining: &'a str,
+    index: &mut usize,
     captures: &[SpanType],
     groups: &regex::Captures,
-) -> &'a str {
-    for (i, m) in groups.iter().enumerate() {
+) {
+    let mut index_diff = 0;
+    for (i, m) in groups.iter().skip(1).enumerate() {
         if let Some(m) = m {
             dbg!(i, m, captures);
             let span_type = captures[i];
             let range =
-                *base + m.start()..=(*base + m.end() - 1);
+                *index + m.start()..=(*index + m.end() - 1);
             spans.push(Span::new(span_type, range));
-            remaining = &remaining[m.end()..];
-            *base += m.end();
+            index_diff = m.end();
         }
     }
 
-    remaining
+    *index += index_diff;
 }
 
 fn highlight_cursors(cursors: &[Cursor], i: usize, line: &str) -> Vec<Span> {
@@ -350,6 +347,13 @@ mod test {
         do_highlight(&mut h, "if", 0..=0);
         assert_eq!(h.line(0), &[
             Span::new(SpanType::CtrlKeyword, 0..=1),
+        ]);
+
+        let mut h = Highlighter::new(&crate::language::PLAIN);
+        do_highlight(&mut h, "if for", 0..=0);
+        assert_eq!(h.line(0), &[
+            Span::new(SpanType::CtrlKeyword, 0..=1),
+            Span::new(SpanType::CtrlKeyword, 3..=5),
         ]);
     }
 
