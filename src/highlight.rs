@@ -251,6 +251,8 @@ fn add_captured_spans<'a>(
     groups: &regex::Captures,
 ) {
     let mut index_diff = 0;
+    // It skips the first group that matches the whole regex, not each group
+    // enclosed by `(..)`.
     for (i, m) in groups.iter().skip(1).enumerate() {
         if let Some(m) = m {
             dbg!(i, m, captures);
