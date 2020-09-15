@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::ops::RangeInclusive;
 use crate::highlight::{Highlighter, Span};
 use crate::language::Language;
-use crate::editorconfig::EditorConfig;
+use crate::editorconfig::{EditorConfig, IndentStyle};
 use crate::rope::*;
 
 fn remove_range(
@@ -160,6 +160,10 @@ impl Buffer {
 
     pub fn file(&self) -> &Option<PathBuf> {
         &self.file
+    }
+
+    pub fn config(&self) -> &EditorConfig {
+        &self.config
     }
 
     pub fn name(&self) -> &str {
@@ -444,13 +448,21 @@ impl Buffer {
 
             let x;
             if auto_indent {
-                let num_chars =
-                    self.config.indent_size - (pos.x % self.config.indent_size);
-                trace!("pos.x={}, n={}", pos.x, num_chars);
-                for _ in 0..num_chars {
-                    self.buf.insert_char(pos, ' ');
+                match self.config.indent_style {
+                    IndentStyle::Space => {
+                        let num_chars =
+                            self.config.indent_size
+                            - (pos.x % self.config.indent_size);
+                        for _ in 0..num_chars {
+                            self.buf.insert_char(pos, ' ');
+                        }
+                        x = pos.x + num_chars;
+                    }
+                    IndentStyle::Tab => {
+                        self.buf.insert_char(pos, '\t');
+                        x = pos.x + 1;
+                    }
                 }
-                x = pos.x + num_chars;
             } else {
                 self.buf.insert_char(pos, '\t');
                 x = pos.x + 1;

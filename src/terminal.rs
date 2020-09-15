@@ -104,7 +104,7 @@ impl Terminal {
         popup: &Option<Popup>,
         modal: &Option<Box<dyn Modal>>,
     ) {
-        use unicode_width::{UnicodeWidthStr, UnicodeWidthChar};
+        use unicode_width::{UnicodeWidthChar};
         use crossterm::cursor::{self, MoveTo};
         use crossterm::terminal::{Clear, ClearType};
         use crossterm::style::{
@@ -340,6 +340,7 @@ impl Terminal {
         let mut next_span = spans.peek();
         let mut x = top_left.x;
         let slice = line.slice(top_left.x..);
+        let tab_width = buffer.config().tab_width;
         'outer: for mut chunk in slice.chunks() {
             while remaining > 0 && !chunk.is_empty() {
                 let mut num_chars = chunk.chars().count();
@@ -375,9 +376,22 @@ impl Terminal {
                 // Truncated # of displayed chars until it fits the display
                 // width.
                 let index =
-                    chunk.char_indices().nth(num_chars)
-                        .map(|(i, _)| i).unwrap_or_else(|| chunk.len());
-                let mut width = UnicodeWidthStr::width_cjk(&chunk[..index]);
+                    chunk
+                        .char_indices()
+                        .nth(num_chars)
+                        .map(|(i, _)| i)
+                        .unwrap_or_else(|| chunk.len());
+                let mut width = chunk[..index]
+                    .chars()
+                    .enumerate()
+                    .fold(0, |sum, (i, ch)| {
+                        trace!("x=[{}, {}], w={}", x,i,tab_width - ((x + i) % tab_width));
+                        sum + match ch {
+                            '\t' => tab_width - ((x + i) % tab_width),
+                            _ => UnicodeWidthChar::width_cjk(ch).unwrap_or(1),
+                        }
+                    });
+
                 let mut chars_rev = chunk.chars().into_iter().rev();
                 while width > remaining {
                     let ch = chars_rev.next().unwrap();
@@ -389,9 +403,20 @@ impl Terminal {
                 }
 
                 let index =
-                    chunk.char_indices().nth(num_chars)
-                        .map(|(i, _)| i).unwrap_or_else(|| chunk.len());
-                queue!(stdout, Print(&chunk[..index])).unwrap();
+                    chunk
+                        .char_indices()
+                        .nth(num_chars)
+                        .map(|(i, _)| i)
+                        .unwrap_or_else(|| chunk.len());
+                for(i, ch) in (&chunk[..index]).chars().enumerate() {
+                    if ch == '\t' {
+                        let n = tab_width - ((x + i) % tab_width);
+                        trace!("x=[{}, {}], n={}", x,i,n);
+                        queue!(stdout, Print(whitespaces(n))).unwrap();
+                    } else {
+                        queue!(stdout, Print(ch)).unwrap();
+                    }
+                }
 
                 chunk = &chunk[min(index, chunk.len())..];
                 remaining -= width;
