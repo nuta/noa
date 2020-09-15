@@ -16,6 +16,7 @@ mod language;
 mod highlight;
 mod fuzzy;
 mod finder;
+mod editorconfig;
 
 use structopt::StructOpt;
 use fern::{

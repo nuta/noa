@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::ops::RangeInclusive;
 use crate::highlight::{Highlighter, Span};
 use crate::language::Language;
+use crate::editorconfig::EditorConfig;
 use crate::rope::*;
 
 fn remove_range(
@@ -91,6 +92,7 @@ pub struct Buffer {
     redo_stack: Vec<Rope>,
     lang: &'static Language,
     highlighter: Highlighter,
+    config: EditorConfig,
 }
 
 impl Buffer {
@@ -106,6 +108,7 @@ impl Buffer {
             redo_stack: Vec::new(),
             lang,
             highlighter: Highlighter::new(lang),
+            config: EditorConfig::default(),
         };
 
         buffer.mark_undo_point();
@@ -131,6 +134,7 @@ impl Buffer {
             redo_stack: Vec::new(),
             lang,
             highlighter: Highlighter::new(lang),
+            config: EditorConfig::resolve(path),
         };
 
         buffer.mark_undo_point();
