@@ -409,6 +409,65 @@ impl Buffer {
         self.cursors = vec![Cursor::new(0, 0)];
     }
 
+    pub fn tab(&mut self) {
+        self.buf.reset_modified_line();
+        let mut new_cursors = Vec::new();
+        for c in self.cursors.iter().rev() {
+            let pos = match c {
+                Cursor::Normal { pos, .. } => {
+                    pos
+                }
+                Cursor::Selection(range) => {
+                    range.front()
+                }
+            };
+
+            // Should we do auto-indent?
+            let line = self.buf.line(pos.y);
+            let mut auto_indent = pos.x == 0;
+            let mut n = 0;
+            'outer: for c in line.chunks() {
+                for ch in c.chars() {
+                    trace!("ch='{}' {}, n={}", ch, ch.is_ascii_whitespace(), n);
+                    if n == pos.x.saturating_sub(1) {
+                        auto_indent = true;
+                        break 'outer;
+                    }
+
+                    if !ch.is_ascii_whitespace() {
+                        break 'outer;
+                    }
+
+                    n += 1;
+                }
+            }
+
+            let x;
+            if auto_indent {
+                let num_chars =
+                    self.config.indent_size - (pos.x % self.config.indent_size);
+                trace!("pos.x={}, n={}", pos.x, num_chars);
+                for _ in 0..num_chars {
+                    self.buf.insert_char(pos, ' ');
+                }
+                x = pos.x + num_chars;
+            } else {
+                self.buf.insert_char(pos, '\t');
+                x = pos.x + 1;
+            }
+
+            new_cursors.push(Cursor::new(pos.y, x));
+        }
+
+        self.set_cursors(new_cursors);
+    }
+
+    pub fn back_tab(&mut self) {
+        for cursor in self.cursors() {
+
+        }
+    }
+
     pub fn backspace(&mut self) {
         self.buf.reset_modified_line();
 

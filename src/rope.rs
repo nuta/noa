@@ -260,6 +260,11 @@ impl Rope {
         self.on_modified(pos.y);
     }
 
+    pub fn insert_char(&mut self, pos: &Point, ch: char) {
+        self.inner.insert_char(self.index_in_rope(pos), ch);
+        self.on_modified(pos.y);
+    }
+
     pub fn remove(&mut self, range: &Range) {
         let start = self.index_in_rope(range.front());
         let end = self.index_in_rope(range.back());

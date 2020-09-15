@@ -429,6 +429,12 @@ impl Editor {
             (KeyCode::Char(ch), NONE) | (KeyCode::Char(ch), SHIFT) => {
                 buffer.insert_char(ch);
             }
+            (KeyCode::Tab, NONE) => {
+                buffer.tab();
+            }
+            (KeyCode::BackTab, NONE) => {
+                buffer.back_tab();
+            }
             (KeyCode::Enter, NONE) => {
                 buffer.insert_char('\n');
             }
