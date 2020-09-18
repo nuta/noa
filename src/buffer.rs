@@ -2,6 +2,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::path::{Path, PathBuf};
 use std::ops::RangeInclusive;
 use std::cmp::max;
+use std::collections::HashSet;
 use crate::highlight::{Highlighter, Span};
 use crate::language::Language;
 use crate::editorconfig::{EditorConfig, IndentStyle};
@@ -476,10 +477,12 @@ impl Buffer {
         self.set_cursors(new_cursors);
     }
 
+    // Decrease indent levels.
     pub fn back_tab(&mut self) {
         self.buf.reset_modified_line();
         let mut new_cursors = Vec::new();
         let mut iter = self.cursors.iter().rev().peekable();
+        let mut ys = HashSet::new();
         while let Some(c) = iter.next() {
             let pos = match c {
                 Cursor::Normal { pos, .. } => {
@@ -492,11 +495,12 @@ impl Buffer {
 
             let indent_size = self.indent_size(pos.y);
             let n = self.config.indent_size;
-            if indent_size >= n {
+            if indent_size >= n && !ys.contains(&pos.y) {
                 let start = Point::new(pos.y, 0);
                 let end = Point::new(pos.y, n);
                 self.buf.remove(&Range::from_points(start, end));
                 new_cursors.push(Cursor::new(pos.y, pos.x.saturating_sub(n)));
+                ys.insert(pos.y);
             } else {
                 new_cursors.push(Cursor::new(pos.y, pos.x));
             }
@@ -1595,10 +1599,11 @@ mod test {
         assert_eq!(&b.text(), "");
         assert_eq!(b.cursors(), &[Cursor::new(0, 0)]);
 
-        let mut b = Buffer::from_str("    ");
+        // Multiple cursors at the same line.
+        let mut b = Buffer::from_str("        ");
         b.set_cursors(vec![Cursor::new(0, 0), Cursor::new(0, 2)]);
         b.back_tab();
-        assert_eq!(&b.text(), "");
+        assert_eq!(&b.text(), "    ");
         assert_eq!(b.cursors(), &[Cursor::new(0, 0)]);
 
         let mut b = Buffer::from_str("        abc");
