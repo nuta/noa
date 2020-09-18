@@ -235,9 +235,6 @@ impl Editor {
         let view = self.current.borrow();
         let buffer = view.buffer().borrow();
         let snapshot = buffer.snapshot();
-
-        // Kick background jobs.
-        self.worker.request(Box::new(WordCompJob::new(snapshot)));
     }
 
     fn notify<T: Into<String>>(&self, level: NotificationLevel, message: T) {
@@ -409,6 +406,7 @@ impl Editor {
         let view = self.current.borrow_mut();
         let mut buffer = view.buffer().borrow_mut();
         let mut clear_popup = true;
+        let mut update_completion = false;
         match (key.code, key.modifiers) {
             (KeyCode::Up, NONE) if self.is_popup_active() => {
                 self.popup.as_mut().unwrap().select_prev();
@@ -450,6 +448,7 @@ impl Editor {
                 drop(view);
                 self.open_modal(Box::new(FinderModal::new()));
                 self.info("opened finder modal");
+                return;
             }
             (KeyCode::Char('k'), CTRL) => {
                 buffer.truncate();
@@ -489,6 +488,7 @@ impl Editor {
             }
             (KeyCode::Char(ch), NONE) | (KeyCode::Char(ch), SHIFT) => {
                 buffer.insert_char(ch);
+                update_completion = true;
                 clear_popup = false;
             }
             (KeyCode::Tab, NONE) => {
@@ -502,9 +502,11 @@ impl Editor {
             }
             (KeyCode::Backspace, NONE) => {
                 buffer.backspace();
+                update_completion = true;
             }
             (KeyCode::Delete, NONE) | (KeyCode::Char('d'), CTRL) => {
                 buffer.delete();
+                update_completion = true;
             }
             (KeyCode::PageUp, NONE) => {
                 buffer.move_cursors(30, 0, 0, 0);
@@ -541,7 +543,19 @@ impl Editor {
             }
         }
 
+        drop(buffer);
+        drop(view);
+
         if clear_popup {
+            self.clear_popup();
+        }
+
+        if update_completion {
+            // Run a completion.
+            let view = self.current.borrow_mut();
+            let mut buffer = view.buffer().borrow_mut();
+            let snapshot = buffer.snapshot();
+            self.worker.request(Box::new(WordCompJob::new(snapshot)));
         }
     }
 }
