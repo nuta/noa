@@ -44,10 +44,19 @@ lazy_static! {
         Language {
             name: "plain",
             top_level_patterns: &[
+                "block_comment",
                 "ctrl",
                 "string_lit",
             ],
             patterns: hashmap! {
+                "block_comment" => Pattern::Block {
+                    start: Regex::new(r"(/\*)").unwrap(),
+                    end: Regex::new(r"(\*/)").unwrap(),
+                    start_captures: &[SpanType::Comment],
+                    end_captures: &[SpanType::Comment],
+                    inner: SpanType::Comment,
+                    patterns: &[],
+                },
                 "ctrl" => Pattern::Inline {
                     regex: Regex::new(
                         concat!(

@@ -333,15 +333,14 @@ fn highlight_cursors(cursors: &[Cursor], i: usize, line: &str) -> Vec<Span> {
     spans
 }
 
-fn merge_spans(spans: &mut Vec<Span>, new_spans: Vec<Span>) {
-    // TODO:
-    if new_spans.is_empty() {
-        return;
-    }
+/// Assumes `spans` is already sorted by its ranges.
+fn merge_spans(spans: &mut Vec<Span>, mut new_spans: Vec<Span>) {
+    new_spans.sort_by(|a, b| {
+        a.range.start().cmp(b.range.start())
+    });
 
-    spans.clear();
-    for span in new_spans {
-        spans.push(span);
+    for new_span in new_spans {
+
     }
 }
 
@@ -410,7 +409,18 @@ mod test {
     }
 
     #[test]
-    fn merge_spans() {
+    fn test_block_comments() {
+        let mut h = Highlighter::new(&crate::language::PLAIN);
+        do_highlight(&mut h, "/* if */", 0..=0);
+        assert_eq!(h.line(0), &[
+            Span::new(SpanType::Comment, 0..=1), // opening /*
+            Span::new(SpanType::Comment, 2..=5), // " if "
+            Span::new(SpanType::Comment, 6..=7), // opening */
+        ]);
+    }
+
+    #[test]
+    fn test_merge_spans() {
         // TODO:
     }
 }
