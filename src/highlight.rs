@@ -340,7 +340,7 @@ fn merge_spans(spans: &mut Vec<Span>, mut new_spans: Vec<Span>) {
     });
 
     for new_span in new_spans {
-
+        spans.push(new_span);
     }
 }
 
