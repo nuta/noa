@@ -501,7 +501,6 @@ impl Buffer {
                     pos.x % self.config.indent_size
                 }
             );
-            dbg!(pos.x, n);
             if n > 0 && !ys.contains(&pos.y) {
                 let start = Point::new(pos.y, 0);
                 let end = Point::new(pos.y, n);
