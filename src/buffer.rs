@@ -1,6 +1,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::path::{Path, PathBuf};
 use std::ops::RangeInclusive;
+use std::cmp::max;
 use crate::highlight::{Highlighter, Span};
 use crate::language::Language;
 use crate::editorconfig::{EditorConfig, IndentStyle};
@@ -413,6 +414,24 @@ impl Buffer {
         self.cursors = vec![Cursor::new(0, 0)];
     }
 
+    fn indent_size(&self, y: usize) -> usize {
+        dbg!(y);
+        let mut n = 0;
+        let line = self.buf.line(y);
+        'outer: for c in line.chunks() {
+            for ch in c.chars() {
+                trace!("ch='{}' {}, n={}", ch, ch.is_ascii_whitespace(), n);
+                if !ch.is_ascii_whitespace() {
+                    break 'outer;
+                }
+
+                n += 1;
+            }
+        }
+
+        n
+    }
+
     pub fn tab(&mut self) {
         self.buf.reset_modified_line();
         let mut new_cursors = Vec::new();
@@ -427,43 +446,28 @@ impl Buffer {
             };
 
             // Should we do auto-indent?
-            let line = self.buf.line(pos.y);
-            let mut auto_indent = pos.x == 0;
-            let mut n = 0;
-            'outer: for c in line.chunks() {
-                for ch in c.chars() {
-                    trace!("ch='{}' {}, n={}", ch, ch.is_ascii_whitespace(), n);
-                    if n == pos.x.saturating_sub(1) {
-                        auto_indent = true;
-                        break 'outer;
-                    }
-
-                    if !ch.is_ascii_whitespace() {
-                        break 'outer;
-                    }
-
-                    n += 1;
-                }
-            }
-
+            let mut auto_indent = pos.x <= self.indent_size(pos.y);
             let x;
             if auto_indent {
-                match self.config.indent_style {
-                    IndentStyle::Space => {
-                        let num_chars =
-                            self.config.indent_size
-                            - (pos.x % self.config.indent_size);
-                        for _ in 0..num_chars {
-                            self.buf.insert_char(pos, ' ');
-                        }
-                        x = pos.x + num_chars;
-                    }
-                    IndentStyle::Tab => {
-                        self.buf.insert_char(pos, '\t');
-                        x = pos.x + 1;
-                    }
+                let prev_indent_size = if pos.y > 0 {
+                    self.indent_size(pos.y - 1)
+                } else {
+                    0
+                };
+                let num_chars =
+                    max(prev_indent_size, self.config.indent_size)
+                        - (pos.x % max(prev_indent_size, self.config.indent_size));
+
+                x = pos.x + num_chars;
+                let ch = match self.config.indent_style {
+                    IndentStyle::Space => ' ',
+                    IndentStyle::Tab => '\t',
+                };
+                for _ in 0..num_chars {
+                    self.buf.insert_char(pos, ch);
                 }
             } else {
+                // Not auto indent; the user just wants to input '\t'.
                 self.buf.insert_char(pos, '\t');
                 x = pos.x + 1;
             }
@@ -1500,5 +1504,59 @@ mod test {
 
         let mut b = Buffer::from_str("");
         assert_eq!(&b.find("rrrrr"), &[]);
+    }
+
+    #[test]
+    fn auto_indent_by_tab() {
+        let mut b = Buffer::from_str("abc");
+        b.set_cursors(vec![Cursor::new(0, 0)]);
+        b.tab();
+        assert_eq!(&b.text(), "    abc");
+        assert_eq!(b.cursors(), &[Cursor::new(0, 4)]);
+
+        let mut b = Buffer::from_str("  abc");
+        b.set_cursors(vec![Cursor::new(0, 2)]);
+        b.tab();
+        assert_eq!(&b.text(), "    abc");
+        assert_eq!(b.cursors(), &[Cursor::new(0, 4)]);
+
+        let mut b = Buffer::from_str("    abc");
+        b.set_cursors(vec![Cursor::new(0, 2)]);
+        b.tab();
+        assert_eq!(&b.text(), "      abc");
+        assert_eq!(b.cursors(), &[Cursor::new(0, 4)]);
+    }
+
+    #[test]
+    fn indent_size() {
+        let mut b = Buffer::from_str("");
+        assert_eq!(b.indent_size(0), 0);
+
+        let mut b = Buffer::from_str("  X  ");
+        assert_eq!(b.indent_size(0), 2);
+
+        let mut b = Buffer::from_str("         X");
+        assert_eq!(b.indent_size(0), 9);
+    }
+
+    #[test]
+    fn auto_indent_inheriting_prev_line() {
+        // Inherit 8 spaces.
+        let mut b = Buffer::from_str("        foo();\n");
+        b.set_cursors(vec![Cursor::new(1, 0)]);
+        b.tab();
+        assert_eq!(&b.text(), "        foo();\n        ");
+        assert_eq!(b.cursors(), &[Cursor::new(1, 8)]);
+    }
+
+    #[test]
+    fn auto_indent_by_enter() {
+        // Inherit 8 spaces.
+        let mut b = Buffer::from_str("        foo();");
+        b.set_cursors(vec![Cursor::new(0, 14)]);
+        b.insert_char('\n');
+        b.tab();
+        assert_eq!(&b.text(), "        foo();\n        ");
+        assert_eq!(b.cursors(), &[Cursor::new(1, 8)]);
     }
 }

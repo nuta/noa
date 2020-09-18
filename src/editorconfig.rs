@@ -24,7 +24,7 @@ pub struct EditorConfig {
 impl EditorConfig {
     pub fn default() -> EditorConfig {
         EditorConfig {
-            indent_style: IndentStyle::Tab,
+            indent_style: IndentStyle::Space,
             indent_size: 4,
             tab_width: 8,
             end_of_line: EndOfLine::Lf,
