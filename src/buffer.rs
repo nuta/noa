@@ -415,7 +415,6 @@ impl Buffer {
     }
 
     fn indent_size(&self, y: usize) -> usize {
-        dbg!(y);
         let mut n = 0;
         let line = self.buf.line(y);
         'outer: for c in line.chunks() {
@@ -454,9 +453,8 @@ impl Buffer {
                 } else {
                     0
                 };
-                let num_chars =
-                    max(prev_indent_size, self.config.indent_size)
-                        - (pos.x % max(prev_indent_size, self.config.indent_size));
+                let indent_size = max(prev_indent_size, self.config.indent_size);
+                let num_chars = indent_size - (pos.x % indent_size);
 
                 x = pos.x + num_chars;
                 let ch = match self.config.indent_style {
@@ -479,9 +477,32 @@ impl Buffer {
     }
 
     pub fn back_tab(&mut self) {
-        for cursor in self.cursors() {
+        self.buf.reset_modified_line();
+        let mut new_cursors = Vec::new();
+        let mut iter = self.cursors.iter().rev().peekable();
+        while let Some(c) = iter.next() {
+            let pos = match c {
+                Cursor::Normal { pos, .. } => {
+                    pos
+                }
+                Cursor::Selection(range) => {
+                    range.front()
+                }
+            };
 
+            let indent_size = self.indent_size(pos.y);
+            let n = self.config.indent_size;
+            if indent_size >= n {
+                let start = Point::new(pos.y, 0);
+                let end = Point::new(pos.y, n);
+                self.buf.remove(&Range::from_points(start, end));
+                new_cursors.push(Cursor::new(pos.y, pos.x.saturating_sub(n)));
+            } else {
+                new_cursors.push(Cursor::new(pos.y, pos.x));
+            }
         }
+
+        self.set_cursors(new_cursors);
     }
 
     pub fn backspace(&mut self) {
@@ -1507,7 +1528,7 @@ mod test {
     }
 
     #[test]
-    fn auto_indent_by_tab() {
+    fn indent_by_tab() {
         let mut b = Buffer::from_str("abc");
         b.set_cursors(vec![Cursor::new(0, 0)]);
         b.tab();
@@ -1540,7 +1561,7 @@ mod test {
     }
 
     #[test]
-    fn auto_indent_inheriting_prev_line() {
+    fn indent_inheriting_prev_line() {
         // Inherit 8 spaces.
         let mut b = Buffer::from_str("        foo();\n");
         b.set_cursors(vec![Cursor::new(1, 0)]);
@@ -1550,7 +1571,7 @@ mod test {
     }
 
     #[test]
-    fn auto_indent_by_enter() {
+    fn indent_by_enter() {
         // Inherit 8 spaces.
         let mut b = Buffer::from_str("        foo();");
         b.set_cursors(vec![Cursor::new(0, 14)]);
@@ -1558,5 +1579,35 @@ mod test {
         b.tab();
         assert_eq!(&b.text(), "        foo();\n        ");
         assert_eq!(b.cursors(), &[Cursor::new(1, 8)]);
+    }
+
+    #[test]
+    fn deindent() {
+        let mut b = Buffer::from_str("");
+        b.set_cursors(vec![Cursor::new(0, 0)]);
+        b.back_tab();
+        assert_eq!(&b.text(), "");
+        assert_eq!(b.cursors(), &[Cursor::new(0, 0)]);
+
+        let mut b = Buffer::from_str("    ");
+        b.set_cursors(vec![Cursor::new(0, 0)]);
+        b.back_tab();
+        assert_eq!(&b.text(), "");
+        assert_eq!(b.cursors(), &[Cursor::new(0, 0)]);
+
+        let mut b = Buffer::from_str("    ");
+        b.set_cursors(vec![Cursor::new(0, 0), Cursor::new(0, 2)]);
+        b.back_tab();
+        assert_eq!(&b.text(), "");
+        assert_eq!(b.cursors(), &[Cursor::new(0, 0)]);
+
+        let mut b = Buffer::from_str("        abc");
+        b.set_cursors(vec![Cursor::new(0, 8)]);
+        b.back_tab();
+        assert_eq!(&b.text(), "    abc");
+        assert_eq!(b.cursors(), &[Cursor::new(0, 4)]);
+        b.back_tab();
+        assert_eq!(&b.text(), "abc");
+        assert_eq!(b.cursors(), &[Cursor::new(0, 0)]);
     }
 }
