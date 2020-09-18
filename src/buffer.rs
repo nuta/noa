@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::path::{Path, PathBuf};
 use std::ops::RangeInclusive;
-use std::cmp::max;
+use std::cmp::{max, min};
 use std::collections::HashSet;
 use crate::highlight::{Highlighter, Span};
 use crate::language::Language;
@@ -493,9 +493,16 @@ impl Buffer {
                 }
             };
 
-            let indent_size = self.indent_size(pos.y);
-            let n = self.config.indent_size;
-            if indent_size >= n && !ys.contains(&pos.y) {
+            let n = min(
+                self.indent_size(pos.y),
+                if pos.x % self.config.indent_size == 0 {
+                    self.config.indent_size
+                } else {
+                    pos.x % self.config.indent_size
+                }
+            );
+            dbg!(pos.x, n);
+            if n > 0 && !ys.contains(&pos.y) {
                 let start = Point::new(pos.y, 0);
                 let end = Point::new(pos.y, n);
                 self.buf.remove(&Range::from_points(start, end));
@@ -1599,9 +1606,22 @@ mod test {
         assert_eq!(&b.text(), "");
         assert_eq!(b.cursors(), &[Cursor::new(0, 0)]);
 
+        // len < config.indent_size
+        let mut b = Buffer::from_str("  ");
+        b.set_cursors(vec![Cursor::new(0, 0)]);
+        b.back_tab();
+        assert_eq!(&b.text(), "");
+        assert_eq!(b.cursors(), &[Cursor::new(0, 0)]);
+
+        let mut b = Buffer::from_str("     ");
+        b.set_cursors(vec![Cursor::new(0, 5)]);
+        b.back_tab();
+        assert_eq!(&b.text(), "    ");
+        assert_eq!(b.cursors(), &[Cursor::new(0, 4)]);
+
         // Multiple cursors at the same line.
         let mut b = Buffer::from_str("        ");
-        b.set_cursors(vec![Cursor::new(0, 0), Cursor::new(0, 2)]);
+        b.set_cursors(vec![Cursor::new(0, 0), Cursor::new(0, 4)]);
         b.back_tab();
         assert_eq!(&b.text(), "    ");
         assert_eq!(b.cursors(), &[Cursor::new(0, 0)]);
