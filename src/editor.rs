@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::cmp::min;
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
@@ -34,8 +35,41 @@ impl PartialEq for Notification {
 }
 
 pub struct Popup {
-    pub lines: Vec<String>,
-    pub index: Option<usize>,
+    items: Vec<String>,
+    selected: usize,
+}
+
+impl Popup {
+    pub fn new(items: Vec<String>) -> Popup {
+        Popup {
+            items,
+            selected: 0,
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    pub fn items(&self) -> &[String] {
+        &self.items
+    }
+
+    pub fn selected(&self) -> usize {
+        self.selected
+    }
+
+    pub fn selected_str(&self) -> &str {
+        &self.items[self.selected]
+    }
+
+    pub fn select_prev(&mut self) {
+        self.selected = self.selected.saturating_sub(1);
+    }
+
+    pub fn select_next(&mut self) {
+        self.selected = min(self.selected + 1, self.len().saturating_sub(1));
+}
 }
 
 pub trait Modal {
@@ -84,6 +118,7 @@ pub struct Editor {
     exited: bool,
     notifications: RefCell<Vec<Notification>>,
     popup: Option<Popup>,
+    popup_selected: usize,
     worker: Worker,
     modal: Option<Box<dyn Modal>>,
     modal_input: Buffer,
@@ -105,6 +140,7 @@ impl Editor {
             exited: false,
             notifications: RefCell::new(Vec::new()),
             popup: None,
+            popup_selected: 0,
             worker: Worker::new(EventQueue::new(tx)),
             modal: None,
             modal_input: Buffer::new(),
@@ -232,13 +268,12 @@ impl Editor {
                 } else {
                     self.handle_key_event(key);
                 }
-                self.popup = None;
             }
             Event::Resize { rows, cols } => {
                 self.terminal.resize(rows, cols);
             }
             Event::NoCompletion => {
-                self.clear_completion();
+                self.clear_popup();
             }
             Event::Completion { id, items } => {
                 self.handle_completion_event(id, items);
@@ -246,7 +281,11 @@ impl Editor {
         }
     }
 
-    fn clear_completion(&mut self) {
+    fn is_popup_active(&self) -> bool {
+        self.popup.is_some()
+    }
+
+    fn clear_popup(&mut self) {
         self.popup = None;
     }
 
@@ -256,24 +295,25 @@ impl Editor {
         if buffer.id() != id {
             drop(buffer);
             drop(view);
-            self.clear_completion();
+            self.clear_popup();
             return;
         }
 
+        self.popup_selected = 0;
         self.popup = {
             buffer.current_word()
                 .map(|current_word| {
-                    let mut lines = Vec::new();
+                    let mut filtered = Vec::new();
                     for item in items.search(&current_word, 5) {
                         if item != current_word {
-                            lines.push(item.to_owned());
+                            filtered.push(item.to_owned());
                         }
                     }
 
-                    if lines.is_empty() {
+                    if filtered.is_empty() {
                         None
                     } else {
-                        Some(Popup { lines, index: Some(0) })
+                        Some(Popup::new(filtered))
                     }
                 })
                 .unwrap_or(None)
@@ -368,7 +408,27 @@ impl Editor {
 
         let view = self.current.borrow_mut();
         let mut buffer = view.buffer().borrow_mut();
+        let mut clear_popup = true;
         match (key.code, key.modifiers) {
+            (KeyCode::Up, NONE) if self.is_popup_active() => {
+                self.popup.as_mut().unwrap().select_prev();
+                clear_popup = false;
+            }
+            (KeyCode::Down, NONE) if self.is_popup_active() => {
+                self.popup.as_mut().unwrap().select_next();
+                clear_popup = false;
+            }
+            (KeyCode::Esc, NONE) if self.is_popup_active() => {
+                // Clear the popup.
+            }
+            (KeyCode::Enter, NONE) | (KeyCode::Tab, NONE) if self.is_popup_active() => {
+                let selected = self.popup.as_mut().unwrap().selected_str();
+                if let Some(current_word_range) = buffer.current_word_range() {
+                    buffer.select_by_ranges(&[current_word_range]);
+                    buffer.backspace();
+                    buffer.insert(selected);
+                }
+            }
             (KeyCode::Char('q'), CTRL) => {
                 self.exited = true;
             }
@@ -429,6 +489,7 @@ impl Editor {
             }
             (KeyCode::Char(ch), NONE) | (KeyCode::Char(ch), SHIFT) => {
                 buffer.insert_char(ch);
+                clear_popup = false;
             }
             (KeyCode::Tab, NONE) => {
                 buffer.tab();
@@ -478,6 +539,9 @@ impl Editor {
             _ => {
                 trace!("unhandled key event: {:?}", key);
             }
+        }
+
+        if clear_popup {
         }
     }
 }

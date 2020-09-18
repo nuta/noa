@@ -261,7 +261,7 @@ impl Terminal {
                 let cursor_y = pos.y - top_left.y;
                 let cursor_x = pos.x - top_left.x;
                 let longest =
-                    popup.lines.iter().map(String::len).max().unwrap_or(0);
+                    popup.items().iter().map(String::len).max().unwrap_or(0);
                 let popup_width = min(longest + 1, text_width - 3);
                 let x = if cursor_x + popup_width < text_width {
                     cursor_x
@@ -269,18 +269,24 @@ impl Terminal {
                     text_width - popup_width
                 };
 
-                let (y, popup_height) = if cursor_y + 1 + popup.lines.len() < text_height {
-                    (cursor_y + 1, popup.lines.len())
+                let (y, popup_height) = if cursor_y + 1 + popup.len() < text_height {
+                    (cursor_y + 1, popup.len())
                 } else {
                     (cursor_y + 1, text_height - cursor_y - 1)
                 };
 
                 for i in 0..popup_height {
-                    let item = &popup.lines[i];
+                    let item = &popup.items()[i];
+                    let color = if i == popup.selected() {
+                        Color::AnsiValue(29)
+                    } else {
+                        Color::AnsiValue(89)
+                    };
+
                     queue!(
                         stdout,
                         MoveTo((text_offset + x) as u16, (y + i) as u16),
-                        SetBackgroundColor(Color::AnsiValue(89)),
+                        SetBackgroundColor(color),
                         SetAttribute(Attribute::Bold),
                         Print(truncate(&item, popup_width - 1)),
                         Print(whitespaces(popup_width.saturating_sub(item.len()))),
