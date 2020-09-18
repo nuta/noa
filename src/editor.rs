@@ -232,6 +232,7 @@ impl Editor {
                 } else {
                     self.handle_key_event(key);
                 }
+                self.popup = None;
             }
             Event::Resize { rows, cols } => {
                 self.terminal.resize(rows, cols);
