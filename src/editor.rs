@@ -119,6 +119,7 @@ pub struct Editor {
     popup_selected: usize,
     worker: Worker,
     command_box: CommandBox,
+    command_box_input: Buffer,
     workspace_dir: PathBuf,
 }
 
@@ -141,6 +142,7 @@ impl Editor {
             popup_selected: 0,
             worker: Worker::new(EventQueue::new(tx)),
             command_box: CommandBox::new(),
+            command_box_input: Buffer::new(),
             workspace_dir: PathBuf::from("."),
         }
     }
@@ -317,10 +319,21 @@ impl Editor {
         };
     }
 
-    fn execute_command(&mut self) {
+    fn open_command_box(&mut self) {
+        self.command_box_input.clear();
     }
 
-    fn preview_command(&mut self) {
+    fn execute_command(&mut self, preview: bool) {
+        use crate::command_box::{Request, RequestBody, Item};
+        let global = false;
+        let mut body = Vec::new();
+        let req = Request {
+            script: self.command_box_input.text(),
+            global,
+            preview,
+            body,
+        };
+        self.command_box.execute(req);
     }
 
     fn handle_key_event_in_command_box(&mut self, key: KeyEvent) {
@@ -330,10 +343,9 @@ impl Editor {
 
         let mut modified = false;
         let mut close = false;
-        let input = self.command_box.input_mut();
         match (key.code, key.modifiers) {
             (KeyCode::Enter, NONE) => {
-                self.execute_command();
+                self.execute_command(false);
                 close = true;
             }
             (KeyCode::Esc, NONE) => {
@@ -346,33 +358,33 @@ impl Editor {
                 self.command_box.move_down();
             }
             (KeyCode::Char('a'), CTRL) => {
-                input.move_to_beginning_of_line();
+                self.command_box_input.move_to_beginning_of_line();
             }
             (KeyCode::Char('e'), CTRL) => {
-                input.move_to_end_of_line();
+                self.command_box_input.move_to_end_of_line();
             }
             (KeyCode::Left, NONE) => {
-                input.move_cursors(0, 0, 1, 0);
+                self.command_box_input.move_cursors(0, 0, 1, 0);
             }
             (KeyCode::Right, NONE) => {
-                input.move_cursors(0, 0, 0, 1);
+                self.command_box_input.move_cursors(0, 0, 0, 1);
             }
             (KeyCode::Char('k'), CTRL) => {
-                input.truncate();
+                self.command_box_input.truncate();
                 modified = true;
             }
             (KeyCode::Char(ch), NONE)
             | (KeyCode::Char(ch), SHIFT) => {
-                input.insert_char(ch);
+                self.command_box_input.insert_char(ch);
                 modified = true;
             }
             (KeyCode::Backspace, NONE) => {
-                input.backspace();
+                self.command_box_input.backspace();
                 modified = true;
             }
             (KeyCode::Delete, NONE)
             | (KeyCode::Char('d'), CTRL) => {
-                input.delete();
+                self.command_box_input.delete();
                 modified = true;
             }
             _ => {
@@ -385,7 +397,7 @@ impl Editor {
         }
 
         if modified {
-            self.preview_command();
+            self.execute_command(true);
         }
     }
 
@@ -438,7 +450,7 @@ impl Editor {
             (KeyCode::Char('x'), CTRL) => {
                 drop(buffer);
                 drop(view);
-                self.command_box.open();
+                self.open_command_box();
                 return;
             }
             (KeyCode::Char('k'), CTRL) => {

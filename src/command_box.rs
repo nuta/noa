@@ -60,13 +60,13 @@ pub enum RequestBody {
 
 #[derive(Serialize, Deserialize)]
 pub struct Request {
-    global: bool,
-    enter: bool,
-    body: Vec<RequestBody>,
+    pub global: bool,
+    pub preview: bool,
+    pub script: String,
+    pub body: Vec<RequestBody>,
 }
 
 pub struct CommandBox {
-    input: Buffer,
     last_response: Option<Response>,
     selected: usize,
     items: Vec<Item>,
@@ -81,7 +81,6 @@ impl CommandBox {
         let script_file_path = script_file.path().to_str().unwrap().to_owned();
 
         CommandBox {
-            input: Buffer::new(),
             last_response: None,
             selected: 0,
             items: Vec::new(),
@@ -90,15 +89,11 @@ impl CommandBox {
         }
     }
 
-    pub fn input_mut(&mut self) -> &mut Buffer {
-        &mut self.input
-    }
-
     pub fn last_response(&self) -> &Option<Response> {
         &self.last_response
     }
 
-    fn execute(&mut self, ruby_script: &str, request: Request) -> io::Result<()> {
+    pub fn execute(&mut self, request: Request) -> io::Result<()> {
         let mut child = Command::new("ruby")
             .args(&[&self.script_file_path])
             .stdin(Stdio::piped())
@@ -119,10 +114,6 @@ impl CommandBox {
         let resp: Response = serde_json::from_str(&json_string)?;
         self.last_response = Some(resp);
         Ok(())
-    }
-
-    pub fn open(&mut self) {
-        self.input.clear();
     }
 
     pub fn move_up(&mut self) {
