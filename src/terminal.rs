@@ -1,7 +1,8 @@
-use crate::editor::{EventQueue, Event, Notification, Popup, Modal};
+use crate::editor::{EventQueue, Event, Notification, Popup};
 use crate::rope::Cursor;
 use crate::view::View;
 use crate::highlight::{Highlighter, THEME};
+use crate::command_box::Response;
 use std::cmp::{min, max};
 use std::io::{stdout, Write};
 use std::time::Duration;
@@ -102,7 +103,7 @@ impl Terminal {
         view: &mut View,
         notifications: &[Notification],
         popup: &Option<Popup>,
-        modal: &Option<Box<dyn Modal>>,
+        resp: &Option<Response>,
     ) {
         use unicode_width::{UnicodeWidthChar};
         use crossterm::cursor::{self, MoveTo};
@@ -313,11 +314,13 @@ impl Terminal {
         }
 
         // Draw the modal.
+        /*
         if let Some(modal) = modal {
             let max_height = 8;
             let y = text_height.saturating_sub(max_height);
             modal.draw(&mut stdout, y, text_height - y, self.cols);
         }
+        */
 
         stdout.flush().unwrap();
     }

@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::sync::mpsc::{channel, Sender, Receiver, RecvTimeoutError};
 use std::time::{Instant, Duration};
 use crate::buffer::{Buffer, BufferId};
+use crate::command_box::CommandBox;
 use crate::completion::WordCompJob;
 use crate::view::View;
 use crate::worker::Worker;
@@ -13,7 +14,6 @@ use crate::highlight::Highlighter;
 use crate::fuzzy::FuzzySet;
 use crate::terminal::{Terminal, KeyCode, KeyModifiers, KeyEvent};
 use std::io::Stdout;
-use crate::finder::FinderModal;
 use crate::rope::Cursor;
 
 pub enum NotificationLevel {
@@ -69,15 +69,7 @@ impl Popup {
 
     pub fn select_next(&mut self) {
         self.selected = min(self.selected + 1, self.len().saturating_sub(1));
-}
-}
-
-pub trait Modal {
-    fn draw(&self, stdout: &mut Stdout, y: usize, height: usize, width: usize);
-    fn move_up(&mut self);
-    fn move_down(&mut self);
-    fn input(&mut self, editor: &mut Editor, new_text: &str, cursor: usize);
-    fn execute(&mut self, editor: &mut Editor);
+    }
 }
 
 pub enum Event {
@@ -110,7 +102,13 @@ impl EventQueue {
     }
 }
 
+pub enum EditorMode {
+    Normal,
+    CommandBox,
+}
+
 pub struct Editor {
+    mode: EditorMode,
     terminal: Terminal,
     current: Rc<RefCell<View>>,
     views: Vec<Rc<RefCell<View>>>,
@@ -120,8 +118,7 @@ pub struct Editor {
     popup: Option<Popup>,
     popup_selected: usize,
     worker: Worker,
-    modal: Option<Box<dyn Modal>>,
-    modal_input: Buffer,
+    command_box: CommandBox,
     workspace_dir: PathBuf,
 }
 
@@ -133,6 +130,7 @@ impl Editor {
         let scratch_view = Rc::new(RefCell::new(View::new(scratch_buffer)));
 
         Editor {
+            mode: EditorMode::Normal,
             terminal: Terminal::new(EventQueue::new(tx.clone())),
             current: scratch_view.clone(),
             views: vec![scratch_view],
@@ -142,8 +140,7 @@ impl Editor {
             popup: None,
             popup_selected: 0,
             worker: Worker::new(EventQueue::new(tx)),
-            modal: None,
-            modal_input: Buffer::new(),
+            command_box: CommandBox::new(),
             workspace_dir: PathBuf::from("."),
         }
     }
@@ -227,7 +224,7 @@ impl Editor {
             &mut *view,
             &*self.notifications.borrow(),
             &self.popup,
-            &self.modal,
+            &self.command_box.last_response(),
         );
     }
 
@@ -260,10 +257,13 @@ impl Editor {
     fn handle_event(&mut self, ev: Event) {
         match ev {
             Event::Key(key) => {
-                if self.modal.is_some() {
-                    self.handle_key_event_in_modal(key);
-                } else {
-                    self.handle_key_event(key);
+                match self.mode {
+                    EditorMode::Normal => {
+                        self.handle_key_event_in_command_box(key);
+                    }
+                    EditorMode::CommandBox => {
+                        self.handle_key_event(key);
+                    }
                 }
             }
             Event::Resize { rows, cols } => {
@@ -317,84 +317,76 @@ impl Editor {
         };
     }
 
-    fn handle_key_event_in_modal(&mut self, key: KeyEvent) {
+    fn execute_command(&mut self) {
+    }
+
+    fn preview_command(&mut self) {
+    }
+
+    fn handle_key_event_in_command_box(&mut self, key: KeyEvent) {
         const NONE: KeyModifiers = KeyModifiers::NONE;
         const CTRL: KeyModifiers = KeyModifiers::CONTROL;
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
-        let mut input_modified = false;
-        let mut close_modal = false;
-        let mut modal = self.modal.take().unwrap();
+        let mut modified = false;
+        let mut close = false;
+        let input = self.command_box.input_mut();
         match (key.code, key.modifiers) {
             (KeyCode::Enter, NONE) => {
-                modal.execute(self);
-                close_modal = true;
+                self.execute_command();
+                close = true;
             }
-            (KeyCode::Char('g'), CTRL) => {
-                close_modal = true;
-            }
-            (KeyCode::Char('k'), CTRL) => {
-                self.modal_input.truncate();
-                input_modified = true;
-            }
-            (KeyCode::Char('a'), CTRL) => {
-                self.modal_input.move_to_beginning_of_line();
-                input_modified = true;
-            }
-            (KeyCode::Char('e'), CTRL) => {
-                self.modal_input.move_to_end_of_line();
-                input_modified = true;
+            (KeyCode::Esc, NONE) => {
+                close = true;
             }
             (KeyCode::Up, NONE) => {
-                modal.move_up();
+                self.command_box.move_up();
             }
             (KeyCode::Down, NONE) => {
-                modal.move_down();
+                self.command_box.move_down();
+            }
+            (KeyCode::Char('a'), CTRL) => {
+                input.move_to_beginning_of_line();
+            }
+            (KeyCode::Char('e'), CTRL) => {
+                input.move_to_end_of_line();
             }
             (KeyCode::Left, NONE) => {
-                self.modal_input.move_cursors(0, 0, 1, 0);
-                input_modified = true;
+                input.move_cursors(0, 0, 1, 0);
             }
             (KeyCode::Right, NONE) => {
-                self.modal_input.move_cursors(0, 0, 0, 1);
-                input_modified = true;
+                input.move_cursors(0, 0, 0, 1);
             }
-            (KeyCode::Char(ch), NONE) | (KeyCode::Char(ch), SHIFT) => {
-                self.modal_input.insert_char(ch);
-                input_modified = true;
+            (KeyCode::Char('k'), CTRL) => {
+                input.truncate();
+                modified = true;
+            }
+            (KeyCode::Char(ch), NONE)
+            | (KeyCode::Char(ch), SHIFT) => {
+                input.insert_char(ch);
+                modified = true;
             }
             (KeyCode::Backspace, NONE) => {
-                self.modal_input.backspace();
-                input_modified = true;
+                input.backspace();
+                modified = true;
             }
-            (KeyCode::Delete, NONE) | (KeyCode::Char('d'), CTRL) => {
-                self.modal_input.delete();
-                input_modified = true;
+            (KeyCode::Delete, NONE)
+            | (KeyCode::Char('d'), CTRL) => {
+                input.delete();
+                modified = true;
             }
             _ => {
                 trace!("unhandled key event: {:?}", key);
             }
         }
 
-        if input_modified {
-            let cursor = match self.modal_input.cursors()[0] {
-                Cursor::Normal { pos } => pos.x,
-                _ => unreachable!()
-            };
-
-            modal.input(self, &self.modal_input.text().trim_end(), cursor);
+        if close {
+            self.mode = EditorMode::Normal;
         }
 
-        if close_modal {
-            self.modal = None;
-        } else {
-            self.modal = Some(modal);
+        if modified {
+            self.preview_command();
         }
-    }
-
-    fn open_modal(&mut self, modal: Box<dyn Modal>) {
-        self.modal = Some(modal);
-        self.modal_input.clear();
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) {
@@ -443,11 +435,10 @@ impl Editor {
                     }
                 }
             }
-            (KeyCode::Char('f'), CTRL) => {
+            (KeyCode::Char('x'), CTRL) => {
                 drop(buffer);
                 drop(view);
-                self.open_modal(Box::new(FinderModal::new()));
-                self.info("opened finder modal");
+                self.command_box.open();
                 return;
             }
             (KeyCode::Char('k'), CTRL) => {

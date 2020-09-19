@@ -1,10 +1,14 @@
+use std::cmp::min;
 use std::process::{Command, Stdio};
 use std::path::PathBuf;
 use std::io::{self, Read, Write};
 use serde::{Deserialize, Serialize};
+use ignore::WalkBuilder;
 use tempfile::NamedTempFile;
+use crate::terminal::{Terminal, KeyCode, KeyModifiers, KeyEvent};
 use crate::rope::Range;
-use crate::buffer::BufferId;
+use crate::buffer::{BufferId, Buffer};
+use crate::editor::Editor;
 
 #[derive(Serialize, Deserialize)]
 pub struct File {
@@ -62,6 +66,10 @@ pub struct Request {
 }
 
 pub struct CommandBox {
+    input: Buffer,
+    last_response: Option<Response>,
+    selected: usize,
+    items: Vec<Item>,
     script_file: NamedTempFile,
     script_file_path: String,
 }
@@ -73,12 +81,24 @@ impl CommandBox {
         let script_file_path = script_file.path().to_str().unwrap().to_owned();
 
         CommandBox {
+            input: Buffer::new(),
+            last_response: None,
+            selected: 0,
+            items: Vec::new(),
             script_file,
             script_file_path,
         }
     }
 
-    pub fn run(&mut self, ruby_script: &str, request: Request) -> io::Result<Response> {
+    pub fn input_mut(&mut self) -> &mut Buffer {
+        &mut self.input
+    }
+
+    pub fn last_response(&self) -> &Option<Response> {
+        &self.last_response
+    }
+
+    fn execute(&mut self, ruby_script: &str, request: Request) -> io::Result<()> {
         let mut child = Command::new("ruby")
             .args(&[&self.script_file_path])
             .stdin(Stdio::piped())
@@ -90,13 +110,27 @@ impl CommandBox {
         let mut stdout = child.stdout.take().unwrap();
         let mut stderr = child.stderr.take().unwrap();
 
-        write!(&mut stdin, "{}", serde_json::to_string(&request).unwrap()).ok();
+        let input = serde_json::to_string(&request).unwrap();
+        stdin.write_all(input.as_bytes()).ok();
         drop(stdin);
 
         let mut json_string = String::with_capacity(2048);
         stdout.read_to_string(&mut json_string).ok();
         let resp: Response = serde_json::from_str(&json_string)?;
-        Ok(resp)
+        self.last_response = Some(resp);
+        Ok(())
+    }
+
+    pub fn open(&mut self) {
+        self.input.clear();
+    }
+
+    pub fn move_up(&mut self) {
+        self.selected = self.selected.saturating_sub(1);
+    }
+
+    pub fn move_down(&mut self) {
+        self.selected = min(self.selected + 1, self.items.len());
     }
 }
 
