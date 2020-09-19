@@ -2,7 +2,7 @@ use crate::editor::{EventQueue, Event, Notification, Popup};
 use crate::rope::Cursor;
 use crate::view::View;
 use crate::highlight::{Highlighter, THEME};
-use crate::command_box::Response;
+use crate::command_box::{CommandBox, ResponseBody, Item};
 use std::cmp::{min, max};
 use std::io::{stdout, Write};
 use std::time::Duration;
@@ -103,7 +103,7 @@ impl Terminal {
         view: &mut View,
         notifications: &[Notification],
         popup: &Option<Popup>,
-        resp: &Option<Response>,
+        command_box: Option<(&CommandBox, &Buffer)>,
     ) {
         use unicode_width::{UnicodeWidthChar};
         use crossterm::cursor::{self, MoveTo};
@@ -313,16 +313,111 @@ impl Terminal {
             }
         }
 
-        // Draw the modal.
-        /*
-        if let Some(modal) = modal {
+        // Draw the command box.
+        if let Some((command_box, command_box_input)) = command_box {
             let max_height = 8;
             let y = text_height.saturating_sub(max_height);
-            modal.draw(&mut stdout, y, text_height - y, self.cols);
+            self.draw_command_box(
+                &mut stdout,
+                command_box,
+                command_box_input,
+                y,
+                text_height - y,
+                self.cols
+            );
         }
-        */
 
         stdout.flush().unwrap();
+    }
+
+    fn draw_command_box(
+        &self,
+        stdout: &mut std::io::Stdout,
+        command_box: &CommandBox,
+        command_box_input: &Buffer,
+        y: usize,
+        height: usize,
+        width: usize,
+    ) {
+        use std::io::Write;
+        use crossterm::queue;
+        use crossterm::cursor::{self, MoveTo, MoveDown};
+        use crossterm::terminal::{Clear, ClearType};
+        use crossterm::style::{
+            Print, Color, SetForegroundColor, SetBackgroundColor,
+            Attribute, SetAttribute
+        };
+
+        // The input line.
+        queue!(
+            stdout,
+            MoveTo(0, y as u16),
+            SetBackgroundColor(Color::Magenta),
+            Print("Finder"),
+            SetAttribute(Attribute::Reset),
+            Print(" "),
+            Print(truncate(&command_box_input.text(), width - 7))
+        ).ok();
+
+        // List items.
+        let blank_lines;
+        let items_height = height - 1;
+        if let Some(r) = command_box.last_response() {
+            match &r.body {
+                ResponseBody::Select { items } => {
+                    blank_lines = items.len()..items_height;
+                    let items = items.iter().enumerate().take(items_height);
+                    for (i, item) in items {
+                        queue!(
+                            stdout,
+                            MoveTo(0, (y + i + 1) as u16),
+                            Clear(ClearType::CurrentLine),
+                            SetAttribute(Attribute::Reset),
+                        ).ok();
+
+                        if i == command_box.selected() {
+                            queue!(
+                                stdout,
+                                SetAttribute(Attribute::Bold),
+                                SetAttribute(Attribute::Underlined),
+                            ).ok();
+                        }
+
+                        match item {
+                            Item::File(f) => {
+                                queue!(
+                                    stdout,
+                                     Print(truncate(f.path.to_str().unwrap(), width))
+                                 );
+                            }
+                            _ => {
+                                todo!();
+                            }
+                        }
+                    }
+                }
+                _ => {
+                    todo!();
+                }
+            }
+        } else {
+            blank_lines = 0..items_height;
+        }
+
+        // Clear remaining lines.
+        for i in blank_lines {
+            queue!(
+                stdout,
+                MoveTo(0, (y + i + 1) as u16),
+                Clear(ClearType::CurrentLine),
+            ).ok();
+        }
+
+        // Move the cursor.
+        queue!(
+            stdout,
+            MoveTo((min(7 + command_box.selected(), width)) as u16, y as u16)
+        ).ok();
     }
 
     fn draw_text_line(
@@ -394,7 +489,6 @@ impl Terminal {
                     .chars()
                     .enumerate()
                     .fold(0, |sum, (i, ch)| {
-                        trace!("x=[{}, {}], w={}", x,i,tab_width - ((x + i) % tab_width));
                         sum + match ch {
                             '\t' => tab_width - ((x + i) % tab_width),
                             _ => UnicodeWidthChar::width_cjk(ch).unwrap_or(1),

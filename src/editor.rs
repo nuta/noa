@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::sync::mpsc::{channel, Sender, Receiver, RecvTimeoutError};
 use std::time::{Instant, Duration};
 use crate::buffer::{Buffer, BufferId};
-use crate::command_box::CommandBox;
+use crate::command_box::{CommandBox, Item, File, RequestBody};
 use crate::completion::WordCompJob;
 use crate::view::View;
 use crate::worker::Worker;
@@ -226,7 +226,10 @@ impl Editor {
             &mut *view,
             &*self.notifications.borrow(),
             &self.popup,
-            &self.command_box.last_response(),
+            match self.mode {
+                EditorMode::CommandBox => Some((&self.command_box, &self.command_box_input)),
+                EditorMode::Normal => None,
+            }
         );
     }
 
@@ -261,10 +264,10 @@ impl Editor {
             Event::Key(key) => {
                 match self.mode {
                     EditorMode::Normal => {
-                        self.handle_key_event_in_command_box(key);
+                        self.handle_key_event(key);
                     }
                     EditorMode::CommandBox => {
-                        self.handle_key_event(key);
+                        self.handle_key_event_in_command_box(key);
                     }
                 }
             }
@@ -326,17 +329,44 @@ impl Editor {
     fn execute_command(&mut self, preview: bool) {
         use crate::command_box::{Request, RequestBody, Item};
         let input = self.command_box_input.text();
+        let mut words = input.splitn(2, ' ');
+        let pat = words.next().unwrap();
+        let script = words.next().unwrap_or("").to_owned();
+
+        let body;
+        if pat.starts_with("/") {
+            // Search the current buffer.
+            // TODO:
+            body = RequestBody::Files(vec![]);
+        } else if pat.starts_with(">") {
+            // Filter file paths.
+            body = RequestBody::Files(list_files(self.workspace_dir(), &pat[1..]));
+        } else {
+            self.notify(NotificationLevel::Error, "invalid prefix");
+            return;
+        }
 
         let global = false;
-        let mut body = Vec::new();
-
         let req = Request {
-            script,
+            script: script.clone(),
             global,
             preview,
             body,
         };
-        self.command_box.execute(req);
+
+        match self.command_box.execute(req) {
+            Ok(()) => {
+            }
+            Err(err) => {
+                self.error(format!("{}", err));
+                return;
+            }
+        }
+
+        let last_stderr = self.command_box.last_stderr();
+        if !last_stderr.is_empty() {
+            error!("stderr from ruby script: {}\n{}", script, last_stderr);
+        }
     }
 
     fn handle_key_event_in_command_box(&mut self, key: KeyEvent) {
@@ -564,4 +594,23 @@ impl Editor {
             self.worker.request(Box::new(WordCompJob::new(snapshot)));
         }
     }
+}
+
+fn list_files(dir: &Path, pat: &str) -> Vec<File> {
+    use ignore::WalkBuilder;
+
+    let mut files = Vec::new();
+    let walker = WalkBuilder::new(dir).build();
+    for e in walker {
+        if let Ok(e) = e {
+            let pathbuf = e.into_path().to_path_buf();
+            let display_name = pathbuf.to_str().unwrap().to_owned();
+            // TODO: fuzzy match
+            if display_name.contains(pat) {
+                files.push(File { display_name, path: pathbuf });
+            }
+        }
+    }
+
+    files
 }

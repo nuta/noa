@@ -1,7 +1,7 @@
 use std::cmp::min;
 use std::process::{Command, Stdio};
 use std::path::PathBuf;
-use std::io::{self, Read, Write};
+use std::io::{self, Read, Write, Stdout};
 use serde::{Deserialize, Serialize};
 use ignore::WalkBuilder;
 use tempfile::NamedTempFile;
@@ -12,8 +12,8 @@ use crate::editor::Editor;
 
 #[derive(Serialize, Deserialize)]
 pub struct File {
-    display_name: String,
-    path: PathBuf,
+    pub display_name: String,
+    pub path: PathBuf,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -44,18 +44,21 @@ pub enum ResponseBody {
 
 #[derive(Serialize, Deserialize)]
 pub struct Response {
-    message: String,
-    num_filtered: usize,
-    body: Vec<ResponseBody>,
+    pub message: String,
+    pub num_filtered: usize,
+    pub body: ResponseBody,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Location {
+    pub path: File,
+    pub ranges: Vec<Range>,
 }
 
 #[derive(Serialize, Deserialize)]
 pub enum RequestBody {
-    Location {
-        path: File,
-        ranges: Vec<Range>,
-    },
-    File(File),
+    Locations(Vec<Location>),
+    Files(Vec<File>),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -63,13 +66,14 @@ pub struct Request {
     pub global: bool,
     pub preview: bool,
     pub script: String,
-    pub body: Vec<RequestBody>,
+    pub body: RequestBody,
 }
 
 pub struct CommandBox {
     last_response: Option<Response>,
+    last_stderr: String,
     selected: usize,
-    items: Vec<Item>,
+    num_items: usize,
     script_file: NamedTempFile,
     script_file_path: String,
 }
@@ -82,15 +86,24 @@ impl CommandBox {
 
         CommandBox {
             last_response: None,
+            last_stderr: String::new(),
             selected: 0,
-            items: Vec::new(),
+            num_items: 0,
             script_file,
             script_file_path,
         }
     }
 
+    pub fn last_stderr(&self) -> &str {
+        &self.last_stderr
+    }
+
     pub fn last_response(&self) -> &Option<Response> {
         &self.last_response
+    }
+
+    pub fn selected(&self) -> usize {
+        self.selected
     }
 
     pub fn execute(&mut self, request: Request) -> io::Result<()> {
@@ -111,7 +124,16 @@ impl CommandBox {
 
         let mut json_string = String::with_capacity(2048);
         stdout.read_to_string(&mut json_string).ok();
+
+        self.last_stderr.clear();
+        stderr.read_to_string(&mut self.last_stderr);
+
         let resp: Response = serde_json::from_str(&json_string)?;
+        self.num_items = match &resp.body {
+            ResponseBody::Select { items } => items.len(),
+            _ => 0,
+        };
+
         self.last_response = Some(resp);
         Ok(())
     }
@@ -121,7 +143,7 @@ impl CommandBox {
     }
 
     pub fn move_down(&mut self) {
-        self.selected = min(self.selected + 1, self.items.len());
+        self.selected = min(self.selected + 1, self.num_items);
     }
 }
 
