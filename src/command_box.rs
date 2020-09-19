@@ -17,6 +17,7 @@ pub struct File {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(tag = "type")]
 pub enum Item {
     #[serde(rename = "print")]
     Print(String),
@@ -36,6 +37,7 @@ pub enum Item {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(tag = "type")]
 pub enum ResponseBody {
     #[serde(rename = "executed")]
     Executed,
@@ -63,11 +65,16 @@ pub struct Location {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(tag = "type")]
 pub enum RequestBody {
     #[serde(rename = "locations")]
-    Locations(Vec<Location>),
+    Locations {
+        locations: Vec<Location>,
+    },
     #[serde(rename = "files")]
-    Files(Vec<File>),
+    Files {
+        files: Vec<File>
+    },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -137,6 +144,7 @@ impl CommandBox {
         let mut json_string = String::with_capacity(2048);
         stdout.read_to_string(&mut json_string).ok();
         stderr.read_to_string(&mut self.last_stderr);
+        trace!("Response = {}", serde_json::to_string(&Response{ message: "".to_owned(), num_filtered: 0, body: ResponseBody::Executed }).unwrap());
 
         let resp: Response = serde_json::from_str(&json_string)?;
         self.num_items = match &resp.body {

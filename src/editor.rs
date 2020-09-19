@@ -342,10 +342,12 @@ impl Editor {
         if pat.starts_with("/") {
             // Search the current buffer.
             // TODO:
-            body = RequestBody::Files(vec![]);
+            body = RequestBody::Files { files: vec![] };
         } else if pat.starts_with(">") {
             // Filter file paths.
-            body = RequestBody::Files(list_files(self.workspace_dir(), &pat[1..]));
+            body = RequestBody::Files {
+                files: list_files(self.workspace_dir(), &pat[1..])
+            };
         } else {
             self.notify(NotificationLevel::Error, "invalid prefix");
             return;
