@@ -325,10 +325,13 @@ impl Editor {
 
     fn execute_command(&mut self, preview: bool) {
         use crate::command_box::{Request, RequestBody, Item};
+        let input = self.command_box_input.text();
+
         let global = false;
         let mut body = Vec::new();
+
         let req = Request {
-            script: self.command_box_input.text(),
+            script,
             global,
             preview,
             body,
