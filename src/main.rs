@@ -6,7 +6,7 @@
 #[macro_use] extern crate maplit;
 
 mod buffer;
-mod command_bar;
+mod command_box;
 mod editor;
 mod rope;
 mod terminal;
