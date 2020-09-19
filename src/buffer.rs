@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::ops::RangeInclusive;
 use std::cmp::{max, min};
 use std::collections::HashSet;
+use serde::{Deserialize, Serialize};
 use crate::highlight::{Highlighter, Span};
 use crate::language::Language;
 use crate::editorconfig::{EditorConfig, IndentStyle};
@@ -75,7 +76,7 @@ impl Snapshot {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
 pub struct BufferId(usize);
 
 impl BufferId {

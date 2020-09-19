@@ -3,8 +3,9 @@ use std::fs::File;
 use std::path::Path;
 use std::cmp::{min, max};
 use std::cmp::Ordering;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub struct Point {
     pub y: usize,
     pub x: usize,
@@ -101,7 +102,7 @@ impl PartialOrd for Point {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct Range {
     pub start: Point,
     pub end: Point,
