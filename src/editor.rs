@@ -324,6 +324,11 @@ impl Editor {
 
     fn open_command_box(&mut self) {
         self.command_box_input.clear();
+        self.mode = EditorMode::CommandBox;
+    }
+
+    fn close_command_box(&mut self) {
+        self.mode = EditorMode::Normal;
     }
 
     fn execute_command(&mut self, preview: bool) {
@@ -358,6 +363,7 @@ impl Editor {
             Ok(()) => {
             }
             Err(err) => {
+                error!("ruby script error: {}", err);
                 self.error(format!("{}", err));
                 return;
             }
@@ -426,7 +432,8 @@ impl Editor {
         }
 
         if close {
-            self.mode = EditorMode::Normal;
+            self.close_command_box();
+            return;
         }
 
         if modified {
