@@ -14,7 +14,9 @@ message = "#{Time.now}"
 num_filtered = 0
 body = {
   type: "select",
-  items: [],
+  items: [
+    { type: "file", display_name: "foo", path: "bar" }
+  ],
 }
 
 response = {
