@@ -18,12 +18,16 @@ pub struct File {
 
 #[derive(Serialize, Deserialize)]
 pub enum Item {
+    #[serde(rename = "print")]
     Print(String),
+    #[serde(rename = "print_with_path")]
     PrintWithPath {
         file: File,
         body: String,
     },
+    #[serde(rename = "file")]
     File(File),
+    #[serde(rename = "file_position")]
     FilePosition {
         file: File,
         line: usize,
@@ -33,10 +37,13 @@ pub enum Item {
 
 #[derive(Serialize, Deserialize)]
 pub enum ResponseBody {
+    #[serde(rename = "executed")]
     Executed,
+    #[serde(rename = "preview")]
     Preview {
         items: Vec<Item>,
     },
+    #[serde(rename = "select")]
     Select {
         items: Vec<Item>,
     },
@@ -57,7 +64,9 @@ pub struct Location {
 
 #[derive(Serialize, Deserialize)]
 pub enum RequestBody {
+    #[serde(rename = "locations")]
     Locations(Vec<Location>),
+    #[serde(rename = "files")]
     Files(Vec<File>),
 }
 
@@ -107,6 +116,9 @@ impl CommandBox {
     }
 
     pub fn execute(&mut self, request: Request) -> io::Result<()> {
+        self.last_stderr.clear();
+
+        trace!("rb: {}", self.script_file_path);
         let mut child = Command::new("ruby")
             .args(&[&self.script_file_path])
             .stdin(Stdio::piped())
@@ -124,8 +136,6 @@ impl CommandBox {
 
         let mut json_string = String::with_capacity(2048);
         stdout.read_to_string(&mut json_string).ok();
-
-        self.last_stderr.clear();
         stderr.read_to_string(&mut self.last_stderr);
 
         let resp: Response = serde_json::from_str(&json_string)?;

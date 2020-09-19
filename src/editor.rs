@@ -365,7 +365,6 @@ impl Editor {
             Err(err) => {
                 error!("ruby script error: {}", err);
                 self.error(format!("{}", err));
-                return;
             }
         }
 
