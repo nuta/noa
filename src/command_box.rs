@@ -122,6 +122,11 @@ impl CommandBox {
         self.selected
     }
 
+    pub fn open(&mut self) {
+        self.selected = 0;
+        self.last_response = None;
+    }
+
     pub fn execute(&mut self, request: Request) -> io::Result<()> {
         self.last_stderr.clear();
 

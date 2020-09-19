@@ -325,6 +325,7 @@ impl Editor {
     fn open_command_box(&mut self) {
         self.command_box_input.clear();
         self.mode = EditorMode::CommandBox;
+        self.command_box.open();
     }
 
     fn close_command_box(&mut self) {
