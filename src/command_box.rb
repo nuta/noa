@@ -7,5 +7,20 @@ rescue Errno::EPIPE
 end
 
 request = JSON.parse(STDIN.read)
-STDERR.puts request
-raise
+global = request["global"]
+preview = request["preview"]
+
+message = "#{Time.now}"
+num_filtered = 0
+body = {
+  type: "select",
+  items: [],
+}
+
+response = {
+  message: message,
+  num_filtered: num_filtered,
+  body: body,
+}
+
+puts response.to_json

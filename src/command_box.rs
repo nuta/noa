@@ -97,7 +97,7 @@ pub struct CommandBox {
 impl CommandBox {
     pub fn new() -> CommandBox {
         let mut script_file = NamedTempFile::new().unwrap();
-        writeln!(&mut script_file, include_str!("command_box.rb"));
+        writeln!(&mut script_file, "{}", include_str!("command_box.rb"));
         let script_file_path = script_file.path().to_str().unwrap().to_owned();
 
         CommandBox {
