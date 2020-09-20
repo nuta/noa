@@ -10,21 +10,32 @@ use crate::rope::{Range, Point};
 use crate::buffer::{BufferId, Buffer};
 use crate::editor::Editor;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct File {
     pub display_name: String,
     pub path: PathBuf,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(tag = "type")]
-pub enum Item {
+pub enum PreviewItem {
     #[serde(rename = "print")]
-    Print(String),
+    Print {
+        body: String
+    },
     #[serde(rename = "print_with_file")]
     PrintWithFile {
         file: File,
         body: String,
+    },
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(tag = "type")]
+pub enum ResponseBody {
+    #[serde(rename = "preview")]
+    Preview {
+        items: Vec<PreviewItem>,
     },
     #[serde(rename = "goto")]
     GoTo {
@@ -33,22 +44,7 @@ pub enum Item {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-#[serde(tag = "type")]
-pub enum ResponseBody {
-    #[serde(rename = "executed")]
-    Executed,
-    #[serde(rename = "preview")]
-    Preview {
-        items: Vec<Item>,
-    },
-    #[serde(rename = "select")]
-    Select {
-        items: Vec<Item>,
-    },
-}
-
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Response {
     pub message: Option<String>,
     pub num_filtered: usize,
@@ -78,6 +74,7 @@ pub enum RequestBody {
 pub struct Request {
     pub global: bool,
     pub preview: bool,
+    pub selected: usize,
     pub script: String,
     pub body: RequestBody,
 }
@@ -111,8 +108,8 @@ impl CommandBox {
         &self.last_stderr
     }
 
-    pub fn last_response(&self) -> &Option<Response> {
-        &self.last_response
+    pub fn last_response(&self) -> Option<&Response> {
+        self.last_response.as_ref()
     }
 
     pub fn selected(&self) -> usize {
@@ -149,7 +146,7 @@ impl CommandBox {
 
         let resp: Response = serde_json::from_str(&json_string)?;
         self.num_items = match &resp.body {
-            ResponseBody::Select { items } => items.len(),
+            ResponseBody::Preview { items } => items.len(),
             _ => 0,
         };
 

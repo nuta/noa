@@ -2,7 +2,7 @@ use crate::editor::{EventQueue, Event, Notification, Popup};
 use crate::rope::Cursor;
 use crate::view::View;
 use crate::highlight::{Highlighter, THEME};
-use crate::command_box::{CommandBox, ResponseBody, Item};
+use crate::command_box::{CommandBox, ResponseBody, PreviewItem};
 use std::cmp::{min, max};
 use std::io::{stdout, Write};
 use std::time::Duration;
@@ -364,7 +364,7 @@ impl Terminal {
         let items_height = height - 1;
         if let Some(r) = command_box.last_response() {
             match &r.body {
-                ResponseBody::Select { items } => {
+                ResponseBody::Preview { items } => {
                     blank_lines = items.len()..items_height;
                     let items = items.iter().enumerate().take(items_height);
                     for (i, item) in items {
@@ -383,20 +383,14 @@ impl Terminal {
                             ).ok();
                         }
 
-                        match item {
-                            Item::GoTo { file, position } => {
+                        match &item {
+                            PreviewItem::Print { body } => {
                                 queue!(
                                     stdout,
-                                     Print(truncate(file.path.to_str().unwrap(), width))
+                                     Print(truncate(body, width))
                                  ).ok();
                             }
-                            Item::Print(message) => {
-                                queue!(
-                                    stdout,
-                                     Print(truncate(message, width))
-                                 ).ok();
-                            }
-                            Item::PrintWithFile { file, body } => {
+                            PreviewItem::PrintWithFile { file, body } => {
                                 let file_width = min(width, 16);
                                 let body_width = width.saturating_sub(file_width);
                                 queue!(
@@ -408,9 +402,7 @@ impl Terminal {
                         }
                     }
                 }
-                _ => {
-                    todo!();
-                }
+                _ => unreachable!()
             }
         } else {
             blank_lines = 0..items_height;

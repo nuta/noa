@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::sync::mpsc::{channel, Sender, Receiver, RecvTimeoutError};
 use std::time::{Instant, Duration};
 use crate::buffer::{Buffer, BufferId};
-use crate::command_box::{CommandBox, Item, File, RequestBody};
+use crate::command_box::{CommandBox, PreviewItem, File, RequestBody};
 use crate::completion::WordCompJob;
 use crate::view::View;
 use crate::worker::Worker;
@@ -333,7 +333,7 @@ impl Editor {
     }
 
     fn execute_command(&mut self, preview: bool) {
-        use crate::command_box::{Request, RequestBody, Item};
+        use crate::command_box::{Request, RequestBody, Response, ResponseBody, PreviewItem};
         let input = self.command_box_input.text();
         let mut words = input.splitn(2, ' ');
         let pat = words.next().unwrap();
@@ -357,14 +357,14 @@ impl Editor {
         let global = false;
         let req = Request {
             script: script.clone(),
+            selected: self.command_box.selected(),
             global,
             preview,
             body,
         };
 
         match self.command_box.execute(req) {
-            Ok(()) => {
-            }
+            Ok(()) => {}
             Err(err) => {
                 error!("ruby script error: {}", err);
                 self.error(format!("{}", err));
@@ -374,6 +374,21 @@ impl Editor {
         let last_stderr = self.command_box.last_stderr();
         if !last_stderr.is_empty() {
             error!("stderr from ruby script: {}\n{}", script, last_stderr);
+        }
+
+        let resp = self.command_box.last_response().cloned();
+        match resp {
+            Some(Response { body, .. }) => match body {
+                ResponseBody::Preview { .. } => {}
+                ResponseBody::GoTo { file, position } => {
+                    self.open_file(&file.path);
+                    self.close_command_box();
+                }
+                _ => {
+                    self.close_command_box();
+                },
+            }
+            _ => {},
         }
     }
 
@@ -387,10 +402,10 @@ impl Editor {
         match (key.code, key.modifiers) {
             (KeyCode::Enter, NONE) => {
                 self.execute_command(false);
-                close = true;
             }
             (KeyCode::Esc, NONE) => {
-                close = true;
+                self.close_command_box();
+                return;
             }
             (KeyCode::Up, NONE) => {
                 self.command_box.move_up();
@@ -431,11 +446,6 @@ impl Editor {
             _ => {
                 trace!("unhandled key event: {:?}", key);
             }
-        }
-
-        if close {
-            self.close_command_box();
-            return;
         }
 
         if modified {
