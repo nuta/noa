@@ -355,7 +355,8 @@ impl Terminal {
             Print("Finder"),
             SetAttribute(Attribute::Reset),
             Print(" "),
-            Print(truncate(&command_box_input.text(), width - 7))
+            Print(truncate(&command_box_input.text(), width - 7)),
+            Clear(ClearType::UntilNewLine),
         ).ok();
 
         // List items.
