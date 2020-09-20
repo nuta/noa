@@ -42,6 +42,8 @@ class Executor
           body: body,
         }
       end
+    else
+      @message = "ruby: unknown request type '#{@body['type']}'"
     end
 
     @response_body = {
