@@ -24,20 +24,26 @@ class Executor
   end
 
   def preview
+    items = []
     if @script.empty?
       case @body["type"]
       when "files"
-        items = []
         @body["files"].each do |file|
           items << { type: "print", body: file["display_name"] }
         end
-        @response_body = {
-          type: "preview",
-          items: items,
-        }
+      when "locations"
+        @body["locations"].each do |loc|
+          body = ""
+          items << { type: "print_with_file", file: loc["file"], body: body }
+        end
       end
     else
     end
+
+    @response_body = {
+      type: "preview",
+      items: items,
+    }
   end
 
   def commit
