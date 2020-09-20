@@ -37,7 +37,6 @@ class Executor
           items << { type: "print_with_file", file: loc["file"], body: body }
         end
       end
-    else
     end
 
     @response_body = {

@@ -6,15 +6,15 @@ use std::collections::HashMap;
 use std::sync::mpsc::{channel, Sender, Receiver, RecvTimeoutError};
 use std::time::{Instant, Duration};
 use crate::buffer::{Buffer, BufferId};
-use crate::command_box::{CommandBox, PreviewItem, File, RequestBody};
+use std::io::Stdout;
+use crate::command_box::{CommandBox, PreviewItem, File, RequestBody, Location};
 use crate::completion::WordCompJob;
 use crate::view::View;
 use crate::worker::Worker;
 use crate::highlight::Highlighter;
 use crate::fuzzy::FuzzySet;
 use crate::terminal::{Terminal, KeyCode, KeyModifiers, KeyEvent};
-use std::io::Stdout;
-use crate::rope::Cursor;
+use crate::rope::{Cursor, Range, Point};
 
 pub enum NotificationLevel {
     Report,
@@ -334,16 +334,29 @@ impl Editor {
 
     fn execute_command(&mut self, preview: bool) {
         use crate::command_box::{Request, RequestBody, Response, ResponseBody, PreviewItem};
+        use crate::search::{list_files, grep_dir};
+
         let input = self.command_box_input.text();
         let mut words = input.splitn(2, ' ');
         let pat = words.next().unwrap();
         let script = words.next().unwrap_or("").to_owned();
 
         let body;
-        if pat.starts_with("/") {
-            // Search the current buffer.
-            // TODO:
-            body = RequestBody::Files { files: vec![] };
+        if pat.starts_with("//") {
+            // Search all files.
+            match grep_dir(self.workspace_dir(), &pat[2..]) {
+                Ok(locations) => {
+                    body = RequestBody::Locations {
+                        locations,
+                    };
+                }
+                Err(err) => {
+                    self.error(format!("grep: {}", err));
+                    return;
+                }
+            }
+        } else if pat.starts_with("/") {
+            return;
         } else if pat.starts_with(">") {
             // Filter file paths.
             body = RequestBody::Files {
@@ -613,23 +626,4 @@ impl Editor {
             self.worker.request(Box::new(WordCompJob::new(snapshot)));
         }
     }
-}
-
-fn list_files(dir: &Path, pat: &str) -> Vec<File> {
-    use ignore::WalkBuilder;
-
-    let mut files = Vec::new();
-    let walker = WalkBuilder::new(dir).build();
-    for e in walker {
-        if let Ok(e) = e {
-            let pathbuf = e.into_path().to_path_buf();
-            let display_name = pathbuf.to_str().unwrap().to_owned();
-            // TODO: fuzzy match
-            if display_name.contains(pat) {
-                files.push(File { display_name, path: pathbuf });
-            }
-        }
-    }
-
-    files
 }
