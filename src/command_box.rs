@@ -73,7 +73,6 @@ pub enum RequestBody {
 
 #[derive(Serialize, Deserialize)]
 pub struct Request {
-    pub global: bool,
     pub preview: bool,
     pub selected: usize,
     pub script: String,

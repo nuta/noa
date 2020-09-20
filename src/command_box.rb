@@ -33,8 +33,15 @@ class Executor
         end
       when "select_match"
         @body["locations"].each do |loc|
-          body = ""
-          items << { type: "print_with_file", file: loc["file"], body: body }
+          y = loc["range"]["start"]["y"]
+          line = File.read(loc["file"]["path"]).lines[y]
+          body = line
+          items << {
+            type: "print_with_file",
+            file: loc["file"],
+            line: y,
+            body: body,
+          }
         end
       end
     end
@@ -61,7 +68,7 @@ class Executor
         @response_body = {
           type: "goto",
           file: loc["file"],
-          position: loc["range"][0]
+          position: loc["range"]["start"]
         }
       end
     else

@@ -374,11 +374,9 @@ impl Editor {
             return;
         }
 
-        let global = false;
         let req = Request {
             script: script.clone(),
             selected: self.command_box.selected(),
-            global,
             preview,
             body,
         };
@@ -396,12 +394,18 @@ impl Editor {
             error!("stderr from ruby script: {}\n{}", script, last_stderr);
         }
 
+        // Handle the response.
         let resp = self.command_box.last_response().cloned();
         match resp {
             Some(Response { body, .. }) => match body {
                 ResponseBody::Preview { .. } => {}
                 ResponseBody::GoTo { file, position } => {
                     self.open_file(&file.path);
+                    if let Some(pos) = position {
+                        let view = self.current.borrow_mut();
+                        let cursors = vec![Cursor::new(pos.y, pos.x)];
+                        view.buffer().borrow_mut().set_cursors(cursors);
+                    }
                     self.close_command_box();
                 }
                 _ => {
