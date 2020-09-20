@@ -322,9 +322,9 @@ impl Editor {
         };
     }
 
-    fn open_command_box(&mut self) {
+    fn open_command_box(&mut self, prefix: &str) {
         self.command_box_input.clear();
-        self.command_box_input.insert("//exit\\nend");
+        self.command_box_input.insert(prefix);
         self.mode = EditorMode::CommandBox;
         self.command_box.open();
     }
@@ -345,9 +345,15 @@ impl Editor {
         let body;
         if pat.starts_with("//") {
             // Search all files.
-            match grep_dir(self.workspace_dir(), &pat[2..]) {
+            let pat = &pat[2..];
+            if pat.len() < 3 {
+                self.report("too short pattern");
+                return;
+            }
+
+            match grep_dir(self.workspace_dir(), pat) {
                 Ok(locations) => {
-                    body = RequestBody::Locations {
+                    body = RequestBody::SelectMatch {
                         locations,
                     };
                 }
@@ -360,7 +366,7 @@ impl Editor {
             return;
         } else if pat.starts_with(">") {
             // Filter file paths.
-            body = RequestBody::Files {
+            body = RequestBody::SelectFile {
                 files: list_files(self.workspace_dir(), &pat[1..])
             };
         } else {
@@ -516,7 +522,13 @@ impl Editor {
             (KeyCode::Char('x'), CTRL) => {
                 drop(buffer);
                 drop(view);
-                self.open_command_box();
+                self.open_command_box("");
+                return;
+            }
+            (KeyCode::Char('f'), CTRL) => {
+                drop(buffer);
+                drop(view);
+                self.open_command_box("/");
                 return;
             }
             (KeyCode::Char('k'), CTRL) => {

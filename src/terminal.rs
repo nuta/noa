@@ -417,9 +417,13 @@ impl Terminal {
         }
 
         // Move the cursor.
+        let cursor_x = match command_box_input.cursors()[0] {
+            Cursor::Normal { pos } => pos.x,
+            _ => unreachable!(),
+        };
         queue!(
             stdout,
-            MoveTo((min(7 + command_box.selected(), width)) as u16, y as u16)
+            MoveTo((min(7 + cursor_x, width)) as u16, y as u16)
         ).ok();
     }
 

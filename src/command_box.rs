@@ -5,6 +5,7 @@ use std::io::{self, Read, Write, Stdout};
 use serde::{Deserialize, Serialize};
 use ignore::WalkBuilder;
 use tempfile::NamedTempFile;
+use std::time::{Duration, Instant};
 use crate::terminal::{Terminal, KeyCode, KeyModifiers, KeyEvent};
 use crate::rope::{Range, Point};
 use crate::buffer::{BufferId, Buffer};
@@ -60,12 +61,12 @@ pub struct Location {
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum RequestBody {
-    #[serde(rename = "locations")]
-    Locations {
+    #[serde(rename = "select_match")]
+    SelectMatch {
         locations: Vec<Location>,
     },
-    #[serde(rename = "files")]
-    Files {
+    #[serde(rename = "select_file")]
+    SelectFile {
         files: Vec<File>
     },
 }
@@ -125,6 +126,8 @@ impl CommandBox {
         self.last_stderr.clear();
 
         trace!("rb: {}", self.script_file_path);
+        let started_at = Instant::now();
+
         let mut child = Command::new("ruby")
             .args(&[&self.script_file_path])
             .stdin(Stdio::piped())
@@ -139,6 +142,9 @@ impl CommandBox {
         let input = serde_json::to_string(&request).unwrap();
         stdin.write_all(input.as_bytes()).ok();
         drop(stdin);
+
+        child.wait().ok();
+        trace!("rb: took {} ms", started_at.elapsed().as_millis());
 
         let mut json_string = String::with_capacity(2048);
         stdout.read_to_string(&mut json_string).ok();

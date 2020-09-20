@@ -27,11 +27,11 @@ class Executor
     items = []
     if @script.empty?
       case @body["type"]
-      when "files"
+      when "select_file"
         @body["files"].each do |file|
           items << { type: "print", body: file["display_name"] }
         end
-      when "locations"
+      when "select_match"
         @body["locations"].each do |loc|
           body = ""
           items << { type: "print_with_file", file: loc["file"], body: body }
@@ -48,12 +48,20 @@ class Executor
   def commit
     if @script.empty?
       case @body["type"]
-      when "files"
+      when "select_file"
         type = "goto"
         file = @body["files"][@selected]
         @response_body = {
           type: "goto",
           file: file,
+        }
+      when "select_match"
+        type = "goto"
+        loc = @body["locations"][@selected]
+        @response_body = {
+          type: "goto",
+          file: loc["file"],
+          position: loc["range"][0]
         }
       end
     else
