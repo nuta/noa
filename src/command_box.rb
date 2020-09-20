@@ -76,7 +76,6 @@ class Executor
   end
 
   def run
-    pp @request
     if @request["preview"]
       preview
     else
@@ -93,5 +92,5 @@ end
 
 request = JSON.parse(STDIN.read)
 response = Executor.new(request).run
-pp response
-puts response.to_json
+# puts response.to_json
+puts {}.to_json

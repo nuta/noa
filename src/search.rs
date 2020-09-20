@@ -6,6 +6,8 @@ use grep::searcher::{Searcher, SearcherBuilder, Sink, SinkMatch};
 use ignore::WalkBuilder;
 use std::path::Path;
 
+pub const NUM_MATCHES_MAX: usize = 1000;
+
 struct GrepSink<'a> {
     path: &'a Path,
     matcher: &'a RegexMatcher,
@@ -51,7 +53,7 @@ impl<'a> Sink for GrepSink<'a> {
             path: self.path.to_owned(),
         };
         self.locations.push(Location { file, range });
-        Ok(true)
+        Ok(self.locations.len() < NUM_MATCHES_MAX)
     }
 }
 
@@ -72,6 +74,10 @@ pub fn grep_dir(dir: &Path, pat: &str) -> Result<Vec<Location>, Box<dyn std::err
             let sink = GrepSink::new(&path, &matcher, &mut locs);
             searcher.search_path(&matcher, &path, sink);
         }
+
+        if locs.len() >= NUM_MATCHES_MAX {
+            break;
+        }
     }
 
     Ok(locs)
@@ -84,9 +90,14 @@ pub fn list_files(dir: &Path, pat: &str) -> Vec<File> {
         if let Ok(e) = e {
             let path = e.into_path();
             let display_name = path.to_str().unwrap().to_owned();
+
             // TODO: fuzzy match
             if display_name.contains(pat) {
                 files.push(File { display_name, path });
+            }
+
+            if files.len() >= NUM_MATCHES_MAX {
+                break;
             }
         }
     }

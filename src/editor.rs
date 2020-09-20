@@ -335,7 +335,7 @@ impl Editor {
 
     fn execute_command(&mut self, preview: bool) {
         use crate::command_box::{Request, RequestBody, Response, ResponseBody, PreviewItem};
-        use crate::search::{list_files, grep_dir};
+        use crate::search::{list_files, grep_dir, NUM_MATCHES_MAX};
 
         let input = self.command_box_input.text();
         let mut words = input.splitn(2, ' ');
@@ -353,9 +353,10 @@ impl Editor {
 
             match grep_dir(self.workspace_dir(), pat) {
                 Ok(locations) => {
-                    body = RequestBody::SelectMatch {
-                        locations,
-                    };
+                    if locations.len() >= NUM_MATCHES_MAX {
+                        self.error("aborted due to too many matches");
+                    }
+                    body = RequestBody::SelectMatch { locations };
                 }
                 Err(err) => {
                     self.error(format!("grep: {}", err));
@@ -366,9 +367,11 @@ impl Editor {
             return;
         } else if pat.starts_with(">") {
             // Filter file paths.
-            body = RequestBody::SelectFile {
-                files: list_files(self.workspace_dir(), &pat[1..])
-            };
+            let files = list_files(self.workspace_dir(), &pat[1..]);
+            if files.len() >= NUM_MATCHES_MAX {
+                self.error("aborted due to too many matches");
+            }
+            body = RequestBody::SelectFile { files };
         } else {
             self.notify(NotificationLevel::Error, "invalid prefix");
             return;
