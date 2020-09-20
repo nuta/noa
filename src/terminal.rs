@@ -53,7 +53,6 @@ pub struct Terminal {
 
 impl Terminal {
     pub fn new(event_queue: EventQueue) -> Terminal {
-
         let (cols, rows) = size()
             .expect("failed to get the terminal size");
         enable_raw_mode()
