@@ -7,13 +7,15 @@ use crate::command_box::{Location, File};
 use crate::rope::{Cursor, Range, Point};
 
 struct GrepSink<'a> {
+    path: &'a Path,
     matcher: &'a RegexMatcher,
     locations: &'a mut Vec<Location>,
 }
 
 impl<'a> GrepSink<'a> {
-    pub fn new(matcher: &'a RegexMatcher, locations: &'a mut Vec<Location>) -> GrepSink<'a> {
+    pub fn new(path: &'a Path, matcher: &'a RegexMatcher, locations: &'a mut Vec<Location>) -> GrepSink<'a> {
         GrepSink {
+            path,
             matcher,
             locations,
         }
@@ -41,6 +43,10 @@ impl<'a> Sink for GrepSink<'a> {
         let end_y = start_y + matched_text.matches('\n').count();
 
         let range = Range::new(start_y, start_x, end_y, end_x);
+
+        let display_name = self.path.to_str().unwrap().to_owned();
+        let file = File { display_name, path: self.path.to_owned() };
+        self.locations.push(Location { file, range });
         Ok(true)
     }
 }
@@ -58,8 +64,9 @@ pub fn grep_dir(dir: &Path, pat: &str) -> Result<Vec<Location>, Box<dyn std::err
     let walker = WalkBuilder::new(dir).build();
     for e in walker {
         if let Ok(e) = e {
-            let sink = GrepSink::new(&matcher, &mut locs);
-            searcher.search_path(&matcher, e.into_path(), sink);
+            let path = e.into_path();
+            let sink = GrepSink::new(&path, &matcher, &mut locs);
+            searcher.search_path(&matcher, &path, sink);
         }
     }
 

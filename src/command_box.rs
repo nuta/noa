@@ -54,7 +54,7 @@ pub struct Response {
 #[derive(Serialize, Deserialize)]
 pub struct Location {
     pub file: File,
-    pub ranges: Vec<Range>,
+    pub range: Range,
 }
 
 #[derive(Serialize, Deserialize)]
