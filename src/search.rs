@@ -1,17 +1,20 @@
 use std::path::Path;
 use grep::matcher::Matcher;
-use grep::regex::RegexMatcher;
-use grep::searcher::{Searcher, Sink, SinkMatch};
+use grep::regex::{RegexMatcher, RegexMatcherBuilder};
+use grep::searcher::{Searcher, SearcherBuilder, Sink, SinkMatch};
 use ignore::WalkBuilder;
 use crate::command_box::{Location, File};
+use crate::rope::{Cursor, Range, Point};
 
 struct GrepSink<'a> {
+    matcher: &'a RegexMatcher,
     locations: &'a mut Vec<Location>,
 }
 
 impl<'a> GrepSink<'a> {
-    pub fn new(locations: &'a mut Vec<Location>) -> GrepSink<'a> {
+    pub fn new(matcher: &'a RegexMatcher, locations: &'a mut Vec<Location>) -> GrepSink<'a> {
         GrepSink {
+            matcher,
             locations,
         }
     }
@@ -22,29 +25,41 @@ impl<'a> Sink for GrepSink<'a> {
     fn matched(
         &mut self,
         _searcher: &Searcher,
-        m: &SinkMatch,
+        sm: &SinkMatch,
     ) -> Result<bool, Self::Error> {
-        /*
-        let rest =  absolute_byte_offset;
-        let start = line.len() - (&line[m.start()..]).len();
-        let end = (&line[m.start()..m.end()]).len();
-        let range = Range::new(y, start, y, end);
-        trace!("range={:?}, text='{}'", range, &line[m.start()..m.end()]);
-        */
-        trace!("bytes={}", std::str::from_utf8(m.bytes()).unwrap());
+        let text = std::str::from_utf8(sm.bytes()).unwrap();
+        let m = self.matcher.find(text.as_bytes())?.unwrap();
+        let matched_text = &text[m.start()..m.end()];
+        let matched_text_count = matched_text.chars().count();
+
+        let start_y = sm.line_number().unwrap() as usize;
+        let start_x = text[..m.start()].chars().count();
+
+        let end_x = matched_text.rfind('\n')
+            .map(|x| matched_text_count - x - 1)
+            .unwrap_or_else(|| matched_text_count);
+        let end_y = start_y + matched_text.matches('\n').count();
+
+        let range = Range::new(start_y, start_x, end_y, end_x);
         Ok(true)
     }
 }
 
 pub fn grep_dir(dir: &Path, pat: &str) -> Result<Vec<Location>, Box<dyn std::error::Error>> {
-    let matcher = RegexMatcher::new(pat)?;
-    let mut searcher = Searcher::new();
+    let matcher = RegexMatcherBuilder::new()
+        .case_smart(true)
+        .multi_line(true)
+        .build(pat)?;
+    let mut searcher = SearcherBuilder::new()
+        .multi_line(true)
+        .line_number(true)
+        .build();
     let mut locs = Vec::new();
     let walker = WalkBuilder::new(dir).build();
     for e in walker {
         if let Ok(e) = e {
-            trace!("e = {:?}", e);
-            searcher.search_path(&matcher, e.into_path(), GrepSink::new(&mut locs));
+            let sink = GrepSink::new(&matcher, &mut locs);
+            searcher.search_path(&matcher, e.into_path(), sink);
         }
     }
 
