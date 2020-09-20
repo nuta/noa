@@ -36,7 +36,7 @@ impl<'a> Sink for GrepSink<'a> {
         let matched_text = &text[m.start()..m.end()];
         let matched_text_count = matched_text.chars().count();
 
-        let start_y = sm.line_number().unwrap() as usize;
+        let start_y = (sm.line_number().unwrap() as usize) - 1;
         let start_x = text[..m.start()].chars().count();
 
         let end_x = matched_text
