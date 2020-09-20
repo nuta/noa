@@ -34,12 +34,12 @@ class Executor
       when "select_match"
         @body["locations"].each do |loc|
           y = loc["range"]["start"]["y"]
-          line = File.read(loc["file"]["path"]).lines[y]
+          line = File.read(loc["file"]["path"]).lines[y] || ""
           body = line
           items << {
             type: "print_with_file",
             file: loc["file"],
-            line: y,
+            lineno: y + 1,
             body: body,
           }
         end
@@ -93,4 +93,7 @@ end
 request = JSON.parse(STDIN.read)
 response = Executor.new(request).run
 # puts response.to_json
-puts {}.to_json
+
+j = JSON.pretty_generate(response)
+File.write "/tmp/noarb.json", j
+puts j

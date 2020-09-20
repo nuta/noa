@@ -430,7 +430,8 @@ impl Editor {
             (KeyCode::Enter, NONE) => {
                 self.execute_command(false);
             }
-            (KeyCode::Esc, NONE) => {
+            (KeyCode::Esc, NONE)
+            | (KeyCode::Char('m'), CTRL) => {
                 self.close_command_box();
                 return;
             }

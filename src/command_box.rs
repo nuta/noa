@@ -28,6 +28,7 @@ pub enum PreviewItem {
     PrintWithFile {
         file: File,
         body: String,
+        lineno: Option<usize>,
     },
 }
 
@@ -124,7 +125,7 @@ impl CommandBox {
     pub fn execute(&mut self, request: Request) -> io::Result<()> {
         self.last_stderr.clear();
 
-        trace!("rb: {}", self.script_file_path);
+        trace!("running ruby script: {}", self.script_file_path);
         let started_at = Instant::now();
 
         let mut child = Command::new("ruby")
@@ -142,12 +143,11 @@ impl CommandBox {
         stdin.write_all(input.as_bytes()).ok();
         drop(stdin);
 
-        child.wait().ok();
-        trace!("rb: took {} ms", started_at.elapsed().as_millis());
-
         let mut json_string = String::with_capacity(2048);
         stdout.read_to_string(&mut json_string).ok();
         stderr.read_to_string(&mut self.last_stderr);
+        child.wait().ok();
+        trace!("rb: took {} ms", started_at.elapsed().as_millis());
 
         let resp: Response = serde_json::from_str(&json_string)?;
         self.num_items = match &resp.body {

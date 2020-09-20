@@ -389,7 +389,7 @@ impl Terminal {
                                      Print(truncate(body, width))
                                  ).ok();
                             }
-                            PreviewItem::PrintWithFile { file, body } => {
+                            PreviewItem::PrintWithFile { file, lineno, body } => {
                                 let file_width = min(width, 16);
                                 let body_width = width.saturating_sub(file_width);
                                 queue!(
