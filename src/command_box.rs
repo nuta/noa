@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use ignore::WalkBuilder;
 use tempfile::NamedTempFile;
 use crate::terminal::{Terminal, KeyCode, KeyModifiers, KeyEvent};
-use crate::rope::Range;
+use crate::rope::{Range, Point};
 use crate::buffer::{BufferId, Buffer};
 use crate::editor::Editor;
 
@@ -21,18 +21,15 @@ pub struct File {
 pub enum Item {
     #[serde(rename = "print")]
     Print(String),
-    #[serde(rename = "print_with_path")]
-    PrintWithPath {
+    #[serde(rename = "print_with_file")]
+    PrintWithFile {
         file: File,
         body: String,
     },
-    #[serde(rename = "file")]
-    File(File),
-    #[serde(rename = "file_position")]
-    FilePosition {
+    #[serde(rename = "goto")]
+    GoTo {
         file: File,
-        line: usize,
-        column: usize,
+        position: Option<Point>,
     }
 }
 
@@ -53,7 +50,7 @@ pub enum ResponseBody {
 
 #[derive(Serialize, Deserialize)]
 pub struct Response {
-    pub message: String,
+    pub message: Option<String>,
     pub num_filtered: usize,
     pub body: ResponseBody,
 }
@@ -149,7 +146,6 @@ impl CommandBox {
         let mut json_string = String::with_capacity(2048);
         stdout.read_to_string(&mut json_string).ok();
         stderr.read_to_string(&mut self.last_stderr);
-        trace!("Response = {}", serde_json::to_string(&Response{ message: "".to_owned(), num_filtered: 0, body: ResponseBody::Executed }).unwrap());
 
         let resp: Response = serde_json::from_str(&json_string)?;
         self.num_items = match &resp.body {

@@ -384,14 +384,26 @@ impl Terminal {
                         }
 
                         match item {
-                            Item::File(f) => {
+                            Item::GoTo { file, position } => {
                                 queue!(
                                     stdout,
-                                     Print(truncate(f.path.to_str().unwrap(), width))
-                                 );
+                                     Print(truncate(file.path.to_str().unwrap(), width))
+                                 ).ok();
                             }
-                            _ => {
-                                todo!();
+                            Item::Print(message) => {
+                                queue!(
+                                    stdout,
+                                     Print(truncate(message, width))
+                                 ).ok();
+                            }
+                            Item::PrintWithFile { file, body } => {
+                                let file_width = min(width, 16);
+                                let body_width = width.saturating_sub(file_width);
+                                queue!(
+                                    stdout,
+                                     Print(truncate(&file.display_name, file_width)),
+                                     Print(truncate(body, width)),
+                                 ).ok();
                             }
                         }
                     }
