@@ -25,24 +25,22 @@ class Executor
 
   def preview
     items = []
-    if @script.empty?
-      case @body["type"]
-      when "select_file"
-        @body["files"].each do |file|
-          items << { type: "print", body: file["display_name"] }
-        end
-      when "select_match"
-        @body["locations"].each do |loc|
-          y = loc["range"]["start"]["y"]
-          line = File.read(loc["file"]["path"]).lines[y] || ""
-          body = line
-          items << {
-            type: "print_with_file",
-            file: loc["file"],
-            lineno: y + 1,
-            body: body,
-          }
-        end
+    case @body["type"]
+    when "select_file"
+      @body["files"].each do |file|
+        items << { type: "print", body: file["display_name"] }
+      end
+    when "select_match"
+      @body["locations"].each do |loc|
+        y = loc["range"]["start"]["y"]
+        line = File.read(loc["file"]["path"]).lines[y] || ""
+        body = line
+        items << {
+          type: "print_with_file",
+          file: loc["file"],
+          lineno: y + 1,
+          body: body,
+        }
       end
     end
 
@@ -53,25 +51,22 @@ class Executor
   end
 
   def commit
-    if @script.empty?
-      case @body["type"]
-      when "select_file"
-        type = "goto"
-        file = @body["files"][@selected]
-        @response_body = {
-          type: "goto",
-          file: file,
-        }
-      when "select_match"
-        type = "goto"
-        loc = @body["locations"][@selected]
-        @response_body = {
-          type: "goto",
-          file: loc["file"],
-          position: loc["range"]["start"]
-        }
-      end
-    else
+    case @body["type"]
+    when "select_file"
+      type = "goto"
+      file = @body["files"][@selected]
+      @response_body = {
+        type: "goto",
+        file: file,
+      }
+    when "select_match"
+      type = "goto"
+      loc = @body["locations"][@selected]
+      @response_body = {
+        type: "goto",
+        file: loc["file"],
+        position: loc["range"]["start"]
+      }
     end
   end
 
