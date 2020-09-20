@@ -82,7 +82,7 @@ pub fn list_files(dir: &Path, pat: &str) -> Vec<File> {
     let walker = WalkBuilder::new(dir).build();
     for e in walker {
         if let Ok(e) = e {
-            let pathbuf = e.into_path().to_path_buf();
+            let pathbuf = e.into_path();
             let display_name = pathbuf.to_str().unwrap().to_owned();
             // TODO: fuzzy match
             if display_name.contains(pat) {
