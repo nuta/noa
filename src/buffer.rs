@@ -77,7 +77,7 @@ impl Snapshot {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
 pub struct BufferId(usize);
 
 impl BufferId {
@@ -92,6 +92,7 @@ pub struct Buffer {
     name: String,
     file: Option<PathBuf>,
     tmpfile: NamedTempFile,
+    tmpfile_version: Rope,
     cursors: Vec<Cursor>,
     undo_stack: Vec<Rope>,
     redo_stack: Vec<Rope>,
@@ -109,6 +110,7 @@ impl Buffer {
             name: String::new(),
             file: None,
             tmpfile: NamedTempFile::new().unwrap(),
+            tmpfile_version: Rope::new(),
             cursors: vec![Cursor::new(0, 0)],
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
@@ -136,6 +138,7 @@ impl Buffer {
             name: String::new(),
             file: Some(path.canonicalize()?),
             tmpfile: NamedTempFile::new()?,
+            tmpfile_version: Rope::new(),
             cursors: vec![Cursor::new(0, 0)],
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
@@ -181,8 +184,15 @@ impl Buffer {
         self.name = name.into();
     }
 
+    pub fn update_tmpfile(&mut self) {
+        if self.tmpfile_version != self.buf {
+            std::fs::write(self.tmpfile.path(), self.text()).ok();
+        }
+
+        self.tmpfile_version = self.buf.clone();
+    }
+
     pub fn tmpfile(&self) -> &Path {
-        std::fs::write(self.tmpfile.path(), self.text()).ok();
         self.tmpfile.path()
     }
 

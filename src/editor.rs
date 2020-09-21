@@ -186,6 +186,17 @@ impl Editor {
         self.current = view;
     }
 
+    pub fn switch_buffer(&mut self, buffer_id: BufferId) {
+        for view in &self.views {
+            if buffer_id == view.borrow().buffer().borrow().id() {
+                self.current = view.clone();
+                return;
+            }
+        }
+
+        warn!("failed to switch to the buffer {:?}", buffer_id);
+    }
+
     pub fn run(&mut self) {
         self.draw();
         loop {
@@ -368,7 +379,8 @@ impl Editor {
         } else if pat.starts_with("/") {
             // Search the current buffer.
             let view = self.current.borrow();
-            let buffer = view.buffer().borrow();
+            let mut buffer = view.buffer().borrow_mut();
+            buffer.update_tmpfile();
             match grep_buffer(&*buffer, &pat[1..]) {
                 Ok(locations) => {
                     if locations.len() >= NUM_MATCHES_MAX {
@@ -419,12 +431,18 @@ impl Editor {
             Some(Response { body, .. }) => match body {
                 ResponseBody::Preview { .. } => {}
                 ResponseBody::GoTo { file, position } => {
-                    self.open_file(&file.path);
+                    if let Some(buffer_id) = file.buffer_id {
+                        self.switch_buffer(buffer_id);
+                    } else {
+                        self.open_file(&file.path);
+                    }
+
                     if let Some(pos) = position {
                         let view = self.current.borrow_mut();
                         let cursors = vec![Cursor::new(pos.y, pos.x)];
                         view.buffer().borrow_mut().set_cursors(cursors);
                     }
+
                     self.close_command_box();
                 }
                 _ => {
