@@ -201,6 +201,10 @@ impl Buffer {
         self.tmpfile.path()
     }
 
+    pub fn path(&self) -> Option<&Path> {
+        self.file.as_ref().map(PathBuf::as_path)
+    }
+
     pub fn text(&self) -> String {
         self.buf.text()
     }

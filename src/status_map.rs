@@ -2,6 +2,7 @@ use git2::{Blob, Diff, DiffOptions, Error, Object, ObjectType, Oid, Repository};
 use git2::{DiffDelta, DiffFindOptions, DiffFormat, DiffHunk, DiffLine};
 use std::collections::HashSet;
 use std::ops::RangeInclusive;
+use std::path::Path;
 use crate::buffer::Buffer;
 
 #[derive(Clone, Copy, Debug)]
@@ -29,12 +30,20 @@ impl LineStatus {
     }
 }
 
+fn is_same_file(path1: &Path, path2: &Path) -> bool {
+    use std::fs::metadata;
+    use std::os::unix::fs::MetadataExt;
+    match (metadata(path1), metadata(path1)) {
+        (Ok(meta1), Ok(meta2)) => meta1.ino() == meta2.ino(),
+        _ => false,
+    }
+}
+
 pub fn compute_git_diff(
     repo: &Repository,
     buffer: &Buffer,
 ) -> Result<Vec<LineStatus>, Box<dyn std::error::Error>> {
     let head_tree = repo.head()?.peel_to_tree()?;
-    let new = buffer.text();
     let diff = repo.diff_tree_to_workdir(Some(&head_tree), None)?;
 
     let mut statuses = Vec::new();
@@ -43,7 +52,14 @@ pub fn compute_git_diff(
     let mut num_deleted = 0;
     let mut num_added_total = 0;
     let mut num_deleted_total = 0;
-    diff.print(DiffFormat::Patch, |_, _, line| {
+    diff.print(DiffFormat::Patch, |delta, _, line| {
+        match (buffer.path(), delta.new_file().path()) {
+            (Some(path1), Some(path2)) if is_same_file(path1, path2) => {
+                // This diff is for `buffer`. Continue processing.
+            },
+            _ => return true,
+        }
+
         match line.origin() {
             '+' => {
                 if start_y.is_none() {
