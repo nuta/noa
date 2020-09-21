@@ -32,7 +32,6 @@ fn add_diff_status(statuses: &mut Vec<LineStatus>, status: LineStatusType, y: us
 alpha
 charlie
 beta
-charlie
 */
 }
 
@@ -56,7 +55,6 @@ pub fn compute_git_diff(
         trace!("'{}': {}", line.origin(), std::str::from_utf8(line.content()).unwrap());
         match line.origin() {
             '+' => {
-                // add_diff_status(&mut statuses, LineStatusType::Added, old);
                 if start_y.is_none() {
                     start_y = Some(line.new_lineno().unwrap() as usize - 1);
                 }
