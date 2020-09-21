@@ -5,6 +5,7 @@ use std::ops::RangeInclusive;
 use crate::buffer::Buffer;
 
 pub enum LineStatusType {
+    Added,
     Modified,
     Deleted,
 }
@@ -26,6 +27,10 @@ impl LineStatus {
     }
 }
 
+fn add_diff_status(statuses: &mut Vec<LineStatus>, status: LineStatusType, y: usize) {
+
+}
+
 pub fn compute_git_diff(
     repo: &Repository,
     buffer: &Buffer,
@@ -40,9 +45,17 @@ pub fn compute_git_diff(
         trace!("----------------------------------------");
         trace!("origin: '{}'\ncontent:\n{}", line.origin(), std::str::from_utf8(line.content()).unwrap());
         trace!("{}: {:?} -> {:?}", line.num_lines(), line.old_lineno(),line.new_lineno());
+        match line.origin() {
+            '+' => {
+                let old = line.old_lineno().unwrap() as usize - 1;
+                add_diff_status(&mut statuses, LineStatusType::Added, old);
+            }
+            _ => {
+            }
+        }
         match (line.old_lineno(), line.new_lineno()) {
             (None, Some(lineno)) => {
-                let y = lineno as usize - 0;
+                let y = lineno as usize - 1;
                 /*
                 if changed_lines.contains(&y) {
                     statuses.push(LineStatus::new(LineStatusType::Modified, y..=y));
