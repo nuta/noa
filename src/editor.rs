@@ -337,7 +337,7 @@ impl Editor {
 
     fn execute_command(&mut self, preview: bool) {
         use crate::command_box::{Request, RequestBody, Response, ResponseBody, PreviewItem};
-        use crate::search::{list_files, grep_dir, NUM_MATCHES_MAX};
+        use crate::search::{list_files, grep_buffer, grep_dir, NUM_MATCHES_MAX};
 
         let input = self.command_box_input.text();
         let mut words = input.splitn(2, ' ');
@@ -366,7 +366,21 @@ impl Editor {
                 }
             }
         } else if pat.starts_with("/") {
-            return;
+            // Search the current buffer.
+            let view = self.current.borrow();
+            let buffer = view.buffer().borrow();
+            match grep_buffer(&*buffer, &pat[1..]) {
+                Ok(locations) => {
+                    if locations.len() >= NUM_MATCHES_MAX {
+                        self.error("aborted due to too many matches");
+                    }
+                    body = RequestBody::SelectMatch { locations };
+                }
+                Err(err) => {
+                    self.error(format!("grep: {}", err));
+                    return;
+                }
+            }
         } else if pat.starts_with(">") {
             // Filter file paths.
             let files = list_files(self.workspace_dir(), &pat[1..]);

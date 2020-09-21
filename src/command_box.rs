@@ -15,6 +15,7 @@ use crate::editor::Editor;
 pub struct File {
     pub display_name: String,
     pub path: PathBuf,
+    pub buffer_id: Option<BufferId>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]

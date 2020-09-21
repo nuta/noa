@@ -1,27 +1,29 @@
 use crate::command_box::{File, Location};
 use crate::rope::{Cursor, Point, Range};
+use crate::buffer::Buffer;
 use grep::matcher::Matcher;
 use grep::regex::{RegexMatcher, RegexMatcherBuilder};
 use grep::searcher::{Searcher, SearcherBuilder, Sink, SinkMatch};
 use ignore::WalkBuilder;
-use std::path::Path;
+use tempfile::NamedTempFile;
+use std::path::{Path, PathBuf};
 
 pub const NUM_MATCHES_MAX: usize = 1000;
 
 struct GrepSink<'a> {
-    path: &'a Path,
+    file: File,
     matcher: &'a RegexMatcher,
     locations: &'a mut Vec<Location>,
 }
 
 impl<'a> GrepSink<'a> {
     pub fn new(
-        path: &'a Path,
+        file: File,
         matcher: &'a RegexMatcher,
         locations: &'a mut Vec<Location>,
     ) -> GrepSink<'a> {
         GrepSink {
-            path,
+            file,
             matcher,
             locations,
         }
@@ -46,32 +48,55 @@ impl<'a> Sink for GrepSink<'a> {
         let end_y = start_y + matched_text.matches('\n').count();
 
         let range = Range::new(start_y, start_x, end_y, end_x);
-
-        let display_name = self.path.to_str().unwrap().to_owned();
-        let file = File {
-            display_name,
-            path: self.path.to_owned(),
-        };
-        self.locations.push(Location { file, range });
+        self.locations.push(Location { file: self.file.clone(), range });
         Ok(self.locations.len() < NUM_MATCHES_MAX)
     }
 }
 
-pub fn grep_dir(dir: &Path, pat: &str) -> Result<Vec<Location>, Box<dyn std::error::Error>> {
-    let matcher = RegexMatcherBuilder::new()
+fn build_matcher(pat: &str) -> Result<RegexMatcher, Box<dyn std::error::Error>> {
+    Ok(RegexMatcherBuilder::new()
         .case_smart(true)
         .multi_line(true)
-        .build(pat)?;
-    let mut searcher = SearcherBuilder::new()
+        .build(pat)?)
+}
+
+fn build_searcher() -> Searcher {
+    SearcherBuilder::new()
         .multi_line(true)
         .line_number(true)
-        .build();
+        .build()
+}
+
+pub fn grep_buffer(buffer: &Buffer, pat: &str) -> Result<Vec<Location>, Box<dyn std::error::Error>> {
+    let mut matcher = build_matcher(pat)?;
+    let mut searcher = build_searcher();
+    let mut locs = Vec::new();
+    let mut tmp = NamedTempFile::new();
+    let file = File {
+        display_name: buffer.name().to_owned(),
+        buffer_id: Some(buffer.id()),
+        path: buffer.tmpfile().to_path_buf(),
+    };
+    let sink = GrepSink::new(file, &matcher, &mut locs);
+    searcher.search_slice(&matcher, buffer.text().as_bytes(), sink);
+    Ok(locs)
+}
+
+pub fn grep_dir(dir: &Path, pat: &str) -> Result<Vec<Location>, Box<dyn std::error::Error>> {
+    let mut matcher = build_matcher(pat)?;
+    let mut searcher = build_searcher();
     let mut locs = Vec::new();
     let walker = WalkBuilder::new(dir).build();
     for e in walker {
         if let Ok(e) = e {
             let path = e.into_path();
-            let sink = GrepSink::new(&path, &matcher, &mut locs);
+            let display_name = path.to_str().unwrap().to_owned();
+            let file = File {
+                display_name,
+                path: path.to_owned(),
+                buffer_id: None,
+            };
+            let sink = GrepSink::new(file, &matcher, &mut locs);
             searcher.search_path(&matcher, &path, sink);
         }
 
@@ -93,7 +118,7 @@ pub fn list_files(dir: &Path, pat: &str) -> Vec<File> {
 
             // TODO: fuzzy match
             if display_name.contains(pat) {
-                files.push(File { display_name, path });
+                files.push(File { display_name, path, buffer_id: None });
             }
 
             if files.len() >= NUM_MATCHES_MAX {

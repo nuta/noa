@@ -4,6 +4,7 @@ use std::ops::RangeInclusive;
 use std::cmp::{max, min};
 use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
+use tempfile::NamedTempFile;
 use crate::highlight::{Highlighter, Span};
 use crate::language::Language;
 use crate::editorconfig::{EditorConfig, IndentStyle};
@@ -90,6 +91,7 @@ pub struct Buffer {
     buf: Rope,
     name: String,
     file: Option<PathBuf>,
+    tmpfile: NamedTempFile,
     cursors: Vec<Cursor>,
     undo_stack: Vec<Rope>,
     redo_stack: Vec<Rope>,
@@ -106,6 +108,7 @@ impl Buffer {
             buf: Rope::new(),
             name: String::new(),
             file: None,
+            tmpfile: NamedTempFile::new().unwrap(),
             cursors: vec![Cursor::new(0, 0)],
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
@@ -132,6 +135,7 @@ impl Buffer {
             buf: Rope::from_reader(file)?,
             name: String::new(),
             file: Some(path.canonicalize()?),
+            tmpfile: NamedTempFile::new()?,
             cursors: vec![Cursor::new(0, 0)],
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
@@ -175,6 +179,11 @@ impl Buffer {
 
     pub fn set_name<T: Into<String>>(&mut self, name: T) {
         self.name = name.into();
+    }
+
+    pub fn tmpfile(&self) -> &Path {
+        std::fs::write(self.tmpfile.path(), self.text()).ok();
+        self.tmpfile.path()
     }
 
     pub fn text(&self) -> String {

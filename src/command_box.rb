@@ -89,8 +89,4 @@ end
 
 request = JSON.parse(STDIN.read)
 response = Executor.new(request).run
-# puts response.to_json
-
-j = JSON.pretty_generate(response)
-File.write "/tmp/noarb.json", j
-puts j
+puts response.to_json
