@@ -31,6 +31,8 @@ fn add_diff_status(statuses: &mut Vec<LineStatus>, status: LineStatusType, y: us
 /*
 alpha
 charlie
+beta
+charlie
 */
 }
 
