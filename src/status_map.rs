@@ -4,12 +4,14 @@ use std::collections::HashSet;
 use std::ops::RangeInclusive;
 use crate::buffer::Buffer;
 
+#[derive(Clone, Copy, Debug)]
 pub enum LineStatusType {
     Added,
     Modified,
     Deleted,
 }
 
+#[derive(Clone, Debug)]
 pub struct LineStatus {
     lines: RangeInclusive<usize>,
     status: LineStatusType,
@@ -27,14 +29,6 @@ impl LineStatus {
     }
 }
 
-fn add_diff_status(statuses: &mut Vec<LineStatus>, status: LineStatusType, y: usize) {
-/*
-alpha
-charlie
-beta
-*/
-}
-
 pub fn compute_git_diff(
     repo: &Repository,
     buffer: &Buffer,
@@ -50,9 +44,6 @@ pub fn compute_git_diff(
     let mut num_added_total = 0;
     let mut num_deleted_total = 0;
     diff.print(DiffFormat::Patch, |_, _, line| {
-        trace!("-----------------------------------------");
-        trace!("n={}, {:?} -> {:?}", line.num_lines(), line.old_lineno(),line.new_lineno());
-        trace!("'{}': {}", line.origin(), std::str::from_utf8(line.content()).unwrap());
         match line.origin() {
             '+' => {
                 if start_y.is_none() {
@@ -72,8 +63,23 @@ pub fn compute_git_diff(
                 num_deleted_total += 1;
             }
             ' ' => {
-                if start_y.is_some() {
-                    info!("y={:?}, +{} -{}", start_y, num_added, num_deleted);
+                match (start_y, num_added > 0, num_deleted > 0) {
+                    // Added.
+                    (Some(start), true, false) => {
+                        let lines = start..=(start + num_added - 1);
+                        statuses.push(LineStatus::new(LineStatusType::Added, lines));
+                    }
+                    // Deleted.
+                    (Some(start), false, true) => {
+                        let lines = start..=start;
+                        statuses.push(LineStatus::new(LineStatusType::Deleted, lines));
+                    }
+                    // Modified.
+                    (Some(start), true, true) => {
+                        let lines = start..=(start + num_added - 1);
+                        statuses.push(LineStatus::new(LineStatusType::Modified, lines));
+                    }
+                    _ => {}
                 }
                 start_y = None;
                 num_added = 0;
@@ -82,19 +88,10 @@ pub fn compute_git_diff(
             _ => {
             }
         }
-        match (line.old_lineno(), line.new_lineno()) {
-            (None, Some(lineno)) => {
-                let y = lineno as usize - 1;
-            }
-            (Some(lineno), None) => {
-                let y = lineno as usize - 1;
-                statuses.push(LineStatus::new(LineStatusType::Deleted, y..=y));
-            }
-            _ => {}
-        }
 
         // Continue the iteration.
         true
     });
+
     Ok(statuses)
 }
