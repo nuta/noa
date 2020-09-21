@@ -1,5 +1,5 @@
 use std::fmt;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::path::Path;
 use std::cmp::{min, max};
 use std::cmp::Ordering;
@@ -253,7 +253,8 @@ impl Rope {
     }
 
     pub fn save_into_file(&self, path: &Path) -> std::io::Result<()> {
-        self.inner.write_to(File::open(path)?)
+        let mut f = OpenOptions::new().write(true).truncate(true).open(path)?;
+        self.inner.write_to(f)
     }
 
     pub fn insert(&mut self, pos: &Point, string: &str) {

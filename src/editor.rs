@@ -121,6 +121,7 @@ pub struct Editor {
     command_box: CommandBox,
     command_box_input: Buffer,
     workspace_dir: PathBuf,
+    backup_dir: PathBuf,
 }
 
 impl Editor {
@@ -144,6 +145,7 @@ impl Editor {
             command_box: CommandBox::new(),
             command_box_input: Buffer::new(),
             workspace_dir: PathBuf::from("."),
+            backup_dir: dirs::home_dir().unwrap().join(".noa/backup"),
         }
     }
 
@@ -552,7 +554,7 @@ impl Editor {
                 // TODO: centering and force redraw
             }
             (KeyCode::Char('s'), CTRL) => {
-                match buffer.save() {
+                match buffer.save(&self.backup_dir) {
                     Ok(_) => {
                         self.info(format!("saved ({} lines)", buffer.num_lines()));
                     }
