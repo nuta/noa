@@ -213,6 +213,7 @@ impl Editor {
     }
 
     pub fn run(&mut self) {
+        self.on_modified();
         self.draw();
         loop {
             if self.exited {

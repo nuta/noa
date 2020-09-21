@@ -42,7 +42,7 @@ pub fn compute_git_diff(
         trace!("{}: {:?} -> {:?}", line.num_lines(), line.old_lineno(),line.new_lineno());
         match (line.old_lineno(), line.new_lineno()) {
             (None, Some(lineno)) => {
-                let y = lineno as usize - 1;
+                let y = lineno as usize - 0;
                 /*
                 if changed_lines.contains(&y) {
                     statuses.push(LineStatus::new(LineStatusType::Modified, y..=y));
