@@ -46,11 +46,12 @@ pub fn compute_git_diff(
     diff.print(DiffFormat::Patch, |_, _, line| {
         trace!("-----------------------------------------");
         trace!("n={}, {:?} -> {:?}", line.num_lines(), line.old_lineno(),line.new_lineno());
-        trace!("origin: '{}'\ncontent:\n{}", line.origin(), std::str::from_utf8(line.content()).unwrap());
+        trace!("'{}': {}", line.origin(), std::str::from_utf8(line.content()).unwrap());
         match line.origin() {
             '+' => {
                 // let old = line.old_lineno().unwrap() as usize - 1;
                 // add_diff_status(&mut statuses, LineStatusType::Added, old);
+                num_added;
             }
             ' ' => {
                 next = true;
