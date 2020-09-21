@@ -57,6 +57,9 @@ pub fn compute_git_diff(
             (Some(path1), Some(path2)) if is_same_file(path1, path2) => {
                 // This diff is for `buffer`. Continue processing.
             },
+            (Some(path1), Some(path2)) => {
+                trace!("path1={}, path2={}", path1.display(), path2.display());
+            },
             _ => return true,
         }
 
@@ -79,7 +82,7 @@ pub fn compute_git_diff(
                 num_deleted_total += 1;
             }
             ' ' => {
-                if start_y.is_some() { info!("{:?} +{} = {}", start_y,  num_added, num_deleted); };
+                if start_y.is_some() { info!("{:?} +{} -{}", start_y,  num_added, num_deleted); };
                 match (start_y, num_added > 0, num_deleted > 0) {
                     // Added.
                     (Some(start), true, false) => {
