@@ -30,9 +30,7 @@ impl LineStatus {
 fn add_diff_status(statuses: &mut Vec<LineStatus>, status: LineStatusType, y: usize) {
 /*
 alpha
-beta
 charlie
-gamma
 */
 }
 
@@ -45,10 +43,11 @@ pub fn compute_git_diff(
     let diff = repo.diff_tree_to_workdir(Some(&head_tree), None)?;
 
     let mut statuses = Vec::new();
-    let mut next = true;
     let mut start_y = None;
     let mut num_added = 0;
     let mut num_deleted = 0;
+    let mut num_added_total = 0;
+    let mut num_deleted_total = 0;
     diff.print(DiffFormat::Patch, |_, _, line| {
         trace!("-----------------------------------------");
         trace!("n={}, {:?} -> {:?}", line.num_lines(), line.old_lineno(),line.new_lineno());
@@ -60,15 +59,22 @@ pub fn compute_git_diff(
                     start_y = Some(line.new_lineno().unwrap() as usize - 1);
                 }
                 num_added += 1;
+                num_added_total += 1;
             }
             '-' => {
                 if start_y.is_none() {
-                    start_y = Some(line.old_lineno().unwrap() as usize - 1);
+                    start_y = Some(
+                        line.old_lineno().unwrap() as usize - 1
+                            + num_added_total - num_deleted_total
+                    );
                 }
                 num_deleted += 1;
+                num_deleted_total += 1;
             }
             ' ' => {
-                next = true;
+                if start_y.is_some() {
+                    info!("y={:?}, +{} -{}", start_y, num_added, num_deleted);
+                }
                 start_y = None;
                 num_added = 0;
                 num_deleted = 0;
