@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 #[cfg(test)] #[macro_use] extern crate pretty_assertions;
 #[macro_use] extern crate log;
 #[macro_use] extern crate lazy_static;
@@ -16,6 +18,7 @@ mod highlight;
 mod search;
 mod fuzzy;
 mod editorconfig;
+mod status_map;
 
 use structopt::StructOpt;
 use fern::{

@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::sync::mpsc::{channel, Sender, Receiver, RecvTimeoutError};
 use std::time::{Instant, Duration};
 use std::io::Stdout;
+use git2::Repository;
 use crate::buffer::{Buffer, BufferId};
 use crate::command_box::{CommandBox, PreviewItem, File, RequestBody, Location};
 use crate::completion::WordCompJob;
@@ -15,6 +16,7 @@ use crate::highlight::Highlighter;
 use crate::fuzzy::FuzzySet;
 use crate::terminal::{Terminal, KeyCode, KeyModifiers, KeyEvent};
 use crate::rope::{Cursor, Range, Point};
+use crate::status_map::compute_git_diff;
 
 pub enum NotificationLevel {
     Report,
@@ -122,14 +124,24 @@ pub struct Editor {
     command_box_input: Buffer,
     workspace_dir: PathBuf,
     backup_dir: PathBuf,
+    git: Option<Repository>,
 }
 
 impl Editor {
     pub fn new() -> Editor {
+        let workspace_dir = PathBuf::from(".");
         let (tx, rx) = channel();
         let scratch_buffer = Rc::new(RefCell::new(Buffer::new()));
         scratch_buffer.borrow_mut().set_name("*scratch*");
         let scratch_view = Rc::new(RefCell::new(View::new(scratch_buffer)));
+
+        let git = match Repository::open(&workspace_dir) {
+            Ok(repo) => Some(repo),
+            Err(err) => {
+                error!("failed to open a Git repository: {}", err);
+                None
+            }
+        };
 
         Editor {
             mode: EditorMode::Normal,
@@ -144,8 +156,9 @@ impl Editor {
             worker: Worker::new(EventQueue::new(tx)),
             command_box: CommandBox::new(),
             command_box_input: Buffer::new(),
-            workspace_dir: PathBuf::from("."),
+            workspace_dir,
             backup_dir: dirs::home_dir().unwrap().join(".noa/backup"),
+            git,
         }
     }
 
@@ -247,7 +260,18 @@ impl Editor {
     }
 
     fn on_modified(&mut self) {
-    }
+        let view = self.current.borrow();
+        let buffer = view.buffer().borrow();
+        let snapshot = buffer.snapshot();
+
+        if let Some(git) = self.git.as_ref() {
+            match compute_git_diff(git, &*buffer) {
+                Ok(diff) => {
+                }
+                Err(err) => { trace!("failed to get diff: {}", err); }
+            }
+        }
+   }
 
     fn notify<T: Into<String>>(&self, level: NotificationLevel, message: T) {
         let message = message.into();
