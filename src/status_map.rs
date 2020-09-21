@@ -13,8 +13,8 @@ pub enum LineStatusType {
 
 #[derive(Clone, Debug)]
 pub struct LineStatus {
-    lines: RangeInclusive<usize>,
-    status: LineStatusType,
+    pub lines: RangeInclusive<usize>,
+    pub status: LineStatusType,
 }
 
 impl LineStatus {

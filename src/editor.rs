@@ -16,7 +16,7 @@ use crate::highlight::Highlighter;
 use crate::fuzzy::FuzzySet;
 use crate::terminal::{Terminal, KeyCode, KeyModifiers, KeyEvent};
 use crate::rope::{Cursor, Range, Point};
-use crate::status_map::compute_git_diff;
+use crate::status_map::{compute_git_diff, LineStatus};
 
 pub enum NotificationLevel {
     Report,
@@ -125,6 +125,7 @@ pub struct Editor {
     workspace_dir: PathBuf,
     backup_dir: PathBuf,
     git: Option<Repository>,
+    git_statuses: Option<Vec<LineStatus>>,
 }
 
 impl Editor {
@@ -159,6 +160,7 @@ impl Editor {
             workspace_dir,
             backup_dir: dirs::home_dir().unwrap().join(".noa/backup"),
             git,
+            git_statuses: None,
         }
     }
 
@@ -256,7 +258,8 @@ impl Editor {
             match self.mode {
                 EditorMode::CommandBox => Some((&self.command_box, &self.command_box_input)),
                 EditorMode::Normal => None,
-            }
+            },
+            &self.git_statuses,
         );
     }
 
@@ -267,7 +270,8 @@ impl Editor {
 
         if let Some(git) = self.git.as_ref() {
             match compute_git_diff(git, &*buffer) {
-                Ok(diff) => {
+                Ok(git_statuses) => {
+                    self.git_statuses = Some(git_statuses);
                 }
                 Err(err) => { trace!("failed to get diff: {}", err); }
             }

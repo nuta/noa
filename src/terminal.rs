@@ -16,6 +16,7 @@ use crossterm::terminal::{
 };
 use crate::buffer::Buffer;
 use crate::view::TopLeft;
+use crate::status_map::LineStatus;
 
 pub fn truncate(s: &str, width: usize) -> &str {
     &s[..min(s.len(), width)]
@@ -103,6 +104,7 @@ impl Terminal {
         notifications: &[Notification],
         popup: &Option<Popup>,
         command_box: Option<(&CommandBox, &Buffer)>,
+        git_statuses: &Option<Vec<LineStatus>>,
     ) {
         use unicode_width::{UnicodeWidthChar};
         use crossterm::cursor::{self, MoveTo};
@@ -177,12 +179,29 @@ impl Terminal {
             }
 
             // Line map.
-            // TODO:
-            queue!(stdout,
-                SetBackgroundColor(Color::AnsiValue(238)),
-                Print(' '),
-                SetAttribute(Attribute::Reset),
-            ).unwrap();
+            let mut drawed_line_map = false;
+            if let Some(git_statuses) = git_statuses {
+                for LineStatus { lines, status } in git_statuses {
+                    info!("{:?} <> {}", lines, y);
+                    if lines.contains(&y) {
+                        queue!(stdout,
+                            SetBackgroundColor(Color::AnsiValue(100)),
+                            Print(' '),
+                            SetAttribute(Attribute::Reset),
+                        ).unwrap();
+                        drawed_line_map = true;
+                        break;
+                    }
+                }
+            }
+
+            if !drawed_line_map {
+                queue!(stdout,
+                    SetBackgroundColor(Color::AnsiValue(238)),
+                    Print(' '),
+                    SetAttribute(Attribute::Reset),
+                ).unwrap();
+            }
 
             // Margin.
             queue!(stdout, Print(' ')).unwrap();
