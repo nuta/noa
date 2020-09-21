@@ -42,13 +42,13 @@ pub fn compute_git_diff(
     let mut statuses = Vec::new();
 //    let mut changed_lines = HashSet::new();
     diff.print(DiffFormat::Patch, |_, _, line| {
-        trace!("--------------------------------------");
-        trace!("origin: '{}'\ncontent:\n{}", line.origin(), std::str::from_utf8(line.content()).unwrap());
+        trace!("------------------------------------------");
         trace!("{}: {:?} -> {:?}", line.num_lines(), line.old_lineno(),line.new_lineno());
+        trace!("origin: '{}'\ncontent:\n{}", line.origin(), std::str::from_utf8(line.content()).unwrap());
         match line.origin() {
             '+' => {
-                let old = line.old_lineno().unwrap() as usize - 1;
-                add_diff_status(&mut statuses, LineStatusType::Added, old);
+                // let old = line.old_lineno().unwrap() as usize - 1;
+                // add_diff_status(&mut statuses, LineStatusType::Added, old);
             }
             _ => {
             }
