@@ -1,3 +1,4 @@
+asd
 use git2::{Blob, Diff, DiffOptions, Error, Object, ObjectType, Oid, Repository};
 use git2::{DiffDelta, DiffFindOptions, DiffFormat, DiffHunk, DiffLine};
 use std::ops::RangeInclusive;
@@ -25,6 +26,7 @@ pub fn compute_git_diff(
         trace!("delta={:?}", delta);
         trace!("hunk={:?}", hunk);
         trace!("line={:?}", line);
+        trace!("{} {:?} -> {:?}", line.old_lineno());
 
         // Continue the iteration.
         true
