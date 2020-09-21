@@ -42,7 +42,7 @@ pub fn compute_git_diff(
     let mut statuses = Vec::new();
 //    let mut changed_lines = HashSet::new();
     diff.print(DiffFormat::Patch, |_, _, line| {
-        trace!("----------------------------------------");
+        trace!("--------------------------------------");
         trace!("origin: '{}'\ncontent:\n{}", line.origin(), std::str::from_utf8(line.content()).unwrap());
         trace!("{}: {:?} -> {:?}", line.num_lines(), line.old_lineno(),line.new_lineno());
         match line.origin() {
