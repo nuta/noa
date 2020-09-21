@@ -40,15 +40,21 @@ pub fn compute_git_diff(
     let diff = repo.diff_tree_to_workdir(Some(&head_tree), None)?;
 
     let mut statuses = Vec::new();
+    let mut next = true;
+    let mut num_added = 0;
 //    let mut changed_lines = HashSet::new();
     diff.print(DiffFormat::Patch, |_, _, line| {
-        trace!("------------------------------------------");
-        trace!("{}: {:?} -> {:?}", line.num_lines(), line.old_lineno(),line.new_lineno());
+        trace!("-----------------------------------------");
+        trace!("n={}, {:?} -> {:?}", line.num_lines(), line.old_lineno(),line.new_lineno());
         trace!("origin: '{}'\ncontent:\n{}", line.origin(), std::str::from_utf8(line.content()).unwrap());
         match line.origin() {
             '+' => {
                 // let old = line.old_lineno().unwrap() as usize - 1;
                 // add_diff_status(&mut statuses, LineStatusType::Added, old);
+            }
+            ' ' => {
+                next = true;
+                num_added = 0;
             }
             _ => {
             }
@@ -56,13 +62,6 @@ pub fn compute_git_diff(
         match (line.old_lineno(), line.new_lineno()) {
             (None, Some(lineno)) => {
                 let y = lineno as usize - 1;
-                /*
-                if changed_lines.contains(&y) {
-                    statuses.push(LineStatus::new(LineStatusType::Modified, y..=y));
-                } else {
-                    statuses.push(LineStatus::new(LineStatusType::Modified, y..=y));
-                }
-                */
             }
             (Some(lineno), None) => {
                 let y = lineno as usize - 1;
