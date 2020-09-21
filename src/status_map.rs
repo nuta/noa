@@ -35,15 +35,21 @@ pub fn compute_git_diff(
     let diff = repo.diff_tree_to_workdir(Some(&head_tree), None)?;
 
     let mut statuses = Vec::new();
-    let mut deleted_lines = HashSet::new();
-    let mut inserted_lines = HashSet::new();
-    diff.print(DiffFormat::Patch, |delta, hunk, line| {
+//    let mut changed_lines = HashSet::new();
+    diff.print(DiffFormat::Patch, |_, _, line| {
         trace!("----------------------------------------");
+        trace!("origin: '{}'\ncontent:\n{}", line.origin(), std::str::from_utf8(line.content()).unwrap());
         trace!("{}: {:?} -> {:?}", line.num_lines(), line.old_lineno(),line.new_lineno());
         match (line.old_lineno(), line.new_lineno()) {
             (None, Some(lineno)) => {
                 let y = lineno as usize - 1;
-                statuses.push(LineStatus::new(LineStatusType::Modified, y..=y));
+                /*
+                if changed_lines.contains(&y) {
+                    statuses.push(LineStatus::new(LineStatusType::Modified, y..=y));
+                } else {
+                    statuses.push(LineStatus::new(LineStatusType::Modified, y..=y));
+                }
+                */
             }
             (Some(lineno), None) => {
                 let y = lineno as usize - 1;
