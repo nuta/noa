@@ -42,7 +42,6 @@ pub fn compute_git_diff(
     let mut statuses = Vec::new();
     let mut next = true;
     let mut num_added = 0;
-//    let mut changed_lines = HashSet::new();
     diff.print(DiffFormat::Patch, |_, _, line| {
         trace!("-----------------------------------------");
         trace!("n={}, {:?} -> {:?}", line.num_lines(), line.old_lineno(),line.new_lineno());
