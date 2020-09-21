@@ -31,6 +31,7 @@ fn add_diff_status(statuses: &mut Vec<LineStatus>, status: LineStatusType, y: us
 /*
 alpha
 beta
+charlie
 gamma
 */
 }
@@ -45,6 +46,7 @@ pub fn compute_git_diff(
 
     let mut statuses = Vec::new();
     let mut next = true;
+    let mut start_y = None;
     let mut num_added = 0;
     let mut num_deleted = 0;
     diff.print(DiffFormat::Patch, |_, _, line| {
@@ -53,17 +55,21 @@ pub fn compute_git_diff(
         trace!("'{}': {}", line.origin(), std::str::from_utf8(line.content()).unwrap());
         match line.origin() {
             '+' => {
-                // let old = line.old_lineno().unwrap() as usize - 1;
                 // add_diff_status(&mut statuses, LineStatusType::Added, old);
+                if start_y.is_none() {
+                    start_y = Some(line.new_lineno().unwrap() as usize - 1);
+                }
                 num_added += 1;
             }
             '-' => {
-                // let old = line.old_lineno().unwrap() as usize - 1;
-                // add_diff_status(&mut statuses, LineStatusType::Added, old);
+                if start_y.is_none() {
+                    start_y = Some(line.old_lineno().unwrap() as usize - 1);
+                }
                 num_deleted += 1;
             }
             ' ' => {
                 next = true;
+                start_y = None;
                 num_added = 0;
                 num_deleted = 0;
             }
