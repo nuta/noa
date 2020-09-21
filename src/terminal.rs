@@ -182,7 +182,7 @@ impl Terminal {
             let mut drawed_line_map = false;
             if let Some(git_statuses) = git_statuses {
                 for LineStatus { lines, status } in git_statuses {
-                    info!("{:?} <> {}", lines, y);
+//                    info!("{:?} <> {}", lines, y);
                     if lines.contains(&y) {
                         queue!(stdout,
                             SetBackgroundColor(Color::AnsiValue(100)),

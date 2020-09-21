@@ -20,6 +20,8 @@ mod fuzzy;
 mod editorconfig;
 mod status_map;
 
+use std::env::current_dir;
+use std::path::PathBuf;
 use structopt::StructOpt;
 use fern::{
     colors::{Color, ColoredLevelConfig}
@@ -27,6 +29,8 @@ use fern::{
 
 #[derive(StructOpt)]
 struct Opt {
+    #[structopt(name = "FILE", parse(from_os_str))]
+    files: Vec<PathBuf>,
 }
 
 fn main() {
@@ -54,6 +58,9 @@ fn main() {
 
     trace!("starting noa...");
     let opt = Opt::from_args();
-    let mut editor = editor::Editor::new();
+    let mut editor = editor::Editor::new(current_dir().unwrap());
+    for file in opt.files.iter().rev() {
+        editor.open_file(file);
+    }
     editor.run();
 }

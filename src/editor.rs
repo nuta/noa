@@ -129,8 +129,7 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn new() -> Editor {
-        let workspace_dir = PathBuf::from(".");
+    pub fn new(workspace_dir: PathBuf) -> Editor {
         let (tx, rx) = channel();
         let scratch_buffer = Rc::new(RefCell::new(Buffer::new()));
         scratch_buffer.borrow_mut().set_name("*scratch*");
