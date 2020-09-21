@@ -4,7 +4,6 @@ use std::ops::RangeInclusive;
 use std::collections::HashMap;
 use ropey::RopeSlice;
 use crossterm::style::{Attribute, Color};
-use crate::buffer::Snapshot;
 use crate::rope::{Rope, Range, Cursor};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]

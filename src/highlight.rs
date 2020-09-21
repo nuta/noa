@@ -5,7 +5,7 @@ use ropey::RopeSlice;
 use crossterm::style::{Attribute, Color};
 use regex::Regex;
 use crate::buffer::Snapshot;
-use crate::rope::{Rope, Range, Cursor};
+use crate::rope::Cursor;
 use crate::language::{SpanType, Pattern, Language};
 
 // The default theme.
@@ -187,7 +187,7 @@ impl Highlighter {
         let mut index = 0;
         'outer: loop {
             let current = self.patterns_stack.last().unwrap();
-            let mut remaining = &line[index..];
+            let remaining = &line[index..];
             let current_inner =
                 current.1.map(|(inner, _, _)| inner);
 

@@ -485,7 +485,7 @@ impl Buffer {
             };
 
             // Should we do auto-indent?
-            let mut auto_indent = pos.x <= self.indent_size(pos.y);
+            let auto_indent = pos.x <= self.indent_size(pos.y);
             let x;
             if auto_indent {
                 let prev_indent_size = if pos.y > 0 {

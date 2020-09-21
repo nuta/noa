@@ -93,7 +93,7 @@ pub struct CommandBox {
 impl CommandBox {
     pub fn new() -> CommandBox {
         let mut script_file = NamedTempFile::new().unwrap();
-        writeln!(&mut script_file, "{}", include_str!("command_box.rb"));
+        writeln!(&mut script_file, "{}", include_str!("command_box.rb")).unwrap();
         let script_file_path = script_file.path().to_str().unwrap().to_owned();
 
         CommandBox {
@@ -146,7 +146,7 @@ impl CommandBox {
 
         let mut json_string = String::with_capacity(2048);
         stdout.read_to_string(&mut json_string).ok();
-        stderr.read_to_string(&mut self.last_stderr);
+        stderr.read_to_string(&mut self.last_stderr).ok();
         child.wait().ok();
         trace!("rb: took {} ms", started_at.elapsed().as_millis());
 

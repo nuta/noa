@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use std::sync::mpsc::{channel, Sender, Receiver, RecvTimeoutError};
 use std::time::{Instant, Duration};
-use crate::buffer::{Buffer, BufferId};
 use std::io::Stdout;
+use crate::buffer::{Buffer, BufferId};
 use crate::command_box::{CommandBox, PreviewItem, File, RequestBody, Location};
 use crate::completion::WordCompJob;
 use crate::view::View;
@@ -247,9 +247,6 @@ impl Editor {
     }
 
     fn on_modified(&mut self) {
-        let view = self.current.borrow();
-        let buffer = view.buffer().borrow();
-        let snapshot = buffer.snapshot();
     }
 
     fn notify<T: Into<String>>(&self, level: NotificationLevel, message: T) {
@@ -447,9 +444,6 @@ impl Editor {
 
                     self.close_command_box();
                 }
-                _ => {
-                    self.close_command_box();
-                },
             }
             _ => {},
         }
@@ -461,7 +455,6 @@ impl Editor {
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
         let mut modified = false;
-        let mut close = false;
         match (key.code, key.modifiers) {
             (KeyCode::Enter, NONE) => {
                 self.execute_command(false);
@@ -678,7 +671,7 @@ impl Editor {
         if update_completion {
             // Run a completion.
             let view = self.current.borrow_mut();
-            let mut buffer = view.buffer().borrow_mut();
+            let buffer = view.buffer().borrow_mut();
             let snapshot = buffer.snapshot();
             self.worker.request(Box::new(WordCompJob::new(snapshot)));
         }

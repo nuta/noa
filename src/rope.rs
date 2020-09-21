@@ -204,9 +204,7 @@ impl Rope {
         }
     }
 
-    pub fn from_reader<T: std::io::Read>(
-        mut reader: T
-    ) -> std::io::Result<Rope> {
+    pub fn from_reader<T: std::io::Read>(reader: T) -> std::io::Result<Rope> {
         let inner = ropey::Rope::from_reader(reader)?;
         let cached_num_lines = inner.len_lines();
         Ok(Rope {
@@ -253,7 +251,7 @@ impl Rope {
     }
 
     pub fn save_into_file(&self, path: &Path) -> std::io::Result<()> {
-        let mut f = OpenOptions::new().write(true).truncate(true).open(path)?;
+        let f = OpenOptions::new().write(true).truncate(true).open(path)?;
         self.inner.write_to(f)
     }
 
@@ -357,7 +355,7 @@ impl Rope {
             .skip_while(|(_, ch)| !is_word_char(*ch))
             .skip_while(|(_, ch)| is_word_char(*ch))
             .next()
-            .map(|(i, ch)| {
+            .map(|(i, _)| {
                 pos.x + i
             })
             .unwrap_or_else(|| {

@@ -396,7 +396,7 @@ impl Terminal {
                                 queue!(
                                     stdout,
                                      Print(truncate(&file.display_name, file_width)),
-                                     Print(truncate(body, width)),
+                                     Print(truncate(body, body_width)),
                                  ).ok();
                             }
                         }
@@ -459,11 +459,11 @@ impl Terminal {
                 match (&current_span, next_span) {
                     (Some(span), _) if span.range.contains(&x) => {
                         num_chars = min(num_chars, span.range.end() + 1 - x);
-                        THEME[&span.span_type].apply(stdout);
+                        THEME[&span.span_type].apply(stdout).ok();
                     }
                     (_, Some(span)) if span.range.contains(&x) => {
                         num_chars = min(num_chars, span.range.end() + 1 - x);
-                        THEME[&span.span_type].apply(stdout);
+                        THEME[&span.span_type].apply(stdout).ok();
                         current_span = spans.next();
                         next_span = spans.peek();
                     }
