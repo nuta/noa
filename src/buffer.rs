@@ -202,7 +202,7 @@ impl Buffer {
     }
 
     pub fn path(&self) -> Option<&Path> {
-        self.file.as_ref().map(PathBuf::as_path)
+        self.file.as_deref()
     }
 
     pub fn text(&self) -> String {
@@ -427,7 +427,7 @@ impl Buffer {
                         pos.y = insert_at.y;
                     }
                     Cursor::Normal { pos, .. } => {
-                        pos.y = pos.y + y_diff;
+                        pos.y += y_diff;
                     }
                     Cursor::Selection(_) => {
                         unreachable!();
@@ -526,7 +526,7 @@ impl Buffer {
         let mut new_cursors = Vec::new();
         let mut iter = self.cursors.iter().rev().peekable();
         let mut ys = HashSet::new();
-        while let Some(c) = iter.next() {
+        for c in iter {
             let pos = match c {
                 Cursor::Normal { pos, .. } => {
                     pos

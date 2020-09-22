@@ -199,7 +199,7 @@ impl Editor {
         let buffer_id = buffer.id();
         let buffer_rc = Rc::new(RefCell::new(buffer));
         let view = Rc::new(RefCell::new(View::new(buffer_rc)));
-        self.views.push(view.clone());
+        self.views.push(view);
         self.switch_buffer(buffer_id)
     }
 
@@ -407,7 +407,7 @@ impl Editor {
                     return;
                 }
             }
-        } else if pat.starts_with("/") {
+        } else if pat.starts_with('/') {
             // Search the current buffer.
             let view = self.current.borrow();
             let mut buffer = view.buffer().borrow_mut();
@@ -424,7 +424,7 @@ impl Editor {
                     return;
                 }
             }
-        } else if pat.starts_with(">") {
+        } else if pat.starts_with('>') {
             // Filter file paths.
             let files = list_files(self.workspace_dir(), &pat[1..]);
             if files.len() >= NUM_MATCHES_MAX {

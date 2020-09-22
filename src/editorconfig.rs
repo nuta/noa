@@ -165,7 +165,7 @@ fn matches_pattern(pattern: &str, path: &str) -> bool {
         return matches_pattern(&pattern, skip(path, 1))
             || matches_pattern(skip(pattern, 2), skip(path, 1))
             || matches_pattern(skip(pattern, 2), path);
-    } else if pattern.starts_with("*") {
+    } else if pattern.starts_with('*') {
         if path.starts_with('/') {
             return matches_pattern(skip(pattern, 1), path);
         } else {
@@ -173,7 +173,7 @@ fn matches_pattern(pattern: &str, path: &str) -> bool {
                 || matches_pattern(skip(pattern, 1), skip(path, 1))
                 || matches_pattern(skip(pattern, 1), path);
         }
-    } else if pattern.starts_with("{") && pattern.contains('}') {
+    } else if pattern.starts_with('{') && pattern.contains('}') {
         let mut prev_comma = 0;
         let remaining = skip(pattern, pattern.find('}').unwrap() + 1);
         while let Some(mut comma) = skip(pattern, prev_comma + 1).find(|c| c == ',' || c == '}') {
@@ -190,7 +190,7 @@ fn matches_pattern(pattern: &str, path: &str) -> bool {
 
             prev_comma = comma;
         }
-        return false;
+        false
     } else {
         // Skip until a special character.
         let mut i = 0;
@@ -205,7 +205,7 @@ fn matches_pattern(pattern: &str, path: &str) -> bool {
         if i > 0 && path.starts_with(span) {
             return matches_pattern(skip(pattern, i), skip(path, i));
         } else {
-            return false;
+            false
         }
     }
 }
