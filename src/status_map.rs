@@ -1,6 +1,4 @@
-use git2::{Blob, Diff, DiffOptions, Error, Object, ObjectType, Oid, Repository};
-use git2::{DiffDelta, DiffFindOptions, DiffFormat, DiffHunk, DiffLine};
-use std::collections::HashSet;
+use git2::{Repository, DiffFormat};
 use std::ops::RangeInclusive;
 use std::path::Path;
 use crate::buffer::Buffer;
@@ -76,7 +74,7 @@ impl StatusMap {
 fn is_same_file(path1: &Path, path2: &Path) -> bool {
     use std::fs::metadata;
     use std::os::unix::fs::MetadataExt;
-    match (metadata(path1), metadata(path1)) {
+    match (metadata(path1), metadata(path2)) {
         (Ok(meta1), Ok(meta2)) => meta1.ino() == meta2.ino(),
         _ => false,
     }
@@ -171,7 +169,7 @@ pub fn compute_git_diff(
 
         // Continue the iteration.
         true
-    });
+    }).ok();
 
     Ok(())
 }

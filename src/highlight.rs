@@ -1,8 +1,6 @@
 use std::cmp::min;
 use std::ops::RangeInclusive;
-use std::collections::HashMap;
-use ropey::RopeSlice;
-use crossterm::style::{Attribute, Color};
+use crossterm::style::{Color};
 use regex::Regex;
 use crate::buffer::Snapshot;
 use crate::rope::Cursor;
@@ -85,6 +83,7 @@ impl Style {
         Style::new(fg, bg, false, false, false)
     }
 
+    #[allow(unused)]
     pub fn bold() -> Style {
         Style::new(Color::Reset, Color::Reset, true, false, false)
     }
@@ -344,7 +343,7 @@ mod test {
     use super::*;
 
     fn do_highlight(h: &mut Highlighter, text: &str, lines: RangeInclusive<usize>) {
-        let mut buf = crate::buffer::Buffer::from_str(text);
+        let buf = crate::buffer::Buffer::from_str(text);
         let snapshot = buf.snapshot();
         h.highlight(snapshot, lines, &[Cursor::new(0, 0)]);
     }

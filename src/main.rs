@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 #[cfg(test)] #[macro_use] extern crate pretty_assertions;
 #[macro_use] extern crate log;
 #[macro_use] extern crate lazy_static;

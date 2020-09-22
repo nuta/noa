@@ -2,21 +2,18 @@ use std::rc::Rc;
 use std::cmp::min;
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
-use std::collections::HashMap;
-use std::sync::mpsc::{channel, Sender, Receiver, RecvTimeoutError};
-use std::time::{Instant, Duration};
-use std::io::Stdout;
+use std::sync::mpsc::{channel, Sender, Receiver};
+use std::time::{Instant};
 use git2::Repository;
 use crate::buffer::{Buffer, BufferId};
-use crate::command_box::{CommandBox, PreviewItem, File, RequestBody, Location};
+use crate::command_box::{CommandBox, RequestBody};
 use crate::completion::WordCompJob;
 use crate::view::View;
 use crate::worker::Worker;
-use crate::highlight::Highlighter;
 use crate::fuzzy::FuzzySet;
 use crate::terminal::{Terminal, KeyCode, KeyModifiers, KeyEvent};
-use crate::rope::{Cursor, Range, Point};
-use crate::status_map::{compute_git_diff, StatusMap, LineStatus};
+use crate::rope::{Cursor};
+use crate::status_map::{compute_git_diff, StatusMap};
 
 pub enum NotificationLevel {
     Report,
@@ -270,7 +267,6 @@ impl Editor {
     fn update_status_map(&mut self) {
         let view = self.current.borrow();
         let buffer = view.buffer().borrow();
-        let snapshot = buffer.snapshot();
 
         self.status_map.clear();
         if let Some(git) = self.git.as_ref() {
@@ -378,7 +374,7 @@ impl Editor {
     }
 
     fn execute_command(&mut self, preview: bool) {
-        use crate::command_box::{Request, RequestBody, Response, ResponseBody, PreviewItem};
+        use crate::command_box::{Request, Response, ResponseBody};
         use crate::search::{list_files, grep_buffer, grep_dir, NUM_MATCHES_MAX};
 
         let input = self.command_box_input.text();

@@ -101,6 +101,7 @@ pub struct Buffer {
     cursors: Vec<Cursor>,
     undo_stack: Vec<Rope>,
     redo_stack: Vec<Rope>,
+    #[allow(unused)]
     lang: &'static Language,
     highlighter: Highlighter,
     config: EditorConfig,
@@ -128,6 +129,7 @@ impl Buffer {
         buffer
     }
 
+    #[cfg(test)]
     pub fn from_str(text: &str) -> Buffer {
         let mut buf = Buffer::new();
         buf.insert(text);
@@ -211,10 +213,6 @@ impl Buffer {
 
     pub fn line(&self, line: usize) -> ropey::RopeSlice {
         self.buf.line(line)
-    }
-
-    pub fn line_len(&self, line: usize) -> usize {
-        self.buf.line_len(line)
     }
 
     pub fn modified_line(&self) -> &Option<usize> {
@@ -524,9 +522,8 @@ impl Buffer {
     pub fn back_tab(&mut self) {
         self.buf.reset_modified_line();
         let mut new_cursors = Vec::new();
-        let mut iter = self.cursors.iter().rev().peekable();
         let mut ys = HashSet::new();
-        for c in iter {
+        for c in self.cursors.iter().rev() {
             let pos = match c {
                 Cursor::Normal { pos, .. } => {
                     pos
@@ -1603,13 +1600,13 @@ mod test {
 
     #[test]
     fn indent_size() {
-        let mut b = Buffer::from_str("");
+        let b = Buffer::from_str("");
         assert_eq!(b.indent_size(0), 0);
 
-        let mut b = Buffer::from_str("  X  ");
+        let b = Buffer::from_str("  X  ");
         assert_eq!(b.indent_size(0), 2);
 
-        let mut b = Buffer::from_str("         X");
+        let b = Buffer::from_str("         X");
         assert_eq!(b.indent_size(0), 9);
     }
 

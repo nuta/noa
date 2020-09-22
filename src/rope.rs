@@ -1,5 +1,5 @@
 use std::fmt;
-use std::fs::{File, OpenOptions};
+use std::fs::OpenOptions;
 use std::path::Path;
 use std::cmp::{min, max};
 use std::cmp::Ordering;
@@ -337,7 +337,7 @@ impl Rope {
             .skip_while(|(_, ch)| !is_word_char(*ch))
             .skip_while(|(_, ch)| is_word_char(*ch))
             .next()
-            .map(|(i, ch)| {
+            .map(|(i, _)| {
                 pos.x - i
             })
             .unwrap_or(0);

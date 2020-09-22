@@ -1,15 +1,12 @@
 use std::cmp::min;
 use std::process::{Command, Stdio};
 use std::path::PathBuf;
-use std::io::{self, Read, Write, Stdout};
+use std::io::{self, Read, Write};
 use serde::{Deserialize, Serialize};
-use ignore::WalkBuilder;
 use tempfile::NamedTempFile;
-use std::time::{Duration, Instant};
-use crate::terminal::{Terminal, KeyCode, KeyModifiers, KeyEvent};
+use std::time::{Instant};
 use crate::rope::{Range, Point};
-use crate::buffer::{BufferId, Buffer};
-use crate::editor::Editor;
+use crate::buffer::{BufferId};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct File {
@@ -86,6 +83,7 @@ pub struct CommandBox {
     last_stderr: String,
     selected: usize,
     num_items: usize,
+    #[allow(unused)]
     script_file: NamedTempFile,
     script_file_path: String,
 }

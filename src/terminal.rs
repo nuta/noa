@@ -1,7 +1,6 @@
 use crate::editor::{EventQueue, Event, Notification, Popup};
 use crate::rope::Cursor;
 use crate::view::View;
-use crate::highlight::{Highlighter};
 use crate::theme::{THEME, ThemeItem};
 use crate::command_box::{CommandBox, ResponseBody, PreviewItem};
 use std::cmp::{min, max};
@@ -107,13 +106,9 @@ impl Terminal {
         command_box: Option<(&CommandBox, &Buffer)>,
         status_map: &StatusMap,
     ) {
-        use unicode_width::{UnicodeWidthChar};
         use crossterm::cursor::{self, MoveTo};
         use crossterm::terminal::{Clear, ClearType};
-        use crossterm::style::{
-            Print, SetForegroundColor, SetBackgroundColor,
-            Attribute, SetAttribute
-        };
+        use crossterm::style::{Print, Attribute, SetAttribute};
 
         let mut stdout = stdout();
         if self.cols < 10 || self.rows < 5 {
@@ -152,7 +147,6 @@ impl Terminal {
         ).unwrap();
 
         // Draw buffer contents.
-        use std::collections::HashMap;
         let mut scroll_bar_y = 0;
         let scroll_bar_diff = max(
             1,
@@ -369,14 +363,9 @@ impl Terminal {
         height: usize,
         width: usize,
     ) {
-        use std::io::Write;
-        use crossterm::queue;
-        use crossterm::cursor::{self, MoveTo, MoveDown};
+        use crossterm::cursor::{MoveTo};
         use crossterm::terminal::{Clear, ClearType};
-        use crossterm::style::{
-            Print, SetForegroundColor, SetBackgroundColor,
-            Attribute, SetAttribute
-        };
+        use crossterm::style::{Print, Attribute, SetAttribute};
 
         // The input line.
         THEME.apply(stdout, ThemeItem::CommandBoxPrompt).ok();
@@ -421,7 +410,7 @@ impl Terminal {
                                      Print(truncate(body, width))
                                  ).ok();
                             }
-                            PreviewItem::PrintWithFile { file, lineno, body } => {
+                            PreviewItem::PrintWithFile { file, lineno: _lineno, body } => {
                                 let file_width = min(width, 16);
                                 let body_width = width.saturating_sub(file_width);
                                 queue!(
@@ -468,13 +457,8 @@ impl Terminal {
         y: usize,
         text_width: usize,
     ) -> usize {
-        use unicode_width::{UnicodeWidthStr, UnicodeWidthChar};
-        use crossterm::cursor::{self, MoveTo};
-        use crossterm::terminal::{Clear, ClearType};
-        use crossterm::style::{
-            Print, SetForegroundColor, SetBackgroundColor,
-            Attribute, SetAttribute
-        };
+        use unicode_width::UnicodeWidthChar;
+        use crossterm::style::{Print, Attribute, SetAttribute};
 
         let mut n = 0;
         let mut remaining = text_width;

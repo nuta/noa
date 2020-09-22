@@ -1,7 +1,7 @@
 use crate::highlight::Style;
-use crate::language::{SpanType, Pattern, Language};
+use crate::language::{SpanType};
 use crate::status_map::LineStatusType;
-use crossterm::style::{Attribute, Color};
+use crossterm::style::{Color};
 use std::collections::HashMap;
 use std::io::Stdout;
 
