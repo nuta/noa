@@ -8,19 +8,6 @@ use crate::buffer::Snapshot;
 use crate::rope::Cursor;
 use crate::language::{SpanType, Pattern, Language};
 
-// The default theme.
-lazy_static! {
-    pub static ref THEME: HashMap<SpanType, Style> = hashmap! {
-        SpanType::Cursor => Style::inverted(),
-        SpanType::Selection => Style::inverted(),
-        SpanType::Normal => Style::normal(),
-        SpanType::StringLiteral => Style::fg(Color::Cyan),
-        SpanType::EscapedChar => Style::fg(Color::Cyan),
-        SpanType::Comment => Style::fg(Color::Cyan),
-        SpanType::CtrlKeyword => Style::fg(Color::Cyan),
-    };
-}
-
 #[derive(Clone, Debug)]
 pub struct Span {
     pub span_type: SpanType,

@@ -1,7 +1,8 @@
 use crate::editor::{EventQueue, Event, Notification, Popup};
 use crate::rope::Cursor;
 use crate::view::View;
-use crate::highlight::{Highlighter, THEME};
+use crate::highlight::{Highlighter};
+use crate::theme::{THEME, ThemeItem};
 use crate::command_box::{CommandBox, ResponseBody, PreviewItem};
 use std::cmp::{min, max};
 use std::io::{stdout, Write};
@@ -110,7 +111,7 @@ impl Terminal {
         use crossterm::cursor::{self, MoveTo};
         use crossterm::terminal::{Clear, ClearType};
         use crossterm::style::{
-            Print, Color, SetForegroundColor, SetBackgroundColor,
+            Print, SetForegroundColor, SetBackgroundColor,
             Attribute, SetAttribute
         };
 
@@ -168,14 +169,14 @@ impl Terminal {
             let lineno = y + 1; // 1-origin
             let out_of_bounds = lineno > buffer.num_lines();
             if out_of_bounds {
+                THEME.apply(&mut stdout, ThemeItem::LineNo).ok();
                 queue!(stdout,
-                    SetBackgroundColor(Color::AnsiValue(240)),
                     Print(whitespaces(lineno_width)),
                     SetAttribute(Attribute::Reset),
                 ).unwrap();
             } else {
+                THEME.apply(&mut stdout, ThemeItem::LineNoPadding).ok();
                 queue!(stdout,
-                    SetBackgroundColor(Color::AnsiValue(236)),
                     Print(whitespaces(lineno_width - num_of_digits(lineno) - 1)),
                     Print(lineno),
                     Print(" "),
@@ -185,14 +186,14 @@ impl Terminal {
 
             // Line map.
             if let Some(LineStatus { status, .. }) = status_map.get(y) {
+                THEME.apply(&mut stdout, ThemeItem::LineStatus(*status)).ok();
                 queue!(stdout,
-                    SetBackgroundColor(Color::AnsiValue(100)),
                     Print(' '),
                     SetAttribute(Attribute::Reset),
                 ).unwrap();
             } else {
+                THEME.apply(&mut stdout, ThemeItem::LineStatusPadding).ok();
                 queue!(stdout,
-                    SetBackgroundColor(Color::AnsiValue(238)),
                     Print(' '),
                     SetAttribute(Attribute::Reset),
                 ).unwrap();
@@ -226,15 +227,15 @@ impl Terminal {
             trace!("sc={}..{}", scroll_bar_y, scroll_bar_y + scroll_bar_diff);
             if let Some(LineStatus { status, .. })
                 = status_map.get_by_range(scroll_bar_y, scroll_bar_diff) {
+                THEME.apply(&mut stdout, ThemeItem::LineStatus(*status)).ok();
                 queue!(stdout,
-                    SetBackgroundColor(Color::AnsiValue(90)),
                     Print(' '),
                     SetAttribute(Attribute::Reset),
                 ).unwrap();
             } else if top_left.y <= scroll_bar_y + scroll_bar_diff
                 && scroll_bar_y <= top_left.y + text_height {
+                THEME.apply(&mut stdout, ThemeItem::ScrollBarVisible).ok();
                 queue!(stdout,
-                    SetBackgroundColor(Color::AnsiValue(238)),
                     Print(' '),
                     SetAttribute(Attribute::Reset),
                 ).unwrap();
@@ -243,11 +244,10 @@ impl Terminal {
             scroll_bar_y += scroll_bar_diff;
         }
 
-        // Draw the status bar.
+        // Draw the info bar.
+        THEME.apply(&mut stdout, ThemeItem::InfoBarColor).ok();
         queue!(stdout,
             MoveTo(0, status_bar_y as u16),
-            SetBackgroundColor(Color::AnsiValue(250)),
-            SetForegroundColor(Color::AnsiValue(233)),
             Print(" "),
             SetAttribute(Attribute::Bold),
             SetAttribute(Attribute::Underlined),
@@ -258,9 +258,8 @@ impl Terminal {
         ).unwrap();
 
         if buffer.is_dirty() {
+            THEME.apply(&mut stdout, ThemeItem::DirtyBufferMark).ok();
             queue!(stdout,
-                SetAttribute(Attribute::Bold),
-                SetBackgroundColor(Color::AnsiValue(226)),
                 Print("[+]"),
                 SetAttribute(Attribute::Reset),
             ).unwrap();
@@ -312,17 +311,15 @@ impl Terminal {
 
                 for i in 0..popup_height {
                     let item = &popup.items()[i];
-                    let color = if i == popup.selected() {
-                        Color::AnsiValue(29)
+                    if i == popup.selected() {
+                        THEME.apply(&mut stdout, ThemeItem::PopupItemHover).ok();
                     } else {
-                        Color::AnsiValue(89)
+                        THEME.apply(&mut stdout, ThemeItem::PopupItem).ok();
                     };
 
                     queue!(
                         stdout,
                         MoveTo((text_offset + x) as u16, (y + i) as u16),
-                        SetBackgroundColor(color),
-                        SetAttribute(Attribute::Bold),
                         Print(truncate(&item, popup_width - 1)),
                         Print(whitespaces(popup_width.saturating_sub(item.len()))),
                         SetAttribute(Attribute::Reset),
@@ -378,15 +375,15 @@ impl Terminal {
         use crossterm::cursor::{self, MoveTo, MoveDown};
         use crossterm::terminal::{Clear, ClearType};
         use crossterm::style::{
-            Print, Color, SetForegroundColor, SetBackgroundColor,
+            Print, SetForegroundColor, SetBackgroundColor,
             Attribute, SetAttribute
         };
 
         // The input line.
+        THEME.apply(stdout, ThemeItem::CommandBoxPrompt).ok();
         queue!(
             stdout,
             MoveTo(0, y as u16),
-            SetBackgroundColor(Color::Magenta),
             Print("Finder"),
             SetAttribute(Attribute::Reset),
             Print(" "),
@@ -476,7 +473,7 @@ impl Terminal {
         use crossterm::cursor::{self, MoveTo};
         use crossterm::terminal::{Clear, ClearType};
         use crossterm::style::{
-            Print, Color, SetForegroundColor, SetBackgroundColor,
+            Print, SetForegroundColor, SetBackgroundColor,
             Attribute, SetAttribute
         };
 
@@ -494,11 +491,11 @@ impl Terminal {
                 match (&current_span, next_span) {
                     (Some(span), _) if span.range.contains(&x) => {
                         num_chars = min(num_chars, span.range.end() + 1 - x);
-                        THEME[&span.span_type].apply(stdout).ok();
+                        THEME.apply_span(stdout, span.span_type).ok();
                     }
                     (_, Some(span)) if span.range.contains(&x) => {
                         num_chars = min(num_chars, span.range.end() + 1 - x);
-                        THEME[&span.span_type].apply(stdout).ok();
+                        THEME.apply_span(stdout, span.span_type).ok();
                         current_span = spans.next();
                         next_span = spans.peek();
                     }

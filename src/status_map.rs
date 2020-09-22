@@ -5,7 +5,7 @@ use std::ops::RangeInclusive;
 use std::path::Path;
 use crate::buffer::Buffer;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum LineStatusType {
     Added,
     Modified,

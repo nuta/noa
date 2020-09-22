@@ -15,6 +15,7 @@ mod worker;
 mod completion;
 mod language;
 mod highlight;
+mod theme;
 mod search;
 mod fuzzy;
 mod editorconfig;
