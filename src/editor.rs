@@ -125,7 +125,7 @@ pub struct Editor {
     workspace_dir: PathBuf,
     backup_dir: PathBuf,
     git: Option<Repository>,
-    git_statuses: Option<StatusMap>,
+    status_map: StatusMap,
 }
 
 impl Editor {
@@ -159,7 +159,7 @@ impl Editor {
             workspace_dir,
             backup_dir: dirs::home_dir().unwrap().join(".noa/backup"),
             git,
-            git_statuses: None,
+            status_map: StatusMap::new(),
         }
     }
 
@@ -196,13 +196,15 @@ impl Editor {
 
         buffer.set_name(path.file_name().unwrap().to_str().unwrap());
 
+        let buffer_id = buffer.id();
         let buffer_rc = Rc::new(RefCell::new(buffer));
         let view = Rc::new(RefCell::new(View::new(buffer_rc)));
         self.views.push(view.clone());
-        self.current = view;
+        self.switch_buffer(buffer_id)
     }
 
     pub fn switch_buffer(&mut self, buffer_id: BufferId) {
+        self.status_map.clear();
         for view in &self.views {
             if buffer_id == view.borrow().buffer().borrow().id() {
                 self.current = view.clone();
@@ -258,7 +260,7 @@ impl Editor {
                 EditorMode::CommandBox => Some((&self.command_box, &self.command_box_input)),
                 EditorMode::Normal => None,
             },
-            &self.git_statuses,
+            &self.status_map,
         );
     }
 
@@ -267,11 +269,10 @@ impl Editor {
         let buffer = view.buffer().borrow();
         let snapshot = buffer.snapshot();
 
+        self.status_map.clear();
         if let Some(git) = self.git.as_ref() {
-            match compute_git_diff(git, &*buffer) {
-                Ok(git_statuses) => {
-                    self.git_statuses = Some(git_statuses);
-                }
+            match compute_git_diff(&mut self.status_map, git, &*buffer) {
+                Ok(_) => {}
                 Err(err) => { trace!("failed to get diff: {}", err); }
             }
         }

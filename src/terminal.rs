@@ -104,7 +104,7 @@ impl Terminal {
         notifications: &[Notification],
         popup: &Option<Popup>,
         command_box: Option<(&CommandBox, &Buffer)>,
-        git_statuses: &Option<StatusMap>,
+        status_map: &StatusMap,
     ) {
         use unicode_width::{UnicodeWidthChar};
         use crossterm::cursor::{self, MoveTo};
@@ -136,7 +136,7 @@ impl Terminal {
         let mut buffer = view.buffer().borrow_mut();
         let top_left = view.top_left();
 
-        // TODO:
+        // TODO: cache
         // Highlight the given text.
         // let modified_line = buffer.modified_line().unwrap_or(0);
         // if top_left.y <= modified_line && modified_line <= top_left.y + text_height {
@@ -179,21 +179,14 @@ impl Terminal {
             }
 
             // Line map.
-            let mut drawed_line_map = false;
-            if let Some(git_statuses) = git_statuses {
-                if let Some(LineStatus { lines, status }) = git_statuses.get(y) {
-//                    info!("{:?} <> {}", lines, y);
-                    queue!(stdout,
-                        SetBackgroundColor(Color::AnsiValue(100)),
-                        Print(' '),
-                        SetAttribute(Attribute::Reset),
-                    ).unwrap();
-                    drawed_line_map = true;
-                    break;
-                }
-            }
-
-            if !drawed_line_map {
+            if let Some(LineStatus { lines, status }) = status_map.get(y) {
+                queue!(stdout,
+                    SetBackgroundColor(Color::AnsiValue(100)),
+                    Print(' '),
+                    SetAttribute(Attribute::Reset),
+                ).unwrap();
+                break;
+            } else {
                 queue!(stdout,
                     SetBackgroundColor(Color::AnsiValue(238)),
                     Print(' '),

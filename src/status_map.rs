@@ -41,6 +41,10 @@ impl StatusMap {
         }
     }
 
+    pub fn clear(&mut self) {
+        self.statuses.clear();
+    }
+
     pub fn add(&mut self, status: LineStatusType, lines: RangeInclusive<usize>) {
         self.statuses.push(LineStatus::new(status, lines));
     }
@@ -48,6 +52,18 @@ impl StatusMap {
     pub fn get(&self, y: usize) -> Option<&LineStatus> {
         for ls in &self.statuses {
             if ls.lines.contains(&y) {
+                return Some(ls);
+            }
+        }
+
+        None
+    }
+
+    pub fn get_by_range(&self, y: usize, size: usize) -> Option<&LineStatus> {
+        for ls in &self.statuses {
+            let start = *ls.lines.start();
+            let end = *ls.lines.end();
+            if  y <= end && start <= y + size {
                 return Some(ls);
             }
         }
@@ -67,13 +83,13 @@ fn is_same_file(path1: &Path, path2: &Path) -> bool {
 }
 
 pub fn compute_git_diff(
+    statuses: &mut StatusMap,
     repo: &Repository,
     buffer: &Buffer,
-) -> Result<StatusMap, Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error>> {
     let head_tree = repo.head()?.peel_to_tree()?;
     let diff = repo.diff_tree_to_workdir(Some(&head_tree), None)?;
 
-    let mut statuses = StatusMap::new();
     let mut start_y = None;
     let mut num_added = 0;
     let mut num_deleted = 0;
@@ -161,5 +177,5 @@ pub fn compute_git_diff(
         true
     });
 
-    Ok(statuses)
+    Ok(())
 }
