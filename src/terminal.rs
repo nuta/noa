@@ -152,6 +152,11 @@ impl Terminal {
 
         // Draw buffer contents.
         use std::collections::HashMap;
+        let mut scroll_bar_y = 0;
+        let scroll_bar_diff = max(
+            1,
+            (buffer.num_lines() as f64 / text_height as f64).ceil() as usize
+        );
         for i in 0..text_height {
             queue!(stdout,
                 MoveTo(0, i as u16),
@@ -179,13 +184,12 @@ impl Terminal {
             }
 
             // Line map.
-            if let Some(LineStatus { lines, status }) = status_map.get(y) {
+            if let Some(LineStatus { status, .. }) = status_map.get(y) {
                 queue!(stdout,
                     SetBackgroundColor(Color::AnsiValue(100)),
                     Print(' '),
                     SetAttribute(Attribute::Reset),
                 ).unwrap();
-                break;
             } else {
                 queue!(stdout,
                     SetBackgroundColor(Color::AnsiValue(238)),
@@ -212,10 +216,31 @@ impl Terminal {
                 }
             }
 
-            queue!(stdout, Clear(ClearType::UntilNewLine)).unwrap();
+            queue!(
+                stdout,
+                Clear(ClearType::UntilNewLine),
+                MoveTo(self.cols as u16 - 1, i as u16),
+            ).unwrap();
 
             // Scroll bar.
-            // TODO:
+            trace!("sc={}..{}", scroll_bar_y, scroll_bar_y + scroll_bar_diff);
+            if let Some(LineStatus { status, .. })
+                = status_map.get_by_range(scroll_bar_y, scroll_bar_diff) {
+                queue!(stdout,
+                    SetBackgroundColor(Color::AnsiValue(90)),
+                    Print(' '),
+                    SetAttribute(Attribute::Reset),
+                ).unwrap();
+            } else if top_left.y <= scroll_bar_y + scroll_bar_diff
+                && scroll_bar_y <= top_left.y + text_height {
+                queue!(stdout,
+                    SetBackgroundColor(Color::AnsiValue(238)),
+                    Print(' '),
+                    SetAttribute(Attribute::Reset),
+                ).unwrap();
+            }
+
+            scroll_bar_y += scroll_bar_diff;
         }
 
         // Draw the status bar.

@@ -204,10 +204,10 @@ impl Editor {
     }
 
     pub fn switch_buffer(&mut self, buffer_id: BufferId) {
-        self.status_map.clear();
         for view in &self.views {
             if buffer_id == view.borrow().buffer().borrow().id() {
                 self.current = view.clone();
+                self.update_status_map();
                 return;
             }
         }
@@ -265,6 +265,9 @@ impl Editor {
     }
 
     fn on_modified(&mut self) {
+    }
+
+    fn update_status_map(&mut self) {
         let view = self.current.borrow();
         let buffer = view.buffer().borrow();
         let snapshot = buffer.snapshot();
@@ -579,6 +582,10 @@ impl Editor {
                 match buffer.save(&self.backup_dir) {
                     Ok(_) => {
                         self.info(format!("saved ({} lines)", buffer.num_lines()));
+                        drop(buffer);
+                        drop(view);
+                        self.update_status_map();
+                        return;
                     }
                     Err(err) => {
                         self.error(format!("failed to save: {}", err));
