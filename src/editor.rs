@@ -454,8 +454,8 @@ impl Editor {
 
         // Handle the response.
         let resp = self.command_box.last_response().cloned();
-        match resp {
-            Some(Response { body, .. }) => match body {
+        if let Some(Response { body, .. }) = resp {
+            match body {
                 ResponseBody::Preview { .. } => {}
                 ResponseBody::GoTo { file, position } => {
                     if let Some(buffer_id) = file.buffer_id {
@@ -473,7 +473,6 @@ impl Editor {
                     self.close_command_box();
                 }
             }
-            _ => {},
         }
     }
 
