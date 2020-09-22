@@ -50,7 +50,7 @@ impl StatusMap {
     }
 
     pub fn get(&self, y: usize) -> Option<&LineStatus> {
-        for ls in &self.statuses {
+        for ls in self.statuses.iter().rev() {
             if ls.lines.contains(&y) {
                 return Some(ls);
             }
@@ -60,7 +60,7 @@ impl StatusMap {
     }
 
     pub fn get_by_range(&self, y: usize, size: usize) -> Option<&LineStatus> {
-        for ls in &self.statuses {
+        for ls in self.statuses.iter().rev() {
             let start = *ls.lines.start();
             let end = *ls.lines.end();
             if  y <= end && start <= y + size {
