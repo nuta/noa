@@ -103,8 +103,6 @@ pub fn compute_git_diff(
             _ => return true,
         }
 
-        trace!("'{}': +{} -{}, ++{} --{}", line.origin(), num_added, num_deleted, num_added_total, num_deleted_total);
-        trace!("{:?}: {}", start_y, std::str::from_utf8(line.content()).unwrap());
         match line.origin() {
             '+' => {
                 if start_y.is_none() {
@@ -128,8 +126,6 @@ pub fn compute_git_diff(
                 num_deleted_total = 0;
             }
             _ => {
-                info!("{:?} +{} -{}", start_y,  num_added, num_deleted);
-                // if start_y.is_some() { info!("{:?} +{} -{}", start_y,  num_added, num_deleted); };
                 match (start_y, num_added > 0, num_deleted > 0) {
                     // Added.
                     (Some(start), true, false) => {

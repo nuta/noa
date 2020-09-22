@@ -224,7 +224,6 @@ impl Terminal {
             ).unwrap();
 
             // Scroll bar.
-            trace!("sc={}..{}", scroll_bar_y, scroll_bar_y + scroll_bar_diff);
             if let Some(LineStatus { status, .. })
                 = status_map.get_by_range(scroll_bar_y, scroll_bar_diff) {
                 THEME.apply(&mut stdout, ThemeItem::LineStatus(*status)).ok();

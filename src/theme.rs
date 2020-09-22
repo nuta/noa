@@ -40,6 +40,10 @@ impl Theme {
     }
 }
 
+macro_rules! color {
+    ($n:expr) => (Color::AnsiValue($n))
+}
+
 // The default theme.
 lazy_static! {
     pub static ref THEME: Theme = {
@@ -52,19 +56,18 @@ lazy_static! {
             ThemeItem::Span(SpanType::Comment) => Style::fg(Color::Cyan),
             ThemeItem::Span(SpanType::CtrlKeyword) => Style::fg(Color::Cyan),
             ThemeItem::CommandBoxPrompt => Style::fg(Color::Magenta),
-            ThemeItem::LineNo => Style::fg(Color::AnsiValue(253)),
-            ThemeItem::LineNoPadding => Style::fg(Color::AnsiValue(240)),
-            ThemeItem::LineStatus(LineStatusType::Added) => Style::fg(Color::AnsiValue(66)),
-            ThemeItem::LineStatus(LineStatusType::Deleted) => Style::fg(Color::AnsiValue(16)),
-            ThemeItem::LineStatus(LineStatusType::Modified) => Style::fg(Color::AnsiValue(44)),
-            ThemeItem::LineStatusPadding => Style::fg(Color::AnsiValue(123)),
-            ThemeItem::CommandBoxPrompt => Style::fg(Color::AnsiValue(12)),
-            ThemeItem::ScrollBarVisible => Style::fg(Color::AnsiValue(153)),
-            ThemeItem::PopupItemHover => Style::fg(Color::AnsiValue(173)),
-            ThemeItem::PopupItem => Style::fg(Color::AnsiValue(183)),
-            ThemeItem::InfoBarColor => Style::fg(Color::AnsiValue(93)),
-            ThemeItem::DirtyBufferMark => Style::fg(Color::AnsiValue(223)),
-
+            ThemeItem::LineNo => Style::color(color!(0), color!(253)),
+            ThemeItem::LineNoPadding => Style::color(color!(0), color!(240)),
+            ThemeItem::LineStatus(LineStatusType::Added) => Style::color(color!(0), color!(66)),
+            ThemeItem::LineStatus(LineStatusType::Deleted) => Style::color(color!(0), color!(16)),
+            ThemeItem::LineStatus(LineStatusType::Modified) => Style::color(color!(0), color!(44)),
+            ThemeItem::LineStatusPadding => Style::bg(color!(123)),
+            ThemeItem::CommandBoxPrompt => Style::color(color!(0), color!(12)),
+            ThemeItem::ScrollBarVisible => Style::bg(color!(153)),
+            ThemeItem::PopupItemHover => Style::color(color!(0), color!(173)),
+            ThemeItem::PopupItem => Style::color(color!(0), color!(183)),
+            ThemeItem::InfoBarColor => Style::color(color!(0), color!(93)),
+            ThemeItem::DirtyBufferMark => Style::color(color!(223), color!(0)),
         };
 
         Theme::from_hash_map(items)

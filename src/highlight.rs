@@ -77,6 +77,14 @@ impl Style {
         Style::new(color, Color::Reset, false, false, false)
     }
 
+    pub fn bg(color: Color) -> Style {
+        Style::new(Color::Reset, color, false, false, false)
+    }
+
+    pub fn color(fg: Color, bg: Color) -> Style {
+        Style::new(fg, bg, false, false, false)
+    }
+
     pub fn bold() -> Style {
         Style::new(Color::Reset, Color::Reset, true, false, false)
     }
