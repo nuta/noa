@@ -16,7 +16,7 @@ use crate::highlight::Highlighter;
 use crate::fuzzy::FuzzySet;
 use crate::terminal::{Terminal, KeyCode, KeyModifiers, KeyEvent};
 use crate::rope::{Cursor, Range, Point};
-use crate::status_map::{compute_git_diff, LineStatus};
+use crate::status_map::{compute_git_diff, StatusMap, LineStatus};
 
 pub enum NotificationLevel {
     Report,
@@ -125,7 +125,7 @@ pub struct Editor {
     workspace_dir: PathBuf,
     backup_dir: PathBuf,
     git: Option<Repository>,
-    git_statuses: Option<Vec<LineStatus>>,
+    git_statuses: Option<StatusMap>,
 }
 
 impl Editor {

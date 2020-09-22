@@ -30,6 +30,33 @@ impl LineStatus {
     }
 }
 
+pub struct StatusMap {
+    statuses: Vec<LineStatus>,
+}
+
+impl StatusMap {
+    pub fn new() -> StatusMap {
+        StatusMap {
+            statuses: Vec::new(),
+        }
+    }
+
+    pub fn add(&mut self, status: LineStatusType, lines: RangeInclusive<usize>) {
+        self.statuses.push(LineStatus::new(status, lines));
+    }
+
+    pub fn get(&self, y: usize) -> Option<&LineStatus> {
+        for ls in &self.statuses {
+            if ls.lines.contains(&y) {
+                return Some(ls);
+            }
+        }
+
+        None
+    }
+}
+
+
 fn is_same_file(path1: &Path, path2: &Path) -> bool {
     use std::fs::metadata;
     use std::os::unix::fs::MetadataExt;
@@ -42,11 +69,11 @@ fn is_same_file(path1: &Path, path2: &Path) -> bool {
 pub fn compute_git_diff(
     repo: &Repository,
     buffer: &Buffer,
-) -> Result<Vec<LineStatus>, Box<dyn std::error::Error>> {
+) -> Result<StatusMap, Box<dyn std::error::Error>> {
     let head_tree = repo.head()?.peel_to_tree()?;
     let diff = repo.diff_tree_to_workdir(Some(&head_tree), None)?;
 
-    let mut statuses = Vec::new();
+    let mut statuses = StatusMap::new();
     let mut start_y = None;
     let mut num_added = 0;
     let mut num_deleted = 0;
@@ -91,17 +118,17 @@ pub fn compute_git_diff(
                     // Added.
                     (Some(start), true, false) => {
                         let lines = start..=(start + num_added - 1);
-                        statuses.push(LineStatus::new(LineStatusType::Added, lines));
+                        statuses.add(LineStatusType::Added, lines);
                     }
                     // Deleted.
                     (Some(start), false, true) => {
                         let lines = start..=start;
-                        statuses.push(LineStatus::new(LineStatusType::Deleted, lines));
+                        statuses.add(LineStatusType::Deleted, lines);
                     }
                     // Modified.
                     (Some(start), true, true) => {
                         let lines = start..=(start + num_added - 1);
-                        statuses.push(LineStatus::new(LineStatusType::Modified, lines));
+                        statuses.add(LineStatusType::Modified, lines);
                     }
                     _ => {}
                 }
@@ -115,17 +142,17 @@ pub fn compute_git_diff(
             // Added.
             (Some(start), true, false) => {
                 let lines = start..=(start + num_added - 1);
-                statuses.push(LineStatus::new(LineStatusType::Added, lines));
+                statuses.add(LineStatusType::Added, lines);
             }
             // Deleted.
             (Some(start), false, true) => {
                 let lines = start..=start;
-                statuses.push(LineStatus::new(LineStatusType::Deleted, lines));
+                statuses.add(LineStatusType::Deleted, lines);
             }
             // Modified.
             (Some(start), true, true) => {
                 let lines = start..=(start + num_added - 1);
-                statuses.push(LineStatus::new(LineStatusType::Modified, lines));
+                statuses.add(LineStatusType::Modified, lines);
             }
             _ => {}
         }
