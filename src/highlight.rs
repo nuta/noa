@@ -243,7 +243,7 @@ impl Highlighter {
     }
 }
 
-fn add_captured_spans<'a>(
+fn add_captured_spans(
     spans: &mut Vec<Span>,
     index: &mut usize,
     captures: &[SpanType],
