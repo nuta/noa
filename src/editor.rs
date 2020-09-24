@@ -433,7 +433,7 @@ impl Editor {
                     body = RequestBody::SelectMatch { locations };
                 }
                 Err(err) => {
-                    self.error(format!("grep: {}", err));
+                    self.error(format!("grep_dir: {}", err));
                     return;
                 }
             }
@@ -499,9 +499,10 @@ impl Editor {
                     }
 
                     if let Some(pos) = position {
-                        let view = self.current.borrow_mut();
+                        let mut view = self.current.borrow_mut();
                         let cursors = vec![Cursor::new(pos.y, pos.x)];
                         view.buffer().borrow_mut().set_cursors(cursors);
+                        view.centering(self.terminal.rows());
                     }
 
                     self.close_command_box();

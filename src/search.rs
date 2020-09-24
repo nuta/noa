@@ -87,6 +87,12 @@ pub fn grep_dir(dir: &Path, pat: &str) -> Result<Vec<Location>, Box<dyn std::err
     let walker = WalkBuilder::new(dir).build();
     for e in walker {
         if let Ok(e) = e {
+            // Ignore non-file entries.
+            match e.file_type() {
+                Some(file_type) if file_type.is_dir() => continue,
+                _ => (),
+            }
+
             let path = e.into_path();
             let display_name = path.to_str().unwrap().to_owned();
             let file = File {
