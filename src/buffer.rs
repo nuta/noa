@@ -1355,6 +1355,22 @@ mod test {
         ]);
     }
 
+    #[test]
+    fn set_text() {
+        let mut b = Buffer::from_str("");
+        b.set_text("abc");
+        assert_eq!(b.text(), "abc");
+        assert_eq!(b.cursors(), &[
+            Cursor::new(0, 0),
+        ]);
+
+        let mut b = Buffer::from_str("123\n456");
+        b.set_text("x");
+        assert_eq!(b.text(), "x");
+        assert_eq!(b.cursors(), &[
+            Cursor::new(0, 1),
+        ]);
+    }
 
     #[test]
     fn truncate() {
