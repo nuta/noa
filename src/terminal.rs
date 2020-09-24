@@ -15,6 +15,7 @@ use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen,
 };
 use crate::buffer::Buffer;
+use crate::rope::Range;
 use crate::view::TopLeft;
 use crate::status_map::{StatusMap, LineStatus};
 
@@ -145,6 +146,12 @@ impl Terminal {
             buffer.highlight(range);
         // }
 
+        // Get the current y.
+        let main_cursor_y = match &buffer.cursors()[0] {
+            Cursor::Normal { pos } => pos.y,
+            Cursor::Selection(Range { end, .. }) => end.y,
+        };
+
         // Hide the cursor to prevent flickering.
         queue!(stdout,
             cursor::Hide,
@@ -167,19 +174,24 @@ impl Terminal {
             let lineno = y + 1; // 1-origin
             let out_of_bounds = lineno > buffer.num_lines();
             if out_of_bounds {
-                THEME.apply(&mut stdout, ThemeItem::LineNo).ok();
+                THEME.apply(&mut stdout, ThemeItem::LineNoPadding).ok();
                 queue!(stdout,
                     Print(whitespaces(lineno_width)),
                     SetAttribute(Attribute::Reset),
                 ).unwrap();
             } else {
-                THEME.apply(&mut stdout, ThemeItem::LineNoPadding).ok();
+                THEME.apply(&mut stdout, ThemeItem::LineNo).ok();
+                if y == main_cursor_y {
+                    THEME.apply(&mut stdout, ThemeItem::CurrentLineNo).ok();
+                    queue!(stdout, SetAttribute(Attribute::Bold)).ok();
+                }
+
                 queue!(stdout,
                     Print(whitespaces(lineno_width - num_of_digits(lineno) - 1)),
                     Print(lineno),
                     Print(" "),
                     SetAttribute(Attribute::Reset),
-                ).unwrap();
+                ).ok();
             }
 
             // Line map.
