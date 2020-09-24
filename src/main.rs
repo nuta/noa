@@ -16,6 +16,7 @@ mod highlight;
 mod theme;
 mod search;
 mod fuzzy;
+mod watcher;
 mod editorconfig;
 mod status_map;
 
@@ -61,5 +62,6 @@ fn main() {
     for file in opt.files.iter().rev() {
         editor.open_file(file);
     }
+
     editor.run();
 }

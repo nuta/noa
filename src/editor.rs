@@ -1,3 +1,4 @@
+use std::fs;
 use std::rc::Rc;
 use std::cmp::min;
 use std::cell::RefCell;
@@ -5,7 +6,8 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::time::{Instant};
 use git2::Repository;
-use crate::buffer::{Buffer, BufferId};
+use crate::watcher::FileWatcher;
+use crate::buffer::{Buffer, BufferId, compute_str_checksum};
 use crate::command_box::{CommandBox, RequestBody};
 use crate::completion::WordCompJob;
 use crate::view::View;
@@ -73,6 +75,7 @@ impl Popup {
 
 pub enum Event {
     Key(KeyEvent),
+    FileChanged(PathBuf),
     NoCompletion,
     Completion {
         id: BufferId,
@@ -122,6 +125,7 @@ pub struct Editor {
     workspace_dir: PathBuf,
     backup_dir: PathBuf,
     git: Option<Repository>,
+    watcher: FileWatcher,
     status_map: StatusMap,
 }
 
@@ -150,12 +154,13 @@ impl Editor {
             notifications: RefCell::new(Vec::new()),
             popup: None,
             popup_selected: 0,
-            worker: Worker::new(EventQueue::new(tx)),
+            worker: Worker::new(EventQueue::new(tx.clone())),
             command_box: CommandBox::new(),
             command_box_input: Buffer::new(),
             workspace_dir,
             backup_dir: dirs::home_dir().unwrap().join(".noa/backup"),
             git,
+            watcher: FileWatcher::new(tx),
             status_map: StatusMap::new(),
         }
     }
@@ -192,11 +197,11 @@ impl Editor {
         };
 
         buffer.set_name(path.file_name().unwrap().to_str().unwrap());
-
         let buffer_id = buffer.id();
         let buffer_rc = Rc::new(RefCell::new(buffer));
         let view = Rc::new(RefCell::new(View::new(buffer_rc)));
         self.views.push(view);
+        self.watcher.start_watching(path);
         self.switch_buffer(buffer_id)
     }
 
@@ -319,6 +324,35 @@ impl Editor {
             }
             Event::Completion { id, items } => {
                 self.handle_completion_event(id, items);
+            }
+            Event::FileChanged(_path) => {
+                self.check_if_current_changed();
+            }
+        }
+    }
+
+    fn check_if_current_changed(&mut self) {
+        let view = self.current.borrow_mut();
+        let mut buffer = view.buffer().borrow_mut();
+        if let Some(path) = buffer.path() {
+            let new_text = match fs::read_to_string(path) {
+                Ok(new_text) => new_text,
+                Err(err) => {
+                    let message = format!("failed to reload {}: {}", path.display(), err);
+                    self.notify(NotificationLevel::Report, message);
+                    return;
+                }
+            };
+
+            if buffer.checksum() != compute_str_checksum(&new_text) {
+                // It looks the file has changed on disk. Reload the file if the
+                // buffer is not dirty.
+                if buffer.is_dirty() {
+                    self.notify(NotificationLevel::Info, "this file has changed on disk");
+                } else {
+                    buffer.set_text(&new_text);
+                    self.notify(NotificationLevel::Info, "changes on disk detected; reloaded the file");
+                }
             }
         }
     }

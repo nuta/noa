@@ -265,6 +265,10 @@ impl Rope {
         self.on_modified(pos.y);
     }
 
+    pub fn clear(&mut self){
+        self.inner.remove(0..self.inner.len_chars());
+    }
+
     pub fn remove(&mut self, range: &Range) {
         let start = self.index_in_rope(range.front());
         let end = self.index_in_rope(range.back());

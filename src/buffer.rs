@@ -11,6 +11,10 @@ use crate::language::Language;
 use crate::editorconfig::{EditorConfig, IndentStyle};
 use crate::rope::*;
 
+pub fn compute_str_checksum(string: &str) -> u32 {
+    fxhash::hash32(string)
+}
+
 fn remove_range(
     buf: &mut Rope,
     range: &Range,
@@ -158,6 +162,20 @@ impl Buffer {
         Ok(buffer)
     }
 
+    pub fn set_text(&mut self, text: &str) {
+        self.buf.clear();
+        self.buf.insert(&Point::new(0, 0), text);
+
+        let mut pos = match self.cursors[0] {
+            Cursor::Normal { pos } => pos,
+            Cursor::Selection(Range { end, .. }) => end,
+        };
+
+        pos.y = min(pos.y, self.buf.num_lines().saturating_sub(1));
+        pos.x = min(pos.x, self.buf.line_len(pos.y));
+        self.cursors = vec![Cursor::Normal { pos }];
+    }
+
     pub fn id(&self) -> BufferId {
         self.id
     }
@@ -173,6 +191,10 @@ impl Buffer {
 
     pub fn is_dirty(&self) -> bool {
         self.undo_stack.len() != 1
+    }
+
+    pub fn checksum(&self) -> u32 {
+        compute_str_checksum(&self.text())
     }
 
     pub fn file(&self) -> &Option<PathBuf> {
