@@ -93,6 +93,10 @@ impl Terminal {
         }
     }
 
+    pub fn rows(&self) -> usize {
+        self.rows
+    }
+
     pub fn resize(&mut self, rows: usize, cols: usize) {
         self.rows = rows;
         self.cols = cols;

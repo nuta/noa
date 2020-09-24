@@ -66,4 +66,15 @@ impl View {
             self.top_left.x = pos.x;
         }
     }
+
+    pub fn centering(&mut self, rows: usize) {
+        let buffer = self.buffer.borrow();
+        if buffer.cursors().len() > 1 {
+            return;
+        }
+
+        if let Cursor::Normal { pos } = buffer.cursors()[0] {
+            self.top_left.y = pos.y.saturating_sub(rows / 2);
+        }
+    }
 }

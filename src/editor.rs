@@ -577,7 +577,7 @@ impl Editor {
         const ALT: KeyModifiers = KeyModifiers::ALT;
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
-        let view = self.current.borrow_mut();
+        let mut view = self.current.borrow_mut();
         let mut buffer = view.buffer().borrow_mut();
         let mut clear_popup = true;
         let mut update_completion = false;
@@ -605,7 +605,9 @@ impl Editor {
                 self.exited = true;
             }
             (KeyCode::Char('l'), CTRL) => {
-                // TODO: centering and force redraw
+                drop(buffer);
+                view.centering(self.terminal.rows());
+                return;
             }
             (KeyCode::Char('s'), CTRL) => {
                 match buffer.save(&self.backup_dir) {
