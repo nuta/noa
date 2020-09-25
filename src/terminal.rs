@@ -254,6 +254,10 @@ impl Terminal {
         }
 
         // Draw the info bar.
+        queue!(stdout,
+            SetAttribute(Attribute::Reset),
+        ).ok();
+
         THEME.apply(&mut stdout, ThemeItem::InfoBarColor).ok();
         queue!(stdout,
             MoveTo(0, status_bar_y as u16),
@@ -383,15 +387,16 @@ impl Terminal {
         use crossterm::terminal::{Clear, ClearType};
         use crossterm::style::{Print, Attribute, SetAttribute};
 
-        // The input line.
+        // The command box prompt.
         THEME.apply(stdout, ThemeItem::CommandBoxPrompt).ok();
+        let command_prompt = "CMD";
         queue!(
             stdout,
             MoveTo(0, y as u16),
-            Print("Finder"),
+            Print(command_prompt),
             SetAttribute(Attribute::Reset),
             Print(" "),
-            Print(truncate(&command_box_input.text(), width - 7)),
+            Print(truncate(&command_box_input.text(), width - command_prompt.len())),
             Clear(ClearType::UntilNewLine),
         ).ok();
 
@@ -460,7 +465,7 @@ impl Terminal {
         };
         queue!(
             stdout,
-            MoveTo((min(7 + cursor_x, width)) as u16, y as u16)
+            MoveTo((min(command_prompt.len() + 1 + cursor_x, width)) as u16, y as u16)
         ).ok();
     }
 
@@ -553,7 +558,6 @@ impl Terminal {
                 for(i, ch) in (&chunk[..index]).chars().enumerate() {
                     if ch == '\t' {
                         let n = tab_width - ((x + i) % tab_width);
-                        trace!("x=[{}, {}], n={}", x,i,n);
                         queue!(stdout, Print(whitespaces(n))).unwrap();
                     } else {
                         queue!(stdout, Print(ch)).unwrap();
