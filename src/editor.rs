@@ -688,6 +688,10 @@ impl Editor {
             (KeyCode::Enter, NONE) => {
                 buffer.insert_char('\n');
             }
+            (KeyCode::Char('j'), CTRL) => {
+                buffer.insert_char('\n');
+                buffer.tab();
+            }
             (KeyCode::Backspace, NONE) => {
                 buffer.backspace();
                 update_completion = true;
