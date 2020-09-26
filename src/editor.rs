@@ -490,7 +490,9 @@ impl Editor {
         let resp = self.command_box.last_response().cloned();
         if let Some(Response { body, .. }) = resp {
             match body {
-                ResponseBody::Preview { .. } => {}
+                ResponseBody::Preview { items } => {
+                    self.info(format!("found {} items", items.len()));
+                }
                 ResponseBody::GoTo { file, position } => {
                     if let Some(buffer_id) = file.buffer_id {
                         self.switch_buffer(buffer_id);
@@ -698,6 +700,12 @@ impl Editor {
                 buffer.move_cursors(30, 0, 0, 0);
             }
             (KeyCode::PageDown, NONE) => {
+                buffer.move_cursors(0, 30, 0, 0);
+            }
+            (KeyCode::Char('d'), ALT) => {
+                buffer.move_cursors(30, 0, 0, 0);
+            }
+            (KeyCode::Char('c'), ALT) => {
                 buffer.move_cursors(0, 30, 0, 0);
             }
             (KeyCode::Up, NONE) => {
