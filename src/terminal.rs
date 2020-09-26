@@ -385,14 +385,17 @@ impl Terminal {
     ) {
         use crossterm::cursor::{MoveTo};
         use crossterm::terminal::{Clear, ClearType};
-        use crossterm::style::{Print, Attribute, SetAttribute};
+        use crossterm::style::{
+            Print, Attribute, SetAttribute, SetForegroundColor, Color
+        };
 
         // The command box prompt.
         THEME.apply(stdout, ThemeItem::CommandBoxPrompt).ok();
-        let command_prompt = "CMD";
+        let command_prompt = " Search ";
         queue!(
             stdout,
             MoveTo(0, y as u16),
+            SetAttribute(Attribute::Bold),
             Print(command_prompt),
             SetAttribute(Attribute::Reset),
             Print(" "),
@@ -433,11 +436,21 @@ impl Terminal {
                             }
                             PreviewItem::PrintWithFile { file, lineno: _lineno, body } => {
                                 let file_width = min(width, 16);
-                                let body_width = width.saturating_sub(file_width);
+                                let body_width = width.saturating_sub(file_width + 3);
+                                let file_name = if file.display_name.len() > file_width {
+                                    &file.display_name[(file.display_name.len() - file_width)..]
+                                } else {
+                                    &file.display_name
+                                };
+
                                 queue!(
                                     stdout,
-                                     Print(truncate(&file.display_name, file_width)),
-                                     Print(truncate(body, body_width)),
+                                    SetForegroundColor(Color::Cyan),
+                                    Print(" "),
+                                    Print(file_name),
+                                    Print(": "),
+                                    SetForegroundColor(Color::Reset),
+                                    Print(truncate(body, body_width)),
                                  ).ok();
                             }
                         }

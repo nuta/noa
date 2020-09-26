@@ -64,7 +64,7 @@ lazy_static! {
             ThemeItem::LineStatus(LineStatusType::Deleted) => Style::bg(color!(196)),
             ThemeItem::LineStatus(LineStatusType::Modified) => Style::bg(color!(33)),
             ThemeItem::LineStatusPadding => Style::bg(color!(237)),
-            ThemeItem::CommandBoxPrompt => Style::bg(color!(12)),
+            ThemeItem::CommandBoxPrompt => Style::bg(color!(27)),
             ThemeItem::ScrollBarVisible => Style::bg(color!(239)),
             ThemeItem::PopupItemHover => Style::bg(color!(130)),
             ThemeItem::PopupItem => Style::bg(color!(238)),
