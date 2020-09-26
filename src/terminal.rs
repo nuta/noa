@@ -185,8 +185,6 @@ impl Terminal {
         self.text_end_x = text_offset + text_width;
         self.text_height = text_height;
 
-        trace!("{:?}", top_left);
-
         // TODO: cache
         // Highlight the given text.
         // let modified_line = buffer.modified_line().unwrap_or(0);
