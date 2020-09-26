@@ -13,8 +13,10 @@ use crate::completion::WordCompJob;
 use crate::view::View;
 use crate::worker::Worker;
 use crate::fuzzy::FuzzySet;
-use crate::terminal::{Terminal, KeyCode, KeyModifiers, KeyEvent};
-use crate::rope::{Cursor};
+use crate::terminal::{
+    Terminal, KeyCode, KeyModifiers, KeyEvent, RawMouseEvent, MouseEvent,
+};
+use crate::rope::Cursor;
 use crate::status_map::{compute_git_diff, StatusMap};
 
 pub enum NotificationLevel {
@@ -75,6 +77,7 @@ impl Popup {
 
 pub enum Event {
     Key(KeyEvent),
+    Mouse(RawMouseEvent),
     FileChanged(PathBuf),
     NoCompletion,
     Completion {
@@ -316,6 +319,11 @@ impl Editor {
                     }
                 }
             }
+            Event::Mouse(mouse) => {
+                if let Some(ev) = self.terminal.convert_raw_mouse_event(mouse) {
+                    self.handle_mouse_event(ev);
+                }
+            }
             Event::Resize { rows, cols } => {
                 self.terminal.resize(rows, cols);
             }
@@ -502,8 +510,7 @@ impl Editor {
 
                     if let Some(pos) = position {
                         let mut view = self.current.borrow_mut();
-                        let cursors = vec![Cursor::new(pos.y, pos.x)];
-                        view.buffer().borrow_mut().set_cursors(cursors);
+                        view.goto(pos.y, pos.x);
                         view.centering(self.terminal.rows());
                     }
 
@@ -571,6 +578,15 @@ impl Editor {
 
         if modified {
             self.execute_command(true);
+        }
+    }
+
+    fn handle_mouse_event(&mut self, ev: MouseEvent) {
+        trace!("mouse: {:?}", ev);
+        match ev {
+            MouseEvent::ClickedText { pos } => {
+                self.current.borrow_mut().goto(pos.y, pos.x);
+            }
         }
     }
 

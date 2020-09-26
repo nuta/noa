@@ -3,6 +3,7 @@ use std::cell::RefCell;
 use crate::buffer::Buffer;
 use crate::rope::{Cursor, Range};
 
+#[derive(Clone, Debug)]
 pub struct TopLeft {
     pub y: usize,
     pub x: usize,
@@ -65,6 +66,11 @@ impl View {
         if pos.x < self.top_left.x {
             self.top_left.x = pos.x;
         }
+    }
+
+    pub fn goto(&mut self, y: usize, x: usize) {
+        let cursors = vec![Cursor::new(y, x)];
+        self.buffer().borrow_mut().set_cursors(cursors);
     }
 
     pub fn centering(&mut self, rows: usize) {

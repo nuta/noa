@@ -1,5 +1,5 @@
 use crate::editor::{EventQueue, Event, Notification, Popup};
-use crate::rope::Cursor;
+use crate::rope::{Cursor, Point};
 use crate::view::View;
 use crate::theme::{THEME, ThemeItem};
 use crate::command_box::{CommandBox, ResponseBody, PreviewItem};
@@ -7,8 +7,10 @@ use std::cmp::{min, max};
 use std::io::{stdout, Write};
 use std::time::Duration;
 use std::thread;
-pub use crossterm::event::{KeyCode, KeyModifiers, KeyEvent};
-use crossterm::event::{self, Event as TermEvent};
+pub use crossterm::event::{KeyCode, KeyModifiers, KeyEvent, MouseEvent as RawMouseEvent};
+use crossterm::event::{
+    self, Event as TermEvent, MouseButton, EnableMouseCapture
+};
 use crossterm::{execute, queue};
 use crossterm::terminal::{
     size, enable_raw_mode, disable_raw_mode,
@@ -48,9 +50,21 @@ fn num_of_digits(mut n: usize) -> usize {
     }
 }
 
+#[derive(Debug)]
+pub enum MouseEvent {
+    ClickedText {
+        /// The position in the buffer.
+        pos: Point,
+    },
+}
+
 pub struct Terminal {
     rows: usize,
     cols: usize,
+    current_top_left: TopLeft,
+    text_start_x: usize,
+    text_end_x: usize,
+    text_height: usize,
 }
 
 impl Terminal {
@@ -59,6 +73,8 @@ impl Terminal {
             .expect("failed to get the terminal size");
         enable_raw_mode()
             .expect("failed to enable the raw mode");
+        execute!(stdout(), EnableMouseCapture)
+            .expect("failed to enable mouse capture");
         execute!(stdout(), EnterAlternateScreen)
             .expect("failed to enter the alternative screen");
 
@@ -70,8 +86,8 @@ impl Terminal {
                             TermEvent::Key(key) => {
                                 event_queue.enqueue(Event::Key(key));
                             }
-                            TermEvent::Mouse(mice) => {
-                                trace!("unhandled event: {:?}", mice);
+                            TermEvent::Mouse(mouse) => {
+                                event_queue.enqueue(Event::Mouse(mouse));
                             }
                             TermEvent::Resize(cols, rows) => {
                                 event_queue.enqueue(Event::Resize {
@@ -91,6 +107,10 @@ impl Terminal {
         Terminal {
             rows: rows as usize,
             cols: cols as usize,
+            current_top_left: TopLeft::new(0, 0),
+            text_start_x: 0,
+            text_end_x: 0,
+            text_height: 0,
         }
     }
 
@@ -101,6 +121,26 @@ impl Terminal {
     pub fn resize(&mut self, rows: usize, cols: usize) {
         self.rows = rows;
         self.cols = cols;
+    }
+
+    pub fn convert_raw_mouse_event(&self, ev: RawMouseEvent) -> Option<MouseEvent> {
+        const LEFT: MouseButton = MouseButton::Left;
+        const NONE: KeyModifiers = KeyModifiers::NONE;
+        match ev {
+            RawMouseEvent::Down(LEFT, x, y, NONE)
+                if (y as usize) < self.text_height
+                    && self.text_start_x <= (x as usize)
+                    && (x as usize) <= self.text_end_x =>
+            {
+                let pos_y = self.current_top_left.y + y as usize;
+                let pos_x = x as usize - self.text_start_x;
+                Some(MouseEvent::ClickedText { pos: Point::new(pos_y, pos_x) })
+            }
+            _ => {
+                trace!("unhandled event: {:?}", ev);
+                None
+            }
+        }
     }
 
     pub fn draw(
@@ -136,6 +176,10 @@ impl Terminal {
         view.adjust_top_left(text_height, text_width);
         let mut buffer = view.buffer().borrow_mut();
         let top_left = view.top_left();
+        self.current_top_left = top_left.clone();
+        self.text_start_x = text_offset;
+        self.text_end_x = text_offset + text_width;
+        self.text_height = text_height;
 
         // TODO: cache
         // Highlight the given text.
