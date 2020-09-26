@@ -585,8 +585,8 @@ impl Editor {
         let mut view = self.current.borrow_mut();
         match ev {
             MouseEvent::ClickedText { pos } => view.goto(pos.y, pos.x),
-            MouseEvent::ScrollUp => view.scroll_up(1),
-            MouseEvent::ScrollDown => view.scroll_down(1),
+            MouseEvent::ScrollUp => view.scroll_up(5),
+            MouseEvent::ScrollDown => view.scroll_down(5),
         }
     }
 
@@ -717,16 +717,24 @@ impl Editor {
                 update_completion = true;
             }
             (KeyCode::PageUp, NONE) => {
-                buffer.move_cursors(30, 0, 0, 0);
+                drop(buffer);
+                view.scroll_up(self.terminal.rows());
+                return;
             }
             (KeyCode::PageDown, NONE) => {
-                buffer.move_cursors(0, 30, 0, 0);
+                drop(buffer);
+                view.scroll_down(self.terminal.rows());
+                return;
             }
             (KeyCode::Char('d'), ALT) => {
-                buffer.move_cursors(30, 0, 0, 0);
+                drop(buffer);
+                view.scroll_up(5);
+                return;
             }
             (KeyCode::Char('c'), ALT) => {
-                buffer.move_cursors(0, 30, 0, 0);
+                drop(buffer);
+                view.scroll_down(5);
+                return;
             }
             (KeyCode::Up, NONE) => {
                 buffer.move_cursors(1, 0, 0, 0);

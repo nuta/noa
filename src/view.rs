@@ -75,12 +75,15 @@ impl View {
     }
 
     pub fn scroll_up(&mut self, y_diff: usize) {
+        let mut buffer = self.buffer.borrow_mut();
+        buffer.move_cursors(y_diff, 0, 0, 0);
         self.top_left.y = self.top_left.y.saturating_sub(y_diff);
     }
 
     pub fn scroll_down(&mut self, y_diff: usize) {
-        let num_lines = self.buffer.borrow().num_lines();
-        self.top_left.y = min(num_lines, self.top_left.y + y_diff);
+        let mut buffer = self.buffer.borrow_mut();
+        buffer.move_cursors(0, y_diff, 0, 0);
+        self.top_left.y = min(buffer.num_lines(), self.top_left.y + y_diff);
     }
 
     pub fn centering(&mut self, rows: usize) {
