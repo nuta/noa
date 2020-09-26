@@ -9,7 +9,7 @@ use std::time::Duration;
 use std::thread;
 pub use crossterm::event::{KeyCode, KeyModifiers, KeyEvent, MouseEvent as RawMouseEvent};
 use crossterm::event::{
-    self, Event as TermEvent, MouseButton, EnableMouseCapture
+    self, Event as TermEvent, MouseButton, EnableMouseCapture, DisableMouseCapture,
 };
 use crossterm::{execute, queue};
 use crossterm::terminal::{
@@ -496,8 +496,8 @@ impl Terminal {
                                     SetForegroundColor(Color::Cyan),
                                     Print(" "),
                                     Print(file_name),
-                                    Print(": "),
                                     SetForegroundColor(Color::Reset),
+                                    Print(": "),
                                     Print(truncate(body, body_width)),
                                  ).ok();
                             }
@@ -639,6 +639,7 @@ impl Terminal {
 impl Drop for Terminal {
     fn drop(&mut self) {
         execute!(stdout(), LeaveAlternateScreen).unwrap();
+        execute!(stdout(), DisableMouseCapture).unwrap();
         disable_raw_mode().unwrap();
     }
 }

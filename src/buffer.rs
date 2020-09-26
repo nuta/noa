@@ -99,6 +99,7 @@ pub struct Buffer {
     id: BufferId,
     buf: Rope,
     name: String,
+    version: usize,
     file: Option<PathBuf>,
     tmpfile: NamedTempFile,
     tmpfile_version: Rope,
@@ -117,6 +118,7 @@ impl Buffer {
         let mut buffer = Buffer {
             id: BufferId::alloc(),
             buf: Rope::new(),
+            version: 1,
             name: String::new(),
             file: None,
             tmpfile: NamedTempFile::new().unwrap(),
@@ -146,6 +148,7 @@ impl Buffer {
         let mut buffer = Buffer {
             id: BufferId::alloc(),
             buf: Rope::from_reader(file)?,
+            version: 1,
             name: String::new(),
             file: Some(path.canonicalize()?),
             tmpfile: NamedTempFile::new()?,
@@ -189,12 +192,24 @@ impl Buffer {
         self.buf.num_lines()
     }
 
+    pub fn line_len(&self, y: usize) -> usize {
+        self.buf.line_len(y)
+    }
+
     pub fn is_dirty(&self) -> bool {
         self.undo_stack.len() != 1
     }
 
     pub fn checksum(&self) -> u32 {
         compute_str_checksum(&self.text())
+    }
+
+    pub fn version(&self) -> usize {
+        self.version
+    }
+
+    pub fn lang(&self) -> &'static Language {
+        &self.lang
     }
 
     pub fn file(&self) -> &Option<PathBuf> {
@@ -650,6 +665,7 @@ impl Buffer {
 
     pub fn mark_undo_point(&mut self) {
         self.undo_stack.push(self.buf.clone());
+        self.version += 1;
     }
 
     pub fn undo(&mut self) {

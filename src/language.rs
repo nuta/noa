@@ -1,5 +1,6 @@
 use regex::Regex;
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum SpanType {
@@ -27,11 +28,31 @@ pub enum Pattern {
     },
 }
 
+pub struct LspSettings {
+    pub language_id: &'static str,
+    pub command: &'static [&'static str],
+}
+
 pub struct Language {
     pub name: &'static str,
+    pub lsp: Option<&'static LspSettings>,
     pub patterns: HashMap<&'static str, Pattern>,
     pub top_level_patterns: &'static [&'static str],
 }
+
+impl Hash for Language {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+    }
+}
+
+impl PartialEq for Language {
+    fn eq(&self, other: &Language) -> bool {
+        self.name == other.name
+    }
+}
+
+impl Eq for Language {}
 
 lazy_static! {
     pub static ref PLAIN: Language = {
@@ -42,6 +63,10 @@ lazy_static! {
                 "ctrl",
                 "string_lit",
             ],
+            lsp: Some(&LspSettings {
+                language_id: "c",
+                command: &["clangd", "-j=8", "--log=verbose", "--pretty"],
+            }),
             patterns: hashmap! {
                 "block_comment" => Pattern::Block {
                     start: Regex::new(r"(/\*)").unwrap(),

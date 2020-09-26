@@ -13,6 +13,7 @@ use crate::completion::WordCompJob;
 use crate::view::View;
 use crate::worker::Worker;
 use crate::fuzzy::FuzzySet;
+use crate::lsp::Lsp;
 use crate::terminal::{
     Terminal, KeyCode, KeyModifiers, KeyEvent, RawMouseEvent, MouseEvent,
 };
@@ -127,6 +128,7 @@ pub struct Editor {
     workspace_dir: PathBuf,
     backup_dir: PathBuf,
     git: Option<Repository>,
+    lsp: Lsp,
     watcher: FileWatcher,
     status_map: StatusMap,
 }
@@ -138,6 +140,7 @@ impl Editor {
         scratch_buffer.borrow_mut().set_name("*scratch*");
         let scratch_view = Rc::new(RefCell::new(View::new(scratch_buffer)));
 
+        let lsp = Lsp::new(&workspace_dir, tx.clone());
         let git = match Repository::open(&workspace_dir) {
             Ok(repo) => Some(repo),
             Err(err) => {
@@ -162,6 +165,7 @@ impl Editor {
             workspace_dir,
             backup_dir: dirs::home_dir().unwrap().join(".noa/backup"),
             git,
+            lsp,
             watcher: FileWatcher::new(tx),
             status_map: StatusMap::new(),
         }
@@ -199,6 +203,8 @@ impl Editor {
         };
 
         buffer.set_name(path.file_name().unwrap().to_str().unwrap());
+        self.lsp.open_buffer(&buffer);
+
         let buffer_id = buffer.id();
         let buffer_rc = Rc::new(RefCell::new(buffer));
         let view = Rc::new(RefCell::new(View::new(buffer_rc)));
@@ -269,6 +275,9 @@ impl Editor {
     }
 
     fn on_modified(&mut self) {
+        let view = self.current.borrow();
+        let buffer = view.buffer().borrow();
+        self.lsp.modify_buffer(&buffer);
     }
 
     fn update_status_map(&mut self) {

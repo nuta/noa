@@ -70,8 +70,11 @@ impl View {
     }
 
     pub fn goto(&mut self, y: usize, x: usize) {
-        let cursors = vec![Cursor::new(y, x)];
-        self.buffer().borrow_mut().set_cursors(cursors);
+        let mut buffer = self.buffer.borrow_mut();
+        let clamped_y = min(y, buffer.num_lines());
+        let clamped_x = min(x, buffer.line_len(clamped_y));
+        let cursors = vec![Cursor::new(clamped_y, clamped_x)];
+        buffer.set_cursors(cursors);
     }
 
     pub fn scroll_up(&mut self, y_diff: usize) {

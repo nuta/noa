@@ -11,6 +11,7 @@ mod terminal;
 mod view;
 mod worker;
 mod completion;
+mod lsp;
 mod language;
 mod highlight;
 mod theme;
@@ -19,6 +20,7 @@ mod fuzzy;
 mod watcher;
 mod editorconfig;
 mod status_map;
+mod helpers;
 
 use std::env::current_dir;
 use std::path::PathBuf;
