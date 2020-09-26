@@ -11,7 +11,7 @@ fn resolve_noa_path(filename: &str, sub_dir: Option<&str>) -> PathBuf {
         create_dir(&dir).ok();
     }
 
-    dir.join(filename).to_path_buf()
+    dir.join(filename)
 }
 
 pub fn open_log_file(filename: &str) -> std::io::Result<File> {

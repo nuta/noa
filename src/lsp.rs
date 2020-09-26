@@ -98,7 +98,7 @@ fn serialize_notification<T: lsp_types::notification::Notification>(params: T::P
     serde_json::to_string(msg).unwrap()
 }
 
-const NEXT_REQUEST_ID: AtomicUsize = AtomicUsize::new(0);
+static NEXT_REQUEST_ID: AtomicUsize = AtomicUsize::new(0);
 
 fn alloc_id() -> Id {
     Id::Num(NEXT_REQUEST_ID.fetch_add(1, Ordering::SeqCst) as u64)
@@ -231,7 +231,7 @@ fn receive_requests(
                 break;
             }
 
-            let words: Vec<&str> = line.split(":").collect();
+            let words: Vec<&str> = line.split(':').collect();
             if words.len() != 2 {
                 warn!("malformed LSP header: '{}'", line);
                 continue;
