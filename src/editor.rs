@@ -339,7 +339,7 @@ impl Editor {
                 Ok(new_text) => new_text,
                 Err(err) => {
                     let message = format!("failed to reload {}: {}", path.display(), err);
-                    self.notify(NotificationLevel::Report, message);
+                    self.report(message);
                     return;
                 }
             };
@@ -348,10 +348,10 @@ impl Editor {
                 // It looks the file has changed on disk. Reload the file if the
                 // buffer is not dirty.
                 if buffer.is_dirty() {
-                    self.notify(NotificationLevel::Info, "this file has changed on disk");
+                    self.info("this file has changed on disk");
                 } else {
                     buffer.set_text(&new_text);
-                    self.notify(NotificationLevel::Info, "changes on disk detected; reloaded the file");
+                    self.info("changes on disk detected; reloaded the file");
                 }
             }
         }
@@ -462,7 +462,7 @@ impl Editor {
             }
             body = RequestBody::SelectFile { files };
         } else {
-            self.notify(NotificationLevel::Error, "invalid prefix");
+            self.error("invalid prefix");
             return;
         }
 
