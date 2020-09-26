@@ -1,11 +1,18 @@
-use crate::editor::Event;
+use crate::editor::{Event, EventQueue};
 use crate::language::{Language, LspSettings};
 use crate::helpers::open_log_file;
-use crate::buffer::Buffer;
+use crate::buffer::{Buffer, BufferId};
+use crate::fuzzy::FuzzySet;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{self, Sender, Receiver};
 use std::process::{Command, Child, Stdio, ChildStdin, ChildStdout};
 use std::path::{Path, PathBuf};
+use jsonrpc_core::{
+    Id,
+    types::{Value},
+};
 use lsp_types::{
     request::{
         Initialize,
@@ -42,10 +49,17 @@ enum Request {
         version: usize,
     },
     Completion {
+        buffer_id: BufferId,
         path: PathBuf,
         y: usize,
         x: usize,
     },
+}
+
+enum SentRequest {
+    Completion {
+        buffer_id: BufferId,
+    }
 }
 
 fn parse_path_as_uri(path: &Path) -> lsp_types::Url {
@@ -53,14 +67,14 @@ fn parse_path_as_uri(path: &Path) -> lsp_types::Url {
     lsp_types::Url::parse(uri).unwrap()
 }
 
-fn serialize_request<T: lsp_types::request::Request>(id: usize, params: T::Params) -> String {
+fn serialize_request<T: lsp_types::request::Request>(id: Id, params: T::Params) -> String {
     let obj = match serde_json::to_value(params) {
         Ok(serde_json::value::Value::Object(obj)) => obj,
         _ => unreachable!(),
     };
 
     let msg = &jsonrpc_core::types::request::MethodCall {
-        id: jsonrpc_core::Id::Num(id as u64),
+        id,
         jsonrpc: Some(jsonrpc_core::Version::V2),
         method: T::METHOD.to_string(),
         params: jsonrpc_core::Params::Map(obj),
@@ -84,13 +98,24 @@ fn serialize_notification<T: lsp_types::notification::Notification>(params: T::P
     serde_json::to_string(msg).unwrap()
 }
 
-fn send_requests(lsp: &LspSettings, rx: Receiver<Request>, mut stdin: ChildStdin) {
+const NEXT_REQUEST_ID: AtomicUsize = AtomicUsize::new(0);
+
+fn alloc_id() -> Id {
+    Id::Num(NEXT_REQUEST_ID.fetch_add(1, Ordering::SeqCst) as u64)
+}
+
+fn send_requests(
+    lsp: &LspSettings,
+    rx: Receiver<Request>,
+    mut stdin: ChildStdin,
+    sent_reqs: Arc<Mutex<HashMap<Id, SentRequest>>>,
+) {
     while let Ok(req) = rx.recv() {
         let body = match req {
             Request::Initialize { root_path } => {
                 trace!("Initialize(root_path={})", root_path.display());
                 serialize_request::<Initialize>(
-                    0,
+                    alloc_id(),
                     #[allow(deprecated)]
                     InitializeParams {
                         process_id: None,
@@ -138,10 +163,18 @@ fn send_requests(lsp: &LspSettings, rx: Receiver<Request>, mut stdin: ChildStdin
                     }
                 )
             }
-            Request::Completion { path, y, x } => {
+            Request::Completion { path, buffer_id, y, x } => {
                 trace!("Completion(path={})", path.display());
+                let id = alloc_id();
+                sent_reqs.lock().unwrap().insert(
+                    id.clone(),
+                    SentRequest::Completion {
+                        buffer_id,
+                    }
+                );
+
                 serialize_request::<Completion>(
-                    0,
+                    id,
                     CompletionParams {
                         text_document_position: TextDocumentPositionParams {
                             position: Position {
@@ -169,7 +202,11 @@ fn send_requests(lsp: &LspSettings, rx: Receiver<Request>, mut stdin: ChildStdin
     }
 }
 
-fn receive_requests(event_queue: Sender<Event>, stdout: ChildStdout) {
+fn receive_requests(
+    event_queue: EventQueue,
+    stdout: ChildStdout,
+    sent_reqs: Arc<Mutex<HashMap<Id, SentRequest>>>,
+) {
     use std::io::{BufReader, Read, BufRead};
 
     let mut reader = BufReader::new(stdout);
@@ -251,6 +288,27 @@ fn receive_requests(event_queue: Sender<Event>, stdout: ChildStdout) {
         };
 
         trace!("LSP response: {:#?}", resp);
+        if let Some(req) = sent_reqs.lock().unwrap().get(&resp.id) {
+            match req {
+                SentRequest::Completion { buffer_id } => {
+                    let mut items = FuzzySet::new();
+                    if let Value::Object(fields) = resp.result {
+                        if let Some(Value::Array(results)) = fields.get("items") {
+                            for item in results {
+                                if let Some(Value::String(name)) = item.get("insertText") {
+                                    items.append(name.to_string());
+                                }
+                            }
+                        }
+                    }
+
+                    event_queue.enqueue(Event::Completion {
+                        id: *buffer_id,
+                        items,
+                    });
+                }
+            }
+        }
     }
 }
 
@@ -260,7 +318,7 @@ struct Server {
 }
 
 pub struct Lsp {
-    event_queue: Sender<Event>,
+    event_queue: EventQueue,
     servers: HashMap<&'static Language, Server>,
     root_path: PathBuf,
 }
@@ -274,7 +332,7 @@ impl Drop for Lsp {
 }
 
 impl Lsp {
-    pub fn new(root_path: &Path, event_queue: Sender<Event>) -> Lsp {
+    pub fn new(root_path: &Path, event_queue: EventQueue) -> Lsp {
         Lsp {
             event_queue,
             root_path: root_path.to_path_buf(),
@@ -305,6 +363,7 @@ impl Lsp {
         if let Some(path) = buffer.path() {
             let main_pos = buffer.main_cursor_pos();
             self.send(buffer.lang(), Request::Completion {
+                buffer_id: buffer.id(),
                 path: path.to_owned(),
                 y: main_pos.y,
                 x: main_pos.x,
@@ -347,10 +406,13 @@ impl Lsp {
         let stdin = process.stdin.take().unwrap();
         let stdout = process.stdout.take().unwrap();
 
-        std::thread::spawn(move || send_requests(lsp, rx, stdin));
+        let sent_reqs = Arc::new(Mutex::new(HashMap::new()));
+        let sent_reqs_lock1 = sent_reqs.clone();
+        let sent_reqs_lock2 = sent_reqs;
+        std::thread::spawn(move || send_requests(lsp, rx, stdin, sent_reqs_lock1));
         let event_queue = self.event_queue.clone();
         std::thread::spawn(move || {
-            receive_requests(event_queue, stdout);
+            receive_requests(event_queue, stdout, sent_reqs_lock2);
             // TODO: Restart the server when it crashed.
             warn!("the LSP server seems to be terminated");
         });

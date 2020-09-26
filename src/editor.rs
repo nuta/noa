@@ -140,7 +140,7 @@ impl Editor {
         scratch_buffer.borrow_mut().set_name("*scratch*");
         let scratch_view = Rc::new(RefCell::new(View::new(scratch_buffer)));
 
-        let lsp = Lsp::new(&workspace_dir, tx.clone());
+        let lsp = Lsp::new(&workspace_dir, EventQueue::new(tx.clone()));
         let git = match Repository::open(&workspace_dir) {
             Ok(repo) => Some(repo),
             Err(err) => {
