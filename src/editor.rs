@@ -787,6 +787,7 @@ impl Editor {
             let buffer = view.buffer().borrow_mut();
             let snapshot = buffer.snapshot();
             self.worker.request(Box::new(WordCompJob::new(snapshot)));
+            self.lsp.request_completions(&*buffer);
         }
     }
 }

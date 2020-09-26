@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use lsp_types::{
     request::{
         Initialize,
+        Completion,
     },
     notification::{
         DidOpenTextDocument,
@@ -19,6 +20,12 @@ use lsp_types::{
     VersionedTextDocumentIdentifier,
     DidChangeTextDocumentParams,
     TextDocumentContentChangeEvent,
+    TextDocumentIdentifier,
+    CompletionParams,
+    TextDocumentPositionParams,
+    WorkDoneProgressParams,
+    PartialResultParams,
+    Position,
 };
 
 enum Request {
@@ -33,6 +40,11 @@ enum Request {
         path: PathBuf,
         text: String,
         version: usize,
+    },
+    Completion {
+        path: PathBuf,
+        y: usize,
+        x: usize,
     },
 }
 
@@ -76,7 +88,7 @@ fn send_requests(lsp: &LspSettings, rx: Receiver<Request>, mut stdin: ChildStdin
     while let Ok(req) = rx.recv() {
         let body = match req {
             Request::Initialize { root_path } => {
-                info!("Initialize(root_path={})", root_path.display());
+                trace!("Initialize(root_path={})", root_path.display());
                 serialize_request::<Initialize>(
                     0,
                     #[allow(deprecated)]
@@ -98,7 +110,7 @@ fn send_requests(lsp: &LspSettings, rx: Receiver<Request>, mut stdin: ChildStdin
                 )
             }
             Request::OpenFile { path, text } => {
-                info!("DidOpenTextDocument(path={})", path.display());
+                trace!("DidOpenTextDocument(path={})", path.display());
                 serialize_notification::<DidOpenTextDocument>(
                     DidOpenTextDocumentParams {
                         text_document: lsp_types::TextDocumentItem {
@@ -111,7 +123,7 @@ fn send_requests(lsp: &LspSettings, rx: Receiver<Request>, mut stdin: ChildStdin
                 )
             }
             Request::ChangeFile { path, text, version } => {
-                info!("DidChangeTextDocument(path={})", path.display());
+                trace!("DidChangeTextDocument(path={})", path.display());
                 serialize_notification::<DidChangeTextDocument>(
                     DidChangeTextDocumentParams {
                         text_document: VersionedTextDocumentIdentifier {
@@ -123,6 +135,30 @@ fn send_requests(lsp: &LspSettings, rx: Receiver<Request>, mut stdin: ChildStdin
                             range_length: None,
                             text,
                         }]
+                    }
+                )
+            }
+            Request::Completion { path, y, x } => {
+                trace!("Completion(path={})", path.display());
+                serialize_request::<Completion>(
+                    0,
+                    CompletionParams {
+                        text_document_position: TextDocumentPositionParams {
+                            position: Position {
+                                line: y as u64,
+                                character: x as u64,
+                            },
+                            text_document: TextDocumentIdentifier {
+                                uri: parse_path_as_uri(&path),
+                            },
+                        },
+                        work_done_progress_params: WorkDoneProgressParams {
+                            work_done_token: None,
+                        },
+                        partial_result_params: PartialResultParams {
+                            partial_result_token: None,
+                        },
+                        context: None,
                     }
                 )
             }
@@ -261,6 +297,17 @@ impl Lsp {
                 path: path.to_owned(),
                 text: buffer.text(),
                 version: buffer.version(),
+            });
+        }
+    }
+
+    pub fn request_completions(&mut self, buffer: &Buffer) {
+        if let Some(path) = buffer.path() {
+            let main_pos = buffer.main_cursor_pos();
+            self.send(buffer.lang(), Request::Completion {
+                path: path.to_owned(),
+                y: main_pos.y,
+                x: main_pos.x,
             });
         }
     }

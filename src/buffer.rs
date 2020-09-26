@@ -292,6 +292,13 @@ impl Buffer {
         &self.cursors
     }
 
+    pub fn main_cursor_pos(&self) -> &Point {
+        match &self.cursors[0] {
+            Cursor::Normal { pos } => pos,
+            Cursor::Selection(range) => &range.end,
+        }
+    }
+
     pub fn set_cursors(&mut self, cursors: Vec<Cursor>) {
         self.cursors = cursors;
         self.sort_and_merge_cursors();
