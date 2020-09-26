@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::cmp::min;
 use std::cell::RefCell;
 use crate::buffer::Buffer;
 use crate::rope::{Cursor, Range};
@@ -71,6 +72,15 @@ impl View {
     pub fn goto(&mut self, y: usize, x: usize) {
         let cursors = vec![Cursor::new(y, x)];
         self.buffer().borrow_mut().set_cursors(cursors);
+    }
+
+    pub fn scroll_up(&mut self, y_diff: usize) {
+        self.top_left.y = self.top_left.y.saturating_sub(y_diff);
+    }
+
+    pub fn scroll_down(&mut self, y_diff: usize) {
+        let num_lines = self.buffer.borrow().num_lines();
+        self.top_left.y = min(num_lines, self.top_left.y + y_diff);
     }
 
     pub fn centering(&mut self, rows: usize) {

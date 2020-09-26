@@ -16,7 +16,6 @@ use crate::fuzzy::FuzzySet;
 use crate::terminal::{
     Terminal, KeyCode, KeyModifiers, KeyEvent, RawMouseEvent, MouseEvent,
 };
-use crate::rope::Cursor;
 use crate::status_map::{compute_git_diff, StatusMap};
 
 pub enum NotificationLevel {
@@ -583,10 +582,11 @@ impl Editor {
 
     fn handle_mouse_event(&mut self, ev: MouseEvent) {
         trace!("mouse: {:?}", ev);
+        let mut view = self.current.borrow_mut();
         match ev {
-            MouseEvent::ClickedText { pos } => {
-                self.current.borrow_mut().goto(pos.y, pos.x);
-            }
+            MouseEvent::ClickedText { pos } => view.goto(pos.y, pos.x),
+            MouseEvent::ScrollUp => view.scroll_up(1),
+            MouseEvent::ScrollDown => view.scroll_down(1),
         }
     }
 

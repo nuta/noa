@@ -56,6 +56,8 @@ pub enum MouseEvent {
         /// The position in the buffer.
         pos: Point,
     },
+    ScrollUp,
+    ScrollDown,
 }
 
 pub struct Terminal {
@@ -136,6 +138,8 @@ impl Terminal {
                 let pos_x = x as usize - self.text_start_x;
                 Some(MouseEvent::ClickedText { pos: Point::new(pos_y, pos_x) })
             }
+            RawMouseEvent::ScrollDown(..) => Some(MouseEvent::ScrollDown),
+            RawMouseEvent::ScrollUp(..) => Some(MouseEvent::ScrollUp),
             _ => {
                 trace!("unhandled event: {:?}", ev);
                 None
