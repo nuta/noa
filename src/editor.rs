@@ -189,15 +189,21 @@ impl Editor {
             }
         };
 
+        let mut opened = false;
         for view in &self.views {
             if let Some(view_path) = view.borrow().buffer().borrow().file() {
                 if abspath == *view_path {
                     // We have already opened the file. Switch to the view.
                     self.current = view.clone();
-                    self.after_switching_buffer();
-                    return;
+                    opened = true;
+                    break;
                 }
             }
+        }
+
+        if opened {
+            self.after_switching_buffer();
+            return;
         }
 
         let mut buffer = match Buffer::open_file(path) {
@@ -216,14 +222,13 @@ impl Editor {
         let view = Rc::new(RefCell::new(View::new(buffer_rc)));
         self.views.push(view);
         self.watcher.start_watching(path);
-        self.switch_buffer(buffer_id)
+        self.after_switching_buffer();
     }
 
     pub fn switch_buffer(&mut self, buffer_id: BufferId) {
         for view in &self.views {
             if buffer_id == view.borrow().buffer().borrow().id() {
                 self.current = view.clone();
-                self.update_status_map();
                 self.after_switching_buffer();
                 return;
             }
