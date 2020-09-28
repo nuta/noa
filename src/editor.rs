@@ -189,19 +189,14 @@ impl Editor {
             }
         };
 
-        let mut opened = false;
         for view in &self.views {
-            if let Some(view_path) = view.borrow().buffer().borrow().file() {
-                if abspath == *view_path {
-                    // We have already opened the file. Switch to the view.
-                    self.current = view.clone();
-                    opened = true;
-                    break;
-                }
+            match view.borrow().buffer().borrow().file() {
+                Some(view_path) if abspath == *view_path => {}
+                _ => continue,
             }
-        }
 
-        if opened {
+            // We have already opened the file. Switch to the view.a
+            self.current = view.clone();
             self.after_switching_buffer();
             return;
         }
@@ -217,11 +212,11 @@ impl Editor {
         buffer.set_name(path.file_name().unwrap().to_str().unwrap());
         self.lsp.open_buffer(&buffer);
 
-        let buffer_id = buffer.id();
-        let buffer_rc = Rc::new(RefCell::new(buffer));
-        let view = Rc::new(RefCell::new(View::new(buffer_rc)));
-        self.views.push(view);
+        let view = Rc::new(RefCell::new(View::new(Rc::new(RefCell::new(buffer)))));
+        self.views.push(view.clone());
         self.watcher.start_watching(path);
+        self.current = view;
+
         self.after_switching_buffer();
     }
 
