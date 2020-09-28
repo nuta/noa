@@ -712,7 +712,6 @@ impl Editor {
             }
             (KeyCode::Char('k'), CTRL) => {
                 buffer.truncate();
-                self.report("truncated");
             }
             (KeyCode::Char('z'), CTRL) => {
                 buffer.undo();
