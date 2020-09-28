@@ -55,6 +55,7 @@ pub enum MouseEvent {
     ClickedText {
         /// The position in the buffer.
         pos: Point,
+        alt: bool,
     },
     ScrollUp,
     ScrollDown,
@@ -127,16 +128,19 @@ impl Terminal {
 
     pub fn convert_raw_mouse_event(&self, ev: RawMouseEvent) -> Option<MouseEvent> {
         const LEFT: MouseButton = MouseButton::Left;
-        const NONE: KeyModifiers = KeyModifiers::NONE;
+        const ALT: KeyModifiers = KeyModifiers::ALT;
         match ev {
-            RawMouseEvent::Down(LEFT, x, y, NONE)
+            RawMouseEvent::Down(LEFT, x, y, modifiers)
                 if (y as usize) < self.text_height
                     && self.text_start_x <= (x as usize)
                     && (x as usize) <= self.text_end_x =>
             {
                 let pos_y = self.current_top_left.y + y as usize;
                 let pos_x = x as usize - self.text_start_x;
-                Some(MouseEvent::ClickedText { pos: Point::new(pos_y, pos_x) })
+                Some(MouseEvent::ClickedText {
+                    pos: Point::new(pos_y, pos_x),
+                    alt: modifiers == ALT,
+                })
             }
             RawMouseEvent::ScrollDown(..) => Some(MouseEvent::ScrollDown),
             RawMouseEvent::ScrollUp(..) => Some(MouseEvent::ScrollUp),

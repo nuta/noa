@@ -2,6 +2,7 @@ use crate::editor::{Event, EventQueue};
 use crate::language::{Language, LspSettings};
 use crate::helpers::open_log_file;
 use crate::buffer::{Buffer, BufferId};
+use crate::rope::Point;
 use crate::fuzzy::FuzzySet;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -17,6 +18,7 @@ use lsp_types::{
     request::{
         Initialize,
         Completion,
+        GotoDefinition,
     },
     notification::{
         DidOpenTextDocument,
@@ -33,6 +35,7 @@ use lsp_types::{
     WorkDoneProgressParams,
     PartialResultParams,
     Position,
+    GotoDefinitionParams,
 };
 
 enum Request {
@@ -54,10 +57,18 @@ enum Request {
         y: usize,
         x: usize,
     },
+    GotoDefinition {
+        buffer_id: BufferId,
+        path: PathBuf,
+        pos: Point,
+    },
 }
 
 enum SentRequest {
     Completion {
+        buffer_id: BufferId,
+    },
+    GotoDefinition {
         buffer_id: BufferId,
     }
 }
@@ -195,6 +206,37 @@ fn send_requests(
                     }
                 )
             }
+            Request::GotoDefinition { path, buffer_id, pos } => {
+                trace!("GotoDefinition(buffer={}, pos={})", path.display(), pos);
+                let id = alloc_id();
+                sent_reqs.lock().unwrap().insert(
+                    id.clone(),
+                    SentRequest::GotoDefinition {
+                        buffer_id,
+                    }
+                );
+
+                serialize_request::<GotoDefinition>(
+                    id,
+                    GotoDefinitionParams {
+                        text_document_position_params: TextDocumentPositionParams {
+                            position: Position {
+                                line: pos.y as u64,
+                                character: pos.x as u64,
+                            },
+                            text_document: TextDocumentIdentifier {
+                                uri: parse_path_as_uri(&path),
+                            },
+                        },
+                        work_done_progress_params: WorkDoneProgressParams {
+                            work_done_token: None,
+                        },
+                        partial_result_params: PartialResultParams {
+                            partial_result_token: None,
+                        },
+                    }
+                )
+            }
         };
 
         use std::io::Write;
@@ -303,9 +345,28 @@ fn receive_requests(
                     }
 
                     event_queue.enqueue(Event::Completion {
-                        id: *buffer_id,
+                        buffer_id: *buffer_id,
                         items,
                     });
+                }
+                SentRequest::GotoDefinition { buffer_id } => {
+                    if let Value::Array(results) = resp.result {
+                        if let Some(Value::Object(definition)) = results.get(0) {
+                            if let Some(Value::Object(range)) = definition.get("range") {
+                                if let Some(Value::Object(position)) = range.get("start") {
+                                    if let (Some(Value::Number(y)), Some(Value::Number(x)))
+                                        = (position.get("line"), position.get("character")) {
+                                        if let (Some(y), Some(x)) = (y.as_u64(), x.as_u64()) {
+                                            event_queue.enqueue(Event::GoTo {
+                                                buffer_id: *buffer_id,
+                                                pos: Point::new(y as usize, x as usize),
+                                            })
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -355,6 +416,16 @@ impl Lsp {
                 path: path.to_owned(),
                 text: buffer.text(),
                 version: buffer.version(),
+            });
+        }
+    }
+
+    pub fn request_goto_definition(&mut self, buffer: &Buffer) {
+        if let Some(path) = buffer.path() {
+            self.send(buffer.lang(), Request::GotoDefinition {
+                buffer_id: buffer.id(),
+                path: path.to_owned(),
+                pos: *buffer.main_cursor_pos(),
             });
         }
     }

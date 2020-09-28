@@ -14,6 +14,7 @@ use crate::view::View;
 use crate::worker::Worker;
 use crate::fuzzy::FuzzySet;
 use crate::lsp::Lsp;
+use crate::rope::Point;
 use crate::terminal::{
     Terminal, KeyCode, KeyModifiers, KeyEvent, RawMouseEvent, MouseEvent,
 };
@@ -81,8 +82,12 @@ pub enum Event {
     FileChanged(PathBuf),
     NoCompletion,
     Completion {
-        id: BufferId,
+        buffer_id: BufferId,
         items: FuzzySet,
+    },
+    GoTo {
+        buffer_id: BufferId,
+        pos: Point,
     },
     Resize {
         rows: usize,
@@ -338,8 +343,14 @@ impl Editor {
             Event::NoCompletion => {
                 self.clear_popup();
             }
-            Event::Completion { id, items } => {
-                self.handle_completion_event(id, items);
+            Event::Completion { buffer_id, items } => {
+                self.handle_completion_event(buffer_id, items);
+            }
+            Event::GoTo { buffer_id, pos } => {
+                self.switch_buffer(buffer_id);
+                let mut view = self.current.borrow_mut();
+                view.goto(pos.y, pos.x);
+                view.centering(self.terminal.rows());
             }
             Event::FileChanged(_path) => {
                 self.check_if_current_changed();
@@ -593,7 +604,11 @@ impl Editor {
         trace!("mouse: {:?}", ev);
         let mut view = self.current.borrow_mut();
         match ev {
-            MouseEvent::ClickedText { pos } => view.goto(pos.y, pos.x),
+            MouseEvent::ClickedText { pos, alt: true } => {
+                view.goto(pos.y, pos.x);
+                self.lsp.request_goto_definition(&*view.buffer().borrow());
+            }
+            MouseEvent::ClickedText { pos, .. } => view.goto(pos.y, pos.x),
             MouseEvent::ScrollUp => view.scroll_up(5),
             MouseEvent::ScrollDown => view.scroll_down(5),
         }

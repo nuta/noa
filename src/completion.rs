@@ -102,7 +102,7 @@ impl Job for WordCompJob {
         }
 
         event_queue.enqueue(Event::Completion {
-            id: self.snapshot.buffer_id,
+            buffer_id: self.snapshot.buffer_id,
             items: filtered,
         });
     }
