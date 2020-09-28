@@ -86,7 +86,7 @@ pub enum Event {
         items: FuzzySet,
     },
     GoTo {
-        buffer_id: BufferId,
+        path: PathBuf,
         pos: Point,
     },
     Resize {
@@ -194,6 +194,7 @@ impl Editor {
                 if abspath == *view_path {
                     // We have already opened the file. Switch to the view.
                     self.current = view.clone();
+                    self.after_switching_buffer();
                     return;
                 }
             }
@@ -223,11 +224,16 @@ impl Editor {
             if buffer_id == view.borrow().buffer().borrow().id() {
                 self.current = view.clone();
                 self.update_status_map();
+                self.after_switching_buffer();
                 return;
             }
         }
 
         warn!("failed to switch to the buffer {:?}", buffer_id);
+    }
+
+    fn after_switching_buffer(&mut self) {
+        self.update_status_map();
     }
 
     pub fn run(&mut self) {
@@ -346,8 +352,8 @@ impl Editor {
             Event::Completion { buffer_id, items } => {
                 self.handle_completion_event(buffer_id, items);
             }
-            Event::GoTo { buffer_id, pos } => {
-                self.switch_buffer(buffer_id);
+            Event::GoTo { path, pos } => {
+                self.open_file(&path);
                 let mut view = self.current.borrow_mut();
                 view.goto(pos.y, pos.x);
                 view.centering(self.terminal.rows());

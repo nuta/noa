@@ -68,14 +68,16 @@ enum SentRequest {
     Completion {
         buffer_id: BufferId,
     },
-    GotoDefinition {
-        buffer_id: BufferId,
-    }
+    GotoDefinition,
 }
 
 fn parse_path_as_uri(path: &Path) -> lsp_types::Url {
     let uri = &format!("file:///{}", path.canonicalize().unwrap().to_str().unwrap());
     lsp_types::Url::parse(uri).unwrap()
+}
+
+fn parse_uri_as_path(uri: &str) -> Option<PathBuf> {
+    uri.strip_prefix("file://").map(PathBuf::from)
 }
 
 fn serialize_request<T: lsp_types::request::Request>(id: Id, params: T::Params) -> String {
@@ -211,9 +213,7 @@ fn send_requests(
                 let id = alloc_id();
                 sent_reqs.lock().unwrap().insert(
                     id.clone(),
-                    SentRequest::GotoDefinition {
-                        buffer_id,
-                    }
+                    SentRequest::GotoDefinition
                 );
 
                 serialize_request::<GotoDefinition>(
@@ -349,18 +349,22 @@ fn receive_requests(
                         items,
                     });
                 }
-                SentRequest::GotoDefinition { buffer_id } => {
+                SentRequest::GotoDefinition => {
+                    // FIXME: Help me :/
                     if let Value::Array(results) = resp.result {
                         if let Some(Value::Object(definition)) = results.get(0) {
-                            if let Some(Value::Object(range)) = definition.get("range") {
+                            if let (Some(Value::Object(range)), Some(Value::String(uri)))
+                                = (definition.get("range"), definition.get("uri")) {
                                 if let Some(Value::Object(position)) = range.get("start") {
                                     if let (Some(Value::Number(y)), Some(Value::Number(x)))
                                         = (position.get("line"), position.get("character")) {
                                         if let (Some(y), Some(x)) = (y.as_u64(), x.as_u64()) {
-                                            event_queue.enqueue(Event::GoTo {
-                                                buffer_id: *buffer_id,
-                                                pos: Point::new(y as usize, x as usize),
-                                            })
+                                            if let Some(path) = parse_uri_as_path(uri) {
+                                                event_queue.enqueue(Event::GoTo {
+                                                    path,
+                                                    pos: Point::new(y as usize, x as usize),
+                                                })
+                                            }
                                         }
                                     }
                                 }
