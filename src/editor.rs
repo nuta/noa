@@ -30,6 +30,7 @@ pub struct Notification {
     pub level: NotificationLevel,
     pub message: String,
     pub created_at: Instant,
+    pub persist: bool,
 }
 
 impl PartialEq for Notification {
@@ -88,6 +89,9 @@ pub enum Event {
     GoTo {
         path: PathBuf,
         pos: Point,
+    },
+    HoverMessage {
+        message: String,
     },
     Resize {
         rows: usize,
@@ -289,6 +293,7 @@ impl Editor {
         let view = self.current.borrow();
         let buffer = view.buffer().borrow();
         self.lsp.modify_buffer(&buffer);
+        self.lsp.request_signature_help(&buffer);
     }
 
     fn update_status_map(&mut self) {
@@ -310,8 +315,26 @@ impl Editor {
         self.notifications.borrow_mut().push(Notification {
             level,
             created_at: Instant::now(),
+            persist: false,
             message: message.replace("\n", " "),
         });
+    }
+
+    fn hover_message<T: Into<String>>(&self, message: T) {
+        let message = message.into();
+        let duplicated = match self.notifications.borrow_mut().last() {
+            Some(last) => last.message == message,
+            None => false,
+        };
+
+        if !duplicated {
+            self.notifications.borrow_mut().push(Notification {
+                level: NotificationLevel::Report,
+                created_at: Instant::now(),
+                persist: true,
+                message: message.replace("\n", " "),
+            });
+        }
     }
 
     fn report<T: Into<String>>(&self, message: T) {
@@ -351,6 +374,9 @@ impl Editor {
             }
             Event::Completion { buffer_id, items } => {
                 self.handle_completion_event(buffer_id, items);
+            }
+            Event::HoverMessage { message } => {
+                self.hover_message(message);
             }
             Event::GoTo { path, pos } => {
                 self.open_file(&path);
@@ -802,10 +828,10 @@ impl Editor {
             self.clear_popup();
         }
 
+        let view = self.current.borrow_mut();
+        let buffer = view.buffer().borrow_mut();
         if update_completion {
             // Run a completion.
-            let view = self.current.borrow_mut();
-            let buffer = view.buffer().borrow_mut();
             let snapshot = buffer.snapshot();
             self.worker.request(Box::new(WordCompJob::new(snapshot)));
             self.lsp.request_completions(&*buffer);

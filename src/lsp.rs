@@ -19,6 +19,7 @@ use lsp_types::{
         Initialize,
         Completion,
         GotoDefinition,
+        SignatureHelpRequest,
     },
     notification::{
         DidOpenTextDocument,
@@ -36,6 +37,7 @@ use lsp_types::{
     PartialResultParams,
     Position,
     GotoDefinitionParams,
+    SignatureHelpParams,
 };
 
 enum Request {
@@ -58,7 +60,10 @@ enum Request {
         x: usize,
     },
     GotoDefinition {
-        buffer_id: BufferId,
+        path: PathBuf,
+        pos: Point,
+    },
+    SignatureHelp {
         path: PathBuf,
         pos: Point,
     },
@@ -69,6 +74,7 @@ enum SentRequest {
         buffer_id: BufferId,
     },
     GotoDefinition,
+    SignatureHelp,
 }
 
 fn parse_path_as_uri(path: &Path) -> lsp_types::Url {
@@ -208,7 +214,7 @@ fn send_requests(
                     }
                 )
             }
-            Request::GotoDefinition { path, buffer_id, pos } => {
+            Request::GotoDefinition { path, pos } => {
                 trace!("GotoDefinition(buffer={}, pos={})", path.display(), pos);
                 let id = alloc_id();
                 sent_reqs.lock().unwrap().insert(
@@ -234,6 +240,33 @@ fn send_requests(
                         partial_result_params: PartialResultParams {
                             partial_result_token: None,
                         },
+                    }
+                )
+            }
+            Request::SignatureHelp { path, pos } => {
+                trace!("SignatureHelp(buffer={}, pos={})", path.display(), pos);
+                let id = alloc_id();
+                sent_reqs.lock().unwrap().insert(
+                    id.clone(),
+                    SentRequest::SignatureHelp,
+                );
+
+                serialize_request::<SignatureHelpRequest>(
+                    id,
+                    SignatureHelpParams {
+                        text_document_position_params: TextDocumentPositionParams {
+                            position: Position {
+                                line: pos.y as u64,
+                                character: pos.x as u64,
+                            },
+                            text_document: TextDocumentIdentifier {
+                                uri: parse_path_as_uri(&path),
+                            },
+                        },
+                        work_done_progress_params: WorkDoneProgressParams {
+                            work_done_token: None,
+                        },
+                        context: None,
                     }
                 )
             }
@@ -372,6 +405,20 @@ fn receive_requests(
                         }
                     }
                 }
+                SentRequest::SignatureHelp => {
+                    trace!("hover");
+                    if let Value::Object(fields) = resp.result {
+                        if let Some(Value::Array(sigs)) = fields.get("signatures") {
+                            if let Some(Value::Object(sig)) = sigs.get(0) {
+                                if let Some(Value::String(label)) = sig.get("label") {
+                                    event_queue.enqueue(Event::HoverMessage {
+                                        message: label.to_owned(),
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -424,10 +471,18 @@ impl Lsp {
         }
     }
 
+    pub fn request_signature_help(&mut self, buffer: &Buffer) {
+        if let Some(path) = buffer.path() {
+            self.send(buffer.lang(), Request::SignatureHelp {
+                path: path.to_owned(),
+                pos: *buffer.main_cursor_pos(),
+            });
+        }
+    }
+
     pub fn request_goto_definition(&mut self, buffer: &Buffer) {
         if let Some(path) = buffer.path() {
             self.send(buffer.lang(), Request::GotoDefinition {
-                buffer_id: buffer.id(),
                 path: path.to_owned(),
                 pos: *buffer.main_cursor_pos(),
             });

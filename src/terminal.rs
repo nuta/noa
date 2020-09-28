@@ -334,7 +334,7 @@ impl Terminal {
         let mut iter = notifications.iter().rev();
         if let Some(noti) = iter.next() {
             queue!(stdout, MoveTo(0, status_bar_y as u16 + 1)).unwrap();
-            if noti.created_at.elapsed() < Duration::from_secs(3) {
+            if noti.persist || noti.created_at.elapsed() < Duration::from_secs(3) {
                 let num_duplicated = iter.take_while(|x| *x == noti).count() + 1;
                 if num_duplicated > 1 {
                     queue!(
