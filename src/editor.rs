@@ -4,7 +4,7 @@ use std::cmp::min;
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Sender, Receiver};
-use std::time::{Instant};
+use std::time::{Instant, Duration};
 use git2::Repository;
 use crate::watcher::FileWatcher;
 use crate::buffer::{Buffer, BufferId, compute_str_checksum};
@@ -140,6 +140,7 @@ pub struct Editor {
     lsp: Lsp,
     watcher: FileWatcher,
     status_map: StatusMap,
+    time_last_clicked: Instant,
 }
 
 impl Editor {
@@ -177,6 +178,7 @@ impl Editor {
             lsp,
             watcher: FileWatcher::new(tx),
             status_map: StatusMap::new(),
+            time_last_clicked: Instant::now(),
         }
     }
 
@@ -650,13 +652,29 @@ impl Editor {
 
     fn handle_mouse_event(&mut self, ev: MouseEvent) {
         trace!("mouse: {:?}", ev);
+        trace!("{:?}", self.time_last_clicked.elapsed());
         let mut view = self.current.borrow_mut();
         match ev {
             MouseEvent::ClickedText { pos, alt: true } => {
                 view.goto(pos.y, pos.x);
                 self.lsp.request_goto_definition(&*view.buffer().borrow());
             }
-            MouseEvent::ClickedText { pos, .. } => view.goto(pos.y, pos.x),
+            MouseEvent::ClickedText { pos, .. }
+                if self.time_last_clicked.elapsed() < Duration::from_millis(400)
+            => {
+                let mut buffer = view.buffer().borrow_mut();
+                trace!("clicked multi");
+                if let Some(range) = buffer.current_word_range() {
+                    buffer.select_by_ranges(&[range]);
+                } else {
+                    drop(buffer);
+                    view.goto(pos.y, pos.x)
+                }
+            }
+            MouseEvent::ClickedText { pos, .. } => {
+                view.goto(pos.y, pos.x);
+                self.time_last_clicked = Instant::now();
+            }
             MouseEvent::ScrollUp => view.scroll_up(5),
             MouseEvent::ScrollDown => view.scroll_down(5),
         }
