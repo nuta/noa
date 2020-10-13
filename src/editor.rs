@@ -626,6 +626,19 @@ impl Editor {
                 self.command_box_input.truncate();
                 modified = true;
             }
+            (KeyCode::Char('r'), CTRL) => {
+                let input = self.command_box_input.text();
+                match input.chars().next() {
+                    Some(first_ch @ 'a' ..= 'z') => {
+                        let mut new_input = String::new();
+                        new_input.push(first_ch.to_ascii_uppercase());
+                        new_input.push_str(&input[1..]);
+                        self.command_box_input.set_text(&new_input);
+                    }
+                    _ => {}
+                }
+                modified = true;
+            }
             (KeyCode::Char(ch), NONE)
             | (KeyCode::Char(ch), SHIFT) => {
                 self.command_box_input.insert_char(ch);
@@ -742,6 +755,18 @@ impl Editor {
                 drop(buffer);
                 drop(view);
                 self.open_command_box("f/");
+                return;
+            }
+            (KeyCode::Char('g'), CTRL) => {
+                drop(buffer);
+                drop(view);
+                self.open_command_box("g/");
+                return;
+            }
+            (KeyCode::Char('p'), CTRL) => {
+                drop(buffer);
+                drop(view);
+                self.open_command_box("p/");
                 return;
             }
             (KeyCode::Char('k'), CTRL) => {
