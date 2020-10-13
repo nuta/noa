@@ -476,53 +476,69 @@ impl Editor {
         let script = words.next().unwrap_or("").to_owned();
 
         let body;
-        if pat.starts_with("//") {
-            // Search all files.
-            let pat = &pat[2..];
-            if pat.len() < 3 {
-                self.report("too short pattern");
+        let mut pat_chars = pat.chars();
+        match pat_chars.next() {
+            Some('g') => {
+                // Search all files.
+                if pat.len() < 5 {
+                    self.report("too short pattern");
+                    return;
+                }
+
+                let pat = &pat[2..];
+                match grep_dir(self.workspace_dir(), pat) {
+                    Ok(locations) => {
+                        if locations.len() >= NUM_MATCHES_MAX {
+                            self.error("aborted due to too many matches");
+                        }
+                        body = RequestBody::SelectMatch { locations };
+                    }
+                    Err(err) => {
+                        self.error(format!("grep_dir: {}", err));
+                        return;
+                    }
+                }
+            }
+            Some('f') => {
+                // Search the current buffer.
+                if pat.len() < 3 {
+                    self.report("too short pattern");
+                    return;
+                }
+
+                let view = self.current.borrow();
+                let mut buffer = view.buffer().borrow_mut();
+                buffer.update_tmpfile();
+                match grep_buffer(&*buffer, &pat[2..]) {
+                    Ok(locations) => {
+                        if locations.len() >= NUM_MATCHES_MAX {
+                            self.error("aborted due to too many matches");
+                        }
+                        body = RequestBody::SelectMatch { locations };
+                    }
+                    Err(err) => {
+                        self.error(format!("grep: {}", err));
+                        return;
+                    }
+                }
+            }
+            Some('p') => {
+                // Filter file paths.
+                if pat.len() < 3 {
+                    self.report("too short pattern");
+                    return;
+                }
+
+                let files = list_files(self.workspace_dir(), &pat[2..]);
+                if files.len() >= NUM_MATCHES_MAX {
+                    self.error("aborted due to too many matches");
+                }
+                body = RequestBody::SelectFile { files };
+            }
+            _ => {
+                self.error("invalid prefix");
                 return;
             }
-
-            match grep_dir(self.workspace_dir(), pat) {
-                Ok(locations) => {
-                    if locations.len() >= NUM_MATCHES_MAX {
-                        self.error("aborted due to too many matches");
-                    }
-                    body = RequestBody::SelectMatch { locations };
-                }
-                Err(err) => {
-                    self.error(format!("grep_dir: {}", err));
-                    return;
-                }
-            }
-        } else if pat.starts_with('/') {
-            // Search the current buffer.
-            let view = self.current.borrow();
-            let mut buffer = view.buffer().borrow_mut();
-            buffer.update_tmpfile();
-            match grep_buffer(&*buffer, &pat[1..]) {
-                Ok(locations) => {
-                    if locations.len() >= NUM_MATCHES_MAX {
-                        self.error("aborted due to too many matches");
-                    }
-                    body = RequestBody::SelectMatch { locations };
-                }
-                Err(err) => {
-                    self.error(format!("grep: {}", err));
-                    return;
-                }
-            }
-        } else if pat.starts_with('>') {
-            // Filter file paths.
-            let files = list_files(self.workspace_dir(), &pat[1..]);
-            if files.len() >= NUM_MATCHES_MAX {
-                self.error("aborted due to too many matches");
-            }
-            body = RequestBody::SelectFile { files };
-        } else {
-            self.error("invalid prefix");
-            return;
         }
 
         let req = Request {
@@ -707,7 +723,7 @@ impl Editor {
             (KeyCode::Char('f'), CTRL) => {
                 drop(buffer);
                 drop(view);
-                self.open_command_box("/");
+                self.open_command_box("f/");
                 return;
             }
             (KeyCode::Char('k'), CTRL) => {
