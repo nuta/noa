@@ -470,7 +470,9 @@ impl Editor {
 
     fn execute_command(&mut self, preview: bool) {
         use crate::command_box::{Request, Response, ResponseBody};
-        use crate::search::{list_files, grep_buffer, grep_dir, NUM_MATCHES_MAX};
+        use crate::search::{
+            list_files, grep_buffer, grep_dir, grep_dir_by_regex, NUM_MATCHES_MAX
+        };
 
         let input = self.command_box_input.text();
         let mut words = input.splitn(2, ' ');
@@ -480,15 +482,25 @@ impl Editor {
         let body;
         let mut pat_chars = pat.chars();
         match pat_chars.next() {
-            Some('G') => {
+            Some(prefix @ 'G') | Some(prefix @ 'g') => {
                 // Search all files by regex.
                 if pat.len() < 5 {
                     self.report("too short pattern");
                     return;
                 }
 
-                let pat = &pat[2..];
-                match grep_dir(self.workspace_dir(), pat) {
+                let query = &pat[2..];
+                let locations =  match prefix {
+                    'g' => {
+                        grep_dir(self.workspace_dir(), query)
+                    }
+                    'G' => {
+                        grep_dir_by_regex(self.workspace_dir(), query)
+                    }
+                    _ => unreachable!(),
+                };
+
+                match locations {
                     Ok(locations) => {
                         if locations.len() >= NUM_MATCHES_MAX {
                             self.error("aborted due to too many matches");
@@ -531,9 +543,6 @@ impl Editor {
                     'F' => {
                         match grep_buffer(&*buffer, query) {
                             Ok(locations) => {
-                                if locations.len() >= NUM_MATCHES_MAX {
-                                    self.error("aborted due to too many matches");
-                                }
                                 locations
                             }
                             Err(err) => {
@@ -545,6 +554,9 @@ impl Editor {
                     _ => unreachable!(),
                 };
 
+                if locations.len() >= NUM_MATCHES_MAX {
+                    self.error("aborted due to too many matches");
+                }
                 body = RequestBody::SelectMatch { locations };
             }
             Some('p') => {

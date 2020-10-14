@@ -59,6 +59,13 @@ fn build_matcher(pat: &str) -> Result<RegexMatcher, Box<dyn std::error::Error>> 
         .build(pat)?)
 }
 
+fn build_literal_matcher(needle: &str) -> Result<RegexMatcher, Box<dyn std::error::Error>> {
+    Ok(RegexMatcherBuilder::new()
+        .case_smart(true)
+        .multi_line(true)
+        .build_literals(&[needle])?)
+}
+
 fn build_searcher() -> Searcher {
     SearcherBuilder::new()
         .multi_line(true)
@@ -66,22 +73,7 @@ fn build_searcher() -> Searcher {
         .build()
 }
 
-pub fn grep_buffer(buffer: &Buffer, pat: &str) -> Result<Vec<Location>, Box<dyn std::error::Error>> {
-    let matcher = build_matcher(pat)?;
-    let mut searcher = build_searcher();
-    let mut locs = Vec::new();
-    let file = File {
-        display_name: buffer.name().to_owned(),
-        buffer_id: Some(buffer.id()),
-        path: buffer.tmpfile().to_path_buf(),
-    };
-    let sink = GrepSink::new(file, &matcher, &mut locs);
-    searcher.search_slice(&matcher, buffer.text().as_bytes(), sink)?;
-    Ok(locs)
-}
-
-pub fn grep_dir(dir: &Path, pat: &str) -> Result<Vec<Location>, Box<dyn std::error::Error>> {
-    let matcher = build_matcher(pat)?;
+fn grep_buffer_by_matcher(dir: &Path, matcher: RegexMatcher) -> Vec<Location> {
     let mut searcher = build_searcher();
     let mut locs = Vec::new();
     let walker = WalkBuilder::new(dir).build();
@@ -101,7 +93,7 @@ pub fn grep_dir(dir: &Path, pat: &str) -> Result<Vec<Location>, Box<dyn std::err
                 buffer_id: None,
             };
             let sink = GrepSink::new(file, &matcher, &mut locs);
-            searcher.search_path(&matcher, &path, sink)?;
+            searcher.search_path(&matcher, &path, sink).ok();
         }
 
         if locs.len() >= NUM_MATCHES_MAX {
@@ -109,7 +101,31 @@ pub fn grep_dir(dir: &Path, pat: &str) -> Result<Vec<Location>, Box<dyn std::err
         }
     }
 
+    locs
+}
+
+pub fn grep_buffer(buffer: &Buffer, pat: &str) -> Result<Vec<Location>, Box<dyn std::error::Error>> {
+    let matcher = build_matcher(pat)?;
+    let mut searcher = build_searcher();
+    let mut locs = Vec::new();
+    let file = File {
+        display_name: buffer.name().to_owned(),
+        buffer_id: Some(buffer.id()),
+        path: buffer.tmpfile().to_path_buf(),
+    };
+    let sink = GrepSink::new(file, &matcher, &mut locs);
+    searcher.search_slice(&matcher, buffer.text().as_bytes(), sink)?;
     Ok(locs)
+}
+
+pub fn grep_dir(dir: &Path, needle: &str) -> Result<Vec<Location>, Box<dyn std::error::Error>> {
+    let matcher = build_literal_matcher(needle)?;
+    Ok(grep_buffer_by_matcher(dir, matcher))
+}
+
+pub fn grep_dir_by_regex(dir: &Path, pat: &str) -> Result<Vec<Location>, Box<dyn std::error::Error>> {
+    let matcher = build_matcher(pat)?;
+    Ok(grep_buffer_by_matcher(dir, matcher))
 }
 
 pub fn list_files(dir: &Path, pat: &str) -> Vec<File> {
