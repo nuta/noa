@@ -8,7 +8,7 @@ use std::time::{Instant, Duration};
 use git2::Repository;
 use crate::watcher::FileWatcher;
 use crate::buffer::{Buffer, BufferId, compute_str_checksum};
-use crate::command_box::{CommandBox, RequestBody};
+use crate::command_box::{CommandBox, RequestBody, Location, File};
 use crate::completion::WordCompJob;
 use crate::view::View;
 use crate::worker::Worker;
@@ -480,8 +480,8 @@ impl Editor {
         let body;
         let mut pat_chars = pat.chars();
         match pat_chars.next() {
-            Some('g') => {
-                // Search all files.
+            Some('G') => {
+                // Search all files by regex.
                 if pat.len() < 5 {
                     self.report("too short pattern");
                     return;
@@ -501,8 +501,8 @@ impl Editor {
                     }
                 }
             }
-            Some('f') => {
-                // Search the current buffer.
+            Some(prefix @ 'F') | Some(prefix @ 'f') => {
+                // Search the current buffer by regex.
                 if pat.len() < 3 {
                     self.report("too short pattern");
                     return;
@@ -510,19 +510,42 @@ impl Editor {
 
                 let view = self.current.borrow();
                 let mut buffer = view.buffer().borrow_mut();
+                let query = &pat[2..];
                 buffer.update_tmpfile();
-                match grep_buffer(&*buffer, &pat[2..]) {
-                    Ok(locations) => {
-                        if locations.len() >= NUM_MATCHES_MAX {
-                            self.error("aborted due to too many matches");
+                let locations: Vec<Location> = match prefix {
+                    'f' => {
+                        buffer.find(query)
+                            .iter()
+                            .map(|range| {
+                                Location {
+                                    file: File {
+                                        display_name: buffer.name().to_owned(),
+                                        path: buffer.tmpfile().to_path_buf(),
+                                        buffer_id: Some(buffer.id()),
+                                    },
+                                    range: range.clone(),
+                                }
+                            })
+                            .collect()
+                    }
+                    'F' => {
+                        match grep_buffer(&*buffer, query) {
+                            Ok(locations) => {
+                                if locations.len() >= NUM_MATCHES_MAX {
+                                    self.error("aborted due to too many matches");
+                                }
+                                locations
+                            }
+                            Err(err) => {
+                                self.error(format!("grep: {}", err));
+                                return;
+                            }
                         }
-                        body = RequestBody::SelectMatch { locations };
                     }
-                    Err(err) => {
-                        self.error(format!("grep: {}", err));
-                        return;
-                    }
-                }
+                    _ => unreachable!(),
+                };
+
+                body = RequestBody::SelectMatch { locations };
             }
             Some('p') => {
                 // Filter file paths.
@@ -665,7 +688,6 @@ impl Editor {
 
     fn handle_mouse_event(&mut self, ev: MouseEvent) {
         trace!("mouse: {:?}", ev);
-        trace!("{:?}", self.time_last_clicked.elapsed());
         let mut view = self.current.borrow_mut();
         match ev {
             MouseEvent::ClickedText { pos, alt: true } => {
@@ -676,7 +698,6 @@ impl Editor {
                 if self.time_last_clicked.elapsed() < Duration::from_millis(400)
             => {
                 let mut buffer = view.buffer().borrow_mut();
-                trace!("clicked multi");
                 if let Some(range) = buffer.current_word_range() {
                     buffer.select_by_ranges(&[range]);
                 } else {
