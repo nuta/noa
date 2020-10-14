@@ -475,21 +475,18 @@ impl Editor {
         };
 
         let input = self.command_box_input.text();
-        let mut words = input.splitn(2, ' ');
-        let pat = words.next().unwrap();
-        let script = words.next().unwrap_or("").to_owned();
-
         let body;
-        let mut pat_chars = pat.chars();
-        match pat_chars.next() {
+        let mut chars = input.chars();
+        match chars.next() {
             Some(prefix @ 'G') | Some(prefix @ 'g') => {
                 // Search all files by regex.
-                if pat.len() < 5 {
+                trace!("pat = '{}'", input);
+                if input.len() < 5 {
                     self.report("too short pattern");
                     return;
                 }
 
-                let query = &pat[2..];
+                let query = &input[2..];
                 let locations =  match prefix {
                     'g' => {
                         grep_dir(self.workspace_dir(), query)
@@ -515,14 +512,14 @@ impl Editor {
             }
             Some(prefix @ 'F') | Some(prefix @ 'f') => {
                 // Search the current buffer by regex.
-                if pat.len() < 3 {
+                if input.len() < 3 {
                     self.report("too short pattern");
                     return;
                 }
 
                 let view = self.current.borrow();
                 let mut buffer = view.buffer().borrow_mut();
-                let query = &pat[2..];
+                let query = &input[2..];
                 buffer.update_tmpfile();
                 let locations: Vec<Location> = match prefix {
                     'f' => {
@@ -561,12 +558,12 @@ impl Editor {
             }
             Some('p') => {
                 // Filter file paths.
-                if pat.len() < 3 {
+                if input.len() < 3 {
                     self.report("too short pattern");
                     return;
                 }
 
-                let files = list_files(self.workspace_dir(), &pat[2..]);
+                let files = list_files(self.workspace_dir(), &input[2..]);
                 if files.len() >= NUM_MATCHES_MAX {
                     self.error("aborted due to too many matches");
                 }
@@ -579,7 +576,7 @@ impl Editor {
         }
 
         let req = Request {
-            script: script.clone(),
+            script: String::new(), // FIXME:
             selected: self.command_box.selected(),
             preview,
             body,
@@ -595,7 +592,7 @@ impl Editor {
 
         let last_stderr = self.command_box.last_stderr();
         if !last_stderr.is_empty() {
-            error!("stderr from ruby script: {}\n{}", script, last_stderr);
+            error!("stderr from ruby script:\n{}", last_stderr);
         }
 
         // Handle the response.

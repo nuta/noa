@@ -60,10 +60,17 @@ fn build_matcher(pat: &str) -> Result<RegexMatcher, Box<dyn std::error::Error>> 
 }
 
 fn build_literal_matcher(needle: &str) -> Result<RegexMatcher, Box<dyn std::error::Error>> {
-    Ok(RegexMatcherBuilder::new()
-        .case_smart(true)
-        .multi_line(true)
-        .build_literals(&[needle])?)
+    // XXX: RegexMatcherBuilder::build_literals() does not work. Escape special
+    //      characters by ourselves.
+    let mut escaped = String::with_capacity(needle.len() + 16);
+    for ch in needle.chars() {
+        if ch.is_ascii_punctuation() {
+            escaped.push('\\');
+        }
+        escaped.push(ch);
+    }
+
+    build_matcher(&escaped)
 }
 
 fn build_searcher() -> Searcher {
