@@ -266,6 +266,14 @@ impl Buffer {
         Snapshot::new(self.id, self.buf.clone(), main_cursor, modified_line)
     }
 
+    pub fn save_without_backup(&self) -> std::io::Result<()> {
+        if let Some(path) = &self.file {
+            self.buf.save_into_file(path)
+        } else {
+            Ok(())
+        }
+    }
+
     pub fn save(&self, backup_dir: &Path) -> std::io::Result<()> {
         if let Some(path) = &self.file {
             let base = path.to_str().unwrap().replace('/', ".");

@@ -694,6 +694,22 @@ impl Editor {
                             }
                             None => {
                                 // Replace not opened files.
+                                let path = change.location.file.path;
+                                let mut buffer = match Buffer::open_file(&path) {
+                                    Ok(buffer) => buffer,
+                                    Err(err) => {
+                                        self.error(format!("failed to open: {} ({})", path.display(), err));
+                                        continue;
+                                    }
+                                };
+
+                                buffer.select_by_ranges(&[change.location.range]);
+                                buffer.backspace();
+                                buffer.insert(&change.new_str);
+                                if let Err(err) = buffer.save_without_backup() {
+                                    self.error(format!("failed to save: {} ({})", path.display(), err));
+                                    continue;
+                                }
                             }
                         }
                     }
