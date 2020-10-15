@@ -14,7 +14,6 @@ end
 class Executor
   def initialize(request)
     @message = nil
-    @num_filtered = 0
     @response_body = nil
     @request = request
     @body = request["body"]
@@ -49,7 +48,7 @@ class Executor
       @body["locations"].each do |loc|
         y = loc["range"]["start"]["y"]
         line = File.read(loc["file"]["path"]).lines[y] || ""
-        x_range = loc["range"]["start"]["x"] .. loc["range"]["end"]["x"]
+        x_range = loc["range"]["start"]["x"] ... loc["range"]["end"]["x"]
         pp x_range
         line[x_range] = @body["new_str"]
         items << {
@@ -73,19 +72,28 @@ class Executor
   def commit
     case @body["type"]
     when "select_file"
-      type = "goto"
-      file = @body["files"][@selected]
       @response_body = {
         type: "goto",
-        file: file,
+        file: @body["files"][@selected],
       }
     when "select_match"
-      type = "goto"
       loc = @body["locations"][@selected]
       @response_body = {
         type: "goto",
         file: loc["file"],
         position: loc["range"]["start"]
+      }
+    when "replace_with"
+      changes = []
+      @body["locations"].each do |loc|
+        changes << {
+          location: loc,
+          new_str: @body["new_str"],
+        }
+      end
+      @response_body = {
+        type: "replace_with",
+        changes: changes,
       }
     end
   end
@@ -99,7 +107,6 @@ class Executor
 
     {
       message: @message,
-      num_filtered: @num_filtered,
       body: @response_body,
     }
   end

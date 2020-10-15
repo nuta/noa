@@ -31,6 +31,12 @@ pub enum PreviewItem {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+pub struct Change {
+    pub location: Location,
+    pub new_str: String,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(tag = "type")]
 pub enum ResponseBody {
     #[serde(rename = "preview")]
@@ -42,17 +48,20 @@ pub enum ResponseBody {
     GoTo {
         file: File,
         position: Option<Point>,
-    }
+    },
+    #[serde(rename = "replace_with")]
+    ReplaceWith {
+        changes: Vec<Change>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Response {
     pub message: Option<String>,
-    pub num_filtered: usize,
     pub body: ResponseBody,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Location {
     pub file: File,
     pub range: Range,
@@ -152,6 +161,7 @@ impl CommandBox {
         stdout.read_to_string(&mut json_string).ok();
         stderr.read_to_string(&mut self.last_stderr).ok();
         child.wait().ok();
+        error!("{}", json_string);
         trace!("rb: took {} ms", started_at.elapsed().as_millis());
 
         let resp: Response = serde_json::from_str(&json_string)?;

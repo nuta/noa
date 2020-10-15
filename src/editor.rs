@@ -468,6 +468,20 @@ impl Editor {
         self.mode = EditorMode::Normal;
     }
 
+    fn set_buffer_ids_to_locations(&self, locations: &mut [Location]) {
+        for loc in locations {
+            for view in &self.views {
+                let view = view.borrow();
+                let buffer = view.buffer().borrow();
+                if let Some(buffer_path) = buffer.path() {
+                    if loc.file.path == buffer_path {
+                        loc.file.buffer_id = Some(buffer.id());
+                    }
+                }
+            }
+        }
+    }
+
     fn execute_command(&mut self, preview: bool) {
         use crate::command_box::{Request, Response, ResponseBody};
         use crate::search::{
@@ -498,10 +512,11 @@ impl Editor {
                 };
 
                 match locations {
-                    Ok(locations) => {
+                    Ok(mut locations) => {
                         if locations.len() >= NUM_MATCHES_MAX {
                             self.error("aborted due to too many matches");
                         }
+                        self.set_buffer_ids_to_locations(&mut locations);
                         body = RequestBody::SelectMatch { locations };
                     }
                     Err(err) => {
@@ -585,10 +600,11 @@ impl Editor {
                 };
 
                 match locations {
-                    Ok(locations) => {
+                    Ok(mut locations) => {
                         if locations.len() >= NUM_MATCHES_MAX {
                             self.error("aborted due to too many matches");
                         }
+                        self.set_buffer_ids_to_locations(&mut locations);
                         body = RequestBody::ReplaceWith {
                             locations,
                             new_str: new_str.to_owned(),
@@ -657,6 +673,32 @@ impl Editor {
                         let mut view = self.current.borrow_mut();
                         view.goto(pos.y, pos.x);
                         view.centering(self.terminal.rows());
+                    }
+
+                    self.close_command_box();
+                }
+                ResponseBody::ReplaceWith { changes } => {
+                    for change in changes {
+                        trace!("change: {:?}", change.location.file.buffer_id);
+                        match change.location.file.buffer_id {
+                            Some(buffer_id) => {
+                                for view in &self.views {
+                                    let view = view.borrow_mut();
+                                    let mut buffer = view.buffer().borrow_mut();
+                                    trace!("Replacing.....");
+                                    if buffer.id() == buffer_id {
+                                        trace!("OK!! {}", change.location.range);
+                                        buffer.select_by_ranges(&[change.location.range]);
+                                        buffer.backspace();
+                                        buffer.insert(&change.new_str);
+                                        break;
+                                    }
+                                }
+                            }
+                            None => {
+                                // Replace not opened files.
+                            }
+                        }
                     }
 
                     self.close_command_box();
