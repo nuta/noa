@@ -460,7 +460,7 @@ impl Terminal {
         let items_height = height - 1;
         if let Some(r) = command_box.last_response() {
             match &r.body {
-                ResponseBody::Preview { items } => {
+                ResponseBody::Preview { items, selectable } => {
                     blank_lines = items.len()..items_height;
                     let items = items.iter().enumerate().take(items_height);
                     for (i, item) in items {
@@ -471,7 +471,7 @@ impl Terminal {
                             SetAttribute(Attribute::Reset),
                         ).ok();
 
-                        if i == command_box.selected() {
+                        if *selectable && i == command_box.selected() {
                             queue!(
                                 stdout,
                                 SetAttribute(Attribute::Bold),

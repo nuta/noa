@@ -36,6 +36,7 @@ pub enum ResponseBody {
     #[serde(rename = "preview")]
     Preview {
         items: Vec<PreviewItem>,
+        selectable: bool,
     },
     #[serde(rename = "goto")]
     GoTo {
@@ -67,6 +68,11 @@ pub enum RequestBody {
     #[serde(rename = "select_file")]
     SelectFile {
         files: Vec<File>
+    },
+    #[serde(rename = "replace_with")]
+    ReplaceWith {
+        locations: Vec<Location>,
+        new_str: String,
     },
 }
 
@@ -150,7 +156,7 @@ impl CommandBox {
 
         let resp: Response = serde_json::from_str(&json_string)?;
         self.num_items = match &resp.body {
-            ResponseBody::Preview { items } => items.len(),
+            ResponseBody::Preview { items, .. } => items.len(),
             _ => 0,
         };
 

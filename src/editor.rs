@@ -556,6 +556,50 @@ impl Editor {
                 }
                 body = RequestBody::SelectMatch { locations };
             }
+            Some(prefix @ 's') | Some(prefix @ 'S') => {
+                // Search all files by regex.
+                trace!("pat = '{}'", input);
+                if input.len() < 5 {
+                    self.report("too short pattern");
+                    return;
+                }
+
+                let separator = &input[1..=1];
+                let mut words = input[2..].split(separator);
+                let (query, new_str) = match (words.next(), words.next()) {
+                    (Some(query), Some(new_str)) => (query, new_str),
+                    _ => {
+                        self.report(format!("missing separator {}", separator));
+                        return;
+                    }
+                };
+
+                let locations =  match prefix {
+                    's' => {
+                        grep_dir(self.workspace_dir(), query)
+                    }
+                    'S' => {
+                        grep_dir_by_regex(self.workspace_dir(), query)
+                    }
+                    _ => unreachable!(),
+                };
+
+                match locations {
+                    Ok(locations) => {
+                        if locations.len() >= NUM_MATCHES_MAX {
+                            self.error("aborted due to too many matches");
+                        }
+                        body = RequestBody::ReplaceWith {
+                            locations,
+                            new_str: new_str.to_owned(),
+                        };
+                    }
+                    Err(err) => {
+                        self.error(format!("grep_dir: {}", err));
+                        return;
+                    }
+                }
+            }
             Some('p') => {
                 // Filter file paths.
                 if input.len() < 3 {
@@ -599,7 +643,7 @@ impl Editor {
         let resp = self.command_box.last_response().cloned();
         if let Some(Response { body, .. }) = resp {
             match body {
-                ResponseBody::Preview { items } => {
+                ResponseBody::Preview { items, .. } => {
                     self.info(format!("found {} items", items.len()));
                 }
                 ResponseBody::GoTo { file, position } => {

@@ -25,21 +25,38 @@ class Executor
 
   def preview
     items = []
+    selectable = false
+
     case @body["type"]
     when "select_file"
+      selectable = true
       @body["files"].each do |file|
         items << { type: "print", body: file["display_name"] }
       end
     when "select_match"
+      selectable = true
       @body["locations"].each do |loc|
         y = loc["range"]["start"]["y"]
         line = File.read(loc["file"]["path"]).lines[y] || ""
-        body = line
         items << {
           type: "print_with_file",
           file: loc["file"],
           lineno: y + 1,
-          body: body,
+          body: line,
+        }
+      end
+    when "replace_with"
+      @body["locations"].each do |loc|
+        y = loc["range"]["start"]["y"]
+        line = File.read(loc["file"]["path"]).lines[y] || ""
+        x_range = loc["range"]["start"]["x"] .. loc["range"]["end"]["x"]
+        pp x_range
+        line[x_range] = @body["new_str"]
+        items << {
+          type: "print_with_file",
+          file: loc["file"],
+          lineno: y + 1,
+          body: line,
         }
       end
     else
@@ -49,6 +66,7 @@ class Executor
     @response_body = {
       type: "preview",
       items: items,
+      selectable: selectable,
     }
   end
 

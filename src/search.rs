@@ -43,9 +43,11 @@ impl<'a> Sink for GrepSink<'a> {
         let end_x = matched_text
             .rfind('\n')
             .map(|x| matched_text_count - x - 1)
-            .unwrap_or_else(|| matched_text_count);
+            .unwrap_or_else(|| start_x + matched_text_count - 1);
         let end_y = start_y + matched_text.matches('\n').count();
 
+        info!("text_c={}", matched_text_count);
+        info!("{}, {}",start_x, end_x);
         let range = Range::new(start_y, start_x, end_y, end_x);
         self.locations.push(Location { file: self.file.clone(), range });
         Ok(self.locations.len() < NUM_MATCHES_MAX)
