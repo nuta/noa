@@ -14,7 +14,7 @@ use crate::view::View;
 use crate::worker::Worker;
 use crate::fuzzy::FuzzySet;
 use crate::lsp::Lsp;
-use crate::rope::Point;
+use crate::rope::{Point, Range, Cursor};
 use crate::terminal::{
     Terminal, KeyCode, KeyModifiers, KeyEvent, RawMouseEvent, MouseEvent,
 };
@@ -815,6 +815,18 @@ impl Editor {
             MouseEvent::ClickedText { pos, .. } => {
                 view.goto(pos.y, pos.x);
                 self.time_last_clicked = Instant::now();
+            }
+            MouseEvent::Drag { pos: mut drag_pos } => {
+                let mut buffer = view.buffer().borrow_mut();
+                let start_pos = match buffer.cursors()[0] {
+                    Cursor::Selection(Range { start, .. }) => start,
+                    Cursor::Normal { pos } => pos,
+                };
+
+                drag_pos.y = min(drag_pos.y, buffer.num_lines());
+                drag_pos.x = min(drag_pos.x, buffer.line_len(drag_pos.y));
+                let range = Range::from_points(start_pos, drag_pos);
+                buffer.select_by_ranges(&[range]);
             }
             MouseEvent::ScrollUp => view.scroll_up(5),
             MouseEvent::ScrollDown => view.scroll_down(5),

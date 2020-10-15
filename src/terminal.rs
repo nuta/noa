@@ -53,12 +53,16 @@ fn num_of_digits(mut n: usize) -> usize {
 #[derive(Debug)]
 pub enum MouseEvent {
     ClickedText {
-        /// The position in the buffer.
+        /// The position in the buffer. They could be larger than the line lengths.
         pos: Point,
         alt: bool,
     },
     ScrollUp,
     ScrollDown,
+    Drag {
+        /// The position in the buffer. They could be larger than the line lengths.
+        pos: Point,
+    },
 }
 
 pub struct Terminal {
@@ -126,21 +130,40 @@ impl Terminal {
         self.cols = cols;
     }
 
+    fn in_text_area(&self, y: u16, x: u16) -> Option<Point> {
+        let in_text_area = (y as usize) < self.text_height
+            && self.text_start_x <= (x as usize)
+            && (x as usize) <= self.text_end_x;
+
+        if !in_text_area {
+            return None;
+        }
+
+        let pos_y = self.current_top_left.y + y as usize;
+        let pos_x = x as usize - self.text_start_x;
+        Some(Point::new(pos_y, pos_x))
+    }
+
     pub fn convert_raw_mouse_event(&self, ev: RawMouseEvent) -> Option<MouseEvent> {
         const LEFT: MouseButton = MouseButton::Left;
         const ALT: KeyModifiers = KeyModifiers::ALT;
         match ev {
-            RawMouseEvent::Down(LEFT, x, y, modifiers)
-                if (y as usize) < self.text_height
-                    && self.text_start_x <= (x as usize)
-                    && (x as usize) <= self.text_end_x =>
-            {
-                let pos_y = self.current_top_left.y + y as usize;
-                let pos_x = x as usize - self.text_start_x;
-                Some(MouseEvent::ClickedText {
-                    pos: Point::new(pos_y, pos_x),
-                    alt: modifiers == ALT,
-                })
+            RawMouseEvent::Down(LEFT, x, y, modifiers) => {
+                self.in_text_area(y, x)
+                    .map(|pos| {
+                        MouseEvent::ClickedText {
+                            pos,
+                            alt: modifiers == ALT,
+                        }
+                    })
+            }
+            RawMouseEvent::Drag(_, x, y, _) => {
+                self.in_text_area(y, x)
+                    .map(|pos| {
+                        MouseEvent::Drag {
+                            pos,
+                        }
+                    })
             }
             RawMouseEvent::ScrollDown(..) => Some(MouseEvent::ScrollDown),
             RawMouseEvent::ScrollUp(..) => Some(MouseEvent::ScrollUp),
