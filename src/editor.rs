@@ -679,15 +679,12 @@ impl Editor {
                 }
                 ResponseBody::ReplaceWith { changes } => {
                     for change in changes {
-                        trace!("change: {:?}", change.location.file.buffer_id);
                         match change.location.file.buffer_id {
                             Some(buffer_id) => {
                                 for view in &self.views {
                                     let view = view.borrow_mut();
                                     let mut buffer = view.buffer().borrow_mut();
-                                    trace!("Replacing.....");
                                     if buffer.id() == buffer_id {
-                                        trace!("OK!! {}", change.location.range);
                                         buffer.select_by_ranges(&[change.location.range]);
                                         buffer.backspace();
                                         buffer.insert(&change.new_str);
