@@ -494,7 +494,6 @@ impl Editor {
         match chars.next() {
             Some(prefix @ 'G') | Some(prefix @ 'g') => {
                 // Search all files by regex.
-                trace!("pat = '{}'", input);
                 if input.len() < 5 {
                     self.report("too short pattern");
                     return;
@@ -1023,5 +1022,42 @@ impl Editor {
             self.worker.request(Box::new(WordCompJob::new(snapshot)));
             self.lsp.request_completions(&*buffer);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::{tempdir, TempDir};
+
+    fn populate_workspace() -> TempDir {
+        let tmpdir = tempdir().unwrap();
+        std::fs::write(tmpdir.path().join("foo.txt"), "foo\nbar\nbaz").unwrap();
+        std::fs::write(tmpdir.path().join("bar.txt"), "123\nxyz\n!@#").unwrap();
+        tmpdir
+    }
+
+    #[test]
+    fn grep_and_select_file() {
+        let workspace_dir = populate_workspace();
+        let mut editor = Editor::new(workspace_dir.path().to_path_buf());
+        editor.command_box_input.set_text("G/xyz");
+        editor.execute_command(false);
+        assert_eq!(
+            editor.current.borrow().buffer().borrow().path(),
+            Some(workspace_dir.path().join("bar.txt").as_path()),
+        );
+    }
+
+    #[test]
+    fn grep_and_select_file_by_regex() {
+        let workspace_dir = populate_workspace();
+        let mut editor = Editor::new(workspace_dir.path().to_path_buf());
+        editor.command_box_input.set_text("G/b.z");
+        editor.execute_command(false);
+        assert_eq!(
+            editor.current.borrow().buffer().borrow().path(),
+            Some(workspace_dir.path().join("foo.txt").as_path()),
+        );
     }
 }
