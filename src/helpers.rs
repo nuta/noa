@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use std::fs::{create_dir, File, OpenOptions};
+use std::fs::{create_dir_all, File, OpenOptions};
 
 fn resolve_noa_path(filename: &str, sub_dir: Option<&str>) -> PathBuf {
     let mut dir = dirs::home_dir().unwrap().join(".noa");
@@ -7,8 +7,9 @@ fn resolve_noa_path(filename: &str, sub_dir: Option<&str>) -> PathBuf {
         dir = dir.join(sub_dir);
     }
 
+    trace!("dir={}, file={}", dir.display(), dir.join(filename).display());
     if !dir.exists() {
-        create_dir(&dir).ok();
+        create_dir_all(&dir).ok();
     }
 
     dir.join(filename)

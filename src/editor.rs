@@ -722,6 +722,7 @@ impl Editor {
     fn handle_key_event_in_command_box(&mut self, key: KeyEvent) {
         const NONE: KeyModifiers = KeyModifiers::NONE;
         const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        const ALT: KeyModifiers = KeyModifiers::ALT;
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
         let mut modified = false;
@@ -754,6 +755,10 @@ impl Editor {
             }
             (KeyCode::Char('k'), CTRL) => {
                 self.command_box_input.truncate();
+                modified = true;
+            }
+            (KeyCode::Char('k'), ALT) => {
+                self.command_box_input.truncate_reverse();
                 modified = true;
             }
             (KeyCode::Char('r'), CTRL) => {
@@ -911,6 +916,9 @@ impl Editor {
             }
             (KeyCode::Char('k'), CTRL) => {
                 buffer.truncate();
+            }
+            (KeyCode::Char('k'), ALT) => {
+                buffer.truncate_reverse();
             }
             (KeyCode::Char('z'), CTRL) => {
                 buffer.undo();

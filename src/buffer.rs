@@ -420,18 +420,49 @@ impl Buffer {
         self.sort_and_merge_cursors();
     }
 
+    pub fn select_until_beginning_of_line(&mut self) {
+        let mut new_cursors = Vec::new();
+        for cursor in self.cursors.iter().rev() {
+            let (mut start, mut end) = match cursor {
+                Cursor::Normal { pos, .. } => (*pos, *pos),
+                Cursor::Selection(Range { start, end }) => (*start, *end),
+            };
+
+            if end == start && end.x == 0 && start.y > 0 {
+                start.y -= 1;
+                start.x = self.line_len(start.y);
+            } else {
+                end.x = 0;
+            }
+
+            new_cursors.push(
+                Cursor::Selection(Range::from_points(start, end))
+            );
+        }
+
+        self.set_cursors(new_cursors);
+    }
+
     pub fn select_until_end_of_line(&mut self) {
-        for cursor in &mut self.cursors {
+        let mut new_cursors = Vec::new();
+        for cursor in self.cursors.iter().rev() {
             let (start, mut end) = match cursor {
                 Cursor::Normal { pos, .. } => (*pos, *pos),
                 Cursor::Selection(Range { start, end }) => (*start, *end),
             };
 
             end.x = self.buf.line_len(end.y);
-            *cursor = Cursor::Selection(Range::from_points(start, end));
+            if start == end && end.y < self.num_lines() {
+                end.y += 1;
+                end.x = 0;
+            }
+
+            new_cursors.push(
+                Cursor::Selection(Range::from_points(start, end))
+            );
         }
 
-        self.sort_and_merge_cursors();
+        self.set_cursors(new_cursors);
     }
 
     pub fn insert_char(&mut self, ch: char) {
@@ -675,6 +706,13 @@ impl Buffer {
         self.buf.reset_modified_line();
 
         self.select_until_end_of_line();
+        self.delete();
+    }
+
+    pub fn truncate_reverse(&mut self) {
+        self.buf.reset_modified_line();
+
+        self.select_until_beginning_of_line();
         self.delete();
     }
 
@@ -1417,25 +1455,45 @@ mod test {
             Cursor::new(0, 3),
         ]);
 
-        // abc|      abc|
-        // d|XY  =>  d|
-        // |         |
-        // |Z        |
+        // abc|      abc|xyz
+        // xyz  =>
         let mut b = Buffer::new();
-        b.insert("abc\ndXY\n\nZ");
+        b.insert("abc\nxyz");
         b.set_cursors(vec![
             Cursor::new(0, 3),
-            Cursor::new(1, 1),
-            Cursor::new(2, 0),
-            Cursor::new(3, 0),
         ]);
         b.truncate();
-        assert_eq!(b.text(), "abc\nd\n\n");
+        assert_eq!(b.text(), "abcxyz");
         assert_eq!(b.cursors(), &[
             Cursor::new(0, 3),
-            Cursor::new(1, 1),
-            Cursor::new(2, 0),
-            Cursor::new(3, 0),
+        ]);
+    }
+
+    #[test]
+    fn truncate_reverse() {
+        // abc|XYZ  =>  abc|
+        let mut b = Buffer::new();
+        b.insert("abcXYZ");
+        b.set_cursors(vec![
+            Cursor::new(0, 3),
+        ]);
+        b.truncate_reverse();
+        assert_eq!(b.text(), "XYZ");
+        assert_eq!(b.cursors(), &[
+            Cursor::new(0, 0),
+        ]);
+
+        // abc       abc|xyz
+        // |xyz  =>
+        let mut b = Buffer::new();
+        b.insert("abc\nxyz");
+        b.set_cursors(vec![
+            Cursor::new(1, 0),
+        ]);
+        b.truncate_reverse();
+        assert_eq!(b.text(), "abcxyz");
+        assert_eq!(b.cursors(), &[
+            Cursor::new(0, 3),
         ]);
     }
 
