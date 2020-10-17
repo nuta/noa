@@ -77,7 +77,7 @@ lazy_static! {
             ThemeItem::DirtyBufferMark => Style::bg(color!(208)),
             ThemeItem::DiagnosticError => Style::underline(),
             ThemeItem::DiagnosticWarning => Style::underline(),
-            ThemeItem::DiagnosticMessage => Style::new(color!(197), Color::Reset, true, true, false),
+            ThemeItem::DiagnosticMessage => Style::new(color!(208), Color::Reset, true, true, false),
         };
 
         Theme::from_hash_map(items)
