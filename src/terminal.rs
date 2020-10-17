@@ -1,4 +1,4 @@
-use crate::editor::{EventQueue, Event, Notification, Popup};
+use crate::editor::{EventQueue, Event, Notification, Popup, HoverMessage};
 use crate::rope::{Cursor, Point};
 use crate::view::View;
 use crate::theme::{THEME, ThemeItem};
@@ -182,6 +182,7 @@ impl Terminal {
         popup: &Option<Popup>,
         command_box: Option<(&CommandBox, &Buffer)>,
         status_map: &StatusMap,
+        hover_message: &Option<HoverMessage>,
     ) {
         use crossterm::cursor::{self, MoveTo};
         use crossterm::terminal::{Clear, ClearType};
@@ -312,7 +313,7 @@ impl Terminal {
                 }
 
                 if line.len_chars() > top_left.x {
-                    let mut remaining = self.draw_text_line(
+                    let remaining = self.draw_text_line(
                         &mut stdout,
                         &buffer,
                         &line,
@@ -321,21 +322,15 @@ impl Terminal {
                         text_width,
                     );
 
-                    if let Some(LineStatus { message, .. }) = status_map.get(y) {
+                    if let Some(HoverMessage { y: target_y, message }) = hover_message {
+                        if y == *target_y {
+                            self.draw_hover_message(
+                                &mut stdout, i, message, remaining);
+                        }
+                    } else if let Some(LineStatus { message, .. }) = status_map.get(y) {
                         if let Some(message) = message {
-                            remaining = remaining.saturating_sub(5);
-                            if remaining > 0 {
-                                let n = min(remaining, message.len());
-                                THEME.apply(&mut stdout, ThemeItem::DiagnosticMessage).ok();
-                                queue!(
-                                    stdout,
-                                    Clear(ClearType::UntilNewLine),
-                                    MoveTo((self.cols - n - 2) as u16, i as u16),
-                                    Print("<= "),
-                                    Print(&message[0..n]),
-                                    SetAttribute(Attribute::Reset),
-                                ).ok();
-                            }
+                            self.draw_hover_message(
+                                &mut stdout, i, message, remaining);
                         }
                     }
                 }
@@ -485,6 +480,31 @@ impl Terminal {
         }
 
         stdout.flush().ok();
+    }
+
+    fn draw_hover_message(
+        &self,
+        stdout: &mut std::io::Stdout,
+        display_y: usize,
+        message: &str,
+        width: usize,
+    ) {
+        use crossterm::cursor::{MoveTo};
+        use crossterm::terminal::{Clear, ClearType};
+        use crossterm::style::{Print, Attribute, SetAttribute};
+
+        if width > 5 {
+            let n = min(width - 5, message.len());
+            THEME.apply(stdout, ThemeItem::DiagnosticMessage).ok();
+            queue!(
+                stdout,
+                Clear(ClearType::UntilNewLine),
+                MoveTo((self.cols - n - 2) as u16, display_y as u16),
+                Print("<= "),
+                Print(&message[0..n]),
+                SetAttribute(Attribute::Reset),
+            ).ok();
+        }
     }
 
     fn draw_command_box(

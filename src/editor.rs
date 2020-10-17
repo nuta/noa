@@ -78,6 +78,11 @@ impl Popup {
     }
 }
 
+pub struct HoverMessage {
+    pub y: usize,
+    pub message: String,
+}
+
 pub enum DiagnosticSeverity {
     Error,
     Warning,
@@ -156,6 +161,7 @@ pub struct Editor {
     watcher: FileWatcher,
     status_map: StatusMap,
     time_last_clicked: Instant,
+    hover_message: Option<HoverMessage>,
 }
 
 impl Editor {
@@ -194,6 +200,7 @@ impl Editor {
             watcher: FileWatcher::new(tx),
             status_map: StatusMap::new(),
             time_last_clicked: Instant::now(),
+            hover_message: None,
         }
     }
 
@@ -303,6 +310,7 @@ impl Editor {
                 EditorMode::Normal => None,
             },
             &self.status_map,
+            &self.hover_message,
         );
     }
 
@@ -344,7 +352,7 @@ impl Editor {
         });
     }
 
-    fn hover_message<T: Into<String>>(&self, message: T) {
+    fn hover_message<T: Into<String>>(&mut self, message: T) {
         let message = message.into();
         let duplicated = match self.notifications.borrow_mut().last() {
             Some(last) => last.message == message,
@@ -352,6 +360,10 @@ impl Editor {
         };
 
         if !duplicated {
+            self.hover_message = Some(HoverMessage {
+                y: self.current.borrow().buffer().borrow().main_cursor_pos().y,
+                message: message.clone(),
+            });
             self.notifications.borrow_mut().push(Notification {
                 level: NotificationLevel::Report,
                 created_at: Instant::now(),
@@ -892,6 +904,7 @@ impl Editor {
         let mut view = self.current.borrow_mut();
         let mut buffer = view.buffer().borrow_mut();
         let mut clear_popup = true;
+        let mut clear_hover = true;
         let mut update_completion = false;
         match (key.code, key.modifiers) {
             (KeyCode::Up, NONE) if self.is_popup_active() => {
@@ -1000,6 +1013,7 @@ impl Editor {
             (KeyCode::Char(ch), NONE) | (KeyCode::Char(ch), SHIFT) => {
                 buffer.insert_char(ch);
                 update_completion = true;
+                clear_hover = false;
                 clear_popup = false;
             }
             (KeyCode::Tab, NONE) => {
@@ -1074,6 +1088,10 @@ impl Editor {
 
         drop(buffer);
         drop(view);
+
+        if clear_hover {
+            self.hover_message = None;
+        }
 
         if clear_popup {
             self.clear_popup();
