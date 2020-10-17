@@ -88,6 +88,7 @@ pub enum DiagnosticSeverity {
 pub struct Diagnostic {
     pub severity: DiagnosticSeverity,
     pub range: Range,
+    pub message: String,
 }
 
 pub enum Event {
@@ -412,13 +413,15 @@ impl Editor {
                     }
                 });
 
-                for Diagnostic { range, severity } in diags {
+                for Diagnostic { range, severity, message } in diags {
                     let line_status_type = match severity {
                         DiagnosticSeverity::Error => LineStatusType::Error,
                         DiagnosticSeverity::Warning => LineStatusType::Warning,
                         _ => continue,
                     };
-                    self.status_map.add(line_status_type, range.front().y..=range.back().y);
+                    self.status_map.add(
+                        line_status_type, range.front().y..=range.back().y,
+                        Some(message));
                     buffer.add_diagnostic(range, severity);
                 }
             }

@@ -471,7 +471,7 @@ fn handle_diagnotics(event_queue: &EventQueue, noti: jsonrpc_core::Notification)
                                     _ => continue,
                                 };
 
-                                let severity = match  diag.get("severity") {
+                                let severity = match diag.get("severity") {
                                     Some(Value::Number(severity)) => {
                                         match severity.as_u64() {
                                             Some(1) => DiagnosticSeverity::Error,
@@ -484,9 +484,15 @@ fn handle_diagnotics(event_queue: &EventQueue, noti: jsonrpc_core::Notification)
                                     _ => continue,
                                 };
 
+                                let message = match diag.get("message") {
+                                    Some(Value::String(message)) => message.to_owned(),
+                                    _ => continue,
+                                };
+
                                 diags.push(Diagnostic {
                                     severity,
                                     range: Range::from_points(start_pos, end_pos),
+                                    message,
                                 });
                             }
                         }

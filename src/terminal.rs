@@ -3,6 +3,10 @@ use crate::rope::{Cursor, Point};
 use crate::view::View;
 use crate::theme::{THEME, ThemeItem};
 use crate::command_box::{CommandBox, ResponseBody, PreviewItem};
+use crate::buffer::Buffer;
+use crate::rope::Range;
+use crate::view::TopLeft;
+use crate::status_map::{StatusMap, LineStatus};
 use std::cmp::{min, max};
 use std::io::{stdout, Write};
 use std::time::Duration;
@@ -16,10 +20,7 @@ use crossterm::terminal::{
     size, enable_raw_mode, disable_raw_mode,
     EnterAlternateScreen, LeaveAlternateScreen,
 };
-use crate::buffer::Buffer;
-use crate::rope::Range;
-use crate::view::TopLeft;
-use crate::status_map::{StatusMap, LineStatus};
+use unicode_width::{UnicodeWidthChar};
 
 pub fn truncate(s: &str, width: usize) -> &str {
     &s[..min(s.len(), width)]
@@ -232,7 +233,7 @@ impl Terminal {
         // Hide the cursor to prevent flickering.
         queue!(stdout,
             cursor::Hide,
-        ).unwrap();
+        ).ok();
 
         // Draw buffer contents.
         let mut scroll_bar_y = 0;
@@ -244,7 +245,7 @@ impl Terminal {
             queue!(stdout,
                 MoveTo(0, i as u16),
                 SetAttribute(Attribute::Reset),
-            ).unwrap();
+            ).ok();
 
             // Line number.
             let y = top_left.y + i;
@@ -255,7 +256,7 @@ impl Terminal {
                 queue!(stdout,
                     Print(whitespaces(lineno_width)),
                     SetAttribute(Attribute::Reset),
-                ).unwrap();
+                ).ok();
             } else {
                 THEME.apply(&mut stdout, ThemeItem::LineNo).ok();
                 if y == main_cursor_y {
@@ -277,22 +278,23 @@ impl Terminal {
                 queue!(stdout,
                     Print(' '),
                     SetAttribute(Attribute::Reset),
-                ).unwrap();
+                ).ok();
             } else {
                 THEME.apply(&mut stdout, ThemeItem::LineStatusPadding).ok();
                 queue!(stdout,
                     Print(' '),
                     SetAttribute(Attribute::Reset),
-                ).unwrap();
+                ).ok();
             }
 
             // Margin.
-            queue!(stdout, Print(' ')).unwrap();
+            queue!(stdout, Print(' ')).ok();
 
             // Text.
             if !out_of_bounds {
                 let line = buffer.line(y);
-
+                // Add a reverted whitespace if this line is selected and is
+                // empty.
                 if line.len_bytes() == 0 {
                     if buffer.cursors().iter().any(|c| {
                         match c {
@@ -300,7 +302,6 @@ impl Terminal {
                             _ => false,
                         }
                     }) {
-                        // A selection covers this empty line.
                         queue!(
                             stdout,
                             SetAttribute(Attribute::Reverse),
@@ -311,7 +312,7 @@ impl Terminal {
                 }
 
                 if line.len_chars() > top_left.x {
-                    self.draw_text_line(
+                    let mut remaining = self.draw_text_line(
                         &mut stdout,
                         &buffer,
                         &line,
@@ -319,30 +320,47 @@ impl Terminal {
                         y,
                         text_width,
                     );
+
+                    if let Some(LineStatus { message, .. }) = status_map.get(y) {
+                        if let Some(message) = message {
+                            remaining = remaining.saturating_sub(5);
+                            if remaining > 0 {
+                                let n = min(remaining, message.len());
+                                THEME.apply(&mut stdout, ThemeItem::DiagnosticMessage).ok();
+                                queue!(
+                                    stdout,
+                                    Clear(ClearType::UntilNewLine),
+                                    MoveTo((self.cols - n - 2) as u16, i as u16),
+                                    Print("<= "),
+                                    Print(&message[0..n]),
+                                    SetAttribute(Attribute::Reset),
+                                ).ok();
+                            }
+                        }
+                    }
                 }
             }
 
+            // Scroll bar.
             queue!(
                 stdout,
                 Clear(ClearType::UntilNewLine),
                 MoveTo(self.cols as u16 - 1, i as u16),
-            ).unwrap();
-
-            // Scroll bar.
+            ).ok();
             if let Some(LineStatus { status, .. })
                 = status_map.get_by_range(scroll_bar_y, scroll_bar_diff) {
                 THEME.apply(&mut stdout, ThemeItem::LineStatus(*status)).ok();
                 queue!(stdout,
                     Print(' '),
                     SetAttribute(Attribute::Reset),
-                ).unwrap();
+                ).ok();
             } else if top_left.y <= scroll_bar_y + scroll_bar_diff
                 && scroll_bar_y <= top_left.y + text_height {
                 THEME.apply(&mut stdout, ThemeItem::ScrollBarVisible).ok();
                 queue!(stdout,
                     Print(' '),
                     SetAttribute(Attribute::Reset),
-                ).unwrap();
+                ).ok();
             }
 
             scroll_bar_y += scroll_bar_diff;
@@ -363,20 +381,20 @@ impl Terminal {
             SetAttribute(Attribute::NoUnderline),
             Print(" "),
             SetAttribute(Attribute::Reset),
-        ).unwrap();
+        ).ok();
 
         if buffer.is_dirty() {
             THEME.apply(&mut stdout, ThemeItem::DirtyBufferMark).ok();
             queue!(stdout,
                 Print("[+]"),
                 SetAttribute(Attribute::Reset),
-            ).unwrap();
+            ).ok();
         }
 
         // Draw the notification.
         let mut iter = notifications.iter().rev();
         if let Some(noti) = iter.next() {
-            queue!(stdout, MoveTo(0, status_bar_y as u16 + 1)).unwrap();
+            queue!(stdout, MoveTo(0, status_bar_y as u16 + 1)).ok();
             if noti.persist || noti.created_at.elapsed() < Duration::from_secs(3) {
                 let num_duplicated = iter.take_while(|x| *x == noti).count() + 1;
                 if num_duplicated > 1 {
@@ -387,13 +405,13 @@ impl Terminal {
                             truncate(&noti.message,
                                 self.cols - 3 - num_of_digits(num_duplicated))
                             )
-                    )).unwrap();
+                    )).ok();
                 } else {
-                    queue!(stdout, Print(truncate(&noti.message, self.cols))).unwrap();
+                    queue!(stdout, Print(truncate(&noti.message, self.cols))).ok();
                 }
             }
 
-            queue!(stdout, Clear(ClearType::UntilNewLine)).unwrap();
+            queue!(stdout, Clear(ClearType::UntilNewLine)).ok();
         }
 
         // Draw popup.
@@ -431,7 +449,7 @@ impl Terminal {
                         Print(truncate(&item, popup_width - 1)),
                         Print(whitespaces(popup_width.saturating_sub(item.len()))),
                         SetAttribute(Attribute::Reset),
-                    ).unwrap();
+                    ).ok();
                 }
             }
         }
@@ -445,10 +463,10 @@ impl Terminal {
                         (pos.y - top_left.y) as u16
                     ),
                     cursor::Show,
-                ).unwrap();
+                ).ok();
             }
             _ => {
-                queue!(stdout, cursor::Hide).unwrap();
+                queue!(stdout, cursor::Hide).ok();
             }
         }
 
@@ -466,7 +484,7 @@ impl Terminal {
             );
         }
 
-        stdout.flush().unwrap();
+        stdout.flush().ok();
     }
 
     fn draw_command_box(
@@ -585,8 +603,7 @@ impl Terminal {
         top_left: &TopLeft,
         y: usize,
         text_width: usize,
-    ) {
-        use unicode_width::UnicodeWidthChar;
+    ) -> usize {
         use crossterm::style::{Print, Attribute, SetAttribute};
 
         let mut remaining = text_width;
@@ -612,16 +629,16 @@ impl Terminal {
                     }
                     (Some(span), _) if x < *span.range.start() => {
                         num_chars = span.range.start() - x;
-                        queue!(stdout, SetAttribute(Attribute::Reset)).unwrap();
+                        queue!(stdout, SetAttribute(Attribute::Reset)).ok();
                     }
                     (_, Some(span)) if x < *span.range.start() => {
                         num_chars = span.range.start() - x;
-                        queue!(stdout, SetAttribute(Attribute::Reset)).unwrap();
+                        queue!(stdout, SetAttribute(Attribute::Reset)).ok();
                     }
                     (Some(_), _) => {
                         current_span = spans.next();
                         next_span = spans.peek();
-                        queue!(stdout, SetAttribute(Attribute::Reset)).unwrap();
+                        queue!(stdout, SetAttribute(Attribute::Reset)).ok();
                     }
                     (None, _) => {}
                 }
@@ -665,9 +682,9 @@ impl Terminal {
                 for(i, ch) in (&chunk[..index]).chars().enumerate() {
                     if ch == '\t' {
                         let n = tab_width - ((x + i) % tab_width);
-                        queue!(stdout, Print(whitespaces(n))).unwrap();
+                        queue!(stdout, Print(whitespaces(n))).ok();
                     } else {
-                        queue!(stdout, Print(ch)).unwrap();
+                        queue!(stdout, Print(ch)).ok();
                     }
                 }
 
@@ -676,13 +693,15 @@ impl Terminal {
                 x += num_chars;
             }
         }
+
+        remaining
     }
 }
 
 impl Drop for Terminal {
     fn drop(&mut self) {
-        execute!(stdout(), LeaveAlternateScreen).unwrap();
-        execute!(stdout(), DisableMouseCapture).unwrap();
-        disable_raw_mode().unwrap();
+        execute!(stdout(), LeaveAlternateScreen).ok();
+        execute!(stdout(), DisableMouseCapture).ok();
+        disable_raw_mode().ok();
     }
 }

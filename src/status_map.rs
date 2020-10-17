@@ -16,16 +16,19 @@ pub enum LineStatusType {
 pub struct LineStatus {
     pub lines: RangeInclusive<usize>,
     pub status: LineStatusType,
+    pub message: Option<String>,
 }
 
 impl LineStatus {
     pub fn new(
         status: LineStatusType,
         lines: RangeInclusive<usize>,
+        message: Option<String>,
     ) -> LineStatus {
         LineStatus {
             status,
             lines,
+            message,
         }
     }
 }
@@ -45,8 +48,12 @@ impl StatusMap {
         self.statuses.retain(f);
     }
 
-    pub fn add(&mut self, status: LineStatusType, lines: RangeInclusive<usize>) {
-        self.statuses.push(LineStatus::new(status, lines));
+    pub fn add(&mut self,
+        status: LineStatusType,
+        lines: RangeInclusive<usize>,
+        message: Option<String>
+    ) {
+        self.statuses.push(LineStatus::new(status, lines, message));
     }
 
     pub fn get(&self, y: usize) -> Option<&LineStatus> {
@@ -130,17 +137,17 @@ pub fn compute_git_diff(
                     // Added.
                     (Some(start), true, false) => {
                         let lines = start..=(start + num_added - 1);
-                        statuses.add(LineStatusType::Added, lines);
+                        statuses.add(LineStatusType::Added, lines, None);
                     }
                     // Deleted.
                     (Some(start), false, true) => {
                         let lines = start..=start;
-                        statuses.add(LineStatusType::Deleted, lines);
+                        statuses.add(LineStatusType::Deleted, lines, None);
                     }
                     // Modified.
                     (Some(start), true, true) => {
                         let lines = start..=(start + num_added - 1);
-                        statuses.add(LineStatusType::Modified, lines);
+                        statuses.add(LineStatusType::Modified, lines, None);
                     }
                     _ => {}
                 }
@@ -154,17 +161,17 @@ pub fn compute_git_diff(
             // Added.
             (Some(start), true, false) => {
                 let lines = start..=(start + num_added - 1);
-                statuses.add(LineStatusType::Added, lines);
+                statuses.add(LineStatusType::Added, lines, None);
             }
             // Deleted.
             (Some(start), false, true) => {
                 let lines = start..=start;
-                statuses.add(LineStatusType::Deleted, lines);
+                statuses.add(LineStatusType::Deleted, lines, None);
             }
             // Modified.
             (Some(start), true, true) => {
                 let lines = start..=(start + num_added - 1);
-                statuses.add(LineStatusType::Modified, lines);
+                statuses.add(LineStatusType::Modified, lines, None);
             }
             _ => {}
         }
