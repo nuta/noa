@@ -8,6 +8,8 @@ pub enum LineStatusType {
     Added,
     Modified,
     Deleted,
+    Error,
+    Warning,
 }
 
 #[derive(Clone, Debug)]
@@ -39,8 +41,8 @@ impl StatusMap {
         }
     }
 
-    pub fn clear(&mut self) {
-        self.statuses.clear();
+    pub fn retain<F>(&mut self, f: F) where F: FnMut(&LineStatus) -> bool {
+        self.statuses.retain(f);
     }
 
     pub fn add(&mut self, status: LineStatusType, lines: RangeInclusive<usize>) {

@@ -3,8 +3,9 @@ use std::ops::RangeInclusive;
 use crossterm::style::{Color};
 use regex::Regex;
 use crate::buffer::Snapshot;
-use crate::rope::Cursor;
+use crate::rope::{Cursor, Range};
 use crate::language::{SpanType, Pattern, Language};
+use crate::theme::ThemeItem;
 
 #[derive(Clone, Debug)]
 pub struct Span {
@@ -92,6 +93,10 @@ impl Style {
         Style::new(Color::Reset, Color::Reset, true, false, true)
     }
 
+    pub fn underline() -> Style {
+        Style::new(Color::Reset, Color::Reset, false, true, false)
+    }
+
     pub fn apply(&self, stdout: &mut std::io::Stdout) -> crossterm::Result<()> {
         use crossterm::{queue, style::*};
         use std::io::Write;
@@ -174,6 +179,10 @@ impl Highlighter {
             merge_spans(&mut spans, highlight_cursors(cursors, i, &line));
             self.lines.push(spans);
         }
+    }
+
+    pub fn add_highlight(&mut self, range: Range, theme_item: ThemeItem) {
+        // TODO:
     }
 
     fn highlight_pattern(&mut self, line: &str) -> Vec<Span> {

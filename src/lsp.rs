@@ -1,8 +1,8 @@
-use crate::editor::{Event, EventQueue};
+use crate::editor::{Event, EventQueue, Diagnostic, DiagnosticSeverity};
 use crate::language::{Language, LspSettings};
 use crate::helpers::open_log_file;
 use crate::buffer::{Buffer, BufferId};
-use crate::rope::Point;
+use crate::rope::{Point, Range};
 use crate::fuzzy::FuzzySet;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -12,6 +12,7 @@ use std::process::{Command, Child, Stdio, ChildStdin, ChildStdout};
 use std::path::{Path, PathBuf};
 use jsonrpc_core::{
     Id,
+    Call,
     types::{Value},
 };
 use lsp_types::{
@@ -348,6 +349,7 @@ fn receive_requests(
                 match serde_json::from_str::<jsonrpc_core::Request>(&body) {
                     Ok(jsonrpc_core::Request::Single(req)) => {
                         trace!("request from server = {:?}", req);
+                        handle_push_from_server(&event_queue, req);
                         continue 'mainloop;
                     }
                     Ok(jsonrpc_core::Request::Batch(reqs)) => {
@@ -406,7 +408,6 @@ fn receive_requests(
                     }
                 }
                 SentRequest::SignatureHelp => {
-                    trace!("hover");
                     if let Value::Object(fields) = resp.result {
                         if let Some(Value::Array(sigs)) = fields.get("signatures") {
                             if let Some(Value::Object(sig)) = sigs.get(0) {
@@ -420,6 +421,80 @@ fn receive_requests(
                     }
                 }
             }
+        }
+    }
+}
+
+fn handle_push_from_server(event_queue: &EventQueue, req: Call) {
+    match req {
+        Call::Notification(noti) => {
+            match noti.method.as_str() {
+                "textDocument/publishDiagnostics" => {
+                    handle_diagnotics(event_queue, noti);
+                }
+                _ => {},
+            }
+        }
+        _ => {},
+    }
+}
+
+fn handle_diagnotics(event_queue: &EventQueue, noti: jsonrpc_core::Notification) {
+    if let jsonrpc_core::Params::Map(map) = noti.params {
+        if let Some(Value::Array(diagnostics)) = map.get("diagnostics") {
+            let mut diags = Vec::with_capacity(diagnostics.len());
+            for diag in diagnostics {
+                if let Value::Object(diag) = diag {
+                    if let Some(Value::Object(range)) = diag.get("range") {
+                        if let Some(Value::Object(start)) = range.get("start") {
+                            if let Some(Value::Object(end)) = range.get("end") {
+                                let start_pos = match (start.get("line"), start.get("character")) {
+                                    (Some(Value::Number(line)), Some(Value::Number(column))) => {
+                                        match (line.as_u64(), column.as_u64()) {
+                                            (Some(line), Some(column)) => {
+                                                Point::new(line as usize, column as usize)
+                                            }
+                                            _ => continue,
+                                        }
+                                    }
+                                    _ => continue,
+                                };
+                                let end_pos = match (end.get("line"), end.get("character")) {
+                                    (Some(Value::Number(line)), Some(Value::Number(column))) => {
+                                        match (line.as_u64(), column.as_u64()) {
+                                            (Some(line), Some(column)) => {
+                                                Point::new(line as usize, column as usize)
+                                            }
+                                            _ => continue,
+                                        }
+                                    }
+                                    _ => continue,
+                                };
+
+                                let severity = match  diag.get("severity") {
+                                    Some(Value::Number(severity)) => {
+                                        match severity.as_u64() {
+                                            Some(1) => DiagnosticSeverity::Error,
+                                            Some(2) => DiagnosticSeverity::Warning,
+                                            Some(3) => DiagnosticSeverity::Info,
+                                            Some(4) => DiagnosticSeverity::Hint,
+                                            _ => continue,
+                                        }
+                                    }
+                                    _ => continue,
+                                };
+
+                                diags.push(Diagnostic {
+                                    severity,
+                                    range: Range::from_points(start_pos, end_pos),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            event_queue.enqueue(Event::Diagnostics(diags));
         }
     }
 }

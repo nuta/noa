@@ -7,6 +7,7 @@ use std::sync::mpsc::{channel, Sender, Receiver};
 use std::time::{Instant, Duration};
 use git2::Repository;
 use crate::watcher::FileWatcher;
+use crate::status_map::LineStatusType;
 use crate::buffer::{Buffer, BufferId, compute_str_checksum};
 use crate::command_box::{CommandBox, RequestBody, Location, File};
 use crate::completion::WordCompJob;
@@ -77,6 +78,18 @@ impl Popup {
     }
 }
 
+pub enum DiagnosticSeverity {
+    Error,
+    Warning,
+    Info,
+    Hint,
+}
+
+pub struct Diagnostic {
+    pub severity: DiagnosticSeverity,
+    pub range: Range,
+}
+
 pub enum Event {
     Key(KeyEvent),
     Mouse(RawMouseEvent),
@@ -86,6 +99,7 @@ pub enum Event {
         buffer_id: BufferId,
         items: FuzzySet,
     },
+    Diagnostics(Vec<Diagnostic>),
     GoTo {
         path: PathBuf,
         pos: Point,
@@ -302,7 +316,14 @@ impl Editor {
         let view = self.current.borrow();
         let buffer = view.buffer().borrow();
 
-        self.status_map.clear();
+        // Remove git diff statuses.
+        self.status_map.retain(|line_status| {
+            match line_status.status {
+                LineStatusType::Added | LineStatusType::Deleted
+                | LineStatusType::Modified => false,
+                _ => true,
+            }
+        });
         if let Some(git) = self.git.as_ref() {
             match compute_git_diff(&mut self.status_map, git, &*buffer) {
                 Ok(_) => {}
@@ -379,6 +400,27 @@ impl Editor {
             }
             Event::HoverMessage { message } => {
                 self.hover_message(message);
+            }
+            Event::Diagnostics(diags) => {
+                let view = self.current.borrow_mut();
+                let mut buffer = view.buffer().borrow_mut();
+                self.status_map.retain(|line_status| {
+                    match line_status.status {
+                        LineStatusType::Error
+                        | LineStatusType::Warning => false,
+                        _ => true,
+                    }
+                });
+
+                for Diagnostic { range, severity } in diags {
+                    let line_status_type = match severity {
+                        DiagnosticSeverity::Error => LineStatusType::Error,
+                        DiagnosticSeverity::Warning => LineStatusType::Warning,
+                        _ => continue,
+                    };
+                    self.status_map.add(line_status_type, range.front().y..=range.back().y);
+                    buffer.add_diagnostic(range, severity);
+                }
             }
             Event::GoTo { path, pos } => {
                 self.open_file(&path);

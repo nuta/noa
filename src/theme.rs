@@ -19,6 +19,8 @@ pub enum ThemeItem {
     PopupItem,
     InfoBarColor,
     DirtyBufferMark,
+    DiagnosticError,
+    DiagnosticWarning,
 }
 
 pub struct Theme {
@@ -61,8 +63,10 @@ lazy_static! {
             ThemeItem::CurrentLineNo => Style::bg(color!(89)),
             ThemeItem::LineNoPadding => Style::bg(color!(235)),
             ThemeItem::LineStatus(LineStatusType::Added) => Style::bg(color!(34)),
-            ThemeItem::LineStatus(LineStatusType::Deleted) => Style::bg(color!(196)),
+            ThemeItem::LineStatus(LineStatusType::Deleted) => Style::bg(color!(198)),
             ThemeItem::LineStatus(LineStatusType::Modified) => Style::bg(color!(33)),
+            ThemeItem::LineStatus(LineStatusType::Error) => Style::bg(color!(196)),
+            ThemeItem::LineStatus(LineStatusType::Warning) => Style::bg(color!(220)),
             ThemeItem::LineStatusPadding => Style::bg(color!(237)),
             ThemeItem::CommandBoxPrompt => Style::bg(color!(27)),
             ThemeItem::ScrollBarVisible => Style::bg(color!(239)),
@@ -70,6 +74,8 @@ lazy_static! {
             ThemeItem::PopupItem => Style::bg(color!(238)),
             ThemeItem::InfoBarColor => Style::bg(color!(238)),
             ThemeItem::DirtyBufferMark => Style::bg(color!(208)),
+            ThemeItem::DiagnosticError => Style::underline(),
+            ThemeItem::DiagnosticWarning => Style::underline(),
         };
 
         Theme::from_hash_map(items)
