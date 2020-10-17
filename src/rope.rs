@@ -134,6 +134,10 @@ impl Range {
             || (self.end.y == other.start.y && self.end.x < other.start.x)
             || (self.start.y == other.end.y && self.start.x > other.end.x))
     }
+
+    pub fn contains(&self, pos: Point) -> bool {
+        self.start <= pos && pos <= self.end
+    }
 }
 
 impl fmt::Display for Range {

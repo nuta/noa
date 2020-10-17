@@ -290,6 +290,25 @@ impl Terminal {
             // Text.
             if !out_of_bounds {
                 let line = buffer.line(y);
+
+                if line.len_bytes() == 0 {
+                    if buffer.cursors().iter().any(|c| {
+                        match c {
+                            Cursor::Selection(range) if range.contains(Point::new(y, 0)) => true,
+                            _ => false,
+                        }
+                    }) {
+                        // A selection covers this empty line.
+                        info!("cover this empty!");
+                        queue!(
+                            stdout,
+                            SetAttribute(Attribute::Reverse),
+                            Print(' '),
+                            SetAttribute(Attribute::NoReverse),
+                        ).ok();
+                    }
+                }
+
                 if line.len_chars() > top_left.x {
                     self.draw_text_line(
                         &mut stdout,
@@ -565,11 +584,10 @@ impl Terminal {
         top_left: &TopLeft,
         y: usize,
         text_width: usize,
-    ) -> usize {
+    ) {
         use unicode_width::UnicodeWidthChar;
         use crossterm::style::{Print, Attribute, SetAttribute};
 
-        let mut n = 0;
         let mut remaining = text_width;
         let mut spans = buffer.highlighted_line(y).iter().peekable();
         let mut current_span = spans.next();
@@ -655,11 +673,8 @@ impl Terminal {
                 chunk = &chunk[min(index, chunk.len())..];
                 remaining -= width;
                 x += num_chars;
-                n += num_chars;
             }
         }
-
-        n
     }
 }
 
