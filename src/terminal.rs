@@ -217,7 +217,9 @@ impl Terminal {
         // let modified_line = buffer.modified_line().unwrap_or(0);
         // if top_left.y <= modified_line && modified_line <= top_left.y + text_height {
             let modified_line = 0;
-            let range = modified_line..=modified_line + text_height;
+            let highlight_y_start = max(modified_line, top_left.y);
+            let range =
+                highlight_y_start..=(highlight_y_start + text_height);
             buffer.highlight(range);
         // }
 
@@ -299,7 +301,6 @@ impl Terminal {
                         }
                     }) {
                         // A selection covers this empty line.
-                        info!("cover this empty!");
                         queue!(
                             stdout,
                             SetAttribute(Attribute::Reverse),
