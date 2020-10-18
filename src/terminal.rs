@@ -296,20 +296,15 @@ impl Terminal {
                 let line = buffer.line(y);
                 // Add a reverted whitespace if this line is selected and is
                 // empty.
-                if line.len_bytes() == 0 {
-                    if buffer.cursors().iter().any(|c| {
-                        match c {
-                            Cursor::Selection(range) if range.contains(Point::new(y, 0)) => true,
-                            _ => false,
-                        }
+                if line.len_bytes() == 0 && buffer.cursors().iter().any(|c| {
+                        matches!(c, Cursor::Selection(range) if range.contains(Point::new(y, 0)))
                     }) {
-                        queue!(
-                            stdout,
-                            SetAttribute(Attribute::Reverse),
-                            Print(' '),
-                            SetAttribute(Attribute::NoReverse),
-                        ).ok();
-                    }
+                    queue!(
+                        stdout,
+                        SetAttribute(Attribute::Reverse),
+                        Print(' '),
+                        SetAttribute(Attribute::NoReverse),
+                    ).ok();
                 }
 
                 if line.len_chars() > top_left.x {

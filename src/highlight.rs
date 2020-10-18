@@ -181,7 +181,7 @@ impl Highlighter {
         }
     }
 
-    pub fn add_highlight(&mut self, range: Range, theme_item: ThemeItem) {
+    pub fn add_highlight(&mut self, _range: Range, _theme_item: ThemeItem) {
         // TODO:
     }
 

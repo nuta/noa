@@ -327,11 +327,8 @@ impl Editor {
 
         // Remove git diff statuses.
         self.status_map.retain(|line_status| {
-            match line_status.status {
-                LineStatusType::Added | LineStatusType::Deleted
-                | LineStatusType::Modified => false,
-                _ => true,
-            }
+            !matches!(line_status.status, LineStatusType::Added | LineStatusType::Deleted
+                | LineStatusType::Modified)
         });
         if let Some(git) = self.git.as_ref() {
             match compute_git_diff(&mut self.status_map, git, &*buffer) {
@@ -404,11 +401,8 @@ impl Editor {
                 let view = self.current.borrow_mut();
                 let mut buffer = view.buffer().borrow_mut();
                 self.status_map.retain(|line_status| {
-                    match line_status.status {
-                        LineStatusType::Error
-                        | LineStatusType::Warning => false,
-                        _ => true,
-                    }
+                    !matches!(line_status.status, LineStatusType::Error
+                        | LineStatusType::Warning)
                 });
 
                 for Diagnostic { range, severity, message } in diags {
