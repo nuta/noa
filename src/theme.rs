@@ -22,6 +22,7 @@ pub enum ThemeItem {
     DiagnosticError,
     DiagnosticWarning,
     DiagnosticMessage,
+    HoverMessage,
 }
 
 pub struct Theme {
@@ -78,6 +79,7 @@ lazy_static! {
             ThemeItem::DiagnosticError => Style::underline(),
             ThemeItem::DiagnosticWarning => Style::underline(),
             ThemeItem::DiagnosticMessage => Style::new(color!(208), Color::Reset, true, true, false),
+            ThemeItem::HoverMessage => Style::new(color!(77), Color::Reset, true, true, false),
         };
 
         Theme::from_hash_map(items)
