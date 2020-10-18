@@ -333,6 +333,35 @@ impl Rope {
         }
     }
 
+    pub fn prev_word_at(&self, pos: &Point) -> Option<Range> {
+        if pos.x == 0 {
+            if pos.y > 0 {
+                return Some(
+                    Range::new(pos.y - 1, self.line_len(pos.y - 1), pos.y, 0)
+                );
+            } else {
+                return None;
+            }
+        }
+
+        let mut state = None;
+        let mut start = 0;
+        for (i, ch) in self.line(pos.y).chars().take(pos.x).enumerate() {
+            let current_state = is_word_char(ch);
+            match state {
+                Some(prev_state) if prev_state == current_state => {
+                }
+                _ => {
+                    start = i;
+                }
+            }
+
+            state = Some(current_state);
+        }
+
+        Some(Range::new(pos.y, start, pos.y, pos.x))
+    }
+
     pub fn prev_word_end(&self, pos: &Point) -> Point {
         assert!(pos.y < self.num_lines());
 

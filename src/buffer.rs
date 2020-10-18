@@ -814,6 +814,15 @@ impl Buffer {
         self.buf.word_at(pos).map(|(range, _)| range)
     }
 
+    pub fn prev_word_range(&self) -> Option<Range> {
+        let pos = match &self.cursors[0] {
+            Cursor::Normal { pos, .. } => pos,
+            Cursor::Selection(Range { start, .. }) => start,
+        };
+
+        self.buf.prev_word_at(pos)
+    }
+
     pub fn find(&mut self, needle: &str) -> Vec<Range> {
         if needle.is_empty() {
             return Vec::new();
@@ -1685,6 +1694,50 @@ mod test {
         assert_eq!(b.cursors(), &[Cursor::new(0, 1)]);
         b.move_to_next_word();
         assert_eq!(b.cursors(), &[Cursor::new(0, 1)]);
+    }
+
+    #[test]
+    fn prev_word_range() {
+        // abc|
+        let mut b = Buffer::from_str("abc");
+        b.set_cursors(vec![Cursor::new(0, 3)]);
+        assert_eq!(b.prev_word_range(), Some(Range::new(0, 0, 0, 3)));
+
+        // abc xyz|
+        let mut b = Buffer::from_str("abc xyz");
+        b.set_cursors(vec![Cursor::new(0, 7)]);
+        assert_eq!(b.prev_word_range(), Some(Range::new(0, 4, 0, 7)));
+
+        // abc|xyz
+        let mut b = Buffer::from_str("abcxyz");
+        b.set_cursors(vec![Cursor::new(0, 3)]);
+        assert_eq!(b.prev_word_range(), Some(Range::new(0, 0, 0, 3)));
+
+        // abc xyz;|
+        let mut b = Buffer::from_str("abc xyz;");
+        b.set_cursors(vec![Cursor::new(0, 8)]);
+        assert_eq!(b.prev_word_range(), Some(Range::new(0, 7, 0, 8)));
+
+        // abc !@#|
+        let mut b = Buffer::from_str("abc !@#");
+        b.set_cursors(vec![Cursor::new(0, 7)]);
+        assert_eq!(b.prev_word_range(), Some(Range::new(0, 3, 0, 7)));
+
+        // ____abc
+        let mut b = Buffer::from_str("    abc");
+        b.set_cursors(vec![Cursor::new(0, 4)]);
+        assert_eq!(b.prev_word_range(), Some(Range::new(0, 0, 0, 4)));
+
+        // (empty)
+        let mut b = Buffer::from_str("");
+        b.set_cursors(vec![Cursor::new(0, 0)]);
+        assert_eq!(b.prev_word_range(), None);
+
+        // abc
+        // |
+        let mut b = Buffer::from_str("abc\n");
+        b.set_cursors(vec![Cursor::new(1, 0)]);
+        assert_eq!(b.prev_word_range(), Some(Range::new(0, 3, 1, 0)));
     }
 
     #[test]

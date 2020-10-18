@@ -886,6 +886,7 @@ impl Editor {
         let mut clear_popup = true;
         let mut clear_hover = true;
         let mut update_completion = false;
+        trace!("key = {:?}", key);
         match (key.code, key.modifiers) {
             (KeyCode::Up, NONE) if self.is_popup_active() => {
                 self.popup.as_mut().unwrap().select_prev();
@@ -978,13 +979,19 @@ impl Editor {
             (KeyCode::Char('f'), ALT) => {
                 buffer.move_to_next_word();
             }
-            (KeyCode::Char('w'), ALT) => {
+            (KeyCode::Char('m'), CTRL) => {
                 if let Some(current_word) = buffer.current_word() {
                     let matches = &buffer.find(&current_word);
                     buffer.select_by_ranges(matches);
                 }
             }
             (KeyCode::Char('w'), CTRL) => {
+                if let Some(current_word_range) = buffer.prev_word_range() {
+                    buffer.select_by_ranges(&[current_word_range]);
+                    buffer.backspace();
+                }
+            }
+            (KeyCode::Char('w'), ALT) => {
                 if let Some(current_word_range) = buffer.current_word_range() {
                     buffer.select_by_ranges(&[current_word_range]);
                     buffer.backspace();

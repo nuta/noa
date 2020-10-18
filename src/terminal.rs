@@ -320,13 +320,13 @@ impl Terminal {
                     if let Some(HoverMessage { y: target_y, message }) = hover_message {
                         if y == *target_y {
                             self.draw_hover_message(
-                                &mut stdout, i, message, ThemeItem::HoverMessage,
+                                &mut stdout, message, ThemeItem::HoverMessage,
                                 remaining);
                         }
                     } else if let Some(LineStatus { message, .. }) = status_map.get(y) {
                         if let Some(message) = message {
                             self.draw_hover_message(
-                                &mut stdout, i, message, ThemeItem::DiagnosticMessage,
+                                &mut stdout, message, ThemeItem::DiagnosticMessage,
                                 remaining);
                         }
                     }
@@ -482,12 +482,10 @@ impl Terminal {
     fn draw_hover_message(
         &self,
         stdout: &mut std::io::Stdout,
-        display_y: usize,
         message: &str,
         theme_item: ThemeItem,
         width: usize,
     ) {
-        use crossterm::cursor::{MoveTo};
         use crossterm::terminal::{Clear, ClearType};
         use crossterm::style::{Print, Attribute, SetAttribute};
 
