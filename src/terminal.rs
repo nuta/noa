@@ -325,12 +325,14 @@ impl Terminal {
                     if let Some(HoverMessage { y: target_y, message }) = hover_message {
                         if y == *target_y {
                             self.draw_hover_message(
-                                &mut stdout, i, message, remaining);
+                                &mut stdout, i, message, ThemeItem::DiagnosticMessage,
+                                remaining);
                         }
                     } else if let Some(LineStatus { message, .. }) = status_map.get(y) {
                         if let Some(message) = message {
                             self.draw_hover_message(
-                                &mut stdout, i, message, remaining);
+                                &mut stdout, i, message, ThemeItem::HoverMessage,
+                                remaining);
                         }
                     }
                 }
@@ -487,6 +489,7 @@ impl Terminal {
         stdout: &mut std::io::Stdout,
         display_y: usize,
         message: &str,
+        theme_item: ThemeItem,
         width: usize,
     ) {
         use crossterm::cursor::{MoveTo};
@@ -495,7 +498,7 @@ impl Terminal {
 
         if width > 5 {
             let n = min(width - 5, message.len());
-            THEME.apply(stdout, ThemeItem::DiagnosticMessage).ok();
+            THEME.apply(stdout, theme_item).ok();
             queue!(
                 stdout,
                 Clear(ClearType::UntilNewLine),

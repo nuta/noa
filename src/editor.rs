@@ -353,24 +353,10 @@ impl Editor {
     }
 
     fn hover_message<T: Into<String>>(&mut self, message: T) {
-        let message = message.into();
-        let duplicated = match self.notifications.borrow_mut().last() {
-            Some(last) => last.message == message,
-            None => false,
-        };
-
-        if !duplicated {
-            self.hover_message = Some(HoverMessage {
-                y: self.current.borrow().buffer().borrow().main_cursor_pos().y,
-                message: message.clone(),
-            });
-            self.notifications.borrow_mut().push(Notification {
-                level: NotificationLevel::Report,
-                created_at: Instant::now(),
-                persist: true,
-                message: message.replace("\n", " "),
-            });
-        }
+        self.hover_message = Some(HoverMessage {
+            y: self.current.borrow().buffer().borrow().main_cursor_pos().y,
+            message: message.into(),
+        });
     }
 
     fn report<T: Into<String>>(&self, message: T) {
