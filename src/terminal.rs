@@ -320,13 +320,13 @@ impl Terminal {
                     if let Some(HoverMessage { y: target_y, message }) = hover_message {
                         if y == *target_y {
                             self.draw_hover_message(
-                                &mut stdout, i, message, ThemeItem::DiagnosticMessage,
+                                &mut stdout, i, message, ThemeItem::HoverMessage,
                                 remaining);
                         }
                     } else if let Some(LineStatus { message, .. }) = status_map.get(y) {
                         if let Some(message) = message {
                             self.draw_hover_message(
-                                &mut stdout, i, message, ThemeItem::HoverMessage,
+                                &mut stdout, i, message, ThemeItem::DiagnosticMessage,
                                 remaining);
                         }
                     }
@@ -491,15 +491,19 @@ impl Terminal {
         use crossterm::terminal::{Clear, ClearType};
         use crossterm::style::{Print, Attribute, SetAttribute};
 
-        if width > 5 {
-            let n = min(width - 5, message.len());
+        if width > 10 {
+            let n = min(width - 10, message.len());
+            queue!(
+                stdout,
+                Print(' '),
+            ).ok();
             THEME.apply(stdout, theme_item).ok();
             queue!(
                 stdout,
                 Clear(ClearType::UntilNewLine),
-                MoveTo((self.cols - n - 2) as u16, display_y as u16),
-                Print("<= "),
+                Print(' '),
                 Print(&message[0..n]),
+                Print(' '),
                 SetAttribute(Attribute::Reset),
             ).ok();
         }
