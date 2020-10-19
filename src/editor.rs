@@ -544,6 +544,12 @@ impl Editor {
                         .arg(argv0)
                         .arg(file.path.as_os_str())
                         .spawn();
+                    match cmd {
+                        Ok(_) => {}
+                        Err(err) => {
+                            self.error(format!("failed to open noa: {}", err));
+                        }
+                    }
                     return;
                 }
             }
