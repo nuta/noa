@@ -99,6 +99,7 @@ pub struct Diagnostic {
 pub enum OpenIn {
     CurrentPane,
     NewPane,
+    NewPaneBottom,
 }
 
 pub enum Event {
@@ -532,13 +533,17 @@ impl Editor {
                 OpenIn::CurrentPane => {
                     self.open_file(&file.path)
                 }
-                OpenIn::NewPane => {
+                OpenIn::NewPane | OpenIn::NewPaneBottom => {
                     use std::process::Command;
                     use std::env::args;
                     let argv0 = args().next().unwrap();
                     let cmd = Command::new("tmux")
                         .arg("split-window")
-                        .arg("-h")
+                        .arg(match open_in {
+                            OpenIn::NewPane => "-h",
+                            OpenIn::NewPaneBottom => "-v",
+                            _ => unreachable!(),
+                        })
                         .arg("-c")
                         .arg("#{pane_current_path}")
                         .arg(argv0)
@@ -798,6 +803,9 @@ impl Editor {
         match (key.code, key.modifiers) {
             (KeyCode::Enter, NONE) => {
                 self.execute_command(false, OpenIn::CurrentPane);
+            }
+            (KeyCode::Char('h'), CTRL) => {
+                self.execute_command(false, OpenIn::NewPaneBottom);
             }
             (KeyCode::Char('j'), CTRL) => {
                 self.execute_command(false, OpenIn::NewPane);
