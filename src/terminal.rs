@@ -647,10 +647,12 @@ impl Terminal {
                 match (&current_span, next_span) {
                     (Some(span), _) if span.range.contains(&x) => {
                         num_chars = min(num_chars, span.range.end() + 1 - x);
+                        queue!(stdout, SetAttribute(Attribute::Reset)).ok();
                         THEME.apply_span(stdout, span.span_type).ok();
                     }
                     (_, Some(span)) if span.range.contains(&x) => {
                         num_chars = min(num_chars, span.range.end() + 1 - x);
+                        queue!(stdout, SetAttribute(Attribute::Reset)).ok();
                         THEME.apply_span(stdout, span.span_type).ok();
                         current_span = spans.next();
                         next_span = spans.peek();

@@ -3,11 +3,13 @@
 void quicksort(int number[25],int first,int last){
    int i, j, pivot, temp;
 
+   // Hello
+   /* foo if */
    if(first<last){
       pivot=first;
       i=first;
       j=last;
-      printf("asd", 2);
+      printf("asd \"\n", 2);
       asd;
       j = "asdasda";
       while(i<j){
