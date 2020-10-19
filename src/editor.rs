@@ -96,6 +96,11 @@ pub struct Diagnostic {
     pub message: String,
 }
 
+pub enum OpenIn {
+    CurrentPane,
+    NewPane,
+}
+
 pub enum Event {
     Key(KeyEvent),
     Mouse(RawMouseEvent),
@@ -519,7 +524,39 @@ impl Editor {
         }
     }
 
-    fn execute_command(&mut self, preview: bool) {
+    fn goto(&mut self, file: &File, position: &Option<Point>, open_in: OpenIn) {
+        if let Some(buffer_id) = file.buffer_id {
+            self.switch_buffer(buffer_id);
+        } else {
+            match open_in {
+                OpenIn::CurrentPane => {
+                    self.open_file(&file.path)
+                }
+                OpenIn::NewPane => {
+                    use std::process::Command;
+                    use std::env::args;
+                    let argv0 = args().next().unwrap();
+                    let cmd = Command::new("tmux")
+                        .arg("split-window")
+                        .arg("-h")
+                        .arg("-c")
+                        .arg("#{pane_current_path}")
+                        .arg(argv0)
+                        .arg(file.path.as_os_str())
+                        .spawn();
+                    return;
+                }
+            }
+        }
+
+        if let Some(pos) = position {
+            let mut view = self.current.borrow_mut();
+            view.goto(pos.y, pos.x);
+            view.centering(self.terminal.rows());
+        }
+    }
+
+    fn execute_command(&mut self, preview: bool, open_in: OpenIn) {
         use crate::command_box::{Request, Response, ResponseBody};
         use crate::search::{
             list_files, grep_buffer, grep_dir, grep_dir_by_regex, NUM_MATCHES_MAX
@@ -699,18 +736,7 @@ impl Editor {
                     self.info(format!("found {} items", items.len()));
                 }
                 ResponseBody::GoTo { file, position } => {
-                    if let Some(buffer_id) = file.buffer_id {
-                        self.switch_buffer(buffer_id);
-                    } else {
-                        self.open_file(&file.path);
-                    }
-
-                    if let Some(pos) = position {
-                        let mut view = self.current.borrow_mut();
-                        view.goto(pos.y, pos.x);
-                        view.centering(self.terminal.rows());
-                    }
-
+                    self.goto(&file, &position, open_in);
                     self.close_command_box();
                 }
                 ResponseBody::ReplaceWith { changes } => {
@@ -765,7 +791,10 @@ impl Editor {
         let mut modified = false;
         match (key.code, key.modifiers) {
             (KeyCode::Enter, NONE) => {
-                self.execute_command(false);
+                self.execute_command(false, OpenIn::CurrentPane);
+            }
+            (KeyCode::Char('j'), CTRL) => {
+                self.execute_command(false, OpenIn::NewPane);
             }
             (KeyCode::Esc, NONE)
             | (KeyCode::Char('m'), CTRL) => {
@@ -831,7 +860,7 @@ impl Editor {
         }
 
         if modified {
-            self.execute_command(true);
+            self.execute_command(true, OpenIn::CurrentPane);
         }
     }
 
@@ -1112,7 +1141,7 @@ mod tests {
         let workspace_dir = populate_workspace();
         let mut editor = Editor::new(workspace_dir.path().to_path_buf());
         editor.command_box_input.set_text("G/xyz");
-        editor.execute_command(false);
+        editor.execute_command(false, OpenIn::CurrentPane);
         assert_eq!(
             editor.current.borrow().buffer().borrow().path(),
             Some(workspace_dir.path().join("bar.txt").as_path()),
@@ -1124,7 +1153,7 @@ mod tests {
         let workspace_dir = populate_workspace();
         let mut editor = Editor::new(workspace_dir.path().to_path_buf());
         editor.command_box_input.set_text("G/b.z");
-        editor.execute_command(false);
+        editor.execute_command(false, OpenIn::CurrentPane);
         assert_eq!(
             editor.current.borrow().buffer().borrow().path(),
             Some(workspace_dir.path().join("foo.txt").as_path()),
