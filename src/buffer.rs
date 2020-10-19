@@ -254,6 +254,10 @@ impl Buffer {
         self.buf.line(line)
     }
 
+    pub fn line_substr(&self, line: usize, start: usize) -> String {
+        self.line(line).chars().skip(start).collect()
+    }
+
     pub fn modified_line(&self) -> &Option<usize> {
         &self.buf.modified_line()
     }
@@ -716,6 +720,43 @@ impl Buffer {
 
         self.select_until_beginning_of_line();
         self.delete();
+    }
+
+    pub fn toggle_comment_out(&mut self) {
+        let prefix = match self.lang.comment_out {
+            Some(prefix) => prefix,
+            None => return
+        };
+
+        let mut new_cursors = Vec::new();
+        for c in self.cursors.iter().rev() {
+            let (ys, x) = match c {
+                Cursor::Normal { pos, .. } => {
+                    (pos.y..=pos.y, pos.x)
+                }
+                Cursor::Selection(range) => {
+                    let front = range.front();
+                    (front.y..=range.back().y, front.x)
+                }
+            };
+
+            let prefix_len = prefix.chars().count();
+            for y in ys {
+                let indent_size = self.indent_size(y);
+                if self.line_substr(y, indent_size).starts_with(prefix) {
+                    self.buf.remove(&Range::new(
+                        y, indent_size, y, indent_size + prefix_len));
+                        new_cursors.push(Cursor::new(y, x.saturating_sub(prefix_len)));
+                } else {
+                    self.buf.insert(&Point::new(y, indent_size), prefix);
+                    new_cursors.push(Cursor::new(y, x + prefix_len));
+                }
+            }
+        }
+
+        if !new_cursors.is_empty() {
+            self.set_cursors(new_cursors);
+        }
     }
 
     pub fn mark_undo_point(&mut self) {
@@ -1865,5 +1906,33 @@ mod test {
         b.back_tab();
         assert_eq!(&b.text(), "abc");
         assert_eq!(b.cursors(), &[Cursor::new(0, 0)]);
+    }
+
+    #[test]
+    fn comment_out() {
+        let mut b = Buffer::from_str("abc");
+        b.set_cursors(vec![Cursor::new(0, 3)]);
+        b.toggle_comment_out();
+        assert_eq!(&b.text(), "// abc");
+        assert_eq!(b.cursors(), &[Cursor::new(0, 6)]);
+
+        let mut b = Buffer::from_str("");
+        b.set_cursors(vec![Cursor::new(0, 0)]);
+        b.toggle_comment_out();
+        assert_eq!(&b.text(), "// ");
+        assert_eq!(b.cursors(), &[Cursor::new(0, 3)]);
+    }
+
+    #[test]
+    fn decomment_out() {
+        let mut b = Buffer::from_str("// abc");
+        b.set_cursors(vec![Cursor::new(0, 0)]);
+        b.toggle_comment_out();
+        assert_eq!(&b.text(), "abc");
+
+        let mut b = Buffer::from_str("// ");
+        b.set_cursors(vec![Cursor::new(0, 0)]);
+        b.toggle_comment_out();
+        assert_eq!(&b.text(), "");
     }
 }

@@ -383,6 +383,8 @@ impl Terminal {
             ).ok();
         }
 
+        queue!(stdout, Clear(ClearType::UntilNewLine)).ok();
+
         // Draw the notification.
         let mut iter = notifications.iter().rev();
         if let Some(noti) = iter.next() {
@@ -404,6 +406,12 @@ impl Terminal {
             }
 
             queue!(stdout, Clear(ClearType::UntilNewLine)).ok();
+        } else {
+            queue!(
+                stdout,
+                MoveTo(0, status_bar_y as u16 + 1),
+                Clear(ClearType::UntilNewLine),
+            ).ok();
         }
 
         // Draw popup.

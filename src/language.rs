@@ -38,6 +38,7 @@ pub struct Language {
     pub lsp: Option<&'static LspSettings>,
     pub patterns: HashMap<&'static str, Pattern>,
     pub top_level_patterns: &'static [&'static str],
+    pub comment_out: Option<&'static str>,
 }
 
 impl Hash for Language {
@@ -58,6 +59,7 @@ lazy_static! {
     pub static ref PLAIN: Language = {
         Language {
             name: "plain",
+            comment_out: Some("// "),
             top_level_patterns: &[
                 "block_comment",
                 "ctrl",

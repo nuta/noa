@@ -7,6 +7,7 @@ void quicksort(int number[25],int first,int last){
       pivot=first;
       i=first;
       j=last;
+      printf("asd", 2);
       asd;
       j = "asdasda";
       while(i<j){

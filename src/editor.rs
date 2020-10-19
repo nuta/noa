@@ -295,8 +295,8 @@ impl Editor {
                         self.on_modified();
                     }
 
+                    trace!("event handling took {} us", started_at.elapsed().as_micros());
                     self.draw();
-                    trace!("took {} us", started_at.elapsed().as_micros());
                 }
                 Err(err) => {
                    warn!("failed recv from the event queue: {:?}", err);
@@ -306,6 +306,7 @@ impl Editor {
     }
 
     fn draw(&mut self) {
+        let started_at = Instant::now();
         let mut view = self.current.borrow_mut();
         self.terminal.draw(
             &mut *view,
@@ -318,6 +319,7 @@ impl Editor {
             &self.status_map,
             &self.hover_message,
         );
+        trace!("draw took {} us", started_at.elapsed().as_micros());
     }
 
     fn on_modified(&mut self) {
@@ -1021,6 +1023,9 @@ impl Editor {
             }
             (KeyCode::Char('f'), ALT) => {
                 buffer.move_to_next_word();
+            }
+            (KeyCode::Char('t'), CTRL) => {
+                buffer.toggle_comment_out();
             }
             (KeyCode::Char('m'), CTRL) => {
                 if let Some(current_word) = buffer.current_word() {
