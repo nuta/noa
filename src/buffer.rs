@@ -13,10 +13,6 @@ use crate::editor::{DiagnosticSeverity};
 use crate::editorconfig::{EditorConfig, IndentStyle};
 use crate::rope::*;
 
-pub fn compute_str_checksum(string: &str) -> u32 {
-    fxhash::hash32(string)
-}
-
 fn remove_range(
     buf: &mut Rope,
     range: &Range,
@@ -100,6 +96,7 @@ impl BufferId {
 pub struct Buffer {
     id: BufferId,
     buf: Rope,
+    is_dirty: bool,
     name: String,
     version: usize,
     file: Option<PathBuf>,
@@ -120,6 +117,7 @@ impl Buffer {
         let mut buffer = Buffer {
             id: BufferId::alloc(),
             buf: Rope::new(),
+            is_dirty: false,
             version: 1,
             name: String::new(),
             file: None,
@@ -150,6 +148,7 @@ impl Buffer {
         let mut buffer = Buffer {
             id: BufferId::alloc(),
             buf: Rope::from_reader(file)?,
+            is_dirty: false,
             version: 1,
             name: String::new(),
             file: Some(path.canonicalize()?),
@@ -181,6 +180,10 @@ impl Buffer {
         self.cursors = vec![Cursor::Normal { pos }];
     }
 
+    pub fn reset_dirty_flag(&mut self) {
+        self.is_dirty = false;
+    }
+
     pub fn id(&self) -> BufferId {
         self.id
     }
@@ -199,10 +202,10 @@ impl Buffer {
     }
 
     pub fn is_dirty(&self) -> bool {
-        self.undo_stack.len() != 1
+        self.is_dirty
     }
 
-    pub fn checksum(&self) -> u32 {
+    pub fn checksum(&self) -> u64 {
         compute_str_checksum(&self.text())
     }
 
@@ -280,7 +283,7 @@ impl Buffer {
         }
     }
 
-    pub fn save(&self, backup_dir: &Path) -> std::io::Result<()> {
+    pub fn save(&mut self, backup_dir: &Path) -> std::io::Result<()> {
         if let Some(path) = &self.file {
             let base = path.to_str().unwrap().replace('/', ".");
             fs::create_dir_all(backup_dir)?;
@@ -296,10 +299,11 @@ impl Buffer {
                 path,
                 backup_path(backup_dir, &base, 1)
             ).ok();
-            self.buf.save_into_file(path)
-        } else {
-            Ok(())
+            self.buf.save_into_file(path)?;
+            self.is_dirty = false;
         }
+
+        Ok(())
     }
 
     pub fn cursors(&self) -> &[Cursor] {
@@ -760,8 +764,17 @@ impl Buffer {
     }
 
     pub fn mark_undo_point(&mut self) {
+        match self.undo_stack.last() {
+            Some(rope) if *rope == self.buf => {
+                // The buffer is not modified.
+                return;
+            }
+            _ => {},
+        }
+
         self.undo_stack.push(self.buf.clone());
         self.version += 1;
+        self.is_dirty = true;
     }
 
     pub fn undo(&mut self) {

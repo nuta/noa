@@ -8,14 +8,14 @@ use std::time::{Instant, Duration};
 use git2::Repository;
 use crate::watcher::FileWatcher;
 use crate::status_map::LineStatusType;
-use crate::buffer::{Buffer, BufferId, compute_str_checksum};
+use crate::buffer::{Buffer, BufferId};
 use crate::command_box::{CommandBox, RequestBody, Location, File};
 use crate::completion::WordCompJob;
 use crate::view::View;
 use crate::worker::Worker;
 use crate::fuzzy::FuzzySet;
 use crate::lsp::Lsp;
-use crate::rope::{Point, Range, Cursor};
+use crate::rope::{Point, Range, Cursor, compute_str_checksum};
 use crate::terminal::{
     Terminal, KeyCode, KeyModifiers, KeyEvent, RawMouseEvent, MouseEvent,
 };
@@ -457,6 +457,7 @@ impl Editor {
                     self.info("this file has changed on disk");
                 } else {
                     buffer.set_text(&new_text);
+                    buffer.reset_dirty_flag();
                     self.info("changes on disk detected; reloaded the file");
                 }
             }

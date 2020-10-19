@@ -5,6 +5,10 @@ use std::cmp::{min, max};
 use std::cmp::Ordering;
 use serde::{Deserialize, Serialize};
 
+pub fn compute_str_checksum(string: &str) -> u64 {
+    fxhash::hash64(string)
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub struct Point {
     pub y: usize,
