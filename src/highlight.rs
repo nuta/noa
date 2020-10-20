@@ -378,7 +378,6 @@ fn merge_spans(spans: &mut Vec<Span>, spans2: Vec<Span>) {
             let t1 = max(*a.range.start(), *b.range.start());
             let t2 = min(*a.range.end(), *b.range.end());
             let t3 = max(*a.range.end(), *b.range.end());
-            dbg!(t0, t1, t2, t3, a.span_type, b.span_type);
             let y = preferred_span(a.span_type, b.span_type);
             let (x, z) =
                 if t0 == *a.range.start() && t3 == *a.range.end() {
@@ -410,7 +409,6 @@ fn merge_spans(spans: &mut Vec<Span>, spans2: Vec<Span>) {
     // Merge continuous spans with the same span type.
     let mut i = 1;
     while i < spans.len() {
-        dbg!(&spans[i - 1].range, &spans[i].range);
         if spans[i - 1].span_type == spans[i].span_type
             && *spans[i - 1].range.end() + 1 == *spans[i].range.start() {
             spans[i - 1].range = *spans[i - 1].range.start()..=*spans[i].range.end();
