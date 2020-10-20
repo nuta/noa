@@ -352,7 +352,6 @@ fn preferred_span(a: SpanType, b: SpanType) -> SpanType {
 /// Assumes `spans` is already sorted by its ranges.
 fn merge_spans(spans: &mut Vec<Span>, spans2: Vec<Span>) {
     spans.extend(spans2);
-    spans.sort_by(|a, b| a.range.start().cmp(b.range.start()));
 
     loop {
         let mut split_at = None;
@@ -366,28 +365,40 @@ fn merge_spans(spans: &mut Vec<Span>, spans2: Vec<Span>) {
         }
 
         if let Some((i, j)) = split_at {
+            //
+            //
+            //  |--- a ---|
+            //         |--- b --|
+            //  |xxxxxxyyyyzzzzzz
+            //  ^      ^  ^     ^
+            // t0     t1  t2    t3
             let a = &spans[i];
             let b = &spans[j];
-            let ov =
-                max(*a.range.start(), *b.range.start())
-                ..=min(*a.range.end(), *b.range.end());
+            let t0 = min(*a.range.start(), *b.range.start());
+            let t1 = max(*a.range.start(), *b.range.start());
+            let t2 = min(*a.range.end(), *b.range.end());
+            let t3 = max(*a.range.end(), *b.range.end());
+            dbg!(t0, t1, t2, t3, a.span_type, b.span_type);
+            let y = preferred_span(a.span_type, b.span_type);
+            let (x, z) =
+                if t0 == *a.range.start() && t3 == *a.range.end() {
+                    (a.span_type, a.span_type)
+                } else if t0 == *b.range.start() && t3 == *b.range.end() {
+                    (b.span_type, b.span_type)
+                } else if a.range.start() < b.range.start() {
+                    (a.span_type, b.span_type)
+                } else {
+                    (b.span_type, a.span_type)
+                };
 
-            let new_a_range =
-                *a.range.start()..=min(*a.range.end(), ov.start().saturating_sub(1));
-            let new_b_range =
-                (ov.end() + 1)..=max(*a.range.end(), *b.range.end());
-            let remove_a = ov.end() == a.range.end();
-            let remove_b = ov.end() == b.range.end();
-            dbg!(&a.range, &b.range, &ov, &new_a_range, &new_b_range, remove_a, remove_b);
-            let new_span = Span::new(preferred_span(a.span_type, b.span_type), ov.clone());
-            drop(a);
-            drop(b);
-            spans.push(new_span);
-            (&mut spans[i]).range = new_a_range;
-            if remove_b {
-                spans.remove(j);
-            } else {
-                (&mut spans[j]).range = new_b_range;
+            spans.remove(j);
+            spans.remove(i);
+            if t0 < t1 {
+                spans.push(Span::new(x, t0..=(t1 - 1)));
+            }
+            spans.push(Span::new(y, t1..=t2));
+            if t2 < t3 {
+                spans.push(Span::new(z, (t2 + 1)..=t3));
             }
         } else {
             break;
@@ -395,6 +406,19 @@ fn merge_spans(spans: &mut Vec<Span>, spans2: Vec<Span>) {
     }
 
     spans.sort_by(|a, b| a.range.start().cmp(b.range.start()));
+
+    // Merge continuous spans with the same span type.
+    let mut i = 1;
+    while i < spans.len() {
+        dbg!(&spans[i - 1].range, &spans[i].range);
+        if spans[i - 1].span_type == spans[i].span_type
+            && *spans[i - 1].range.end() + 1 == *spans[i].range.start() {
+            spans[i - 1].range = *spans[i - 1].range.start()..=*spans[i].range.end();
+            spans.remove(i);
+        } else {
+            i += 1;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -433,31 +457,25 @@ mod test {
         let mut h = Highlighter::new(&crate::language::PLAIN);
         do_highlight(&mut h, "\"abc\"", 0..=0);
         assert_eq!(h.line(0), &[
-            Span::new(SpanType::StringLiteral, 0..=0), // opening "
-            Span::new(SpanType::StringLiteral, 1..=3), // abc
-            Span::new(SpanType::StringLiteral, 4..=4), // closing "
+            Span::new(SpanType::StringLiteral, 0..=4),
         ]);
 
         // Escaped chars
         let mut h = Highlighter::new(&crate::language::PLAIN);
         do_highlight(&mut h, "\"a\\nb\"" /* "a\nb" */, 0..=0);
         assert_eq!(h.line(0), &[
-            Span::new(SpanType::StringLiteral, 0..=0), // opening "
-            Span::new(SpanType::StringLiteral, 1..=1), // a
-            Span::new(SpanType::EscapedChar, 2..=3), // \n
-            Span::new(SpanType::StringLiteral, 4..=4), // b
-            Span::new(SpanType::StringLiteral, 5..=5), // closing "
+            Span::new(SpanType::StringLiteral, 0..=1), // "a
+            Span::new(SpanType::EscapedChar,   2..=3), // \n
+            Span::new(SpanType::StringLiteral, 4..=5), // b"
         ]);
 
         // Escaped chars.
         let mut h = Highlighter::new(&crate::language::PLAIN);
         do_highlight(&mut h, "\"ab\\\"cd\"" /* "ab\"cd" */, 0..=0);
         assert_eq!(h.line(0), &[
-            Span::new(SpanType::StringLiteral, 0..=0), // opening "
-            Span::new(SpanType::StringLiteral, 1..=2), // ab
-            Span::new(SpanType::EscapedChar, 3..=4), // \"
-            Span::new(SpanType::StringLiteral, 5..=6), // cd
-            Span::new(SpanType::StringLiteral, 7..=7), // closing "
+            Span::new(SpanType::StringLiteral, 0..=2), // "ab
+            Span::new(SpanType::EscapedChar,   3..=4), // \"
+            Span::new(SpanType::StringLiteral, 5..=7), // cd"
         ]);
     }
 
@@ -466,9 +484,7 @@ mod test {
         let mut h = Highlighter::new(&crate::language::PLAIN);
         do_highlight(&mut h, "/* if */", 0..=0);
         assert_eq!(h.line(0), &[
-            Span::new(SpanType::Comment, 0..=1), // opening /*
-            Span::new(SpanType::Comment, 2..=5), // " if "
-            Span::new(SpanType::Comment, 6..=7), // opening */
+            Span::new(SpanType::Comment, 0..=7)
         ]);
     }
 
@@ -531,8 +547,39 @@ mod test {
 
         // Selection precedes other types.
         {
+            let mut spans = vec![Span::new(SpanType::CtrlKeyword, 1..=3)];
+            let others = vec![
+                Span::new(SpanType::CtrlKeyword, 2..=3),
+                Span::new(SpanType::Selection, 0..=7)
+            ];
+            merge_spans(&mut spans, others);
+            assert_eq!(
+                spans,
+                vec![
+                    Span::new(SpanType::Selection, 0..=7),
+                ]
+            );
+        }
+
+        // Selection precedes other types.
+        {
             let mut spans = vec![Span::new(SpanType::Selection, 1..=2)];
             let others = vec![Span::new(SpanType::CtrlKeyword, 0..=3)];
+            merge_spans(&mut spans, others);
+            assert_eq!(
+                spans,
+                vec![
+                    Span::new(SpanType::CtrlKeyword, 0..=0),
+                    Span::new(SpanType::Selection, 1..=2),
+                    Span::new(SpanType::CtrlKeyword, 3..=3),
+                ]
+            );
+        }
+
+        // Selection precedes other types (should be the same result).
+        {
+            let mut spans = vec![Span::new(SpanType::CtrlKeyword, 0..=3)];
+            let others = vec![Span::new(SpanType::Selection, 1..=2)];
             merge_spans(&mut spans, others);
             assert_eq!(
                 spans,
