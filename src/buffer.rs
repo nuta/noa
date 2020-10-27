@@ -999,6 +999,27 @@ impl Buffer {
 
         self.highlighter.add_highlight(range, theme_item);
     }
+
+    pub fn add_cursor_up(&mut self) {
+        let top = *self.cursors[0].front();
+        if top.y > 0 {
+            let y = top.y - 1;
+            self.cursors.push(Cursor::new(y, min(self.line_len(y), top.x)));
+        }
+
+        self.sort_and_merge_cursors();
+    }
+
+    pub fn add_cursor_down(&mut self) {
+        let bottom = *self.cursors[self.cursors.len() - 1].front();
+        if bottom.y < self.num_lines() {
+            let y = bottom.y + 1;
+            let x = if bottom.y == self.num_lines() { 0 } else { min(self.line_len(y), bottom.x) };
+            self.cursors.push(Cursor::new(y, x));
+        }
+
+        self.sort_and_merge_cursors();
+    }
 }
 
 impl PartialEq for Buffer {

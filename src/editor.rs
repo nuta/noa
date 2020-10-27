@@ -1150,12 +1150,10 @@ impl Editor {
             //  Multiple cursors.
             //
             (KeyCode::Up, mods) if mods == ctrl_alt => {
+                buffer.add_cursor_up();
             }
             (KeyCode::Down, mods) if mods == ctrl_alt => {
-            }
-            (KeyCode::Left, mods) if mods == ctrl_alt => {
-            }
-            (KeyCode::Right, mods) if mods == ctrl_alt => {
+                buffer.add_cursor_down();
             }
             _ => {
                 trace!("unhandled key event: {:?}", key);
