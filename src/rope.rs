@@ -132,6 +132,10 @@ impl Range {
         max(&self.start, &self.end)
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.start == self.end
+    }
+
     pub fn overlaps_with(&self, other: &Range) -> bool {
         !(self.end.y < other.start.y
             || self.start.y > other.end.y
@@ -162,6 +166,13 @@ impl Cursor {
     pub fn new(y: usize, x: usize) -> Cursor {
         Cursor::Normal {
             pos: Point::new(y, x),
+        }
+    }
+
+    pub fn front(&self) -> &Point {
+        match self {
+            Cursor::Normal { pos } => pos,
+            Cursor::Selection(Range { start, .. }) => start,
         }
     }
 }
@@ -308,6 +319,12 @@ impl Rope {
 
     pub fn chars(&self) -> ropey::iter::Chars<'_> {
         self.inner.chars()
+    }
+
+    pub fn sub_str(&self, range: &Range) -> ropey::RopeSlice {
+        let start = self.index_in_rope(range.front());
+        let end = self.index_in_rope(range.back());
+        self.inner.slice(start..end)
     }
 
     pub fn word_at(&self, pos: &Point) -> Option<(Range, String)> {

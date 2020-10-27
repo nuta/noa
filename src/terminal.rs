@@ -23,7 +23,7 @@ use crossterm::terminal::{
 use unicode_width::{UnicodeWidthChar};
 
 pub fn truncate(s: &str, width: usize) -> &str {
-    &s[..min(s.len(), width)]
+    &s[..min(s.chars().count(), width)]
 }
 
 fn whitespaces(n: usize) -> String {

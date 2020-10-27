@@ -4,6 +4,7 @@
 #[macro_use] extern crate maplit;
 
 mod buffer;
+mod clipboard;
 mod command_box;
 mod editor;
 mod rope;

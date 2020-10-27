@@ -483,6 +483,7 @@ impl Buffer {
         self.buf.reset_modified_line();
 
         let mut new_cursors = Vec::new();
+        let string_count = string.chars().count();
         for c in self.cursors.iter().rev() {
             let (remove, insert_at, end) = match c {
                 Cursor::Normal { pos, .. } => {
@@ -527,8 +528,8 @@ impl Buffer {
             }
 
             let x_diff = string.rfind('\n')
-                .map(|x| string.len() - x - 1)
-                .unwrap_or_else(|| string.len());
+                .map(|x| string_count - x - 1)
+                .unwrap_or(string_count);
 
             let y = insert_at.y + y_diff;
             let x = if string.contains('\n') {
@@ -798,6 +799,44 @@ impl Buffer {
         if let Some(buf) = self.redo_stack.pop() {
             self.undo_stack.push(self.buf.clone());
             self.buf = buf;
+        }
+    }
+
+    pub fn cut_selection(&mut self) -> String {
+        let text = self.copy_selection();
+        self.backspace();
+        text
+    }
+
+    pub fn copy_selection(&mut self) -> String {
+        let mut text = String::new();
+        for (i, c) in self.cursors.iter().enumerate() {
+            let range = match c {
+                Cursor::Selection(range) => range,
+                _ => continue,
+            };
+
+            if i > 0 {
+                text.push('\n');
+            }
+            for chunk in self.buf.sub_str(range).chunks() {
+                text += chunk;
+            }
+        }
+
+        text
+    }
+
+    pub fn paste(&mut self, text: &str) {
+        if self.cursors.len() == 1 {
+            self.insert(text);
+        } else {
+            let cursors = self.cursors.clone();
+            let lines: Vec<&str> = text.split('\n').collect();
+            for (c, line) in cursors.iter().rev().zip(lines.iter().rev()) {
+                self.cursors = vec![c.clone()];
+                self.insert(line);
+            }
         }
     }
 
@@ -1326,6 +1365,16 @@ mod test {
         // Hello 世|界! => Hell|界!
         b.insert("o こんにちは 世");
         assert_eq!(b.text(), "Hello こんにちは 世界!");
+    }
+
+    #[test]
+    fn multibyte_characters_regression1() {
+        let mut b = Buffer::new();
+        b.set_cursors(vec![Cursor::new(0, 0)]);
+        b.insert_char('a');
+        b.insert_char('あ');
+        b.insert_char('!');
+        assert_eq!(b.text(), "aあ!");
     }
 
     #[test]
@@ -1947,5 +1996,17 @@ mod test {
         b.set_cursors(vec![Cursor::new(0, 0)]);
         b.toggle_comment_out();
         assert_eq!(&b.text(), "");
+    }
+
+    #[test]
+    fn copy_and_paste() {
+        let mut b = Buffer::from_str("aXYZb");
+        b.set_cursors(vec![Cursor::Selection(Range::new(0, 1, 0, 4))]);
+        assert_eq!(b.copy_selection(), "XYZ");
+        assert_eq!(b.text(), "aXYZb");
+        assert_eq!(b.cut_selection(), "XYZ");
+        assert_eq!(b.text(), "ab");
+        b.paste("123");
+        assert_eq!(b.text(), "a123b");
     }
 }

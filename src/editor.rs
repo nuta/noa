@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::time::{Instant, Duration};
 use git2::Repository;
+use crate::clipboard::Clipboard;
 use crate::watcher::FileWatcher;
 use crate::status_map::LineStatusType;
 use crate::buffer::{Buffer, BufferId};
@@ -168,6 +169,7 @@ pub struct Editor {
     status_map: StatusMap,
     time_last_clicked: Instant,
     hover_message: Option<HoverMessage>,
+    clipboard: Clipboard,
 }
 
 impl Editor {
@@ -207,6 +209,7 @@ impl Editor {
             status_map: StatusMap::new(),
             time_last_clicked: Instant::now(),
             hover_message: None,
+            clipboard: Clipboard::new(),
         }
     }
 
@@ -926,6 +929,7 @@ impl Editor {
         const CTRL: KeyModifiers = KeyModifiers::CONTROL;
         const ALT: KeyModifiers = KeyModifiers::ALT;
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
+        let ctrl_alt = KeyModifiers::CONTROL | KeyModifiers::ALT;
 
         let mut view = self.current.borrow_mut();
         let mut buffer = view.buffer().borrow_mut();
@@ -934,14 +938,7 @@ impl Editor {
         let mut update_completion = false;
         trace!("key = {:?}", key);
         match (key.code, key.modifiers) {
-            (KeyCode::Up, NONE) if self.is_popup_active() => {
-                self.popup.as_mut().unwrap().select_prev();
-                clear_popup = false;
-            }
-            (KeyCode::Down, NONE) if self.is_popup_active() => {
-                self.popup.as_mut().unwrap().select_next();
-                clear_popup = false;
-            }
+            (KeyCode::Char('q'), CTRL) |
             (KeyCode::Esc, NONE) if self.is_popup_active() => {
                 // Clear the popup.
             }
@@ -975,12 +972,46 @@ impl Editor {
                     }
                 }
             }
-            (KeyCode::Char('x'), CTRL) => {
-                drop(buffer);
-                drop(view);
-                self.open_command_box("");
-                return;
+            //
+            //  Popup.
+            //
+            (KeyCode::Up, NONE) if self.is_popup_active() => {
+                self.popup.as_mut().unwrap().select_prev();
+                clear_popup = false;
             }
+            (KeyCode::Down, NONE) if self.is_popup_active() => {
+                self.popup.as_mut().unwrap().select_next();
+                clear_popup = false;
+            }
+            //
+            //  Undo/Redo.
+            //
+            (KeyCode::Char('u'), CTRL) => {
+                buffer.undo();
+                self.report("undo");
+            }
+            (KeyCode::Char('y'), CTRL) => {
+                buffer.redo();
+                self.report("redo");
+            }
+            //
+            //  Clipboard.
+            //
+            (KeyCode::Char('x'), CTRL) => {
+                self.clipboard.set(&buffer.cut_selection());
+                self.report("cut");
+            }
+            (KeyCode::Char('c'), CTRL) => {
+                self.clipboard.set(&buffer.copy_selection());
+                self.report("copied");
+            }
+            (KeyCode::Char('v'), CTRL) => {
+                buffer.paste(&self.clipboard.get());
+                self.report("pasted");
+            }
+            //
+            //  Search.
+            //
             (KeyCode::Char('f'), CTRL) => {
                 drop(buffer);
                 drop(view);
@@ -999,64 +1030,20 @@ impl Editor {
                 self.open_command_box("p/");
                 return;
             }
-            (KeyCode::Char('k'), CTRL) => {
-                buffer.truncate();
-            }
-            (KeyCode::Char('k'), ALT) => {
-                buffer.truncate_reverse();
-            }
-            (KeyCode::Char('z'), CTRL) => {
-                buffer.undo();
-                self.report("undo");
-            }
-            (KeyCode::Char('r'), CTRL) => {
-                buffer.redo();
-                self.report("redo");
-            }
-            (KeyCode::Char('a'), CTRL) => {
-                buffer.move_to_beginning_of_line();
-            }
-            (KeyCode::Char('e'), CTRL) => {
-                buffer.move_to_end_of_line();
-            }
-            (KeyCode::Char('b'), ALT) => {
-                buffer.move_to_prev_word();
-            }
-            (KeyCode::Char('f'), ALT) => {
-                buffer.move_to_next_word();
-            }
-            (KeyCode::Char('t'), CTRL) => {
-                buffer.toggle_comment_out();
-            }
-            (KeyCode::Char('m'), CTRL) => {
-                if let Some(current_word) = buffer.current_word() {
+            (KeyCode::Char('m'), ALT) => {
+            if let Some(current_word) = buffer.current_word() {
                     let matches = &buffer.find(&current_word);
                     buffer.select_by_ranges(matches);
                 }
             }
-            (KeyCode::Char('w'), CTRL) => {
-                if let Some(current_word_range) = buffer.prev_word_range() {
-                    buffer.select_by_ranges(&[current_word_range]);
-                    buffer.backspace();
-                }
-            }
-            (KeyCode::Char('w'), ALT) => {
-                if let Some(current_word_range) = buffer.current_word_range() {
-                    buffer.select_by_ranges(&[current_word_range]);
-                    buffer.backspace();
-                }
-            }
+            //
+            //  Text Editing.
+            //
             (KeyCode::Char(ch), NONE) | (KeyCode::Char(ch), SHIFT) => {
                 buffer.insert_char(ch);
                 update_completion = true;
                 clear_hover = false;
                 clear_popup = false;
-            }
-            (KeyCode::Tab, NONE) => {
-                buffer.tab();
-            }
-            (KeyCode::BackTab, NONE) => {
-                buffer.back_tab();
             }
             (KeyCode::Enter, NONE) => {
                 buffer.insert_char('\n');
@@ -1073,6 +1060,36 @@ impl Editor {
                 buffer.delete();
                 update_completion = true;
             }
+            (KeyCode::Tab, NONE) => {
+                buffer.tab();
+            }
+            (KeyCode::BackTab, NONE) => {
+                buffer.back_tab();
+            }
+            (KeyCode::Char('/'), ALT) => {
+                buffer.toggle_comment_out();
+            }
+            (KeyCode::Char('w'), CTRL) => {
+                if let Some(current_word_range) = buffer.prev_word_range() {
+                    buffer.select_by_ranges(&[current_word_range]);
+                    buffer.backspace();
+                }
+            }
+            (KeyCode::Char('w'), ALT) => {
+                if let Some(current_word_range) = buffer.current_word_range() {
+                    buffer.select_by_ranges(&[current_word_range]);
+                    buffer.backspace();
+                }
+            }
+            (KeyCode::Char('k'), CTRL) => {
+                buffer.truncate();
+            }
+            (KeyCode::Char('k'), ALT) => {
+                buffer.truncate_reverse();
+            }
+            //
+            //  Move cursors.
+            //
             (KeyCode::PageUp, NONE) => {
                 drop(buffer);
                 view.scroll_up(self.terminal.rows());
@@ -1116,6 +1133,29 @@ impl Editor {
             }
             (KeyCode::Right, SHIFT) => {
                 buffer.select(0, 0, 0, 1);
+            }
+            (KeyCode::Char('a'), CTRL) => {
+                buffer.move_to_beginning_of_line();
+            }
+            (KeyCode::Char('e'), CTRL) => {
+                buffer.move_to_end_of_line();
+            }
+            (KeyCode::Char('b'), ALT) => {
+                buffer.move_to_prev_word();
+            }
+            (KeyCode::Char('f'), ALT) => {
+                buffer.move_to_next_word();
+            }
+            //
+            //  Multiple cursors.
+            //
+            (KeyCode::Up, mods) if mods == ctrl_alt => {
+            }
+            (KeyCode::Down, mods) if mods == ctrl_alt => {
+            }
+            (KeyCode::Left, mods) if mods == ctrl_alt => {
+            }
+            (KeyCode::Right, mods) if mods == ctrl_alt => {
             }
             _ => {
                 trace!("unhandled key event: {:?}", key);
