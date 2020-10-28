@@ -6,10 +6,8 @@ use std::cmp::{max, min};
 use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
-use crate::theme::ThemeItem;
 use crate::highlight::{Highlighter, Span};
 use crate::language::Language;
-use crate::editor::{DiagnosticSeverity};
 use crate::editorconfig::{EditorConfig, IndentStyle};
 use crate::rope::*;
 
@@ -988,16 +986,6 @@ impl Buffer {
 
     pub fn highlight(&mut self, lines: RangeInclusive<usize>) {
         self.highlighter.highlight(self.snapshot(), lines, &self.cursors);
-    }
-
-    pub fn add_diagnostic(&mut self, range: Range, severity: DiagnosticSeverity) {
-        let theme_item = match severity {
-            DiagnosticSeverity::Error => ThemeItem::DiagnosticError,
-            DiagnosticSeverity::Warning => ThemeItem::DiagnosticWarning,
-            _ => return,
-        };
-
-        self.highlighter.add_highlight(range, theme_item);
     }
 
     pub fn add_cursor_up(&mut self) {

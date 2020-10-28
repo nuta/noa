@@ -9,6 +9,7 @@ void quicksort(int number[25],int first,int last){
       pivot=first;
       i=first;
       j=last;
+        qemu_log("\n");
       printf("asd \"\n", 2);
       asd;
       j = "asdasda";

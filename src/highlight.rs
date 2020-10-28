@@ -3,9 +3,8 @@ use std::ops::RangeInclusive;
 use crossterm::style::{Color};
 use regex::Regex;
 use crate::buffer::Snapshot;
-use crate::rope::{Cursor, Range};
+use crate::rope::Cursor;
 use crate::language::{SpanType, Pattern, Language};
-use crate::theme::ThemeItem;
 
 #[derive(Clone, Debug)]
 pub struct Span {
@@ -147,7 +146,7 @@ impl Highlighter {
         Highlighter {
             lines: Vec::new(),
             lang,
-            patterns_stack: vec![(lang.top_level_patterns, None)],
+            patterns_stack: Vec::new(),
         }
     }
 
@@ -167,6 +166,7 @@ impl Highlighter {
         lines: RangeInclusive<usize>,
         cursors: &[Cursor],
     ) {
+        self.patterns_stack = vec![(self.lang.top_level_patterns, None)];
         self.lines.truncate(*lines.start());
         let end = min(*lines.end(), snapshot.buf.num_lines().saturating_sub(1));
         let range = self.lines.len()..=end;
@@ -179,10 +179,6 @@ impl Highlighter {
             merge_spans(&mut spans, highlight_cursors(cursors, i, &line));
             self.lines.push(spans);
         }
-    }
-
-    pub fn add_highlight(&mut self, _range: Range, _theme_item: ThemeItem) {
-        // TODO:
     }
 
     fn highlight_pattern(&mut self, line: &str) -> Vec<Span> {
@@ -239,9 +235,14 @@ impl Highlighter {
                         Some(inner),
                     );
 
-                    // Leave the current block.
+                    // Leave from the current block.
                     self.patterns_stack.pop();
                     continue 'outer;
+                } else if !remaining.is_empty() {
+                    // In the current block inner contents.
+                    let range =
+                        index..=(index + remaining.chars().count() - 1);
+                    spans.push(Span::new(inner, range));
                 }
             }
 
@@ -283,6 +284,7 @@ fn add_captured_spans(
         }
     }
 
+    assert!(index_diff > 0);
     *index += index_diff;
 }
 

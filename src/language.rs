@@ -11,6 +11,7 @@ pub enum SpanType {
     EscapedChar,
     Comment,
     CtrlKeyword,
+    CompilerDirective,
 }
 
 pub enum Pattern {
@@ -61,15 +62,25 @@ lazy_static! {
             name: "plain",
             comment_out: Some("// "),
             top_level_patterns: &[
+                "cpp_directive",
                 "block_comment",
-                "ctrl",
+                "line_comment",
                 "string_lit",
+                "ctrl",
             ],
             lsp: Some(&LspSettings {
                 language_id: "c",
                 command: &["clangd", "-j=8", "--log=verbose", "--pretty"],
             }),
             patterns: hashmap! {
+                "cpp_directive" => Pattern::Inline {
+                    regex: Regex::new(
+                        r"^(#.+)"
+                    ).unwrap(),
+                    captures: &[
+                        SpanType::CompilerDirective,
+                    ]
+                },
                 "block_comment" => Pattern::Block {
                     start: Regex::new(r"(/\*)").unwrap(),
                     end: Regex::new(r"(\*/)").unwrap(),
@@ -78,23 +89,12 @@ lazy_static! {
                     inner: SpanType::Comment,
                     patterns: &[],
                 },
-                "ctrl" => Pattern::Inline {
+                "line_comment" => Pattern::Inline {
                     regex: Regex::new(
-                        concat!(
-                            r"\b(if|for|while|do|goto|break|continue|case|",
-                            r"default|return|switch)\b",
-                        )
+                        r"(//.*)"
                     ).unwrap(),
                     captures: &[
-                        SpanType::CtrlKeyword,
-                    ]
-                },
-                "escaped_chars" => Pattern::Inline {
-                    regex: Regex::new(
-                        "(\\\\[\"tn])"
-                    ).unwrap(),
-                    captures: &[
-                        SpanType::EscapedChar,
+                        SpanType::Comment,
                     ]
                 },
                 "string_lit" => Pattern::Block {
@@ -106,6 +106,25 @@ lazy_static! {
                     patterns: &[
                         "escaped_chars",
                     ],
+                },
+                "escaped_chars" => Pattern::Inline {
+                    regex: Regex::new(
+                        "(\\\\[\"tn])"
+                    ).unwrap(),
+                    captures: &[
+                        SpanType::EscapedChar,
+                    ]
+                },
+                "ctrl" => Pattern::Inline {
+                    regex: Regex::new(
+                        concat!(
+                            r"\b(if|for|while|do|goto|break|continue|case|",
+                            r"else|default|return|switch)\b",
+                        )
+                    ).unwrap(),
+                    captures: &[
+                        SpanType::CtrlKeyword,
+                    ]
                 },
             },
         }

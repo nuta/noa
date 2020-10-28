@@ -337,6 +337,7 @@ impl Terminal {
             queue!(
                 stdout,
                 Clear(ClearType::UntilNewLine),
+                SetAttribute(Attribute::Reset),
                 MoveTo(self.cols as u16 - 1, i as u16),
             ).ok();
             if let Some(LineStatus { status, .. })

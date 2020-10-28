@@ -409,8 +409,6 @@ impl Editor {
                 self.hover_message(message);
             }
             Event::Diagnostics(diags) => {
-                let view = self.current.borrow_mut();
-                let mut buffer = view.buffer().borrow_mut();
                 self.status_map.retain(|line_status| {
                     !matches!(line_status.status, LineStatusType::Error
                         | LineStatusType::Warning)
@@ -425,7 +423,6 @@ impl Editor {
                     self.status_map.add(
                         line_status_type, range.front().y..=range.back().y,
                         Some(message));
-                    buffer.add_diagnostic(range, severity);
                 }
             }
             Event::GoTo { path, pos } => {
