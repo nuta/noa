@@ -132,10 +132,6 @@ impl Range {
         max(&self.start, &self.end)
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.start == self.end
-    }
-
     pub fn overlaps_with(&self, other: &Range) -> bool {
         !(self.end.y < other.start.y
             || self.start.y > other.end.y
