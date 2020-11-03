@@ -74,6 +74,11 @@ pub enum RequestBody {
     SelectMatch {
         locations: Vec<Location>,
     },
+    #[serde(rename = "goto")]
+    GoTo {
+        file: File,
+        position: Point,
+    },
     #[serde(rename = "select_file")]
     SelectFile {
         files: Vec<File>

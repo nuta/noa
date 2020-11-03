@@ -53,10 +53,13 @@ fn num_of_digits(mut n: usize) -> usize {
 
 #[derive(Debug)]
 pub enum MouseEvent {
-    ClickedText {
+    ClickText {
         /// The position in the buffer. They could be larger than the line lengths.
         pos: Point,
         alt: bool,
+    },
+    ClickLineMap {
+        y: usize,
     },
     ScrollUp,
     ScrollDown,
@@ -70,6 +73,7 @@ pub struct Terminal {
     rows: usize,
     cols: usize,
     current_top_left: TopLeft,
+    current_num_lines: usize,
     text_start_x: usize,
     text_end_x: usize,
     text_height: usize,
@@ -116,6 +120,7 @@ impl Terminal {
             rows: rows as usize,
             cols: cols as usize,
             current_top_left: TopLeft::new(0, 0),
+            current_num_lines: 0,
             text_start_x: 0,
             text_end_x: 0,
             text_height: 0,
@@ -149,10 +154,16 @@ impl Terminal {
         const LEFT: MouseButton = MouseButton::Left;
         const ALT: KeyModifiers = KeyModifiers::ALT;
         match ev {
+            RawMouseEvent::Down(_, x, y, _)
+                if x as usize == self.cols - 1 =>
+            {
+                let line_y = y as usize * (self.current_num_lines / self.rows);
+                Some(MouseEvent::ClickLineMap { y: line_y })
+            }
             RawMouseEvent::Down(LEFT, x, y, modifiers) => {
                 self.in_text_area(y, x)
                     .map(|pos| {
-                        MouseEvent::ClickedText {
+                        MouseEvent::ClickText {
                             pos,
                             alt: modifiers == ALT,
                         }
@@ -210,6 +221,7 @@ impl Terminal {
         let mut buffer = view.buffer().borrow_mut();
         let top_left = view.top_left();
         self.current_top_left = top_left.clone();
+        self.current_num_lines = buffer.num_lines();
         self.text_start_x = text_offset;
         self.text_end_x = text_offset + text_width;
         self.text_height = text_height;

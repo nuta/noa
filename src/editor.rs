@@ -579,6 +579,7 @@ impl Editor {
         let input = self.command_box_input.text();
         let body;
         let mut chars = input.chars();
+        // TODO: GOTO LINE
         match chars.next() {
             Some(prefix @ 'G') | Some(prefix @ 'g') => {
                 // Search all files by regex.
@@ -885,11 +886,11 @@ impl Editor {
         trace!("mouse: {:?}", ev);
         let mut view = self.current.borrow_mut();
         match ev {
-            MouseEvent::ClickedText { pos, alt: true } => {
+            MouseEvent::ClickText { pos, alt: true } => {
                 view.goto(pos.y, pos.x);
                 self.lsp.request_goto_definition(&*view.buffer().borrow());
             }
-            MouseEvent::ClickedText { pos, .. }
+            MouseEvent::ClickText { pos, .. }
                 if self.time_last_clicked.elapsed() < Duration::from_millis(400)
             => {
                 let mut buffer = view.buffer().borrow_mut();
@@ -900,9 +901,12 @@ impl Editor {
                     view.goto(pos.y, pos.x)
                 }
             }
-            MouseEvent::ClickedText { pos, .. } => {
+            MouseEvent::ClickText { pos, .. } => {
                 view.goto(pos.y, pos.x);
                 self.time_last_clicked = Instant::now();
+            }
+            MouseEvent::ClickLineMap { y } => {
+                view.goto(y, 0);
             }
             MouseEvent::Drag { pos: mut drag_pos } => {
                 let mut buffer = view.buffer().borrow_mut();

@@ -44,6 +44,9 @@ class Executor
           body: line,
         }
       end
+    when "goto"
+      line = File.read(@body["path"]).lines[@body["point"]["y"]] || ""
+      items << { type: "print", body: line }
     when "replace_with"
       @body["locations"].each do |loc|
         y = loc["range"]["start"]["y"]
@@ -82,6 +85,12 @@ class Executor
         type: "goto",
         file: loc["file"],
         position: loc["range"]["start"]
+      }
+    when "goto"
+      @response_body = {
+        type: "goto",
+        file: @body["file"],
+        position: @body["point"]
       }
     when "replace_with"
       changes = []
