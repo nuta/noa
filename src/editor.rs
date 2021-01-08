@@ -105,6 +105,7 @@ pub enum OpenIn {
 
 pub enum Event {
     Key(KeyEvent),
+    KeyBatch(String),
     Mouse(RawMouseEvent),
     FileChanged(PathBuf),
     NoCompletion,
@@ -388,6 +389,26 @@ impl Editor {
                     }
                     EditorMode::CommandBox => {
                         self.handle_key_event_in_command_box(key);
+                    }
+                }
+            }
+            Event::KeyBatch(s) => {
+                match self.mode {
+                    EditorMode::Normal => {
+                        let view = self.current.borrow();
+                        let mut buffer = view.buffer().borrow_mut();
+
+                        buffer.insert(&s);
+
+                        self.lsp.request_completions(&*buffer);
+                        self.hover_message = None;
+                        drop(buffer);
+                        drop(view);
+                        self.clear_popup();
+                    }
+                    EditorMode::CommandBox => {
+                        self.command_box_input.insert(&s);
+                        self.execute_command(true, OpenIn::CurrentPane);
                     }
                 }
             }

@@ -91,26 +91,78 @@ impl Terminal {
             .expect("failed to enter the alternative screen");
 
         thread::spawn(move || {
+            fn handle_event(event_queue: &EventQueue, ev: TermEvent) {
+                match ev {
+                    TermEvent::Key(key) => {
+                        event_queue.enqueue(Event::Key(key));
+                    }
+                    TermEvent::Mouse(mouse) => {
+                        event_queue.enqueue(Event::Mouse(mouse));
+                    }
+                    TermEvent::Resize(cols, rows) => {
+                        event_queue.enqueue(Event::Resize {
+                            cols: cols as usize,
+                            rows: rows as usize,
+                        });
+                    }
+                }
+            }
+
+            fn is_next_available() -> crossterm::Result<bool> {
+                event::poll(Duration::from_secs(0))
+            }
+
             loop {
-                match event::read() {
-                    Ok(ev) => {
-                        match ev {
-                            TermEvent::Key(key) => {
-                                event_queue.enqueue(Event::Key(key));
+                if let Ok(ev) = event::read() {
+                    match ev {
+                        TermEvent::Key(KeyEvent {
+                            code: KeyCode::Char(key),
+                            modifiers: KeyModifiers::NONE
+                        }) if is_next_available().unwrap() => {
+                            let mut next_event = None;
+                            let mut buf = key.to_string();
+                            while is_next_available().unwrap() && next_event.is_none() {
+                                match event::read() {
+                                    Ok(TermEvent::Key(KeyEvent {
+                                        code: KeyCode::Char(ch),
+                                        modifiers: KeyModifiers::SHIFT
+                                    })) => {
+                                        buf.push(ch);
+                                    }
+                                    Ok(TermEvent::Key(KeyEvent {
+                                        code,
+                                        modifiers: KeyModifiers::NONE
+                                    })) => {
+                                        match code {
+                                            KeyCode::Char(ch) => {
+                                                buf.push(ch);
+                                            }
+                                            KeyCode::Enter => {
+                                                buf.push('\n');
+                                            }
+                                            KeyCode::Tab => {
+                                                buf.push('\t');
+                                            }
+                                            _ => {
+                                                next_event = Some(ev);
+                                            }
+                                        }
+                                    }
+                                    Ok(ev) => {
+                                        next_event = Some(ev);
+                                    }
+                                    _ => {}
+                                }
                             }
-                            TermEvent::Mouse(mouse) => {
-                                event_queue.enqueue(Event::Mouse(mouse));
-                            }
-                            TermEvent::Resize(cols, rows) => {
-                                event_queue.enqueue(Event::Resize {
-                                    cols: cols as usize,
-                                    rows: rows as usize,
-                                });
+
+                            event_queue.enqueue(Event::KeyBatch(buf));
+                            if let Some(ev) = next_event {
+                                handle_event(&event_queue, ev);
                             }
                         }
-                    }
-                    Err(err) => {
-                        warn!("failed to read a terminal event: {}", err);
+                        _ => {
+                            handle_event(&event_queue, ev);
+                        }
                     }
                 }
             }
