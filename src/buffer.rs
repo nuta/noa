@@ -1,6 +1,6 @@
 use crate::editorconfig::{EditorConfig, IndentStyle};
 use crate::highlight::{Highlighter, Span};
-use crate::language::Language;
+use crate::language::{Language, guess_language};
 use crate::rope::*;
 use serde::{Deserialize, Serialize};
 use std::cmp::{max, min};
@@ -142,7 +142,7 @@ impl Buffer {
     }
 
     pub fn open_file(path: &Path) -> std::io::Result<Buffer> {
-        let lang = &crate::language::PLAIN;
+        let lang = guess_language(path);
         let file = std::fs::File::open(path)?;
         let mut buffer = Buffer {
             id: BufferId::alloc(),

@@ -1,6 +1,7 @@
 use regex::Regex;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use std::path::Path;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum SpanType {
@@ -60,6 +61,18 @@ lazy_static! {
     pub static ref PLAIN: Language = {
         Language {
             name: "plain",
+            comment_out: None,
+            top_level_patterns: &[],
+            lsp: None,
+            patterns: hashmap! {}
+        }
+    };
+}
+
+lazy_static! {
+    pub static ref CXX: Language = {
+        Language {
+            name: "cxx",
             comment_out: Some("// "),
             top_level_patterns: &[
                 "cpp_directive",
@@ -129,4 +142,12 @@ lazy_static! {
             },
         }
     };
+}
+
+pub fn guess_language(path: &Path) -> &'static Language {
+    match path.extension().map(|s| s.to_str().unwrap()) {
+        Some("c") | Some("cpp") | Some("cxx") | Some("h") | Some("hpp")
+        | Some("hxx") => &CXX,
+        _ => &PLAIN,
+    }
 }
