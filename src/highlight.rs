@@ -447,7 +447,7 @@ mod test {
 
         // Escaped chars.
         let mut h = Highlighter::new(&crate::language::PLAIN);
-        do_highlight(&mut h, "\"ab\\\"cd\"", /* "ab\"cd" */, 0..=0);
+        do_highlight(&mut h, "\"ab\\\"cd\"" /* "ab\"cd" */, 0..=0);
         assert_eq!(
             h.line(0),
             &[

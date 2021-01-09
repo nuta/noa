@@ -12,7 +12,7 @@ const MIN_WORD_LEN: usize = 5;
 const CURRENT_WORD_MIN_LEN: usize = 2;
 
 lazy_static! {
-    static ref CACHES: RwLock<HashMap<BufferId, WordCompCache>> = { RwLock::new(HashMap::new()) };
+    static ref CACHES: RwLock<HashMap<BufferId, WordCompCache>> = RwLock::new(HashMap::new());
 }
 
 pub struct WordCompCache {
