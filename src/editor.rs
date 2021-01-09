@@ -1085,7 +1085,7 @@ impl Editor {
             (KeyCode::Tab, NONE) => {
                 buffer.tab();
             }
-            (KeyCode::BackTab, NONE) => {
+            (KeyCode::BackTab, _) => {
                 buffer.back_tab();
             }
             (KeyCode::Char('/'), ALT) => {

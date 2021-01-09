@@ -130,6 +130,7 @@ impl Buffer {
         };
 
         buffer.mark_undo_point();
+        buffer.is_dirty = false;
         buffer
     }
 
@@ -161,6 +162,7 @@ impl Buffer {
         };
 
         buffer.mark_undo_point();
+        buffer.is_dirty = false;
         Ok(buffer)
     }
 
