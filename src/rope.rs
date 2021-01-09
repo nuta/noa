@@ -1,9 +1,9 @@
+use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
+use std::cmp::{max, min};
 use std::fmt;
 use std::fs::OpenOptions;
 use std::path::Path;
-use std::cmp::{min, max};
-use std::cmp::Ordering;
-use serde::{Deserialize, Serialize};
 
 pub fn compute_str_checksum(string: &str) -> u64 {
     fxhash::hash64(string)
@@ -17,20 +17,10 @@ pub struct Point {
 
 impl Point {
     pub fn new(y: usize, x: usize) -> Point {
-        Point {
-            y,
-            x,
-        }
+        Point { y, x }
     }
 
-    pub fn move_by(
-        &mut self,
-        rope: &Rope,
-        up: usize,
-        down: usize,
-        left: usize,
-        right: usize
-    ) {
+    pub fn move_by(&mut self, rope: &Rope, up: usize, down: usize, left: usize, right: usize) {
         let num_lines = rope.num_lines();
         let mut r = right;
         loop {
@@ -118,10 +108,7 @@ impl Range {
     }
 
     pub fn from_points(start: Point, end: Point) -> Range {
-        Range {
-            start,
-            end,
-        }
+        Range { start, end }
     }
 
     pub fn front(&self) -> &Point {
@@ -152,9 +139,7 @@ impl fmt::Display for Range {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Cursor {
-    Normal {
-        pos: Point,
-    },
+    Normal { pos: Point },
     Selection(Range),
 }
 
@@ -176,21 +161,13 @@ impl Cursor {
 impl Ord for Cursor {
     fn cmp(&self, other: &Cursor) -> Ordering {
         let a = match self {
-            Cursor::Normal { pos, .. } => {
-                pos
-            }
-            Cursor::Selection(Range { start, .. }) => {
-                start
-            }
+            Cursor::Normal { pos, .. } => pos,
+            Cursor::Selection(Range { start, .. }) => start,
         };
 
         let b = match other {
-            Cursor::Normal { pos, .. } => {
-                pos
-            }
-            Cursor::Selection(Range { start, .. }) => {
-                start
-            }
+            Cursor::Normal { pos, .. } => pos,
+            Cursor::Selection(Range { start, .. }) => start,
         };
 
         a.cmp(b)
@@ -280,7 +257,7 @@ impl Rope {
         self.on_modified(pos.y);
     }
 
-    pub fn clear(&mut self){
+    pub fn clear(&mut self) {
         self.inner.remove(0..self.inner.len_chars());
     }
 
@@ -353,9 +330,7 @@ impl Rope {
     pub fn prev_word_at(&self, pos: &Point) -> Option<Range> {
         if pos.x == 0 {
             if pos.y > 0 {
-                return Some(
-                    Range::new(pos.y - 1, self.line_len(pos.y - 1), pos.y, 0)
-                );
+                return Some(Range::new(pos.y - 1, self.line_len(pos.y - 1), pos.y, 0));
             } else {
                 return None;
             }
@@ -366,8 +341,7 @@ impl Rope {
         for (i, ch) in self.line(pos.y).chars().take(pos.x).enumerate() {
             let current_state = is_word_char(ch);
             match state {
-                Some(prev_state) if prev_state == current_state => {
-                }
+                Some(prev_state) if prev_state == current_state => {}
                 _ => {
                     start = i;
                 }
@@ -384,16 +358,15 @@ impl Rope {
 
         let line = self.line(pos.y).to_string();
         let line_len = line.chars().count();
-        let end = line.chars()
+        let end = line
+            .chars()
             .rev()
             .skip(line_len - pos.x)
             .enumerate()
             .skip_while(|(_, ch)| !is_word_char(*ch))
             .skip_while(|(_, ch)| is_word_char(*ch))
             .next()
-            .map(|(i, _)| {
-                pos.x - i
-            })
+            .map(|(i, _)| pos.x - i)
             .unwrap_or(0);
 
         Point::new(pos.y, end)
@@ -403,18 +376,15 @@ impl Rope {
         assert!(pos.y < self.num_lines());
 
         let line = self.line(pos.y);
-        let end = line.chars()
+        let end = line
+            .chars()
             .skip(pos.x)
             .enumerate()
             .skip_while(|(_, ch)| !is_word_char(*ch))
             .skip_while(|(_, ch)| is_word_char(*ch))
             .next()
-            .map(|(i, _)| {
-                pos.x + i
-            })
-            .unwrap_or_else(|| {
-                line.len_chars()
-            });
+            .map(|(i, _)| pos.x + i)
+            .unwrap_or_else(|| line.len_chars());
 
         Point::new(pos.y, end)
     }
@@ -448,11 +418,14 @@ mod test {
             Cursor::new(2, 1),
             Cursor::new(0, 1),
         ]);
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 1),
-            Cursor::new(0, 3),
-            Cursor::new(1, 2),
-            Cursor::new(2, 1),
-        ]);
+        assert_eq!(
+            b.cursors(),
+            &[
+                Cursor::new(0, 1),
+                Cursor::new(0, 3),
+                Cursor::new(1, 2),
+                Cursor::new(2, 1),
+            ]
+        );
     }
 }

@@ -31,11 +31,7 @@ impl FuzzySet {
 
 /// Searches `entiries` for `query` in *fuzzy* way and returns the result
 /// ordered by the similarity.
-fn fuzzy_search<'a>(
-    entries: &'a HashSet<String>,
-    query: &str,
-    max_num: usize,
-) -> Vec<&'a str> {
+fn fuzzy_search<'a>(entries: &'a HashSet<String>, query: &str, max_num: usize) -> Vec<&'a str> {
     if query.is_empty() {
         // Return the all entries.
         return vec![];
@@ -64,7 +60,11 @@ fn fuzzy_search<'a>(
         .collect();
 
     filtered.sort_by_cached_key(|entry| compute_score(entry, query));
-    filtered.iter().take(max_num).copied().collect::<Vec<&str>>()
+    filtered
+        .iter()
+        .take(max_num)
+        .copied()
+        .collect::<Vec<&str>>()
 }
 
 /// Computes the similarity. Lower is more similar.

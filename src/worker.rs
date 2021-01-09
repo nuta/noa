@@ -1,6 +1,6 @@
-use std::thread;
-use std::sync::mpsc::{channel, Sender};
 use crate::editor::EventQueue;
+use std::sync::mpsc::{channel, Sender};
+use std::thread;
 
 const NUM_WORKER_THREADS: usize = 4;
 

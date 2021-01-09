@@ -1,12 +1,12 @@
-use std::cmp::min;
-use std::process::{Command, Stdio};
-use std::path::PathBuf;
-use std::io::{self, Read, Write};
+use crate::buffer::BufferId;
+use crate::rope::{Point, Range};
 use serde::{Deserialize, Serialize};
+use std::cmp::min;
+use std::io::{self, Read, Write};
+use std::path::PathBuf;
+use std::process::{Command, Stdio};
+use std::time::Instant;
 use tempfile::NamedTempFile;
-use std::time::{Instant};
-use crate::rope::{Range, Point};
-use crate::buffer::{BufferId};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct File {
@@ -19,9 +19,7 @@ pub struct File {
 #[serde(tag = "type")]
 pub enum PreviewItem {
     #[serde(rename = "print")]
-    Print {
-        body: String
-    },
+    Print { body: String },
     #[serde(rename = "print_with_file")]
     PrintWithFile {
         file: File,
@@ -45,14 +43,9 @@ pub enum ResponseBody {
         selectable: bool,
     },
     #[serde(rename = "goto")]
-    GoTo {
-        file: File,
-        position: Option<Point>,
-    },
+    GoTo { file: File, position: Option<Point> },
     #[serde(rename = "replace_with")]
-    ReplaceWith {
-        changes: Vec<Change>,
-    },
+    ReplaceWith { changes: Vec<Change> },
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -71,18 +64,11 @@ pub struct Location {
 #[serde(tag = "type")]
 pub enum RequestBody {
     #[serde(rename = "select_match")]
-    SelectMatch {
-        locations: Vec<Location>,
-    },
+    SelectMatch { locations: Vec<Location> },
     #[serde(rename = "goto")]
-    GoTo {
-        file: File,
-        position: Point,
-    },
+    GoTo { file: File, position: Point },
     #[serde(rename = "select_file")]
-    SelectFile {
-        files: Vec<File>
-    },
+    SelectFile { files: Vec<File> },
     #[serde(rename = "replace_with")]
     ReplaceWith {
         locations: Vec<Location>,
@@ -187,4 +173,3 @@ impl CommandBox {
         self.selected = min(self.selected + 1, self.num_items);
     }
 }
-

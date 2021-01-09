@@ -1,8 +1,8 @@
-use std::rc::Rc;
-use std::cmp::min;
-use std::cell::RefCell;
 use crate::buffer::Buffer;
 use crate::rope::{Cursor, Range};
+use std::cell::RefCell;
+use std::cmp::min;
+use std::rc::Rc;
 
 #[derive(Clone, Debug)]
 pub struct TopLeft {
@@ -12,10 +12,7 @@ pub struct TopLeft {
 
 impl TopLeft {
     pub fn new(y: usize, x: usize) -> TopLeft {
-        TopLeft {
-            y,
-            x,
-        }
+        TopLeft { y, x }
     }
 }
 

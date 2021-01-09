@@ -1,7 +1,7 @@
-use git2::{Repository, DiffFormat};
+use crate::buffer::Buffer;
+use git2::{DiffFormat, Repository};
 use std::ops::RangeInclusive;
 use std::path::Path;
-use crate::buffer::Buffer;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum LineStatusType {
@@ -44,14 +44,18 @@ impl StatusMap {
         }
     }
 
-    pub fn retain<F>(&mut self, f: F) where F: FnMut(&LineStatus) -> bool {
+    pub fn retain<F>(&mut self, f: F)
+    where
+        F: FnMut(&LineStatus) -> bool,
+    {
         self.statuses.retain(f);
     }
 
-    pub fn add(&mut self,
+    pub fn add(
+        &mut self,
         status: LineStatusType,
         lines: RangeInclusive<usize>,
-        message: Option<String>
+        message: Option<String>,
     ) {
         self.statuses.push(LineStatus::new(status, lines, message));
     }
@@ -70,7 +74,7 @@ impl StatusMap {
         for ls in self.statuses.iter().rev() {
             let start = *ls.lines.start();
             let end = *ls.lines.end();
-            if  y <= end && start <= y + size {
+            if y <= end && start <= y + size {
                 return Some(ls);
             }
         }
@@ -78,7 +82,6 @@ impl StatusMap {
         None
     }
 }
-
 
 fn is_same_file(path1: &Path, path2: &Path) -> bool {
     use std::fs::metadata;
@@ -106,7 +109,7 @@ pub fn compute_git_diff(
         match (buffer.path(), delta.new_file().path()) {
             (Some(path1), Some(path2)) if is_same_file(path1, path2) => {
                 // This diff is for `buffer`. Continue processing.
-            },
+            }
             _ => return true,
         }
 
@@ -121,8 +124,8 @@ pub fn compute_git_diff(
             '-' => {
                 if start_y.is_none() {
                     start_y = Some(
-                        line.old_lineno().unwrap() as usize - 1
-                            + num_added_total - num_deleted_total
+                        line.old_lineno().unwrap() as usize - 1 + num_added_total
+                            - num_deleted_total,
                     );
                 }
                 num_deleted += 1;
@@ -178,7 +181,8 @@ pub fn compute_git_diff(
 
         // Continue the iteration.
         true
-    }).ok();
+    })
+    .ok();
 
     Ok(())
 }

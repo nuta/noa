@@ -1,26 +1,24 @@
-use std::fs;
-use std::rc::Rc;
-use std::cmp::min;
-use std::cell::RefCell;
-use std::path::{Path, PathBuf};
-use std::sync::mpsc::{channel, Sender, Receiver};
-use std::time::{Instant, Duration};
-use git2::Repository;
-use crate::clipboard::Clipboard;
-use crate::watcher::FileWatcher;
-use crate::status_map::LineStatusType;
 use crate::buffer::{Buffer, BufferId};
-use crate::command_box::{CommandBox, RequestBody, Location, File};
+use crate::clipboard::Clipboard;
+use crate::command_box::{CommandBox, File, Location, RequestBody};
 use crate::completion::WordCompJob;
-use crate::view::View;
-use crate::worker::Worker;
 use crate::fuzzy::FuzzySet;
 use crate::lsp::Lsp;
-use crate::rope::{Point, Range, Cursor, compute_str_checksum};
-use crate::terminal::{
-    Terminal, KeyCode, KeyModifiers, KeyEvent, RawMouseEvent, MouseEvent,
-};
+use crate::rope::{compute_str_checksum, Cursor, Point, Range};
+use crate::status_map::LineStatusType;
 use crate::status_map::{compute_git_diff, StatusMap};
+use crate::terminal::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, RawMouseEvent, Terminal};
+use crate::view::View;
+use crate::watcher::FileWatcher;
+use crate::worker::Worker;
+use git2::Repository;
+use std::cell::RefCell;
+use std::cmp::min;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
+use std::sync::mpsc::{channel, Receiver, Sender};
+use std::time::{Duration, Instant};
 
 pub enum NotificationLevel {
     Report,
@@ -48,10 +46,7 @@ pub struct Popup {
 
 impl Popup {
     pub fn new(items: Vec<String>) -> Popup {
-        Popup {
-            items,
-            selected: 0,
-        }
+        Popup { items, selected: 0 }
     }
 
     pub fn len(&self) -> usize {
@@ -124,7 +119,7 @@ pub enum Event {
     Resize {
         rows: usize,
         cols: usize,
-    }
+    },
 }
 
 #[derive(Clone)]
@@ -134,9 +129,7 @@ pub struct EventQueue {
 
 impl EventQueue {
     pub fn new(tx: Sender<Event>) -> EventQueue {
-        EventQueue {
-            tx,
-        }
+        EventQueue { tx }
     }
 
     pub fn enqueue(&self, ev: Event) {
@@ -222,7 +215,11 @@ impl Editor {
         let abspath = match path.canonicalize() {
             Ok(abspath) => abspath,
             Err(err) => {
-                self.error(format!("failed to resolve path: {} ({})", path.display(), err));
+                self.error(format!(
+                    "failed to resolve path: {} ({})",
+                    path.display(),
+                    err
+                ));
                 return;
             }
         };
@@ -285,25 +282,26 @@ impl Editor {
             match self.event_queue.recv() {
                 Ok(ev) => {
                     let started_at = Instant::now();
-                    let snapshot = self.current
-                        .borrow().buffer().borrow().snapshot();
+                    let snapshot = self.current.borrow().buffer().borrow().snapshot();
 
                     self.handle_event(ev);
                     while let Ok(ev) = self.event_queue.try_recv() {
                         self.handle_event(ev);
                     }
 
-                    let current = self.current
-                        .borrow().buffer().borrow().snapshot();
+                    let current = self.current.borrow().buffer().borrow().snapshot();
                     if snapshot.buffer_id != current.buffer_id || snapshot.buf != current.buf {
                         self.on_modified();
                     }
 
-                    trace!("event handling took {} us", started_at.elapsed().as_micros());
+                    trace!(
+                        "event handling took {} us",
+                        started_at.elapsed().as_micros()
+                    );
                     self.draw();
                 }
                 Err(err) => {
-                   warn!("failed recv from the event queue: {:?}", err);
+                    warn!("failed recv from the event queue: {:?}", err);
                 }
             }
         }
@@ -339,16 +337,20 @@ impl Editor {
 
         // Remove git diff statuses.
         self.status_map.retain(|line_status| {
-            !matches!(line_status.status, LineStatusType::Added | LineStatusType::Deleted
-                | LineStatusType::Modified)
+            !matches!(
+                line_status.status,
+                LineStatusType::Added | LineStatusType::Deleted | LineStatusType::Modified
+            )
         });
         if let Some(git) = self.git.as_ref() {
             match compute_git_diff(&mut self.status_map, git, &*buffer) {
                 Ok(_) => {}
-                Err(err) => { trace!("failed to get diff: {}", err); }
+                Err(err) => {
+                    trace!("failed to get diff: {}", err);
+                }
             }
         }
-   }
+    }
 
     fn notify<T: Into<String>>(&self, level: NotificationLevel, message: T) {
         let message = message.into();
@@ -382,36 +384,32 @@ impl Editor {
 
     fn handle_event(&mut self, ev: Event) {
         match ev {
-            Event::Key(key) => {
-                match self.mode {
-                    EditorMode::Normal => {
-                        self.handle_key_event(key);
-                    }
-                    EditorMode::CommandBox => {
-                        self.handle_key_event_in_command_box(key);
-                    }
+            Event::Key(key) => match self.mode {
+                EditorMode::Normal => {
+                    self.handle_key_event(key);
                 }
-            }
-            Event::KeyBatch(s) => {
-                match self.mode {
-                    EditorMode::Normal => {
-                        let view = self.current.borrow();
-                        let mut buffer = view.buffer().borrow_mut();
-
-                        buffer.insert(&s);
-
-                        self.lsp.request_completions(&*buffer);
-                        self.hover_message = None;
-                        drop(buffer);
-                        drop(view);
-                        self.clear_popup();
-                    }
-                    EditorMode::CommandBox => {
-                        self.command_box_input.insert(&s);
-                        self.execute_command(true, OpenIn::CurrentPane);
-                    }
+                EditorMode::CommandBox => {
+                    self.handle_key_event_in_command_box(key);
                 }
-            }
+            },
+            Event::KeyBatch(s) => match self.mode {
+                EditorMode::Normal => {
+                    let view = self.current.borrow();
+                    let mut buffer = view.buffer().borrow_mut();
+
+                    buffer.insert(&s);
+
+                    self.lsp.request_completions(&*buffer);
+                    self.hover_message = None;
+                    drop(buffer);
+                    drop(view);
+                    self.clear_popup();
+                }
+                EditorMode::CommandBox => {
+                    self.command_box_input.insert(&s);
+                    self.execute_command(true, OpenIn::CurrentPane);
+                }
+            },
             Event::Mouse(mouse) => {
                 if let Some(ev) = self.terminal.convert_raw_mouse_event(mouse) {
                     self.handle_mouse_event(ev);
@@ -431,19 +429,28 @@ impl Editor {
             }
             Event::Diagnostics(diags) => {
                 self.status_map.retain(|line_status| {
-                    !matches!(line_status.status, LineStatusType::Error
-                        | LineStatusType::Warning)
+                    !matches!(
+                        line_status.status,
+                        LineStatusType::Error | LineStatusType::Warning
+                    )
                 });
 
-                for Diagnostic { range, severity, message } in diags {
+                for Diagnostic {
+                    range,
+                    severity,
+                    message,
+                } in diags
+                {
                     let line_status_type = match severity {
                         DiagnosticSeverity::Error => LineStatusType::Error,
                         DiagnosticSeverity::Warning => LineStatusType::Warning,
                         _ => continue,
                     };
                     self.status_map.add(
-                        line_status_type, range.front().y..=range.back().y,
-                        Some(message));
+                        line_status_type,
+                        range.front().y..=range.back().y,
+                        Some(message),
+                    );
                 }
             }
             Event::GoTo { path, pos } => {
@@ -505,7 +512,8 @@ impl Editor {
 
         self.popup_selected = 0;
         self.popup = {
-            buffer.current_word()
+            buffer
+                .current_word()
                 .map(|current_word| {
                     let mut filtered = Vec::new();
                     for item in items.search(&current_word, 5) {
@@ -554,12 +562,10 @@ impl Editor {
             self.switch_buffer(buffer_id);
         } else {
             match open_in {
-                OpenIn::CurrentPane => {
-                    self.open_file(&file.path)
-                }
+                OpenIn::CurrentPane => self.open_file(&file.path),
                 OpenIn::NewPane | OpenIn::NewPaneBottom => {
-                    use std::process::Command;
                     use std::env::args;
+                    use std::process::Command;
                     let argv0 = args().next().unwrap();
                     let cmd = Command::new("tmux")
                         .arg("split-window")
@@ -594,7 +600,7 @@ impl Editor {
     fn execute_command(&mut self, preview: bool, open_in: OpenIn) {
         use crate::command_box::{Request, Response, ResponseBody};
         use crate::search::{
-            list_files, grep_buffer, grep_dir, grep_dir_by_regex, NUM_MATCHES_MAX
+            grep_buffer, grep_dir, grep_dir_by_regex, list_files, NUM_MATCHES_MAX,
         };
 
         let input = self.command_box_input.text();
@@ -610,13 +616,9 @@ impl Editor {
                 }
 
                 let query = &input[2..];
-                let locations =  match prefix {
-                    'g' => {
-                        grep_dir(self.workspace_dir(), query)
-                    }
-                    'G' => {
-                        grep_dir_by_regex(self.workspace_dir(), query)
-                    }
+                let locations = match prefix {
+                    'g' => grep_dir(self.workspace_dir(), query),
+                    'G' => grep_dir_by_regex(self.workspace_dir(), query),
                     _ => unreachable!(),
                 };
 
@@ -646,32 +648,25 @@ impl Editor {
                 let query = &input[2..];
                 buffer.update_tmpfile();
                 let locations: Vec<Location> = match prefix {
-                    'f' => {
-                        buffer.find(query)
-                            .iter()
-                            .map(|range| {
-                                Location {
-                                    file: File {
-                                        display_name: buffer.name().to_owned(),
-                                        path: buffer.tmpfile().to_path_buf(),
-                                        buffer_id: Some(buffer.id()),
-                                    },
-                                    range: range.clone(),
-                                }
-                            })
-                            .collect()
-                    }
-                    'F' => {
-                        match grep_buffer(&*buffer, query) {
-                            Ok(locations) => {
-                                locations
-                            }
-                            Err(err) => {
-                                self.error(format!("grep: {}", err));
-                                return;
-                            }
+                    'f' => buffer
+                        .find(query)
+                        .iter()
+                        .map(|range| Location {
+                            file: File {
+                                display_name: buffer.name().to_owned(),
+                                path: buffer.tmpfile().to_path_buf(),
+                                buffer_id: Some(buffer.id()),
+                            },
+                            range: range.clone(),
+                        })
+                        .collect(),
+                    'F' => match grep_buffer(&*buffer, query) {
+                        Ok(locations) => locations,
+                        Err(err) => {
+                            self.error(format!("grep: {}", err));
+                            return;
                         }
-                    }
+                    },
                     _ => unreachable!(),
                 };
 
@@ -698,13 +693,9 @@ impl Editor {
                     }
                 };
 
-                let locations =  match prefix {
-                    's' => {
-                        grep_dir(self.workspace_dir(), query)
-                    }
-                    'S' => {
-                        grep_dir_by_regex(self.workspace_dir(), query)
-                    }
+                let locations = match prefix {
+                    's' => grep_dir(self.workspace_dir(), query),
+                    'S' => grep_dir_by_regex(self.workspace_dir(), query),
                     _ => unreachable!(),
                 };
 
@@ -796,7 +787,11 @@ impl Editor {
                                 let mut buffer = match Buffer::open_file(&path) {
                                     Ok(buffer) => buffer,
                                     Err(err) => {
-                                        self.error(format!("failed to open: {} ({})", path.display(), err));
+                                        self.error(format!(
+                                            "failed to open: {} ({})",
+                                            path.display(),
+                                            err
+                                        ));
                                         continue;
                                     }
                                 };
@@ -805,7 +800,11 @@ impl Editor {
                                 buffer.backspace();
                                 buffer.insert(&change.new_str);
                                 if let Err(err) = buffer.save_without_backup() {
-                                    self.error(format!("failed to save: {} ({})", path.display(), err));
+                                    self.error(format!(
+                                        "failed to save: {} ({})",
+                                        path.display(),
+                                        err
+                                    ));
                                     continue;
                                 }
                             }
@@ -835,8 +834,7 @@ impl Editor {
             (KeyCode::Char('j'), CTRL) => {
                 self.execute_command(false, OpenIn::NewPane);
             }
-            (KeyCode::Esc, NONE)
-            | (KeyCode::Char('m'), CTRL) => {
+            (KeyCode::Esc, NONE) | (KeyCode::Char('m'), CTRL) => {
                 self.close_command_box();
                 return;
             }
@@ -869,7 +867,7 @@ impl Editor {
             (KeyCode::Char('r'), CTRL) => {
                 let input = self.command_box_input.text();
                 match input.chars().next() {
-                    Some(first_ch @ 'a' ..= 'z') => {
+                    Some(first_ch @ 'a'..='z') => {
                         let mut new_input = String::new();
                         new_input.push(first_ch.to_ascii_uppercase());
                         new_input.push_str(&input[1..]);
@@ -879,8 +877,7 @@ impl Editor {
                 }
                 modified = true;
             }
-            (KeyCode::Char(ch), NONE)
-            | (KeyCode::Char(ch), SHIFT) => {
+            (KeyCode::Char(ch), NONE) | (KeyCode::Char(ch), SHIFT) => {
                 self.command_box_input.insert_char(ch);
                 modified = true;
             }
@@ -888,8 +885,7 @@ impl Editor {
                 self.command_box_input.backspace();
                 modified = true;
             }
-            (KeyCode::Delete, NONE)
-            | (KeyCode::Char('d'), CTRL) => {
+            (KeyCode::Delete, NONE) | (KeyCode::Char('d'), CTRL) => {
                 self.command_box_input.delete();
                 modified = true;
             }
@@ -912,8 +908,8 @@ impl Editor {
                 self.lsp.request_goto_definition(&*view.buffer().borrow());
             }
             MouseEvent::ClickText { pos, .. }
-                if self.time_last_clicked.elapsed() < Duration::from_millis(400)
-            => {
+                if self.time_last_clicked.elapsed() < Duration::from_millis(400) =>
+            {
                 let mut buffer = view.buffer().borrow_mut();
                 if let Some(range) = buffer.current_word_range() {
                     buffer.select_by_ranges(&[range]);
@@ -960,8 +956,7 @@ impl Editor {
         let mut update_completion = false;
         trace!("key = {:?}", key);
         match (key.code, key.modifiers) {
-            (KeyCode::Char('q'), CTRL) |
-            (KeyCode::Esc, NONE) if self.is_popup_active() => {
+            (KeyCode::Char('q'), CTRL) | (KeyCode::Esc, NONE) if self.is_popup_active() => {
                 // Clear the popup.
             }
             (KeyCode::Enter, NONE) | (KeyCode::Tab, NONE) if self.is_popup_active() => {
@@ -983,20 +978,18 @@ impl Editor {
             (KeyCode::Char('s'), CTRL) if buffer.is_virtual_file() => {
                 self.error("current buffer cannot be saved into a file");
             }
-            (KeyCode::Char('s'), CTRL) => {
-                match buffer.save(&self.backup_dir) {
-                    Ok(_) => {
-                        self.info(format!("saved ({} lines)", buffer.num_lines()));
-                        drop(buffer);
-                        drop(view);
-                        self.update_status_map();
-                        return;
-                    }
-                    Err(err) => {
-                        self.error(format!("failed to save: {}", err));
-                    }
+            (KeyCode::Char('s'), CTRL) => match buffer.save(&self.backup_dir) {
+                Ok(_) => {
+                    self.info(format!("saved ({} lines)", buffer.num_lines()));
+                    drop(buffer);
+                    drop(view);
+                    self.update_status_map();
+                    return;
                 }
-            }
+                Err(err) => {
+                    self.error(format!("failed to save: {}", err));
+                }
+            },
             //
             //  Popup.
             //
@@ -1056,7 +1049,7 @@ impl Editor {
                 return;
             }
             (KeyCode::Char('m'), ALT) => {
-            if let Some(current_word) = buffer.current_word() {
+                if let Some(current_word) = buffer.current_word() {
                     let matches = &buffer.find(&current_word);
                     buffer.select_by_ranges(matches);
                 }
@@ -1075,10 +1068,14 @@ impl Editor {
             }
             (KeyCode::Char('j'), CTRL) => {
                 let pos = buffer.main_cursor_pos();
-                trace!("{:?}, endswith: '{}'", pos, buffer.line_substr(pos.y, pos.x));
-                let do_auto_indent =
-                    buffer.indent_size(pos.y) > 0
-                    || buffer.line_substr(pos.y, pos.x.saturating_sub(1))
+                trace!(
+                    "{:?}, endswith: '{}'",
+                    pos,
+                    buffer.line_substr(pos.y, pos.x)
+                );
+                let do_auto_indent = buffer.indent_size(pos.y) > 0
+                    || buffer
+                        .line_substr(pos.y, pos.x.saturating_sub(1))
                         .ends_with('{');
                 buffer.insert_char('\n');
                 if do_auto_indent {

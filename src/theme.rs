@@ -1,7 +1,7 @@
 use crate::highlight::Style;
-use crate::language::{SpanType};
+use crate::language::SpanType;
 use crate::status_map::LineStatusType;
-use crossterm::style::{Color};
+use crossterm::style::Color;
 use std::collections::HashMap;
 use std::io::Stdout;
 
@@ -31,9 +31,7 @@ pub struct Theme {
 
 impl Theme {
     pub fn from_hash_map(items: HashMap<ThemeItem, Style>) -> Theme {
-        Theme {
-            items,
-        }
+        Theme { items }
     }
 
     pub fn apply(&self, stdout: &mut Stdout, item: ThemeItem) -> crossterm::Result<()> {
@@ -46,7 +44,9 @@ impl Theme {
 }
 
 macro_rules! color {
-    ($n:expr) => (Color::AnsiValue($n))
+    ($n:expr) => {
+        Color::AnsiValue($n)
+    };
 }
 
 // The default theme.

@@ -1,45 +1,24 @@
-use crate::editor::{Event, EventQueue, Diagnostic, DiagnosticSeverity};
-use crate::language::{Language, LspSettings};
-use crate::helpers::open_log_file;
 use crate::buffer::{Buffer, BufferId};
-use crate::rope::{Point, Range};
+use crate::editor::{Diagnostic, DiagnosticSeverity, Event, EventQueue};
 use crate::fuzzy::FuzzySet;
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
-use std::sync::mpsc::{self, Sender, Receiver};
-use std::process::{Command, Child, Stdio, ChildStdin, ChildStdout};
-use std::path::{Path, PathBuf};
-use jsonrpc_core::{
-    Id,
-    Call,
-    types::{Value},
-};
+use crate::helpers::open_log_file;
+use crate::language::{Language, LspSettings};
+use crate::rope::{Point, Range};
+use jsonrpc_core::{types::Value, Call, Id};
 use lsp_types::{
-    request::{
-        Initialize,
-        Completion,
-        GotoDefinition,
-        SignatureHelpRequest,
-    },
-    notification::{
-        DidOpenTextDocument,
-        DidChangeTextDocument,
-    },
-    InitializeParams,
-    DidOpenTextDocumentParams,
-    VersionedTextDocumentIdentifier,
-    DidChangeTextDocumentParams,
-    TextDocumentContentChangeEvent,
-    TextDocumentIdentifier,
-    CompletionParams,
-    TextDocumentPositionParams,
-    WorkDoneProgressParams,
-    PartialResultParams,
-    Position,
-    GotoDefinitionParams,
-    SignatureHelpParams,
+    notification::{DidChangeTextDocument, DidOpenTextDocument},
+    request::{Completion, GotoDefinition, Initialize, SignatureHelpRequest},
+    CompletionParams, DidChangeTextDocumentParams, DidOpenTextDocumentParams, GotoDefinitionParams,
+    InitializeParams, PartialResultParams, Position, SignatureHelpParams,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams,
+    VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{Arc, Mutex};
 
 enum Request {
     Initialize {
@@ -71,9 +50,7 @@ enum Request {
 }
 
 enum SentRequest {
-    Completion {
-        buffer_id: BufferId,
-    },
+    Completion { buffer_id: BufferId },
     GotoDefinition,
     SignatureHelp,
 }
@@ -151,47 +128,50 @@ fn send_requests(
                         trace: None,
                         workspace_folders: None,
                         client_info: None,
-                    }
+                    },
                 )
             }
             Request::OpenFile { path, text } => {
                 trace!("DidOpenTextDocument(path={})", path.display());
-                serialize_notification::<DidOpenTextDocument>(
-                    DidOpenTextDocumentParams {
-                        text_document: lsp_types::TextDocumentItem {
-                            uri: parse_path_as_uri(&path),
-                            language_id: lsp.language_id.to_owned(),
-                            version: 0,
-                            text,
-                        }
-                    }
-                )
+                serialize_notification::<DidOpenTextDocument>(DidOpenTextDocumentParams {
+                    text_document: lsp_types::TextDocumentItem {
+                        uri: parse_path_as_uri(&path),
+                        language_id: lsp.language_id.to_owned(),
+                        version: 0,
+                        text,
+                    },
+                })
             }
-            Request::ChangeFile { path, text, version } => {
+            Request::ChangeFile {
+                path,
+                text,
+                version,
+            } => {
                 trace!("DidChangeTextDocument(path={})", path.display());
-                serialize_notification::<DidChangeTextDocument>(
-                    DidChangeTextDocumentParams {
-                        text_document: VersionedTextDocumentIdentifier {
-                            uri: parse_path_as_uri(&path),
-                            version: Some(version as i64),
-                        },
-                        content_changes: vec![TextDocumentContentChangeEvent {
-                            range: None,
-                            range_length: None,
-                            text,
-                        }]
-                    }
-                )
+                serialize_notification::<DidChangeTextDocument>(DidChangeTextDocumentParams {
+                    text_document: VersionedTextDocumentIdentifier {
+                        uri: parse_path_as_uri(&path),
+                        version: Some(version as i64),
+                    },
+                    content_changes: vec![TextDocumentContentChangeEvent {
+                        range: None,
+                        range_length: None,
+                        text,
+                    }],
+                })
             }
-            Request::Completion { path, buffer_id, y, x } => {
+            Request::Completion {
+                path,
+                buffer_id,
+                y,
+                x,
+            } => {
                 trace!("Completion(path={})", path.display());
                 let id = alloc_id();
-                sent_reqs.lock().unwrap().insert(
-                    id.clone(),
-                    SentRequest::Completion {
-                        buffer_id,
-                    }
-                );
+                sent_reqs
+                    .lock()
+                    .unwrap()
+                    .insert(id.clone(), SentRequest::Completion { buffer_id });
 
                 serialize_request::<Completion>(
                     id,
@@ -212,16 +192,16 @@ fn send_requests(
                             partial_result_token: None,
                         },
                         context: None,
-                    }
+                    },
                 )
             }
             Request::GotoDefinition { path, pos } => {
                 trace!("GotoDefinition(buffer={}, pos={})", path.display(), pos);
                 let id = alloc_id();
-                sent_reqs.lock().unwrap().insert(
-                    id.clone(),
-                    SentRequest::GotoDefinition
-                );
+                sent_reqs
+                    .lock()
+                    .unwrap()
+                    .insert(id.clone(), SentRequest::GotoDefinition);
 
                 serialize_request::<GotoDefinition>(
                     id,
@@ -241,16 +221,16 @@ fn send_requests(
                         partial_result_params: PartialResultParams {
                             partial_result_token: None,
                         },
-                    }
+                    },
                 )
             }
             Request::SignatureHelp { path, pos } => {
                 trace!("SignatureHelp(buffer={}, pos={})", path.display(), pos);
                 let id = alloc_id();
-                sent_reqs.lock().unwrap().insert(
-                    id.clone(),
-                    SentRequest::SignatureHelp,
-                );
+                sent_reqs
+                    .lock()
+                    .unwrap()
+                    .insert(id.clone(), SentRequest::SignatureHelp);
 
                 serialize_request::<SignatureHelpRequest>(
                     id,
@@ -268,7 +248,7 @@ fn send_requests(
                             work_done_token: None,
                         },
                         context: None,
-                    }
+                    },
                 )
             }
         };
@@ -283,7 +263,7 @@ fn receive_requests(
     stdout: ChildStdout,
     sent_reqs: Arc<Mutex<HashMap<Id, SentRequest>>>,
 ) {
-    use std::io::{BufReader, Read, BufRead};
+    use std::io::{BufRead, BufReader, Read};
 
     let mut reader = BufReader::new(stdout);
     'mainloop: loop {
@@ -313,13 +293,14 @@ fn receive_requests(
                 continue;
             }
 
-            headers.insert(words[0].trim().to_owned(),
-                words[1].trim().to_owned());
+            headers.insert(words[0].trim().to_owned(), words[1].trim().to_owned());
         }
 
         // Parse Content-Length.
-        let len = match headers.get("Content-Length")
-            .and_then(|value| value.parse::<usize>().ok()) {
+        let len = match headers
+            .get("Content-Length")
+            .and_then(|value| value.parse::<usize>().ok())
+        {
             Some(len) => len,
             None => {
                 warn!("missing valid LSP Content-Length header");
@@ -330,7 +311,7 @@ fn receive_requests(
         // Read the content.
         let mut buf = vec![0; len];
         let body = match reader.read_exact(&mut buf) {
-            Ok(_) => { String::from_utf8(buf).unwrap() },
+            Ok(_) => String::from_utf8(buf).unwrap(),
             Err(err) => {
                 warn!("failed to read from the LSP server: {}", err);
                 continue 'mainloop;
@@ -388,11 +369,13 @@ fn receive_requests(
                     // FIXME: Help me :/
                     if let Value::Array(results) = resp.result {
                         if let Some(Value::Object(definition)) = results.get(0) {
-                            if let (Some(Value::Object(range)), Some(Value::String(uri)))
-                                = (definition.get("range"), definition.get("uri")) {
+                            if let (Some(Value::Object(range)), Some(Value::String(uri))) =
+                                (definition.get("range"), definition.get("uri"))
+                            {
                                 if let Some(Value::Object(position)) = range.get("start") {
-                                    if let (Some(Value::Number(y)), Some(Value::Number(x)))
-                                        = (position.get("line"), position.get("character")) {
+                                    if let (Some(Value::Number(y)), Some(Value::Number(x))) =
+                                        (position.get("line"), position.get("character"))
+                                    {
                                         if let (Some(y), Some(x)) = (y.as_u64(), x.as_u64()) {
                                             if let Some(path) = parse_uri_as_path(uri) {
                                                 event_queue.enqueue(Event::GoTo {
@@ -427,15 +410,13 @@ fn receive_requests(
 
 fn handle_push_from_server(event_queue: &EventQueue, req: Call) {
     match req {
-        Call::Notification(noti) => {
-            match noti.method.as_str() {
-                "textDocument/publishDiagnostics" => {
-                    handle_diagnotics(event_queue, noti);
-                }
-                _ => {},
+        Call::Notification(noti) => match noti.method.as_str() {
+            "textDocument/publishDiagnostics" => {
+                handle_diagnotics(event_queue, noti);
             }
-        }
-        _ => {},
+            _ => {}
+        },
+        _ => {}
     }
 }
 
@@ -472,15 +453,13 @@ fn handle_diagnotics(event_queue: &EventQueue, noti: jsonrpc_core::Notification)
                                 };
 
                                 let severity = match diag.get("severity") {
-                                    Some(Value::Number(severity)) => {
-                                        match severity.as_u64() {
-                                            Some(1) => DiagnosticSeverity::Error,
-                                            Some(2) => DiagnosticSeverity::Warning,
-                                            Some(3) => DiagnosticSeverity::Info,
-                                            Some(4) => DiagnosticSeverity::Hint,
-                                            _ => continue,
-                                        }
-                                    }
+                                    Some(Value::Number(severity)) => match severity.as_u64() {
+                                        Some(1) => DiagnosticSeverity::Error,
+                                        Some(2) => DiagnosticSeverity::Warning,
+                                        Some(3) => DiagnosticSeverity::Info,
+                                        Some(4) => DiagnosticSeverity::Hint,
+                                        _ => continue,
+                                    },
                                     _ => continue,
                                 };
 
@@ -535,50 +514,65 @@ impl Lsp {
 
     pub fn open_buffer(&mut self, buffer: &Buffer) {
         if let Some(path) = buffer.path() {
-            self.send(buffer.lang(), Request::OpenFile {
-                path: path.to_owned(),
-                text: buffer.text(),
-            });
+            self.send(
+                buffer.lang(),
+                Request::OpenFile {
+                    path: path.to_owned(),
+                    text: buffer.text(),
+                },
+            );
         }
     }
 
     pub fn modify_buffer(&mut self, buffer: &Buffer) {
         if let Some(path) = buffer.path() {
-            self.send(buffer.lang(), Request::ChangeFile {
-                path: path.to_owned(),
-                text: buffer.text(),
-                version: buffer.version(),
-            });
+            self.send(
+                buffer.lang(),
+                Request::ChangeFile {
+                    path: path.to_owned(),
+                    text: buffer.text(),
+                    version: buffer.version(),
+                },
+            );
         }
     }
 
     pub fn request_signature_help(&mut self, buffer: &Buffer) {
         if let Some(path) = buffer.path() {
-            self.send(buffer.lang(), Request::SignatureHelp {
-                path: path.to_owned(),
-                pos: *buffer.main_cursor_pos(),
-            });
+            self.send(
+                buffer.lang(),
+                Request::SignatureHelp {
+                    path: path.to_owned(),
+                    pos: *buffer.main_cursor_pos(),
+                },
+            );
         }
     }
 
     pub fn request_goto_definition(&mut self, buffer: &Buffer) {
         if let Some(path) = buffer.path() {
-            self.send(buffer.lang(), Request::GotoDefinition {
-                path: path.to_owned(),
-                pos: *buffer.main_cursor_pos(),
-            });
+            self.send(
+                buffer.lang(),
+                Request::GotoDefinition {
+                    path: path.to_owned(),
+                    pos: *buffer.main_cursor_pos(),
+                },
+            );
         }
     }
 
     pub fn request_completions(&mut self, buffer: &Buffer) {
         if let Some(path) = buffer.path() {
             let main_pos = buffer.main_cursor_pos();
-            self.send(buffer.lang(), Request::Completion {
-                buffer_id: buffer.id(),
-                path: path.to_owned(),
-                y: main_pos.y,
-                x: main_pos.x,
-            });
+            self.send(
+                buffer.lang(),
+                Request::Completion {
+                    buffer_id: buffer.id(),
+                    path: path.to_owned(),
+                    y: main_pos.y,
+                    x: main_pos.x,
+                },
+            );
         }
     }
 
@@ -602,16 +596,19 @@ impl Lsp {
         }
     }
 
-    fn start_server(&mut self,
+    fn start_server(
+        &mut self,
         lang: &'static Language,
-        lsp: &'static LspSettings
+        lsp: &'static LspSettings,
     ) -> std::io::Result<&Server> {
         let (tx, rx) = mpsc::channel();
         let mut process = Command::new(lsp.command[0])
             .args(&lsp.command[1..])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::from(open_log_file(&format!("lsp-{}.log", lang.name)).unwrap()))
+            .stderr(Stdio::from(
+                open_log_file(&format!("lsp-{}.log", lang.name)).unwrap(),
+            ))
             .spawn()?;
 
         let stdin = process.stdin.take().unwrap();
@@ -630,7 +627,8 @@ impl Lsp {
 
         tx.send(Request::Initialize {
             root_path: self.root_path.to_owned(),
-        }).ok();
+        })
+        .ok();
 
         self.servers.insert(lang, Server { tx, process });
         Ok(self.servers.get(lang).unwrap())

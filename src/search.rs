@@ -1,6 +1,6 @@
+use crate::buffer::Buffer;
 use crate::command_box::{File, Location};
 use crate::rope::Range;
-use crate::buffer::Buffer;
 use grep::matcher::Matcher;
 use grep::regex::{RegexMatcher, RegexMatcherBuilder};
 use grep::searcher::{Searcher, SearcherBuilder, Sink, SinkMatch};
@@ -47,7 +47,10 @@ impl<'a> Sink for GrepSink<'a> {
         let end_y = start_y + matched_text.matches('\n').count();
 
         let range = Range::new(start_y, start_x, end_y, end_x);
-        self.locations.push(Location { file: self.file.clone(), range });
+        self.locations.push(Location {
+            file: self.file.clone(),
+            range,
+        });
         Ok(self.locations.len() < NUM_MATCHES_MAX)
     }
 }
@@ -111,7 +114,10 @@ fn grep_buffer_by_matcher(dir: &Path, matcher: RegexMatcher) -> Vec<Location> {
     locs
 }
 
-pub fn grep_buffer(buffer: &Buffer, pat: &str) -> Result<Vec<Location>, Box<dyn std::error::Error>> {
+pub fn grep_buffer(
+    buffer: &Buffer,
+    pat: &str,
+) -> Result<Vec<Location>, Box<dyn std::error::Error>> {
     let matcher = build_matcher(pat)?;
     let mut searcher = build_searcher();
     let mut locs = Vec::new();
@@ -130,7 +136,10 @@ pub fn grep_dir(dir: &Path, needle: &str) -> Result<Vec<Location>, Box<dyn std::
     Ok(grep_buffer_by_matcher(dir, matcher))
 }
 
-pub fn grep_dir_by_regex(dir: &Path, pat: &str) -> Result<Vec<Location>, Box<dyn std::error::Error>> {
+pub fn grep_dir_by_regex(
+    dir: &Path,
+    pat: &str,
+) -> Result<Vec<Location>, Box<dyn std::error::Error>> {
     let matcher = build_matcher(pat)?;
     Ok(grep_buffer_by_matcher(dir, matcher))
 }
@@ -145,7 +154,11 @@ pub fn list_files(dir: &Path, pat: &str) -> Vec<File> {
 
             // TODO: fuzzy match
             if display_name.contains(pat) {
-                files.push(File { display_name, path, buffer_id: None });
+                files.push(File {
+                    display_name,
+                    path,
+                    buffer_id: None,
+                });
             }
 
             if files.len() >= NUM_MATCHES_MAX {

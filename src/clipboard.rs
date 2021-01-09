@@ -2,23 +2,18 @@ use std::io::prelude::*;
 use std::process::{Command, Stdio};
 
 /// The clipboard (tmux) manager.
-pub struct Clipboard {
-}
+pub struct Clipboard {}
 
 impl Clipboard {
     pub fn new() -> Clipboard {
-        Clipboard {
-        }
+        Clipboard {}
     }
 
     pub fn get(&mut self) -> String {
         Command::new("tmux")
             .args(&["show-buffer"])
             .output()
-            .map(|output| {
-                String::from_utf8(output.stdout)
-                    .unwrap_or_else(|_| String::new())
-            })
+            .map(|output| String::from_utf8(output.stdout).unwrap_or_else(|_| String::new()))
             .unwrap_or_else(|_| String::new())
     }
 

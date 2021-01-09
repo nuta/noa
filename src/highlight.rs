@@ -1,10 +1,10 @@
+use crate::buffer::Snapshot;
+use crate::language::{Language, Pattern, SpanType};
+use crate::rope::Cursor;
+use crossterm::style::Color;
+use regex::Regex;
 use std::cmp::{max, min};
 use std::ops::RangeInclusive;
-use crossterm::style::{Color};
-use regex::Regex;
-use crate::buffer::Snapshot;
-use crate::rope::Cursor;
-use crate::language::{SpanType, Pattern, Language};
 
 #[derive(Clone, Debug)]
 pub struct Span {
@@ -14,10 +14,7 @@ pub struct Span {
 
 impl Span {
     pub fn new(span_type: SpanType, range: RangeInclusive<usize>) -> Span {
-        Span {
-            span_type,
-            range,
-        }
+        Span { span_type, range }
     }
 }
 
@@ -51,13 +48,7 @@ pub struct Style {
 }
 
 impl Style {
-    pub fn new(
-        fg: Color,
-        bg: Color,
-        bold: bool,
-        underline: bool,
-        inverted: bool
-    ) -> Style {
+    pub fn new(fg: Color, bg: Color, bold: bool, underline: bool, inverted: bool) -> Style {
         Style {
             fg,
             bg,
@@ -125,11 +116,7 @@ impl Style {
 }
 
 pub trait HighlightProvider {
-    fn highlight(
-        &mut self,
-        snapshot: &Snapshot,
-        lines: RangeInclusive<usize>,
-    ) -> Vec<Vec<Span>>;
+    fn highlight(&mut self, snapshot: &Snapshot, lines: RangeInclusive<usize>) -> Vec<Vec<Span>>;
 }
 
 /// Cached highlighted text and states.
@@ -137,8 +124,10 @@ pub struct Highlighter {
     /// The merged spans. Each inner `Vec` represents each line.
     lines: Vec<Vec<Span>>,
     lang: &'static Language,
-    patterns_stack: Vec<(&'static [&'static str],
-        Option<(SpanType, &'static Regex, &'static [SpanType])>)>,
+    patterns_stack: Vec<(
+        &'static [&'static str],
+        Option<(SpanType, &'static Regex, &'static [SpanType])>,
+    )>,
 }
 
 impl Highlighter {
@@ -187,8 +176,7 @@ impl Highlighter {
         'outer: loop {
             let current = self.patterns_stack.last().unwrap();
             let remaining = &line[index..];
-            let current_inner =
-                current.1.map(|(inner, _, _)| inner);
+            let current_inner = current.1.map(|(inner, _, _)| inner);
 
             for pattern_name in current.0 {
                 match &self.lang.patterns[pattern_name] {
@@ -205,8 +193,12 @@ impl Highlighter {
                         }
                     }
                     Pattern::Block {
-                        start, end, start_captures,
-                        end_captures, inner, patterns
+                        start,
+                        end,
+                        start_captures,
+                        end_captures,
+                        inner,
+                        patterns,
                     } => {
                         if let Some(groups) = start.captures(remaining) {
                             add_captured_spans(
@@ -217,7 +209,8 @@ impl Highlighter {
                                 current_inner,
                             );
 
-                            self.patterns_stack.push((patterns, Some((*inner, end, end_captures))));
+                            self.patterns_stack
+                                .push((patterns, Some((*inner, end, end_captures))));
                             continue 'outer;
                         }
                     }
@@ -227,21 +220,14 @@ impl Highlighter {
             if let Some((inner, end, end_captures)) = current.1 {
                 // Try end of the current block.
                 if let Some(groups) = end.captures(remaining) {
-                    add_captured_spans(
-                        &mut spans,
-                        &mut index,
-                        end_captures,
-                        &groups,
-                        Some(inner),
-                    );
+                    add_captured_spans(&mut spans, &mut index, end_captures, &groups, Some(inner));
 
                     // Leave from the current block.
                     self.patterns_stack.pop();
                     continue 'outer;
                 } else if !remaining.is_empty() {
                     // In the current block inner contents.
-                    let range =
-                        index..=(index + remaining.chars().count() - 1);
+                    let range = index..=(index + remaining.chars().count() - 1);
                     spans.push(Span::new(inner, range));
                 }
             }
@@ -258,7 +244,7 @@ fn add_captured_spans(
     index: &mut usize,
     captures: &[SpanType],
     groups: &regex::Captures,
-    mut inner: Option<SpanType>
+    mut inner: Option<SpanType>,
 ) {
     let mut index_diff = 0;
     // Skip the first group that matches the whole regex, not each group
@@ -267,8 +253,7 @@ fn add_captured_spans(
         if let Some(m) = m {
             if let Some(span_type) = &inner {
                 if m.start() > 0 {
-                    let range =
-                        *index..=(*index + m.start() - 1);
+                    let range = *index..=(*index + m.start() - 1);
                     spans.push(Span::new(*span_type, range));
                 }
 
@@ -277,8 +262,7 @@ fn add_captured_spans(
             }
 
             let span_type = captures[i];
-            let range =
-                *index + m.start()..=(*index + m.end() - 1);
+            let range = *index + m.start()..=(*index + m.end() - 1);
             spans.push(Span::new(span_type, range));
             index_diff = m.end();
         }
@@ -296,39 +280,29 @@ fn highlight_cursors(cursors: &[Cursor], i: usize, line: &str) -> Vec<Span> {
             Cursor::Normal { pos } if j > 0 && pos.y == i => {
                 spans.push(Span::new(SpanType::Cursor, pos.x..=pos.x));
             }
-            Cursor::Normal { .. } => {
-            }
+            Cursor::Normal { .. } => {}
             Cursor::Selection(range) => {
                 use std::cmp::Ordering;
                 let front = range.front();
                 let back = range.back();
                 match (i.cmp(&front.y), i.cmp(&back.y)) {
                     (Ordering::Greater, Ordering::Less) => {
-                        spans.push(Span::new(
-                            SpanType::Selection,
-                            0..=num_chars
-                        ));
+                        spans.push(Span::new(SpanType::Selection, 0..=num_chars));
                     }
                     (Ordering::Equal, Ordering::Less) => {
-                        spans.push(Span::new(
-                            SpanType::Selection,
-                            front.x..=num_chars
-                        ));
+                        spans.push(Span::new(SpanType::Selection, front.x..=num_chars));
                     }
                     (Ordering::Greater, Ordering::Equal) => {
-                        spans.push(Span::new(
-                            SpanType::Selection,
-                            0..=back.x.saturating_sub(1)
-                        ));
+                        spans.push(Span::new(SpanType::Selection, 0..=back.x.saturating_sub(1)));
                     }
                     (Ordering::Equal, Ordering::Equal) => {
                         spans.push(Span::new(
                             SpanType::Selection,
-                            front.x..=back.x.saturating_sub(1)
+                            front.x..=back.x.saturating_sub(1),
                         ));
                     }
                     _ => {
-                    // Out of the selection.
+                        // Out of the selection.
                     }
                 }
             }
@@ -381,16 +355,15 @@ fn merge_spans(spans: &mut Vec<Span>, spans2: Vec<Span>) {
             let t2 = min(*a.range.end(), *b.range.end());
             let t3 = max(*a.range.end(), *b.range.end());
             let y = preferred_span(a.span_type, b.span_type);
-            let (x, z) =
-                if t0 == *a.range.start() && t3 == *a.range.end() {
-                    (a.span_type, a.span_type)
-                } else if t0 == *b.range.start() && t3 == *b.range.end() {
-                    (b.span_type, b.span_type)
-                } else if a.range.start() < b.range.start() {
-                    (a.span_type, b.span_type)
-                } else {
-                    (b.span_type, a.span_type)
-                };
+            let (x, z) = if t0 == *a.range.start() && t3 == *a.range.end() {
+                (a.span_type, a.span_type)
+            } else if t0 == *b.range.start() && t3 == *b.range.end() {
+                (b.span_type, b.span_type)
+            } else if a.range.start() < b.range.start() {
+                (a.span_type, b.span_type)
+            } else {
+                (b.span_type, a.span_type)
+            };
 
             spans.remove(j);
             spans.remove(i);
@@ -412,7 +385,8 @@ fn merge_spans(spans: &mut Vec<Span>, spans2: Vec<Span>) {
     let mut i = 1;
     while i < spans.len() {
         if spans[i - 1].span_type == spans[i].span_type
-            && *spans[i - 1].range.end() + 1 == *spans[i].range.start() {
+            && *spans[i - 1].range.end() + 1 == *spans[i].range.start()
+        {
             spans[i - 1].range = *spans[i - 1].range.start()..=*spans[i].range.end();
             spans.remove(i);
         } else {
@@ -439,16 +413,17 @@ mod test {
 
         let mut h = Highlighter::new(&crate::language::PLAIN);
         do_highlight(&mut h, "if", 0..=0);
-        assert_eq!(h.line(0), &[
-            Span::new(SpanType::CtrlKeyword, 0..=1),
-        ]);
+        assert_eq!(h.line(0), &[Span::new(SpanType::CtrlKeyword, 0..=1),]);
 
         let mut h = Highlighter::new(&crate::language::PLAIN);
         do_highlight(&mut h, "if for", 0..=0);
-        assert_eq!(h.line(0), &[
-            Span::new(SpanType::CtrlKeyword, 0..=1),
-            Span::new(SpanType::CtrlKeyword, 3..=5),
-        ]);
+        assert_eq!(
+            h.line(0),
+            &[
+                Span::new(SpanType::CtrlKeyword, 0..=1),
+                Span::new(SpanType::CtrlKeyword, 3..=5),
+            ]
+        );
     }
 
     #[test]
@@ -456,36 +431,38 @@ mod test {
         // A string literal.
         let mut h = Highlighter::new(&crate::language::PLAIN);
         do_highlight(&mut h, "\"abc\"", 0..=0);
-        assert_eq!(h.line(0), &[
-            Span::new(SpanType::StringLiteral, 0..=4),
-        ]);
+        assert_eq!(h.line(0), &[Span::new(SpanType::StringLiteral, 0..=4),]);
 
         // Escaped chars
         let mut h = Highlighter::new(&crate::language::PLAIN);
         do_highlight(&mut h, "\"a\\nb\"" /* "a\nb" */, 0..=0);
-        assert_eq!(h.line(0), &[
-            Span::new(SpanType::StringLiteral, 0..=1), // "a
-            Span::new(SpanType::EscapedChar,   2..=3), // \n
-            Span::new(SpanType::StringLiteral, 4..=5), // b"
-        ]);
+        assert_eq!(
+            h.line(0),
+            &[
+                Span::new(SpanType::StringLiteral, 0..=1), // "a
+                Span::new(SpanType::EscapedChar, 2..=3),   // \n
+                Span::new(SpanType::StringLiteral, 4..=5), // b"
+            ]
+        );
 
         // Escaped chars.
         let mut h = Highlighter::new(&crate::language::PLAIN);
-        do_highlight(&mut h, "\"ab\\\"cd\"" /* "ab\"cd" */, 0..=0);
-        assert_eq!(h.line(0), &[
-            Span::new(SpanType::StringLiteral, 0..=2), // "ab
-            Span::new(SpanType::EscapedChar,   3..=4), // \"
-            Span::new(SpanType::StringLiteral, 5..=7), // cd"
-        ]);
+        do_highlight(&mut h, "\"ab\\\"cd\"", /* "ab\"cd" */, 0..=0);
+        assert_eq!(
+            h.line(0),
+            &[
+                Span::new(SpanType::StringLiteral, 0..=2), // "ab
+                Span::new(SpanType::EscapedChar, 3..=4),   // \"
+                Span::new(SpanType::StringLiteral, 5..=7), // cd"
+            ]
+        );
     }
 
     #[test]
     fn test_block_comments() {
         let mut h = Highlighter::new(&crate::language::PLAIN);
         do_highlight(&mut h, "/* if */", 0..=0);
-        assert_eq!(h.line(0), &[
-            Span::new(SpanType::Comment, 0..=7)
-        ]);
+        assert_eq!(h.line(0), &[Span::new(SpanType::Comment, 0..=7)]);
     }
 
     #[test]
@@ -505,30 +482,21 @@ mod test {
             let mut spans = vec![];
             let others = vec![];
             merge_spans(&mut spans, others);
-            assert_eq!(
-                spans,
-                vec![]
-            );
+            assert_eq!(spans, vec![]);
         }
 
         {
             let mut spans = vec![Span::new(SpanType::StringLiteral, 0..=4)];
             let others = vec![];
             merge_spans(&mut spans, others);
-            assert_eq!(
-                spans,
-                vec![Span::new(SpanType::StringLiteral, 0..=4)]
-            );
+            assert_eq!(spans, vec![Span::new(SpanType::StringLiteral, 0..=4)]);
         }
 
         {
             let mut spans = vec![];
             let others = vec![Span::new(SpanType::StringLiteral, 0..=4)];
             merge_spans(&mut spans, others);
-            assert_eq!(
-                spans,
-                vec![Span::new(SpanType::StringLiteral, 0..=4)]
-            );
+            assert_eq!(spans, vec![Span::new(SpanType::StringLiteral, 0..=4)]);
         }
 
         // No overlapping.
@@ -550,15 +518,10 @@ mod test {
             let mut spans = vec![Span::new(SpanType::CtrlKeyword, 1..=3)];
             let others = vec![
                 Span::new(SpanType::CtrlKeyword, 2..=3),
-                Span::new(SpanType::Selection, 0..=7)
+                Span::new(SpanType::Selection, 0..=7),
             ];
             merge_spans(&mut spans, others);
-            assert_eq!(
-                spans,
-                vec![
-                    Span::new(SpanType::Selection, 0..=7),
-                ]
-            );
+            assert_eq!(spans, vec![Span::new(SpanType::Selection, 0..=7),]);
         }
 
         // Selection precedes other types.

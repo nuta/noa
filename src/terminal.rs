@@ -1,26 +1,25 @@
-use crate::editor::{EventQueue, Event, Notification, Popup, HoverMessage};
-use crate::rope::{Cursor, Point};
-use crate::view::View;
-use crate::theme::{THEME, ThemeItem};
-use crate::command_box::{CommandBox, ResponseBody, PreviewItem};
 use crate::buffer::Buffer;
+use crate::command_box::{CommandBox, PreviewItem, ResponseBody};
+use crate::editor::{Event, EventQueue, HoverMessage, Notification, Popup};
 use crate::rope::Range;
+use crate::rope::{Cursor, Point};
+use crate::status_map::{LineStatus, StatusMap};
+use crate::theme::{ThemeItem, THEME};
 use crate::view::TopLeft;
-use crate::status_map::{StatusMap, LineStatus};
-use std::cmp::{min, max};
-use std::io::{stdout, Write};
-use std::time::Duration;
-use std::thread;
-pub use crossterm::event::{KeyCode, KeyModifiers, KeyEvent, MouseEvent as RawMouseEvent};
+use crate::view::View;
 use crossterm::event::{
-    self, Event as TermEvent, MouseButton, EnableMouseCapture, DisableMouseCapture,
+    self, DisableMouseCapture, EnableMouseCapture, Event as TermEvent, MouseButton,
+};
+pub use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent as RawMouseEvent};
+use crossterm::terminal::{
+    disable_raw_mode, enable_raw_mode, size, EnterAlternateScreen, LeaveAlternateScreen,
 };
 use crossterm::{execute, queue};
-use crossterm::terminal::{
-    size, enable_raw_mode, disable_raw_mode,
-    EnterAlternateScreen, LeaveAlternateScreen,
-};
-use unicode_width::{UnicodeWidthChar};
+use std::cmp::{max, min};
+use std::io::{stdout, Write};
+use std::thread;
+use std::time::Duration;
+use unicode_width::UnicodeWidthChar;
 
 pub fn truncate(s: &str, width: usize) -> &str {
     &s[..min(s.chars().count(), width)]
@@ -81,14 +80,10 @@ pub struct Terminal {
 
 impl Terminal {
     pub fn new(event_queue: EventQueue) -> Terminal {
-        let (cols, rows) = size()
-            .expect("failed to get the terminal size");
-        enable_raw_mode()
-            .expect("failed to enable the raw mode");
-        execute!(stdout(), EnableMouseCapture)
-            .expect("failed to enable mouse capture");
-        execute!(stdout(), EnterAlternateScreen)
-            .expect("failed to enter the alternative screen");
+        let (cols, rows) = size().expect("failed to get the terminal size");
+        enable_raw_mode().expect("failed to enable the raw mode");
+        execute!(stdout(), EnableMouseCapture).expect("failed to enable mouse capture");
+        execute!(stdout(), EnterAlternateScreen).expect("failed to enter the alternative screen");
 
         thread::spawn(move || {
             fn handle_event(event_queue: &EventQueue, ev: TermEvent) {
@@ -117,7 +112,7 @@ impl Terminal {
                     match ev {
                         TermEvent::Key(KeyEvent {
                             code: KeyCode::Char(key),
-                            modifiers: KeyModifiers::NONE
+                            modifiers: KeyModifiers::NONE,
                         }) if is_next_available().unwrap() => {
                             let mut next_event = None;
                             let mut buf = key.to_string();
@@ -125,29 +120,27 @@ impl Terminal {
                                 match event::read() {
                                     Ok(TermEvent::Key(KeyEvent {
                                         code: KeyCode::Char(ch),
-                                        modifiers: KeyModifiers::SHIFT
+                                        modifiers: KeyModifiers::SHIFT,
                                     })) => {
                                         buf.push(ch);
                                     }
                                     Ok(TermEvent::Key(KeyEvent {
                                         code,
-                                        modifiers: KeyModifiers::NONE
-                                    })) => {
-                                        match code {
-                                            KeyCode::Char(ch) => {
-                                                buf.push(ch);
-                                            }
-                                            KeyCode::Enter => {
-                                                buf.push('\n');
-                                            }
-                                            KeyCode::Tab => {
-                                                buf.push('\t');
-                                            }
-                                            _ => {
-                                                next_event = Some(ev);
-                                            }
+                                        modifiers: KeyModifiers::NONE,
+                                    })) => match code {
+                                        KeyCode::Char(ch) => {
+                                            buf.push(ch);
                                         }
-                                    }
+                                        KeyCode::Enter => {
+                                            buf.push('\n');
+                                        }
+                                        KeyCode::Tab => {
+                                            buf.push('\t');
+                                        }
+                                        _ => {
+                                            next_event = Some(ev);
+                                        }
+                                    },
                                     Ok(ev) => {
                                         next_event = Some(ev);
                                     }
@@ -206,28 +199,18 @@ impl Terminal {
         const LEFT: MouseButton = MouseButton::Left;
         const ALT: KeyModifiers = KeyModifiers::ALT;
         match ev {
-            RawMouseEvent::Down(_, x, y, _)
-                if x as usize == self.cols - 1 =>
-            {
+            RawMouseEvent::Down(_, x, y, _) if x as usize == self.cols - 1 => {
                 let line_y = y as usize * (self.current_num_lines / self.rows);
                 Some(MouseEvent::ClickLineMap { y: line_y })
             }
             RawMouseEvent::Down(LEFT, x, y, modifiers) => {
-                self.in_text_area(y, x)
-                    .map(|pos| {
-                        MouseEvent::ClickText {
-                            pos,
-                            alt: modifiers == ALT,
-                        }
-                    })
+                self.in_text_area(y, x).map(|pos| MouseEvent::ClickText {
+                    pos,
+                    alt: modifiers == ALT,
+                })
             }
             RawMouseEvent::Drag(_, x, y, _) => {
-                self.in_text_area(y, x)
-                    .map(|pos| {
-                        MouseEvent::Drag {
-                            pos,
-                        }
-                    })
+                self.in_text_area(y, x).map(|pos| MouseEvent::Drag { pos })
             }
             RawMouseEvent::ScrollDown(..) => Some(MouseEvent::ScrollDown),
             RawMouseEvent::ScrollUp(..) => Some(MouseEvent::ScrollUp),
@@ -248,16 +231,18 @@ impl Terminal {
         hover_message: &Option<HoverMessage>,
     ) {
         use crossterm::cursor::{self, MoveTo};
+        use crossterm::style::{Attribute, Print, SetAttribute};
         use crossterm::terminal::{Clear, ClearType};
-        use crossterm::style::{Print, Attribute, SetAttribute};
 
         let mut stdout = stdout();
         if self.cols < 10 || self.rows < 5 {
-            queue!(stdout,
+            queue!(
+                stdout,
                 Clear(ClearType::All),
                 MoveTo(0, 0),
                 Print("too small!"),
-            ).unwrap();
+            )
+            .unwrap();
             stdout.flush().unwrap();
             return;
         }
@@ -282,11 +267,10 @@ impl Terminal {
         // Highlight the given text.
         // let modified_line = buffer.modified_line().unwrap_or(0);
         // if top_left.y <= modified_line && modified_line <= top_left.y + text_height {
-            let modified_line = 0;
-            let highlight_y_start = max(modified_line, top_left.y);
-            let range =
-                highlight_y_start..=(highlight_y_start + text_height);
-            buffer.highlight(range);
+        let modified_line = 0;
+        let highlight_y_start = max(modified_line, top_left.y);
+        let range = highlight_y_start..=(highlight_y_start + text_height);
+        buffer.highlight(range);
         // }
 
         // Get the current y.
@@ -296,21 +280,16 @@ impl Terminal {
         };
 
         // Hide the cursor to prevent flickering.
-        queue!(stdout,
-            cursor::Hide,
-        ).ok();
+        queue!(stdout, cursor::Hide,).ok();
 
         // Draw buffer contents.
         let mut scroll_bar_y = 0;
         let scroll_bar_diff = max(
             1,
-            (buffer.num_lines() as f64 / text_height as f64).ceil() as usize
+            (buffer.num_lines() as f64 / text_height as f64).ceil() as usize,
         );
         for i in 0..text_height {
-            queue!(stdout,
-                MoveTo(0, i as u16),
-                SetAttribute(Attribute::Reset),
-            ).ok();
+            queue!(stdout, MoveTo(0, i as u16), SetAttribute(Attribute::Reset),).ok();
 
             // Line number.
             let y = top_left.y + i;
@@ -318,10 +297,12 @@ impl Terminal {
             let out_of_bounds = lineno > buffer.num_lines();
             if out_of_bounds {
                 THEME.apply(&mut stdout, ThemeItem::LineNoPadding).ok();
-                queue!(stdout,
+                queue!(
+                    stdout,
                     Print(whitespaces(lineno_width)),
                     SetAttribute(Attribute::Reset),
-                ).ok();
+                )
+                .ok();
             } else {
                 THEME.apply(&mut stdout, ThemeItem::LineNo).ok();
                 if y == main_cursor_y {
@@ -329,27 +310,25 @@ impl Terminal {
                     queue!(stdout, SetAttribute(Attribute::Bold)).ok();
                 }
 
-                queue!(stdout,
+                queue!(
+                    stdout,
                     Print(whitespaces(lineno_width - num_of_digits(lineno) - 1)),
                     Print(lineno),
                     Print(" "),
                     SetAttribute(Attribute::Reset),
-                ).ok();
+                )
+                .ok();
             }
 
             // Line map.
             if let Some(LineStatus { status, .. }) = status_map.get(y) {
-                THEME.apply(&mut stdout, ThemeItem::LineStatus(*status)).ok();
-                queue!(stdout,
-                    Print(' '),
-                    SetAttribute(Attribute::Reset),
-                ).ok();
+                THEME
+                    .apply(&mut stdout, ThemeItem::LineStatus(*status))
+                    .ok();
+                queue!(stdout, Print(' '), SetAttribute(Attribute::Reset),).ok();
             } else {
                 THEME.apply(&mut stdout, ThemeItem::LineStatusPadding).ok();
-                queue!(stdout,
-                    Print(' '),
-                    SetAttribute(Attribute::Reset),
-                ).ok();
+                queue!(stdout, Print(' '), SetAttribute(Attribute::Reset),).ok();
             }
 
             // Margin.
@@ -372,26 +351,30 @@ impl Terminal {
                 }
 
                 if line.len_chars() > top_left.x {
-                    let remaining = self.draw_text_line(
-                        &mut stdout,
-                        &buffer,
-                        &line,
-                        &top_left,
-                        y,
-                        text_width,
-                    );
+                    let remaining =
+                        self.draw_text_line(&mut stdout, &buffer, &line, &top_left, y, text_width);
 
-                    if let Some(HoverMessage { y: target_y, message }) = hover_message {
+                    if let Some(HoverMessage {
+                        y: target_y,
+                        message,
+                    }) = hover_message
+                    {
                         if y == *target_y {
                             self.draw_hover_message(
-                                &mut stdout, message, ThemeItem::HoverMessage,
-                                remaining);
+                                &mut stdout,
+                                message,
+                                ThemeItem::HoverMessage,
+                                remaining,
+                            );
                         }
                     } else if let Some(LineStatus { message, .. }) = status_map.get(y) {
                         if let Some(message) = message {
                             self.draw_hover_message(
-                                &mut stdout, message, ThemeItem::DiagnosticMessage,
-                                remaining);
+                                &mut stdout,
+                                message,
+                                ThemeItem::DiagnosticMessage,
+                                remaining,
+                            );
                         }
                     }
                 }
@@ -403,33 +386,31 @@ impl Terminal {
                 Clear(ClearType::UntilNewLine),
                 SetAttribute(Attribute::Reset),
                 MoveTo(self.cols as u16 - 1, i as u16),
-            ).ok();
-            if let Some(LineStatus { status, .. })
-                = status_map.get_by_range(scroll_bar_y, scroll_bar_diff) {
-                THEME.apply(&mut stdout, ThemeItem::LineStatus(*status)).ok();
-                queue!(stdout,
-                    Print(' '),
-                    SetAttribute(Attribute::Reset),
-                ).ok();
+            )
+            .ok();
+            if let Some(LineStatus { status, .. }) =
+                status_map.get_by_range(scroll_bar_y, scroll_bar_diff)
+            {
+                THEME
+                    .apply(&mut stdout, ThemeItem::LineStatus(*status))
+                    .ok();
+                queue!(stdout, Print(' '), SetAttribute(Attribute::Reset),).ok();
             } else if top_left.y <= scroll_bar_y + scroll_bar_diff
-                && scroll_bar_y <= top_left.y + text_height {
+                && scroll_bar_y <= top_left.y + text_height
+            {
                 THEME.apply(&mut stdout, ThemeItem::ScrollBarVisible).ok();
-                queue!(stdout,
-                    Print(' '),
-                    SetAttribute(Attribute::Reset),
-                ).ok();
+                queue!(stdout, Print(' '), SetAttribute(Attribute::Reset),).ok();
             }
 
             scroll_bar_y += scroll_bar_diff;
         }
 
         // Draw the info bar.
-        queue!(stdout,
-            SetAttribute(Attribute::Reset),
-        ).ok();
+        queue!(stdout, SetAttribute(Attribute::Reset),).ok();
 
         THEME.apply(&mut stdout, ThemeItem::InfoBarColor).ok();
-        queue!(stdout,
+        queue!(
+            stdout,
             MoveTo(0, status_bar_y as u16),
             Print(" "),
             SetAttribute(Attribute::Bold),
@@ -438,14 +419,12 @@ impl Terminal {
             SetAttribute(Attribute::NoUnderline),
             Print(" "),
             SetAttribute(Attribute::Reset),
-        ).ok();
+        )
+        .ok();
 
         if buffer.is_dirty() {
             THEME.apply(&mut stdout, ThemeItem::DirtyBufferMark).ok();
-            queue!(stdout,
-                Print("[+]"),
-                SetAttribute(Attribute::Reset),
-            ).ok();
+            queue!(stdout, Print("[+]"), SetAttribute(Attribute::Reset),).ok();
         }
 
         queue!(stdout, Clear(ClearType::UntilNewLine)).ok();
@@ -459,12 +438,13 @@ impl Terminal {
                 if num_duplicated > 1 {
                     queue!(
                         stdout,
-                        Print(&format!("({}) {}",
-                        num_duplicated,
-                            truncate(&noti.message,
-                                self.cols - 3 - num_of_digits(num_duplicated))
-                            )
-                    )).ok();
+                        Print(&format!(
+                            "({}) {}",
+                            num_duplicated,
+                            truncate(&noti.message, self.cols - 3 - num_of_digits(num_duplicated))
+                        ))
+                    )
+                    .ok();
                 } else {
                     queue!(stdout, Print(truncate(&noti.message, self.cols))).ok();
                 }
@@ -476,17 +456,17 @@ impl Terminal {
                 stdout,
                 MoveTo(0, status_bar_y as u16 + 1),
                 Clear(ClearType::UntilNewLine),
-            ).ok();
+            )
+            .ok();
         }
 
         // Draw popup.
         let main_cursor = &buffer.cursors()[0];
         if buffer.cursors().len() == 1 {
-            if let(Some(popup), Cursor::Normal { pos, .. }) = (popup, main_cursor) {
+            if let (Some(popup), Cursor::Normal { pos, .. }) = (popup, main_cursor) {
                 let cursor_y = pos.y - top_left.y;
                 let cursor_x = pos.x - top_left.x;
-                let longest =
-                    popup.items().iter().map(String::len).max().unwrap_or(0);
+                let longest = popup.items().iter().map(String::len).max().unwrap_or(0);
                 let popup_width = min(longest + 1, text_width - 3);
                 let x = if cursor_x + popup_width < text_width {
                     cursor_x
@@ -514,7 +494,8 @@ impl Terminal {
                         Print(truncate(&item, popup_width - 1)),
                         Print(whitespaces(popup_width.saturating_sub(item.len()))),
                         SetAttribute(Attribute::Reset),
-                    ).ok();
+                    )
+                    .ok();
                 }
             }
         }
@@ -522,13 +503,15 @@ impl Terminal {
         // Draw the main cursor.
         match main_cursor {
             Cursor::Normal { pos, .. } => {
-                queue!(stdout,
+                queue!(
+                    stdout,
                     MoveTo(
                         (pos.x - top_left.x + text_offset) as u16,
                         (pos.y - top_left.y) as u16
                     ),
                     cursor::Show,
-                ).ok();
+                )
+                .ok();
             }
             _ => {
                 queue!(stdout, cursor::Hide).ok();
@@ -545,7 +528,7 @@ impl Terminal {
                 command_box_input,
                 y,
                 text_height - y,
-                self.cols
+                self.cols,
             );
         }
 
@@ -559,15 +542,12 @@ impl Terminal {
         theme_item: ThemeItem,
         width: usize,
     ) {
+        use crossterm::style::{Attribute, Print, SetAttribute};
         use crossterm::terminal::{Clear, ClearType};
-        use crossterm::style::{Print, Attribute, SetAttribute};
 
         if width > 10 {
             let n = min(width - 10, message.len());
-            queue!(
-                stdout,
-                Print(' '),
-            ).ok();
+            queue!(stdout, Print(' '),).ok();
             THEME.apply(stdout, theme_item).ok();
             queue!(
                 stdout,
@@ -576,7 +556,8 @@ impl Terminal {
                 Print(&message[0..n]),
                 Print(' '),
                 SetAttribute(Attribute::Reset),
-            ).ok();
+            )
+            .ok();
         }
     }
 
@@ -589,11 +570,9 @@ impl Terminal {
         height: usize,
         width: usize,
     ) {
-        use crossterm::cursor::{MoveTo};
+        use crossterm::cursor::MoveTo;
+        use crossterm::style::{Attribute, Color, Print, SetAttribute, SetForegroundColor};
         use crossterm::terminal::{Clear, ClearType};
-        use crossterm::style::{
-            Print, Attribute, SetAttribute, SetForegroundColor, Color
-        };
 
         // The command box prompt.
         THEME.apply(stdout, ThemeItem::CommandBoxPrompt).ok();
@@ -605,9 +584,13 @@ impl Terminal {
             Print(command_prompt),
             SetAttribute(Attribute::Reset),
             Print(" "),
-            Print(truncate(&command_box_input.text(), width - command_prompt.len())),
+            Print(truncate(
+                &command_box_input.text(),
+                width - command_prompt.len()
+            )),
             Clear(ClearType::UntilNewLine),
-        ).ok();
+        )
+        .ok();
 
         // List items.
         let blank_lines;
@@ -623,24 +606,27 @@ impl Terminal {
                             MoveTo(0, (y + i + 1) as u16),
                             Clear(ClearType::CurrentLine),
                             SetAttribute(Attribute::Reset),
-                        ).ok();
+                        )
+                        .ok();
 
                         if *selectable && i == command_box.selected() {
                             queue!(
                                 stdout,
                                 SetAttribute(Attribute::Bold),
                                 SetAttribute(Attribute::Underlined),
-                            ).ok();
+                            )
+                            .ok();
                         }
 
                         match &item {
                             PreviewItem::Print { body } => {
-                                queue!(
-                                    stdout,
-                                     Print(truncate(body, width))
-                                 ).ok();
+                                queue!(stdout, Print(truncate(body, width))).ok();
                             }
-                            PreviewItem::PrintWithFile { file, lineno: _lineno, body } => {
+                            PreviewItem::PrintWithFile {
+                                file,
+                                lineno: _lineno,
+                                body,
+                            } => {
                                 let file_width = min(width, 16);
                                 let body_width = width.saturating_sub(file_width + 3);
                                 let file_name = if file.display_name.len() > file_width {
@@ -657,12 +643,13 @@ impl Terminal {
                                     SetForegroundColor(Color::Reset),
                                     Print(": "),
                                     Print(truncate(body, body_width)),
-                                 ).ok();
+                                )
+                                .ok();
                             }
                         }
                     }
                 }
-                _ => unreachable!()
+                _ => unreachable!(),
             }
         } else {
             blank_lines = 0..items_height;
@@ -674,7 +661,8 @@ impl Terminal {
                 stdout,
                 MoveTo(0, (y + i + 1) as u16),
                 Clear(ClearType::CurrentLine),
-            ).ok();
+            )
+            .ok();
         }
 
         // Move the cursor.
@@ -684,8 +672,12 @@ impl Terminal {
         };
         queue!(
             stdout,
-            MoveTo((min(command_prompt.len() + 1 + cursor_x, width)) as u16, y as u16)
-        ).ok();
+            MoveTo(
+                (min(command_prompt.len() + 1 + cursor_x, width)) as u16,
+                y as u16
+            )
+        )
+        .ok();
     }
 
     fn draw_text_line(
@@ -697,7 +689,7 @@ impl Terminal {
         y: usize,
         text_width: usize,
     ) -> usize {
-        use crossterm::style::{Print, Attribute, SetAttribute};
+        use crossterm::style::{Attribute, Print, SetAttribute};
 
         let mut remaining = text_width;
         let mut spans = buffer.highlighted_line(y).iter().peekable();
@@ -742,21 +734,17 @@ impl Terminal {
 
                 // Truncated # of displayed chars until it fits the display
                 // width.
-                let index =
-                    chunk
-                        .char_indices()
-                        .nth(num_chars)
-                        .map(|(i, _)| i)
-                        .unwrap_or_else(|| chunk.len());
-                let mut width = chunk[..index]
-                    .chars()
-                    .enumerate()
-                    .fold(0, |sum, (i, ch)| {
-                        sum + match ch {
-                            '\t' => tab_width - ((x + i) % tab_width),
-                            _ => UnicodeWidthChar::width_cjk(ch).unwrap_or(1),
-                        }
-                    });
+                let index = chunk
+                    .char_indices()
+                    .nth(num_chars)
+                    .map(|(i, _)| i)
+                    .unwrap_or_else(|| chunk.len());
+                let mut width = chunk[..index].chars().enumerate().fold(0, |sum, (i, ch)| {
+                    sum + match ch {
+                        '\t' => tab_width - ((x + i) % tab_width),
+                        _ => UnicodeWidthChar::width_cjk(ch).unwrap_or(1),
+                    }
+                });
 
                 let mut chars_rev = chunk.chars().into_iter().rev();
                 while width > remaining {
@@ -768,13 +756,12 @@ impl Terminal {
                     }
                 }
 
-                let index =
-                    chunk
-                        .char_indices()
-                        .nth(num_chars)
-                        .map(|(i, _)| i)
-                        .unwrap_or_else(|| chunk.len());
-                for(i, ch) in (&chunk[..index]).chars().enumerate() {
+                let index = chunk
+                    .char_indices()
+                    .nth(num_chars)
+                    .map(|(i, _)| i)
+                    .unwrap_or_else(|| chunk.len());
+                for (i, ch) in (&chunk[..index]).chars().enumerate() {
                     if ch == '\t' {
                         let n = tab_width - ((x + i) % tab_width);
                         queue!(stdout, Print(whitespaces(n))).ok();

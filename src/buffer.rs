@@ -1,21 +1,21 @@
-use std::fs;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::path::{Path, PathBuf};
-use std::ops::RangeInclusive;
-use std::cmp::{max, min};
-use std::collections::HashSet;
-use serde::{Deserialize, Serialize};
-use tempfile::NamedTempFile;
+use crate::editorconfig::{EditorConfig, IndentStyle};
 use crate::highlight::{Highlighter, Span};
 use crate::language::Language;
-use crate::editorconfig::{EditorConfig, IndentStyle};
 use crate::rope::*;
+use serde::{Deserialize, Serialize};
+use std::cmp::{max, min};
+use std::collections::HashSet;
+use std::fs;
+use std::ops::RangeInclusive;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use tempfile::NamedTempFile;
 
 fn remove_range(
     buf: &mut Rope,
     range: &Range,
     next_cursor: Option<&Cursor>,
-    new_cursors: &mut Vec<Cursor>
+    new_cursors: &mut Vec<Cursor>,
 ) {
     // Remove the text in the range.
     buf.remove(&range);
@@ -294,15 +294,14 @@ impl Buffer {
             fs::rename(
                 backup_path(backup_dir, &base, 2),
                 backup_path(backup_dir, &base, 3),
-            ).ok();
+            )
+            .ok();
             fs::rename(
                 backup_path(backup_dir, &base, 1),
                 backup_path(backup_dir, &base, 2),
-            ).ok();
-            fs::copy(
-                path,
-                backup_path(backup_dir, &base, 1)
-            ).ok();
+            )
+            .ok();
+            fs::copy(path, backup_path(backup_dir, &base, 1)).ok();
             self.buf.save_into_file(path)?;
             self.is_dirty = false;
         }
@@ -326,13 +325,7 @@ impl Buffer {
         self.sort_and_merge_cursors();
     }
 
-    pub fn move_cursors(
-        &mut self,
-        up: usize,
-        down: usize,
-        left: usize,
-        right: usize
-    ) {
+    pub fn move_cursors(&mut self, up: usize, down: usize, left: usize, right: usize) {
         for cursor in &mut self.cursors {
             // Cancel the selection.
             match cursor {
@@ -353,7 +346,7 @@ impl Buffer {
                 Cursor::Normal { pos, .. } => {
                     pos.move_by(&self.buf, up, down, left, right);
                 }
-                Cursor::Selection(_) => unreachable!()
+                Cursor::Selection(_) => unreachable!(),
             };
         }
 
@@ -414,13 +407,7 @@ impl Buffer {
         self.sort_and_merge_cursors();
     }
 
-    pub fn select(
-        &mut self,
-        up: usize,
-        down: usize,
-        left: usize,
-        right: usize
-    ) {
+    pub fn select(&mut self, up: usize, down: usize, left: usize, right: usize) {
         for cursor in &mut self.cursors {
             let (start, mut end) = match cursor {
                 Cursor::Normal { pos, .. } => (*pos, *pos),
@@ -449,9 +436,7 @@ impl Buffer {
                 end.x = 0;
             }
 
-            new_cursors.push(
-                Cursor::Selection(Range::from_points(start, end))
-            );
+            new_cursors.push(Cursor::Selection(Range::from_points(start, end)));
         }
 
         self.set_cursors(new_cursors);
@@ -471,9 +456,7 @@ impl Buffer {
                 end.x = 0;
             }
 
-            new_cursors.push(
-                Cursor::Selection(Range::from_points(start, end))
-            );
+            new_cursors.push(Cursor::Selection(Range::from_points(start, end)));
         }
 
         self.set_cursors(new_cursors);
@@ -490,12 +473,8 @@ impl Buffer {
         let string_count = string.chars().count();
         for c in self.cursors.iter().rev() {
             let (remove, insert_at, end) = match c {
-                Cursor::Normal { pos, .. } => {
-                    (None, pos, pos)
-                }
-                Cursor::Selection(range) => {
-                    (Some(range), range.front(), range.back())
-                }
+                Cursor::Normal { pos, .. } => (None, pos, pos),
+                Cursor::Selection(range) => (Some(range), range.front(), range.back()),
             };
 
             if let Some(remove) = remove {
@@ -511,8 +490,7 @@ impl Buffer {
             self.buf.insert(insert_at, string);
 
             let num_newlines_added = string.matches('\n').count();
-            let num_newlines_deleted =
-                remove.map(|r| r.back().y - r.front().y).unwrap_or(0);
+            let num_newlines_deleted = remove.map(|r| r.back().y - r.front().y).unwrap_or(0);
             let y_diff = num_newlines_added.saturating_sub(num_newlines_deleted);
 
             // Move cursors after the current cursor.
@@ -531,7 +509,8 @@ impl Buffer {
                 }
             }
 
-            let x_diff = string.rfind('\n')
+            let x_diff = string
+                .rfind('\n')
                 .map(|x| string_count - x - 1)
                 .unwrap_or(string_count);
 
@@ -576,12 +555,8 @@ impl Buffer {
         let mut new_cursors = Vec::new();
         for c in self.cursors.iter().rev() {
             let pos = match c {
-                Cursor::Normal { pos, .. } => {
-                    pos
-                }
-                Cursor::Selection(range) => {
-                    range.front()
-                }
+                Cursor::Normal { pos, .. } => pos,
+                Cursor::Selection(range) => range.front(),
             };
 
             // Should we do auto-indent?
@@ -623,12 +598,8 @@ impl Buffer {
         let mut ys = HashSet::new();
         for c in self.cursors.iter().rev() {
             let pos = match c {
-                Cursor::Normal { pos, .. } => {
-                    pos
-                }
-                Cursor::Selection(range) => {
-                    range.front()
-                }
+                Cursor::Normal { pos, .. } => pos,
+                Cursor::Selection(range) => range.front(),
             };
 
             let n = min(
@@ -637,7 +608,7 @@ impl Buffer {
                     self.config.indent_size
                 } else {
                     pos.x % self.config.indent_size
-                }
+                },
             );
             if n > 0 && !ys.contains(&pos.y) {
                 let start = Point::new(pos.y, 0);
@@ -673,12 +644,15 @@ impl Buffer {
 
                     Range::from_points(start, *pos)
                 }
-                Cursor::Selection(range) => {
-                    range.clone()
-                }
+                Cursor::Selection(range) => range.clone(),
             };
 
-            remove_range(&mut self.buf, &range, iter.peek().copied(), &mut new_cursors);
+            remove_range(
+                &mut self.buf,
+                &range,
+                iter.peek().copied(),
+                &mut new_cursors,
+            );
         }
 
         self.set_cursors(new_cursors);
@@ -706,12 +680,15 @@ impl Buffer {
 
                     Range::from_points(*pos, end)
                 }
-                Cursor::Selection(range) => {
-                    range.clone()
-                }
+                Cursor::Selection(range) => range.clone(),
             };
 
-            remove_range(&mut self.buf, &range, iter.peek().copied(), &mut new_cursors);
+            remove_range(
+                &mut self.buf,
+                &range,
+                iter.peek().copied(),
+                &mut new_cursors,
+            );
         }
 
         self.set_cursors(new_cursors);
@@ -734,15 +711,13 @@ impl Buffer {
     pub fn toggle_comment_out(&mut self) {
         let prefix = match self.lang.comment_out {
             Some(prefix) => prefix,
-            None => return
+            None => return,
         };
 
         let mut new_cursors = Vec::new();
         for c in self.cursors.iter().rev() {
             let (ys, x) = match c {
-                Cursor::Normal { pos, .. } => {
-                    (pos.y..=pos.y, pos.x)
-                }
+                Cursor::Normal { pos, .. } => (pos.y..=pos.y, pos.x),
                 Cursor::Selection(range) => {
                     let front = range.front();
                     (front.y..=range.back().y, front.x)
@@ -753,9 +728,9 @@ impl Buffer {
             for y in ys {
                 let indent_size = self.indent_size(y);
                 if self.line_substr(y, indent_size).starts_with(prefix) {
-                    self.buf.remove(&Range::new(
-                        y, indent_size, y, indent_size + prefix_len));
-                        new_cursors.push(Cursor::new(y, x.saturating_sub(prefix_len)));
+                    self.buf
+                        .remove(&Range::new(y, indent_size, y, indent_size + prefix_len));
+                    new_cursors.push(Cursor::new(y, x.saturating_sub(prefix_len)));
                 } else {
                     self.buf.insert(&Point::new(y, indent_size), prefix);
                     new_cursors.push(Cursor::new(y, x + prefix_len));
@@ -774,7 +749,7 @@ impl Buffer {
                 // The buffer is not modified.
                 return;
             }
-            _ => {},
+            _ => {}
         }
 
         self.undo_stack.push(self.buf.clone());
@@ -850,38 +825,16 @@ impl Buffer {
         debug_assert!(!self.cursors.is_empty());
 
         self.cursors.sort();
-        let duplicated =
-            self.cursors
-                .iter()
-                .enumerate()
-                .map(|(i, c)| {
-                    match c {
-                        Cursor::Normal { pos, .. } => {
-                            (&self.cursors[..i])
-                                .iter()
-                                .any(|other| {
-                                    match other {
-                                        Cursor::Normal { pos: ref other } => {
-                                            *pos == *other
-                                        }
-                                        _ => unreachable!()
-                                    }
-                                })
-                        }
-                        Cursor::Selection(range) => {
-                            (&self.cursors[..i])
-                                .iter()
-                                .any(|other| {
-                                    match other {
-                                        Cursor::Selection(ref other) => {
-                                            range.overlaps_with(other)
-                                        }
-                                        _ => unreachable!()
-                                    }
-                                })
-                        }
-                    }
-                });
+        let duplicated = self.cursors.iter().enumerate().map(|(i, c)| match c {
+            Cursor::Normal { pos, .. } => (&self.cursors[..i]).iter().any(|other| match other {
+                Cursor::Normal { pos: ref other } => *pos == *other,
+                _ => unreachable!(),
+            }),
+            Cursor::Selection(range) => (&self.cursors[..i]).iter().any(|other| match other {
+                Cursor::Selection(ref other) => range.overlaps_with(other),
+                _ => unreachable!(),
+            }),
+        });
 
         let mut new_cursors = Vec::new();
         for (cursor, skip) in self.cursors.iter().zip(duplicated) {
@@ -966,7 +919,8 @@ impl Buffer {
         let y_len = needle.matches('\n').count();
         let last_newline_idx = needle.rfind('\n');
 
-        matches.iter()
+        matches
+            .iter()
             .filter(|(index, _)| *index == needle_chars.len())
             .map(|(_, start)| {
                 let x = last_newline_idx
@@ -991,14 +945,16 @@ impl Buffer {
     }
 
     pub fn highlight(&mut self, lines: RangeInclusive<usize>) {
-        self.highlighter.highlight(self.snapshot(), lines, &self.cursors);
+        self.highlighter
+            .highlight(self.snapshot(), lines, &self.cursors);
     }
 
     pub fn add_cursor_up(&mut self) {
         let top = *self.cursors[0].front();
         if top.y > 0 {
             let y = top.y - 1;
-            self.cursors.push(Cursor::new(y, min(self.line_len(y), top.x)));
+            self.cursors
+                .push(Cursor::new(y, min(self.line_len(y), top.x)));
         }
 
         self.sort_and_merge_cursors();
@@ -1008,7 +964,11 @@ impl Buffer {
         let bottom = *self.cursors[self.cursors.len() - 1].front();
         if bottom.y < self.num_lines() {
             let y = bottom.y + 1;
-            let x = if bottom.y == self.num_lines() { 0 } else { min(self.line_len(y), bottom.x) };
+            let x = if bottom.y == self.num_lines() {
+                0
+            } else {
+                min(self.line_len(y), bottom.x)
+            };
             self.cursors.push(Cursor::new(y, x));
         }
 
@@ -1094,11 +1054,10 @@ mod test {
         // 123|xyz
         b.insert("123");
         assert_eq!(b.text(), "abc123\nd123e\n123xyz");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 6),
-            Cursor::new(1, 4),
-            Cursor::new(2, 3),
-        ]);
+        assert_eq!(
+            b.cursors(),
+            &[Cursor::new(0, 6), Cursor::new(1, 4), Cursor::new(2, 3),]
+        );
 
         // abc123[
         // ]|
@@ -1108,11 +1067,10 @@ mod test {
         // ]|xyz
         b.insert("[\n]");
         assert_eq!(b.text(), "abc123[\n]\nd123[\n]e\n123[\n]xyz");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(1, 1),
-            Cursor::new(3, 1),
-            Cursor::new(5, 1),
-        ]);
+        assert_eq!(
+            b.cursors(),
+            &[Cursor::new(1, 1), Cursor::new(3, 1), Cursor::new(5, 1),]
+        );
     }
 
     #[test]
@@ -1129,11 +1087,10 @@ mod test {
         ]);
         b.backspace();
         assert_eq!(b.text(), "ab\nde\nxy");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 2),
-            Cursor::new(1, 2),
-            Cursor::new(2, 2),
-        ]);
+        assert_eq!(
+            b.cursors(),
+            &[Cursor::new(0, 2), Cursor::new(1, 2), Cursor::new(2, 2),]
+        );
 
         // abc|      ab|
         // 1|    =>  |
@@ -1147,11 +1104,10 @@ mod test {
         ]);
         b.backspace();
         assert_eq!(b.text(), "ab\n\nxz");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 2),
-            Cursor::new(1, 0),
-            Cursor::new(2, 1),
-        ]);
+        assert_eq!(
+            b.cursors(),
+            &[Cursor::new(0, 2), Cursor::new(1, 0), Cursor::new(2, 1),]
+        );
 
         // 1230|a|b|c|d|e|f => 123|f
         let mut b = Buffer::new();
@@ -1166,9 +1122,7 @@ mod test {
         ]);
         b.backspace();
         assert_eq!(b.text(), "123f");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 3),
-        ]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 3),]);
 
         // a|bc      |bc|12
         // |12   =>  xy|
@@ -1182,11 +1136,10 @@ mod test {
         ]);
         b.backspace();
         assert_eq!(b.text(), "bc12\nxy");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 0),
-            Cursor::new(0, 2),
-            Cursor::new(1, 2),
-        ]);
+        assert_eq!(
+            b.cursors(),
+            &[Cursor::new(0, 0), Cursor::new(0, 2), Cursor::new(1, 2),]
+        );
 
         // 0
         // |abc      0|abc|12|xyz
@@ -1201,11 +1154,10 @@ mod test {
         ]);
         b.backspace();
         assert_eq!(b.text(), "0abc12xyz");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 1),
-            Cursor::new(0, 4),
-            Cursor::new(0, 6),
-        ]);
+        assert_eq!(
+            b.cursors(),
+            &[Cursor::new(0, 1), Cursor::new(0, 4), Cursor::new(0, 6),]
+        );
 
         // ab|     =>  a|def|g
         // |c|def
@@ -1220,10 +1172,7 @@ mod test {
         ]);
         b.backspace();
         assert_eq!(b.text(), "adefg");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 1),
-            Cursor::new(0, 4),
-        ]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 1), Cursor::new(0, 4),]);
 
         // ab|   =>  a|def|g
         // |c|def
@@ -1238,10 +1187,7 @@ mod test {
         ]);
         b.backspace();
         assert_eq!(b.text(), "adefg");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 1),
-            Cursor::new(0, 4),
-        ]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 1), Cursor::new(0, 4),]);
     }
 
     #[test]
@@ -1249,29 +1195,18 @@ mod test {
         // a|Xbc|Yd
         let mut b = Buffer::new();
         b.insert("aXbcYd");
-        b.set_cursors(vec![
-            Cursor::new(0, 1),
-            Cursor::new(0, 4),
-        ]);
+        b.set_cursors(vec![Cursor::new(0, 1), Cursor::new(0, 4)]);
         b.delete();
         assert_eq!(b.text(), "abcd");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 1),
-            Cursor::new(0, 3),
-        ]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 1), Cursor::new(0, 3),]);
 
         // a|b|
         let mut b = Buffer::new();
         b.insert("ab");
-        b.set_cursors(vec![
-            Cursor::new(0, 1),
-            Cursor::new(0, 2),
-        ]);
+        b.set_cursors(vec![Cursor::new(0, 1), Cursor::new(0, 2)]);
         b.delete();
         assert_eq!(b.text(), "a");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 1),
-        ]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 1),]);
 
         // a|bc
         // d|ef
@@ -1285,11 +1220,10 @@ mod test {
         ]);
         b.delete();
         assert_eq!(b.text(), "ac\ndf\ngi");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 1),
-            Cursor::new(1, 1),
-            Cursor::new(2, 1),
-        ]);
+        assert_eq!(
+            b.cursors(),
+            &[Cursor::new(0, 1), Cursor::new(1, 1), Cursor::new(2, 1),]
+        );
 
         // a|
         // b|X
@@ -1305,27 +1239,24 @@ mod test {
         ]);
         b.delete();
         assert_eq!(b.text(), "ab\nc\nd");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 1),
-            Cursor::new(0, 2),
-            Cursor::new(1, 1),
-            Cursor::new(2, 1),
-        ]);
+        assert_eq!(
+            b.cursors(),
+            &[
+                Cursor::new(0, 1),
+                Cursor::new(0, 2),
+                Cursor::new(1, 1),
+                Cursor::new(2, 1),
+            ]
+        );
 
         // ab|
         // cde|
         let mut b = Buffer::new();
         b.insert("ab\ncde");
-        b.set_cursors(vec![
-            Cursor::new(0, 2),
-            Cursor::new(1, 3),
-        ]);
+        b.set_cursors(vec![Cursor::new(0, 2), Cursor::new(1, 3)]);
         b.delete();
         assert_eq!(b.text(), "abcde");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 2),
-            Cursor::new(0, 5),
-        ]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 2), Cursor::new(0, 5),]);
 
         // abc|
         // |d|ef
@@ -1340,10 +1271,7 @@ mod test {
         ]);
         b.delete();
         assert_eq!(b.text(), "abcf\nghi");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 3),
-            Cursor::new(1, 3),
-        ]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 3), Cursor::new(1, 3),]);
 
         // abc|     => abc|d|e|f
         // d|Xe|Yf
@@ -1356,11 +1284,10 @@ mod test {
         ]);
         b.delete();
         assert_eq!(b.text(), "abcdef");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 3),
-            Cursor::new(0, 4),
-            Cursor::new(0, 5),
-        ]);
+        assert_eq!(
+            b.cursors(),
+            &[Cursor::new(0, 3), Cursor::new(0, 4), Cursor::new(0, 5),]
+        );
     }
 
     #[test]
@@ -1396,43 +1323,31 @@ mod test {
     fn single_selection() {
         let mut b = Buffer::new();
         b.insert("abXYZcd");
-        b.set_cursors(vec![
-            Cursor::new(0, 2)
-        ]);
+        b.set_cursors(vec![Cursor::new(0, 2)]);
 
         // ab|XYZ|cd
         b.select(0, 0, 0, 3);
-        assert_eq!(b.cursors(), &[
-            Cursor::Selection(Range::new(0, 2, 0, 5)),
-        ]);
+        assert_eq!(b.cursors(), &[Cursor::Selection(Range::new(0, 2, 0, 5)),]);
 
         // a|b|XYZcd  =>  a|XYZcd
         b.select(0, 0, 4, 0);
         b.backspace();
         assert_eq!(b.text(), "aXYZcd");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 1),
-        ]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 1),]);
 
         // a|XYZ|cd  =>  a|cd
         b.select(0, 0, 0, 3);
         b.backspace();
         assert_eq!(b.text(), "acd");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 1),
-        ]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 1),]);
 
         // ab|  =>  ab|
         // c        |c
         let mut b = Buffer::new();
         b.insert("ab\nc");
-        b.set_cursors(vec![
-            Cursor::new(0, 2)
-        ]);
+        b.set_cursors(vec![Cursor::new(0, 2)]);
         b.select(0, 0, 0, 1);
-        assert_eq!(b.cursors(), &[
-            Cursor::Selection(Range::new(0, 2, 1, 0)),
-        ]);
+        assert_eq!(b.cursors(), &[Cursor::Selection(Range::new(0, 2, 1, 0)),]);
     }
 
     #[test]
@@ -1442,28 +1357,20 @@ mod test {
         // E|z
         let mut b = Buffer::new();
         b.insert("xyA\nBCD\nEz");
-        b.set_cursors(vec![
-            Cursor::Selection(Range::new(0, 2, 2, 1))
-        ]);
+        b.set_cursors(vec![Cursor::Selection(Range::new(0, 2, 2, 1))]);
         b.backspace();
         assert_eq!(b.text(), "xyz");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 2),
-        ]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 2),]);
 
         // ab|      abX|c
         // |c   =>
         //
         let mut b = Buffer::new();
         b.insert("ab\nc");
-        b.set_cursors(vec![
-            Cursor::Selection(Range::new(0, 2, 1, 0))
-        ]);
+        b.set_cursors(vec![Cursor::Selection(Range::new(0, 2, 1, 0))]);
         b.insert("X");
         assert_eq!(b.text(), "abXc");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 3),
-        ]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 3),]);
     }
 
     #[test]
@@ -1480,11 +1387,10 @@ mod test {
         ]);
         b.delete();
         assert_eq!(b.text(), "ab\ncd\nef");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 2),
-            Cursor::new(1, 2),
-            Cursor::new(2, 2),
-        ]);
+        assert_eq!(
+            b.cursors(),
+            &[Cursor::new(0, 2), Cursor::new(1, 2), Cursor::new(2, 2),]
+        );
 
         // ab|XY        ab|cd|ef|g
         // Z|cd|XY  =>
@@ -1499,11 +1405,10 @@ mod test {
         ]);
         b.backspace();
         assert_eq!(b.text(), "abcdefg");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 2),
-            Cursor::new(0, 4),
-            Cursor::new(0, 6),
-        ]);
+        assert_eq!(
+            b.cursors(),
+            &[Cursor::new(0, 2), Cursor::new(0, 4), Cursor::new(0, 6),]
+        );
     }
 
     #[test]
@@ -1519,10 +1424,7 @@ mod test {
             Cursor::new(1, 1),
         ]);
         b.move_to_beginning_of_line();
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 0),
-            Cursor::new(1, 0),
-        ]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 0), Cursor::new(1, 0),]);
     }
 
     #[test]
@@ -1538,10 +1440,7 @@ mod test {
             Cursor::new(1, 1),
         ]);
         b.move_to_end_of_line();
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 3),
-            Cursor::new(1, 2),
-        ]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 3), Cursor::new(1, 2),]);
     }
 
     #[test]
@@ -1557,10 +1456,13 @@ mod test {
             Cursor::new(1, 1),
         ]);
         b.select_until_end_of_line();
-        assert_eq!(b.cursors(), &[
-            Cursor::Selection(Range::new(0, 0, 0, 3)),
-            Cursor::Selection(Range::new(1, 1, 1, 2)),
-        ]);
+        assert_eq!(
+            b.cursors(),
+            &[
+                Cursor::Selection(Range::new(0, 0, 0, 3)),
+                Cursor::Selection(Range::new(1, 1, 1, 2)),
+            ]
+        );
     }
 
     #[test]
@@ -1568,16 +1470,12 @@ mod test {
         let mut b = Buffer::from_str("");
         b.set_text("abc");
         assert_eq!(b.text(), "abc");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 0),
-        ]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 0),]);
 
         let mut b = Buffer::from_str("123\n456");
         b.set_text("x");
         assert_eq!(b.text(), "x");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 1),
-        ]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 1),]);
     }
 
     #[test]
@@ -1585,27 +1483,19 @@ mod test {
         // abc|XYZ  =>  abc|
         let mut b = Buffer::new();
         b.insert("abcXYZ");
-        b.set_cursors(vec![
-            Cursor::new(0, 3),
-        ]);
+        b.set_cursors(vec![Cursor::new(0, 3)]);
         b.truncate();
         assert_eq!(b.text(), "abc");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 3),
-        ]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 3),]);
 
         // abc|      abc|xyz
         // xyz  =>
         let mut b = Buffer::new();
         b.insert("abc\nxyz");
-        b.set_cursors(vec![
-            Cursor::new(0, 3),
-        ]);
+        b.set_cursors(vec![Cursor::new(0, 3)]);
         b.truncate();
         assert_eq!(b.text(), "abcxyz");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 3),
-        ]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 3),]);
     }
 
     #[test]
@@ -1613,27 +1503,19 @@ mod test {
         // abc|XYZ  =>  abc|
         let mut b = Buffer::new();
         b.insert("abcXYZ");
-        b.set_cursors(vec![
-            Cursor::new(0, 3),
-        ]);
+        b.set_cursors(vec![Cursor::new(0, 3)]);
         b.truncate_reverse();
         assert_eq!(b.text(), "XYZ");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 0),
-        ]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 0),]);
 
         // abc       abc|xyz
         // |xyz  =>
         let mut b = Buffer::new();
         b.insert("abc\nxyz");
-        b.set_cursors(vec![
-            Cursor::new(1, 0),
-        ]);
+        b.set_cursors(vec![Cursor::new(1, 0)]);
         b.truncate_reverse();
         assert_eq!(b.text(), "abcxyz");
-        assert_eq!(b.cursors(), &[
-            Cursor::new(0, 3),
-        ]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 3),]);
     }
 
     #[test]
@@ -1864,24 +1746,22 @@ mod test {
         // hello rust from rust
         //       ^^^^      ^^^^
         let mut b = Buffer::from_str("hello rust from rust");
-        assert_eq!(&b.find("rust"), &[
-            Range::new(0, 6, 0, 10),
-            Range::new(0, 16, 0, 20),
-        ]);
+        assert_eq!(
+            &b.find("rust"),
+            &[Range::new(0, 6, 0, 10), Range::new(0, 16, 0, 20),]
+        );
 
         let mut b = Buffer::from_str("hello rust from rust");
         assert_eq!(&b.find("rrrrr"), &[]);
 
         let mut b = Buffer::from_str("abXYZ\nXYZab");
-        assert_eq!(&b.find("XYZ"), &[
-            Range::new(0, 2, 0, 5),
-            Range::new(1, 0, 1, 3),
-        ]);
+        assert_eq!(
+            &b.find("XYZ"),
+            &[Range::new(0, 2, 0, 5), Range::new(1, 0, 1, 3),]
+        );
 
         let mut b = Buffer::from_str("abXY\nZab");
-        assert_eq!(&b.find("XY\nZ"), &[
-            Range::new(0, 2, 1, 1),
-        ]);
+        assert_eq!(&b.find("XY\nZ"), &[Range::new(0, 2, 1, 1),]);
 
         let mut b = Buffer::from_str("");
         assert_eq!(&b.find("rrrrr"), &[]);
