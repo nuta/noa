@@ -6,10 +6,10 @@ use crate::language::{Language, LspSettings};
 use crate::rope::{Point, Range};
 use jsonrpc_core::{types::Value, Call, Id};
 use lsp_types::{
-    notification::{DidChangeTextDocument, DidOpenTextDocument},
+    notification::{Initialized, DidChangeTextDocument, DidOpenTextDocument},
     request::{Completion, GotoDefinition, Initialize, SignatureHelpRequest},
     CompletionParams, DidChangeTextDocumentParams, DidOpenTextDocumentParams, GotoDefinitionParams,
-    InitializeParams, PartialResultParams, Position, SignatureHelpParams,
+    InitializeParams, InitializedParams, PartialResultParams, Position, SignatureHelpParams,
     TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams,
     VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
@@ -24,6 +24,7 @@ enum Request {
     Initialize {
         root_path: PathBuf,
     },
+    Initialized,
     OpenFile {
         path: PathBuf,
         text: String,
@@ -129,6 +130,13 @@ fn send_requests(
                         workspace_folders: None,
                         client_info: None,
                     },
+                )
+            }
+            Request::Initialized => {
+                trace!("Initialized()");
+                serialize_notification::<Initialized>(
+                    InitializedParams {
+                    }
                 )
             }
             Request::OpenFile { path, text } => {
@@ -262,6 +270,7 @@ fn receive_requests(
     event_queue: EventQueue,
     stdout: ChildStdout,
     sent_reqs: Arc<Mutex<HashMap<Id, SentRequest>>>,
+    sender_thread: &std::thread::Thread,
 ) {
     use std::io::{BufRead, BufReader, Read};
 
@@ -617,10 +626,11 @@ impl Lsp {
         let sent_reqs = Arc::new(Mutex::new(HashMap::new()));
         let sent_reqs_lock1 = sent_reqs.clone();
         let sent_reqs_lock2 = sent_reqs;
-        std::thread::spawn(move || send_requests(lsp, rx, stdin, sent_reqs_lock1));
+        let sender_thread = 
+            std::thread::spawn(move || send_requests(lsp, rx, stdin, sent_reqs_lock1));
         let event_queue = self.event_queue.clone();
         std::thread::spawn(move || {
-            receive_requests(event_queue, stdout, sent_reqs_lock2);
+            receive_requests(event_queue, stdout, sent_reqs_lock2, sender_thread.thread());
             // TODO: Restart the server when it crashed.
             warn!("the LSP server seems to be terminated");
         });
@@ -629,6 +639,9 @@ impl Lsp {
             root_path: self.root_path.to_owned(),
         })
         .ok();
+
+        // FIXME: Send this message after it received the response.
+        tx.send(Request::Initialized).ok();
 
         self.servers.insert(lang, Server { tx, process });
         Ok(self.servers.get(lang).unwrap())

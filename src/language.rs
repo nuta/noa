@@ -75,7 +75,7 @@ lazy_static! {
             name: "cxx",
             comment_out: Some("// "),
             top_level_patterns: &[
-                "cpp_directive",
+                "attribute",
                 "block_comment",
                 "line_comment",
                 "string_lit",
@@ -86,7 +86,7 @@ lazy_static! {
                 command: &["clangd", "-j=8", "--log=verbose", "--pretty"],
             }),
             patterns: hashmap! {
-                "cpp_directive" => Pattern::Inline {
+                "attribute" => Pattern::Inline {
                     regex: Regex::new(
                         r"^(#.+)"
                     ).unwrap(),
@@ -144,8 +144,84 @@ lazy_static! {
     };
 }
 
+lazy_static! {
+    pub static ref RUST: Language = {
+        Language {
+            name: "rust",
+            comment_out: Some("// "),
+            top_level_patterns: &[
+                "attribute",
+                "block_comment",
+                "line_comment",
+                "string_lit",
+                "ctrl",
+            ],
+            lsp: Some(&LspSettings {
+                language_id: "rust",
+                command: &["rust-analyzer", "--spammy"],
+            }),
+            patterns: hashmap! {
+                "attribute" => Pattern::Inline {
+                    regex: Regex::new(
+                        r"^#\[[^]]\]"
+                    ).unwrap(),
+                    captures: &[
+                        SpanType::CompilerDirective,
+                    ]
+                },
+                "block_comment" => Pattern::Block {
+                    start: Regex::new(r"(/\*)").unwrap(),
+                    end: Regex::new(r"(\*/)").unwrap(),
+                    start_captures: &[SpanType::Comment],
+                    end_captures: &[SpanType::Comment],
+                    inner: SpanType::Comment,
+                    patterns: &[],
+                },
+                "line_comment" => Pattern::Inline {
+                    regex: Regex::new(
+                        r"(//.*)"
+                    ).unwrap(),
+                    captures: &[
+                        SpanType::Comment,
+                    ]
+                },
+                "string_lit" => Pattern::Block {
+                    start: Regex::new("(\")").unwrap(),
+                    end: Regex::new("(\")").unwrap(),
+                    start_captures: &[SpanType::StringLiteral],
+                    end_captures: &[SpanType::StringLiteral],
+                    inner: SpanType::StringLiteral,
+                    patterns: &[
+                        "escaped_chars",
+                    ],
+                },
+                "escaped_chars" => Pattern::Inline {
+                    regex: Regex::new(
+                        "(\\\\[\"tn])"
+                    ).unwrap(),
+                    captures: &[
+                        SpanType::EscapedChar,
+                    ]
+                },
+                "ctrl" => Pattern::Inline {
+                    regex: Regex::new(
+                        concat!(
+                            r"\b(if|for|while|do|goto|break|continue|case|",
+                            r"else|default|return|switch)\b",
+                        )
+                    ).unwrap(),
+                    captures: &[
+                        SpanType::CtrlKeyword,
+                    ]
+                },
+            },
+        }
+    };
+}
+
 pub fn guess_language(path: &Path) -> &'static Language {
     match path.extension().map(|s| s.to_str().unwrap()) {
+        Some("rs") => &RUST,
         Some("c") | Some("cpp") | Some("cxx") | Some("h") | Some("hpp")
         | Some("hxx") => &CXX,
         _ => &PLAIN,
