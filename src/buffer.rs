@@ -275,6 +275,10 @@ impl Buffer {
         Snapshot::new(self.id, self.buf.clone(), main_cursor, modified_line)
     }
 
+    pub fn is_virtual_file(&self) -> bool {
+        self.file.is_none()
+    }
+
     pub fn save_without_backup(&self) -> std::io::Result<()> {
         if let Some(path) = &self.file {
             self.buf.save_into_file(path)
@@ -550,7 +554,7 @@ impl Buffer {
         self.cursors = vec![Cursor::new(0, 0)];
     }
 
-    fn indent_size(&self, y: usize) -> usize {
+    pub fn indent_size(&self, y: usize) -> usize {
         let mut n = 0;
         let line = self.buf.line(y);
         'outer: for c in line.chunks() {

@@ -980,6 +980,9 @@ impl Editor {
                 view.centering(self.terminal.rows());
                 return;
             }
+            (KeyCode::Char('s'), CTRL) if buffer.is_virtual_file() => {
+                self.error("current buffer cannot be saved into a file");
+            }
             (KeyCode::Char('s'), CTRL) => {
                 match buffer.save(&self.backup_dir) {
                     Ok(_) => {
@@ -1071,8 +1074,16 @@ impl Editor {
                 buffer.insert_char('\n');
             }
             (KeyCode::Char('j'), CTRL) => {
+                let pos = buffer.main_cursor_pos();
+                trace!("{:?}, endswith: '{}'", pos, buffer.line_substr(pos.y, pos.x));
+                let do_auto_indent =
+                    buffer.indent_size(pos.y) > 0
+                    || buffer.line_substr(pos.y, pos.x.saturating_sub(1))
+                        .ends_with('{');
                 buffer.insert_char('\n');
-                buffer.tab();
+                if do_auto_indent {
+                    buffer.tab();
+                }
             }
             (KeyCode::Backspace, NONE) => {
                 buffer.backspace();
