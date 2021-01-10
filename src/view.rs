@@ -55,6 +55,12 @@ impl View {
             self.top_left.y = pos.y - rows + 1;
         }
 
+        self.top_left.y = min(
+            self.top_left.y,
+            buffer.num_lines().saturating_sub(rows / 2)
+        );
+
+
         // Scroll Right.
         if pos.x >= self.top_left.x + cols {
             self.top_left.x = pos.x - cols + 1;
