@@ -307,7 +307,6 @@ impl Terminal {
                 THEME.apply(&mut stdout, ThemeItem::LineNo).ok();
                 if y == main_cursor_y {
                     THEME.apply(&mut stdout, ThemeItem::CurrentLineNo).ok();
-                    queue!(stdout, SetAttribute(Attribute::Bold)).ok();
                 }
 
                 queue!(
@@ -491,6 +490,7 @@ impl Terminal {
                     queue!(
                         stdout,
                         MoveTo((text_offset + x) as u16, (y + i) as u16),
+                        Print(' '),
                         Print(truncate(&item, popup_width - 1)),
                         Print(whitespaces(popup_width.saturating_sub(item.len()))),
                         SetAttribute(Attribute::Reset),

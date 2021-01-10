@@ -2,7 +2,8 @@
 
 void quicksort(int number[25],int first,int last){
    int i, j, pivot, temp;
-
+    printf(qemu_log)
+   
    // Hello
    /* foo if */
    if(first<last){
@@ -34,8 +35,9 @@ void quicksort(int number[25],int first,int last){
    }
 }
 
-int main(){
+int main() {
    int i, count, number[25];
+   asd;
 
    printf("How many elements are u going to enter?: ");
    scanf("%d",&count);
