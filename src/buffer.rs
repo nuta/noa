@@ -1,6 +1,6 @@
 use crate::editorconfig::{EditorConfig, IndentStyle};
 use crate::highlight::{Highlighter, Span};
-use crate::language::{Language, guess_language};
+use crate::language::{guess_language, Language};
 use crate::rope::*;
 use serde::{Deserialize, Serialize};
 use std::cmp::{max, min};

@@ -12,6 +12,7 @@ use crate::view::View;
 use crate::watcher::FileWatcher;
 use crate::worker::Worker;
 use git2::Repository;
+use lsp_types::DiagnosticSeverity;
 use std::cell::RefCell;
 use std::cmp::min;
 use std::fs;
@@ -19,7 +20,6 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time::{Duration, Instant};
-use lsp_types::DiagnosticSeverity;
 
 pub enum NotificationLevel {
     Report,

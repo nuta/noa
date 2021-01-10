@@ -65,7 +65,7 @@ lazy_static! {
             comment_out: None,
             top_level_patterns: &[],
             lsp: None,
-            patterns: hashmap! {}
+            patterns: hashmap! {},
         }
     };
 }
@@ -163,12 +163,12 @@ lazy_static! {
                 command: &[
                     "rust-analyzer",
                     #[cfg(debug_assertions)]
-                    "--verbose"
+                    "--verbose",
                 ],
                 env: &[
                     #[cfg(debug_assertions)]
                     ("RA_LOG", "rust_analyzer=trace"),
-                ]
+                ],
             }),
             patterns: hashmap! {
                 "attribute" => Pattern::Inline {
@@ -232,8 +232,7 @@ lazy_static! {
 pub fn guess_language(path: &Path) -> &'static Language {
     match path.extension().map(|s| s.to_str().unwrap()) {
         Some("rs") => &RUST,
-        Some("c") | Some("cpp") | Some("cxx") | Some("h") | Some("hpp")
-        | Some("hxx") => &CXX,
+        Some("c") | Some("cpp") | Some("cxx") | Some("h") | Some("hpp") | Some("hxx") => &CXX,
         _ => &PLAIN,
     }
 }

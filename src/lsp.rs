@@ -6,14 +6,13 @@ use crate::language::{Language, LspSettings};
 use crate::rope::{Point, Range};
 use jsonrpc_core::{types::Value, Call, Id};
 use lsp_types::{
-    notification::{Initialized, DidChangeTextDocument, DidOpenTextDocument},
+    notification::{DidChangeTextDocument, DidOpenTextDocument, Initialized},
     request::{Completion, GotoDefinition, Initialize, SignatureHelpRequest},
-    CompletionParams, DidChangeTextDocumentParams, DidOpenTextDocumentParams, GotoDefinitionParams,
-    InitializeParams, InitializedParams, PartialResultParams, Position, SignatureHelpParams,
+    CompletionItem, CompletionList, CompletionParams, DiagnosticSeverity,
+    DidChangeTextDocumentParams, DidOpenTextDocumentParams, GotoDefinitionParams, InitializeParams,
+    InitializedParams, Location, PartialResultParams, Position, SignatureHelp, SignatureHelpParams,
     TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams,
     VersionedTextDocumentIdentifier, WorkDoneProgressParams,
-    DiagnosticSeverity,
-    Location, SignatureHelp, CompletionItem, CompletionList,
 };
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -137,10 +136,7 @@ fn send_requests(
             }
             Request::Initialized => {
                 trace!("Initialized()");
-                serialize_notification::<Initialized>(
-                    InitializedParams {
-                    }
-                )
+                serialize_notification::<Initialized>(InitializedParams {})
             }
             Request::OpenFile { path, text } => {
                 trace!("DidOpenTextDocument(path={})", path.display());
@@ -171,7 +167,11 @@ fn send_requests(
                     }],
                 })
             }
-            Request::Completion { path, buffer_id, pos } => {
+            Request::Completion {
+                path,
+                buffer_id,
+                pos,
+            } => {
                 trace!("Completion(path={}, pos={})", path.display(), pos);
                 let id = alloc_id();
                 sent_reqs
@@ -364,8 +364,7 @@ fn receive_requests(
             match req {
                 SentRequest::Completion { buffer_id } => {
                     let mut items = FuzzySet::new();
-                    let comps =
-                        serde_json::from_value::<Vec<CompletionItem>>(resp.result.clone())
+                    let comps = serde_json::from_value::<Vec<CompletionItem>>(resp.result.clone())
                         .ok()
                         .or_else(|| {
                             serde_json::from_value::<CompletionList>(resp.result)
@@ -390,14 +389,13 @@ fn receive_requests(
                     });
                 }
                 SentRequest::GotoDefinition => {
-                    let loc =
-                        serde_json::from_value::<Location>(resp.result.clone())
-                            .ok()
-                            .or_else(|| {
-                                serde_json::from_value::<Vec<Location>>(resp.result)
-                                    .ok()
-                                    .and_then(|locs| locs.get(0).cloned())
-                            });
+                    let loc = serde_json::from_value::<Location>(resp.result.clone())
+                        .ok()
+                        .or_else(|| {
+                            serde_json::from_value::<Vec<Location>>(resp.result)
+                                .ok()
+                                .and_then(|locs| locs.get(0).cloned())
+                        });
 
                     if let Some(loc) = loc {
                         if let Ok(path) = loc.uri.to_file_path() {
@@ -405,20 +403,19 @@ fn receive_requests(
                                 path,
                                 pos: Point::new(
                                     loc.range.start.line as usize,
-                                    loc.range.start.character as usize
+                                    loc.range.start.character as usize,
                                 ),
                             });
                         }
                     }
                 }
                 SentRequest::SignatureHelp => {
-                    let help =
-                        serde_json::from_value::<SignatureHelp>(resp.result);
+                    let help = serde_json::from_value::<SignatureHelp>(resp.result);
                     if let Ok(help) = help {
                         if let Some(sig) = help.signatures.get(0) {
                             event_queue.enqueue(Event::HoverMessage {
                                 message: sig.label.to_owned(),
-                            });            
+                            });
                         }
                     }
                 }
@@ -434,7 +431,7 @@ fn handle_push_from_server(event_queue: &EventQueue, req: Call) {
                 // Just ignore.
             }
             _ => {}
-        }
+        },
         Call::Notification(noti) => match noti.method.as_str() {
             "textDocument/publishDiagnostics" => {
                 handle_diagnotics(event_queue, noti);
@@ -447,20 +444,20 @@ fn handle_push_from_server(event_queue: &EventQueue, req: Call) {
 
 fn handle_diagnotics(event_queue: &EventQueue, noti: jsonrpc_core::Notification) {
     if let jsonrpc_core::Params::Map(map) = noti.params {
-        let diagnostics: Option<Vec<lsp_types::Diagnostic>> = 
-            map.get("diagnostics")
-                .cloned()
-                .and_then(|v| serde_json::from_value(v).ok());
+        let diagnostics: Option<Vec<lsp_types::Diagnostic>> = map
+            .get("diagnostics")
+            .cloned()
+            .and_then(|v| serde_json::from_value(v).ok());
         if let Some(diagnostics) = diagnostics {
             let mut diags = Vec::with_capacity(diagnostics.len());
             for diag in diagnostics {
                 let start_pos = Point::new(
                     diag.range.start.line as usize,
-                    diag.range.start.character as usize
+                    diag.range.start.character as usize,
                 );
                 let end_pos = Point::new(
                     diag.range.end.line as usize,
-                    diag.range.end.character as usize
+                    diag.range.end.character as usize,
                 );
 
                 diags.push(Diagnostic {
@@ -608,7 +605,7 @@ impl Lsp {
         let sent_reqs = Arc::new(Mutex::new(HashMap::new()));
         let sent_reqs_lock1 = sent_reqs.clone();
         let sent_reqs_lock2 = sent_reqs;
-        let sender_thread = 
+        let sender_thread =
             std::thread::spawn(move || send_requests(lsp, rx, stdin, sent_reqs_lock1));
         let event_queue = self.event_queue.clone();
         std::thread::spawn(move || {
