@@ -4,7 +4,7 @@ use crate::fuzzy::FuzzySet;
 use crate::helpers::open_log_file;
 use crate::language::{Language, LspSettings};
 use crate::rope::{Point, Range};
-use jsonrpc_core::{types::Value, Call, Id};
+use jsonrpc_core::{Call, Id};
 use lsp_types::{
     notification::{DidChangeTextDocument, DidOpenTextDocument, Initialized},
     request::{Completion, GotoDefinition, Initialize, SignatureHelpRequest},
