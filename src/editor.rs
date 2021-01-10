@@ -504,6 +504,10 @@ impl Editor {
         self.popup = None;
     }
 
+    fn clear_hover_message(&mut self) {
+        self.hover_message = None;
+    }
+
     fn handle_completion_event(&mut self, id: BufferId, items: FuzzySet) {
         let view = self.current.borrow();
         let buffer = view.buffer().borrow();
@@ -769,6 +773,7 @@ impl Editor {
                 ResponseBody::GoTo { file, position } => {
                     self.goto(&file, &position, open_in);
                     self.close_command_box();
+                    self.clear_hover_message();
                 }
                 ResponseBody::ReplaceWith { changes } => {
                     for change in changes {
@@ -1197,7 +1202,7 @@ impl Editor {
         drop(view);
 
         if clear_hover {
-            self.hover_message = None;
+            self.clear_hover_message();
         }
 
         if clear_popup {
