@@ -13,6 +13,7 @@ use lsp_types::{
     TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams,
     VersionedTextDocumentIdentifier, WorkDoneProgressParams,
     DiagnosticSeverity,
+    Location, SignatureHelp, CompletionItem, CompletionList,
 };
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -60,10 +61,6 @@ enum SentRequest {
 fn parse_path_as_uri(path: &Path) -> lsp_types::Url {
     let uri = &format!("file:///{}", path.canonicalize().unwrap().to_str().unwrap());
     lsp_types::Url::parse(uri).unwrap()
-}
-
-fn parse_uri_as_path(uri: &str) -> Option<PathBuf> {
-    uri.strip_prefix("file://").map(PathBuf::from)
 }
 
 fn serialize_request<T: lsp_types::request::Request>(id: Id, params: T::Params) -> String {
@@ -367,14 +364,21 @@ fn receive_requests(
             match req {
                 SentRequest::Completion { buffer_id } => {
                     let mut items = FuzzySet::new();
-                    if let Value::Object(fields) = resp.result {
-                        if let Some(Value::Array(results)) = fields.get("items") {
-                            for item in results {
-                                if let Some(Value::String(name)) = item.get("insertText") {
-                                    items.append(name.to_string());
-                                } else if let Some(Value::String(name)) = item.get("filterText") {
-                                    items.append(name.to_string());
-                                }
+                    let comps =
+                        serde_json::from_value::<Vec<CompletionItem>>(resp.result.clone())
+                        .ok()
+                        .or_else(|| {
+                            serde_json::from_value::<CompletionList>(resp.result)
+                                .ok()
+                                .map(|list| list.items.to_vec())
+                        });
+
+                    if let Some(comps) = comps {
+                        for item in comps {
+                            if let Some(text) = item.insert_text {
+                                items.append(text);
+                            } else if let Some(text) = item.filter_text {
+                                items.append(text);
                             }
                         }
                     }
@@ -386,40 +390,35 @@ fn receive_requests(
                     });
                 }
                 SentRequest::GotoDefinition => {
-                    // FIXME: Help me :/
-                    if let Value::Array(results) = resp.result {
-                        if let Some(Value::Object(definition)) = results.get(0) {
-                            if let (Some(Value::Object(range)), Some(Value::String(uri))) =
-                                (definition.get("range"), definition.get("uri"))
-                            {
-                                if let Some(Value::Object(position)) = range.get("start") {
-                                    if let (Some(Value::Number(y)), Some(Value::Number(x))) =
-                                        (position.get("line"), position.get("character"))
-                                    {
-                                        if let (Some(y), Some(x)) = (y.as_u64(), x.as_u64()) {
-                                            if let Some(path) = parse_uri_as_path(uri) {
-                                                event_queue.enqueue(Event::GoTo {
-                                                    path,
-                                                    pos: Point::new(y as usize, x as usize),
-                                                })
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                    let loc =
+                        serde_json::from_value::<Location>(resp.result.clone())
+                            .ok()
+                            .or_else(|| {
+                                serde_json::from_value::<Vec<Location>>(resp.result)
+                                    .ok()
+                                    .and_then(|locs| locs.get(0).cloned())
+                            });
+
+                    if let Some(loc) = loc {
+                        if let Ok(path) = loc.uri.to_file_path() {
+                            event_queue.enqueue(Event::GoTo {
+                                path,
+                                pos: Point::new(
+                                    loc.range.start.line as usize,
+                                    loc.range.start.character as usize
+                                ),
+                            });
                         }
                     }
                 }
                 SentRequest::SignatureHelp => {
-                    if let Value::Object(fields) = resp.result {
-                        if let Some(Value::Array(sigs)) = fields.get("signatures") {
-                            if let Some(Value::Object(sig)) = sigs.get(0) {
-                                if let Some(Value::String(label)) = sig.get("label") {
-                                    event_queue.enqueue(Event::HoverMessage {
-                                        message: label.to_owned(),
-                                    });
-                                }
-                            }
+                    let help =
+                        serde_json::from_value::<SignatureHelp>(resp.result);
+                    if let Ok(help) = help {
+                        if let Some(sig) = help.signatures.get(0) {
+                            event_queue.enqueue(Event::HoverMessage {
+                                message: sig.label.to_owned(),
+                            });            
                         }
                     }
                 }
