@@ -33,6 +33,7 @@ pub enum Pattern {
 pub struct LspSettings {
     pub language_id: &'static str,
     pub command: &'static [&'static str],
+    pub env: &'static [(&'static str, &'static str)],
 }
 
 pub struct Language {
@@ -84,6 +85,7 @@ lazy_static! {
             lsp: Some(&LspSettings {
                 language_id: "c",
                 command: &["clangd", "-j=8", "--log=verbose", "--pretty"],
+                env: &[],
             }),
             patterns: hashmap! {
                 "attribute" => Pattern::Inline {
@@ -158,7 +160,15 @@ lazy_static! {
             ],
             lsp: Some(&LspSettings {
                 language_id: "rust",
-                command: &["rust-analyzer", "--spammy"],
+                command: &[
+                    "rust-analyzer",
+                    #[cfg(debug_assertions)]
+                    "--verbose"
+                ],
+                env: &[
+                    #[cfg(debug_assertions)]
+                    ("RA_LOG", "rust_analyzer=trace"),
+                ]
             }),
             patterns: hashmap! {
                 "attribute" => Pattern::Inline {

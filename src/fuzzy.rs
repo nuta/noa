@@ -17,6 +17,10 @@ impl FuzzySet {
         }
     }
 
+    pub fn entries(&self) -> &HashSet<String> {
+        &self.entries
+    }
+
     /// appends a entry.
     pub fn append(&mut self, entry: String) {
         self.entries.insert(entry);

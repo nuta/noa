@@ -11,7 +11,8 @@ use lsp_types::{
     CompletionParams, DidChangeTextDocumentParams, DidOpenTextDocumentParams, GotoDefinitionParams,
     InitializeParams, InitializedParams, PartialResultParams, Position, SignatureHelpParams,
     TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams,
-    VersionedTextDocumentIdentifier, WorkDoneProgressParams,
+    VersionedTextDocumentIdentifier, WorkDoneProgressParams, TextDocumentClientCapabilities,
+    CompletionCapability,
 };
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -19,6 +20,7 @@ use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 enum Request {
     Initialize {
@@ -37,8 +39,7 @@ enum Request {
     Completion {
         buffer_id: BufferId,
         path: PathBuf,
-        y: usize,
-        x: usize,
+        pos: Point,
     },
     GotoDefinition {
         path: PathBuf,
@@ -109,6 +110,11 @@ fn send_requests(
     sent_reqs: Arc<Mutex<HashMap<Id, SentRequest>>>,
 ) {
     while let Ok(req) = rx.recv() {
+        let wait_for_response = match req {
+            Request::ChangeFile { .. } => true,
+            _ => false,
+        };
+
         let body = match req {
             Request::Initialize { root_path } => {
                 trace!("Initialize(root_path={})", root_path.display());
@@ -168,13 +174,8 @@ fn send_requests(
                     }],
                 })
             }
-            Request::Completion {
-                path,
-                buffer_id,
-                y,
-                x,
-            } => {
-                trace!("Completion(path={})", path.display());
+            Request::Completion { path, buffer_id, pos } => {
+                trace!("Completion(path={}, pos={})", path.display(), pos);
                 let id = alloc_id();
                 sent_reqs
                     .lock()
@@ -186,8 +187,8 @@ fn send_requests(
                     CompletionParams {
                         text_document_position: TextDocumentPositionParams {
                             position: Position {
-                                line: y as u64,
-                                character: x as u64,
+                                line: pos.y as u64,
+                                character: pos.x as u64,
                             },
                             text_document: TextDocumentIdentifier {
                                 uri: parse_path_as_uri(&path),
@@ -263,6 +264,13 @@ fn send_requests(
 
         use std::io::Write;
         write!(stdin, "Content-Length: {}\r\n\r\n{}", body.len(), body).ok();
+
+        if wait_for_response {
+            // Try waiting for the response because rust-analyzer tend to cancel
+            // our requests sent before the server completes its job and reply
+            // the reponse.
+            std::thread::park_timeout(Duration::from_millis(200));
+        }
     }
 }
 
@@ -354,7 +362,7 @@ fn receive_requests(
             }
         };
 
-        trace!("LSP response: {:#?}", resp);
+        sender_thread.unpark();
         if let Some(req) = sent_reqs.lock().unwrap().get(&resp.id) {
             match req {
                 SentRequest::Completion { buffer_id } => {
@@ -364,11 +372,14 @@ fn receive_requests(
                             for item in results {
                                 if let Some(Value::String(name)) = item.get("insertText") {
                                     items.append(name.to_string());
+                                } else if let Some(Value::String(name)) = item.get("filterText") {
+                                    items.append(name.to_string());
                                 }
                             }
                         }
                     }
 
+                    trace!("completion={:#?}", items.entries());
                     event_queue.enqueue(Event::Completion {
                         buffer_id: *buffer_id,
                         items,
@@ -419,6 +430,12 @@ fn receive_requests(
 
 fn handle_push_from_server(event_queue: &EventQueue, req: Call) {
     match req {
+        Call::MethodCall(call) => match call.method.as_str() {
+            "client/registerCapability" => {
+                // Just ignore.
+            }
+            _ => {}
+        }
         Call::Notification(noti) => match noti.method.as_str() {
             "textDocument/publishDiagnostics" => {
                 handle_diagnotics(event_queue, noti);
@@ -578,8 +595,7 @@ impl Lsp {
                 Request::Completion {
                     buffer_id: buffer.id(),
                     path: path.to_owned(),
-                    y: main_pos.y,
-                    x: main_pos.x,
+                    pos: *main_pos,
                 },
             );
         }
@@ -618,6 +634,8 @@ impl Lsp {
             .stderr(Stdio::from(
                 open_log_file(&format!("lsp-{}.log", lang.name)).unwrap(),
             ))
+            .envs(lsp.env.to_vec())
+            .current_dir("/home/seiya/tmp/hello-rust")
             .spawn()?;
 
         let stdin = process.stdin.take().unwrap();

@@ -152,6 +152,7 @@ pub struct Editor {
     notifications: RefCell<Vec<Notification>>,
     popup: Option<Popup>,
     popup_selected: usize,
+    update_completion: bool,
     worker: Worker,
     command_box: CommandBox,
     command_box_input: Buffer,
@@ -192,6 +193,7 @@ impl Editor {
             notifications: RefCell::new(Vec::new()),
             popup: None,
             popup_selected: 0,
+            update_completion: false,
             worker: Worker::new(EventQueue::new(tx.clone())),
             command_box: CommandBox::new(),
             command_box_input: Buffer::new(),
@@ -292,6 +294,14 @@ impl Editor {
                     let current = self.current.borrow().buffer().borrow().snapshot();
                     if snapshot.buffer_id != current.buffer_id || snapshot.buf != current.buf {
                         self.on_modified();
+                    }
+
+                    if self.update_completion {
+                        let view = self.current.borrow();
+                        let buffer = view.buffer().borrow();
+                        self.worker.request(Box::new(WordCompJob::new(current)));
+                        self.lsp.request_completions(&*buffer);
+                        self.update_completion = false;
                     }
 
                     trace!(
@@ -419,7 +429,7 @@ impl Editor {
                 self.terminal.resize(rows, cols);
             }
             Event::NoCompletion => {
-                self.clear_popup();
+                // self.clear_popup();
             }
             Event::Completion { buffer_id, items } => {
                 self.handle_completion_event(buffer_id, items);
@@ -953,7 +963,6 @@ impl Editor {
         let mut buffer = view.buffer().borrow_mut();
         let mut clear_popup = true;
         let mut clear_hover = true;
-        let mut update_completion = false;
         trace!("key = {:?}", key);
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), CTRL) | (KeyCode::Esc, NONE) if self.is_popup_active() => {
@@ -1059,7 +1068,7 @@ impl Editor {
             //
             (KeyCode::Char(ch), NONE) | (KeyCode::Char(ch), SHIFT) => {
                 buffer.insert_char(ch);
-                update_completion = true;
+                self.update_completion = true;
                 clear_hover = false;
                 clear_popup = false;
             }
@@ -1084,11 +1093,11 @@ impl Editor {
             }
             (KeyCode::Backspace, NONE) => {
                 buffer.backspace();
-                update_completion = true;
+                self.update_completion = true;
             }
             (KeyCode::Delete, NONE) | (KeyCode::Char('d'), CTRL) => {
                 buffer.delete();
-                update_completion = true;
+                self.update_completion = true;
             }
             (KeyCode::Tab, NONE) => {
                 buffer.tab();
@@ -1199,15 +1208,6 @@ impl Editor {
 
         if clear_popup {
             self.clear_popup();
-        }
-
-        let view = self.current.borrow_mut();
-        let buffer = view.buffer().borrow_mut();
-        if update_completion {
-            // Run a completion.
-            let snapshot = buffer.snapshot();
-            self.worker.request(Box::new(WordCompJob::new(snapshot)));
-            self.lsp.request_completions(&*buffer);
         }
     }
 }
