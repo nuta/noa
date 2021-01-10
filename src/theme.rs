@@ -70,7 +70,7 @@ lazy_static! {
             ThemeItem::LineStatus(LineStatusType::Error) => Style::bg(color!(196)),
             ThemeItem::LineStatus(LineStatusType::Warning) => Style::bg(color!(220)),
             ThemeItem::LineStatusPadding => Style::bg(color!(240)),
-            ThemeItem::CommandBoxPrompt => Style::bg(color!(27)),
+            ThemeItem::CommandBoxPrompt => Style::inverted(),
             ThemeItem::ScrollBarVisible => Style::bg(color!(239)),
             ThemeItem::PopupItemHover => Style::fg_bg(color!(15), color!(19)),
             ThemeItem::PopupItem => Style::fg_bg(color!(15), color!(237)),
