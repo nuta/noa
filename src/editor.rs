@@ -536,7 +536,16 @@ impl Editor {
                         Some(Popup::new(filtered))
                     }
                 })
-                .unwrap_or(None)
+                .unwrap_or(
+                    if items.is_empty() {
+                        None
+                    } else {
+                        // If current_word is empty, list up to 5 items.
+                        Some(Popup::new(
+                            items.entries().iter().take(5).map(ToOwned::to_owned).collect()
+                        ))
+                    }
+                )
         };
     }
 
@@ -972,8 +981,8 @@ impl Editor {
                 if let Some(current_word_range) = buffer.current_word_range() {
                     buffer.select_by_ranges(&[current_word_range]);
                     buffer.backspace();
-                    buffer.insert(selected);
                 }
+                buffer.insert(selected);
             }
             (KeyCode::Char('q'), CTRL) => {
                 self.exited = true;
