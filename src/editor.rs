@@ -19,6 +19,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time::{Duration, Instant};
+use lsp_types::DiagnosticSeverity;
 
 pub enum NotificationLevel {
     Report,
@@ -79,15 +80,8 @@ pub struct HoverMessage {
     pub message: String,
 }
 
-pub enum DiagnosticSeverity {
-    Error,
-    Warning,
-    Info,
-    Hint,
-}
-
 pub struct Diagnostic {
-    pub severity: DiagnosticSeverity,
+    pub severity: lsp_types::DiagnosticSeverity,
     pub range: Range,
     pub message: String,
 }

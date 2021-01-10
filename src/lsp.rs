@@ -1,5 +1,5 @@
 use crate::buffer::{Buffer, BufferId};
-use crate::editor::{Diagnostic, DiagnosticSeverity, Event, EventQueue};
+use crate::editor::{Diagnostic, Event, EventQueue};
 use crate::fuzzy::FuzzySet;
 use crate::helpers::open_log_file;
 use crate::language::{Language, LspSettings};
@@ -11,8 +11,8 @@ use lsp_types::{
     CompletionParams, DidChangeTextDocumentParams, DidOpenTextDocumentParams, GotoDefinitionParams,
     InitializeParams, InitializedParams, PartialResultParams, Position, SignatureHelpParams,
     TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams,
-    VersionedTextDocumentIdentifier, WorkDoneProgressParams, TextDocumentClientCapabilities,
-    CompletionCapability,
+    VersionedTextDocumentIdentifier, WorkDoneProgressParams,
+    DiagnosticSeverity,
 };
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -448,63 +448,28 @@ fn handle_push_from_server(event_queue: &EventQueue, req: Call) {
 
 fn handle_diagnotics(event_queue: &EventQueue, noti: jsonrpc_core::Notification) {
     if let jsonrpc_core::Params::Map(map) = noti.params {
-        if let Some(Value::Array(diagnostics)) = map.get("diagnostics") {
+        let diagnostics: Option<Vec<lsp_types::Diagnostic>> = 
+            map.get("diagnostics")
+                .cloned()
+                .and_then(|v| serde_json::from_value(v).ok());
+        if let Some(diagnostics) = diagnostics {
             let mut diags = Vec::with_capacity(diagnostics.len());
             for diag in diagnostics {
-                if let Value::Object(diag) = diag {
-                    if let Some(Value::Object(range)) = diag.get("range") {
-                        if let Some(Value::Object(start)) = range.get("start") {
-                            if let Some(Value::Object(end)) = range.get("end") {
-                                let start_pos = match (start.get("line"), start.get("character")) {
-                                    (Some(Value::Number(line)), Some(Value::Number(column))) => {
-                                        match (line.as_u64(), column.as_u64()) {
-                                            (Some(line), Some(column)) => {
-                                                Point::new(line as usize, column as usize)
-                                            }
-                                            _ => continue,
-                                        }
-                                    }
-                                    _ => continue,
-                                };
-                                let end_pos = match (end.get("line"), end.get("character")) {
-                                    (Some(Value::Number(line)), Some(Value::Number(column))) => {
-                                        match (line.as_u64(), column.as_u64()) {
-                                            (Some(line), Some(column)) => {
-                                                Point::new(line as usize, column as usize)
-                                            }
-                                            _ => continue,
-                                        }
-                                    }
-                                    _ => continue,
-                                };
+                let start_pos = Point::new(
+                    diag.range.start.line as usize,
+                    diag.range.start.character as usize
+                );
+                let end_pos = Point::new(
+                    diag.range.end.line as usize,
+                    diag.range.end.character as usize
+                );
 
-                                let severity = match diag.get("severity") {
-                                    Some(Value::Number(severity)) => match severity.as_u64() {
-                                        Some(1) => DiagnosticSeverity::Error,
-                                        Some(2) => DiagnosticSeverity::Warning,
-                                        Some(3) => DiagnosticSeverity::Info,
-                                        Some(4) => DiagnosticSeverity::Hint,
-                                        _ => continue,
-                                    },
-                                    _ => continue,
-                                };
-
-                                let message = match diag.get("message") {
-                                    Some(Value::String(message)) => message.to_owned(),
-                                    _ => continue,
-                                };
-
-                                diags.push(Diagnostic {
-                                    severity,
-                                    range: Range::from_points(start_pos, end_pos),
-                                    message,
-                                });
-                            }
-                        }
-                    }
-                }
+                diags.push(Diagnostic {
+                    severity: diag.severity.unwrap_or(DiagnosticSeverity::Information),
+                    range: Range::from_points(start_pos, end_pos),
+                    message: diag.message,
+                });
             }
-
             event_queue.enqueue(Event::Diagnostics(diags));
         }
     }
