@@ -124,15 +124,15 @@ pub fn handle_term_event(event_queue: Sender<Event>) {
 }
 
 pub struct Terminal {
-        rows: usize,
-        cols: usize,
-        current_top_left: TopLeft,
-        current_num_lines: usize,
-        text_start_x: usize,
-        text_end_x: usize,
-        text_height: usize,
-    }
-    
+    rows: usize,
+    cols: usize,
+    current_top_left: TopLeft,
+    current_num_lines: usize,
+    text_start_x: usize,
+    text_end_x: usize,
+    text_height: usize,
+}
+
 impl Terminal {
     pub fn new(event_queue: Sender<Event>) -> Terminal {
         let (cols, rows) = size().expect("failed to get the terminal size");
@@ -163,4 +163,6 @@ impl Terminal {
         self.rows = rows;
         self.cols = cols;
     }
+
+    pub fn draw(&mut self) {}
 }

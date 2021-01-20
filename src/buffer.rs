@@ -460,6 +460,18 @@ impl Buffer {
         n
     }
 
+    pub fn enter_with_indent(&mut self) {
+        let pos = self.main_cursor_pos();
+        let do_auto_indent = self.indent_size(pos.y) > 0
+            || self
+                .line_substr(pos.y, pos.x.saturating_sub(1))
+                .ends_with('{');
+        self.insert_char('\n');
+        if do_auto_indent {
+            self.tab();
+        }
+    }
+
     pub fn tab(&mut self) {
         self.rope.reset_modified_line();
         let pos = match &self.cursor {
