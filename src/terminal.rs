@@ -312,6 +312,11 @@ impl Terminal {
                             in_selection = true;
                             queue!(stdout, SetAttribute(Attribute::Reverse)).ok();
                         }
+
+                        // Print ' ' at the end of line if the newline character is selected.
+                        if in_selection && range.back().y > y && x == buffer.line_len(y) {
+                            queue!(stdout, Print(' ')).ok();
+                        }
                     }
                 }
 
