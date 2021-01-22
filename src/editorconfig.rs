@@ -90,11 +90,8 @@ fn parse_config(body: &str) -> ConfigFile {
                 }
 
                 if in_global {
-                    match key {
-                        "root" => {
-                            root = value == "true";
-                        }
-                        _ => {}
+                    if key == "root" {
+                        root = value == "true";
                     }
                 } else {
                     match key {
