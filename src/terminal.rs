@@ -211,6 +211,7 @@ impl Terminal {
         let mut y = top_left.y;
         let mut wrapped = None;
         let mut cursor_pos = None;
+        let mut in_selection = false;
         for display_y in 0..text_height {
             // Move the cursor at the beginning of the next line.
             queue!(
@@ -253,6 +254,19 @@ impl Terminal {
             )
             .ok();
 
+            if in_selection {
+                if let Cursor::Selection(range) = &buffer.cursor() {
+                    if *range.back() == Point::new(y, 0) {
+                        in_selection = false;
+                    } else {
+                        queue!(stdout, SetAttribute(Attribute::Reverse)).ok();
+                        if buffer.line_len(y) == 0 {
+                            queue!(stdout, Print(' ')).ok();
+                        }
+                    }
+                }
+            }
+
             // Text.
             let mut chunk_i = 0;
             let mut display_x = 0;
@@ -263,8 +277,18 @@ impl Terminal {
                     None => break,
                 };
 
-                chunk_i = 0;
                 let mut x = chunk_char_start;
+                if let Cursor::Selection(range) = &buffer.cursor() {
+                    if in_selection && *range.back() == Point::new(y, x) {
+                        in_selection = false;
+                        queue!(stdout, SetAttribute(Attribute::NoReverse)).ok();
+                    } else if !in_selection && *range.front() == Point::new(y, x) {
+                        in_selection = true;
+                        queue!(stdout, SetAttribute(Attribute::Reverse)).ok();
+                    }
+                }
+
+                chunk_i = 0;
                 for c in s.chars().skip(chunk_char_start) {
                     let char_width = UnicodeWidthChar::width_cjk(c).unwrap_or(1);
                     if char_width > remaining_width {
@@ -280,6 +304,16 @@ impl Terminal {
                     chunk_i += 1;
                     display_x += 1;
                     x += 1;
+
+                    if let Cursor::Selection(range) = &buffer.cursor() {
+                        if in_selection && *range.back() == Point::new(y, x) {
+                            in_selection = false;
+                            queue!(stdout, SetAttribute(Attribute::NoReverse)).ok();
+                        } else if !in_selection && *range.front() == Point::new(y, x) {
+                            in_selection = true;
+                            queue!(stdout, SetAttribute(Attribute::Reverse)).ok();
+                        }
+                    }
                 }
 
                 // Printed all characters in the chunk. Visit the next one.
@@ -297,13 +331,6 @@ impl Terminal {
                 Some(_) => {
                     // There're remaining unprinted chunks in the line, i.e.,
                     // we need line wrapping.
-                    trace!(
-                        "rw={}, text_w={}, chunk_i={}, c={:?}",
-                        remaining_width,
-                        text_width,
-                        chunk_i,
-                        chunks.peek()
-                    );
                     wrapped = Some((chunks, chunk_char_start + chunk_i));
                 }
                 None => {
@@ -326,8 +353,12 @@ impl Terminal {
 
         // Move and show the cursor.
         if let Some((y, x)) = cursor_pos {
-            trace!("cursor_pos={:?} ({:?})", cursor_pos, buffer.cursor());
-            queue!(stdout, MoveTo((text_offset + x) as u16, 1 + y as u16), cursor::Show).ok();
+            queue!(
+                stdout,
+                MoveTo((text_offset + x) as u16, 1 + y as u16),
+                cursor::Show
+            )
+            .ok();
         }
 
         stdout.flush().ok();

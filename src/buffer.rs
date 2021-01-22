@@ -300,22 +300,17 @@ impl Buffer {
         }
     }
 
-    pub fn move_cursor(&mut self, up: usize, down: usize, left: usize, right: usize) {
-        // Cancel the selection.
+    fn cancel_selection(&mut self) {
         match &mut self.cursor {
             Cursor::Normal { .. } => {}
             Cursor::Selection(range) => {
-                let pos = if left > 0 || up > 0 {
-                    range.front()
-                } else {
-                    range.back()
-                };
-
-                self.cursor = Cursor::new(pos.y, pos.x);
+                self.cursor = Cursor::from_point(&range.end);
             }
         }
+    }
 
-        // Move the cursor.
+    pub fn move_cursor(&mut self, up: usize, down: usize, left: usize, right: usize) {
+        self.cancel_selection();
         match &mut self.cursor {
             Cursor::Normal { pos, .. } => {
                 pos.move_by(&self.rope, up, down, left, right);
@@ -343,6 +338,8 @@ impl Buffer {
     }
 
     pub fn move_cursor_with_line_wrap(&mut self, cols: usize, up: usize, down: usize) {
+        self.cancel_selection();
+
         let mut pos = match &self.cursor {
             Cursor::Normal { pos, .. } => pos.clone(),
             Cursor::Selection(range) => range.end.clone(),
@@ -399,11 +396,15 @@ impl Buffer {
                     let prev_line_len = self.line_len(pos.y - 1);
                     pos.y -= 1;
                     pos.x = prev_line_len;
-                    let prev_line_width = self.width_in_display(pos.y, 0, prev_line_len) % cols;
+                    let prev_line_width =
+                        self.width_in_display(pos.y, 0, prev_line_len) % (cols + 1);
+                    if prev_line_width <= from_left {
+                        break;
+                    }
                     loop {
                         if pos.x == 0
                             || self.width_in_display(pos.y, pos.x, prev_line_len)
-                                > min(prev_line_width, cols - from_left)
+                                >= prev_line_width - from_left
                         {
                             break 'outer2;
                         }
@@ -575,12 +576,11 @@ impl Buffer {
 
     pub fn enter_with_indent(&mut self) {
         let pos = self.main_cursor_pos();
-        let do_auto_indent = 
-            pos.y < self.num_lines()
+        let do_auto_indent = pos.y < self.num_lines()
             && (self.indent_size(pos.y) > 0
-            || self
-                .line_substr(pos.y, pos.x.saturating_sub(1))
-                .ends_with('{'));
+                || self
+                    .line_substr(pos.y, pos.x.saturating_sub(1))
+                    .ends_with('{'));
         self.insert_char('\n');
         if do_auto_indent {
             self.tab();
@@ -700,13 +700,11 @@ impl Buffer {
     }
 
     pub fn truncate(&mut self) {
-
         self.select_until_end_of_line();
         self.delete();
     }
 
     pub fn truncate_reverse(&mut self) {
-
         self.select_until_beginning_of_line();
         self.delete();
     }
@@ -1059,7 +1057,7 @@ mod test {
 
     #[test]
     fn move_up_cursor_in_wrapped_line() {
-        // aあb   =>   aあ|b
+        // aあb     =>   aあ|b
         // い1|2         い12
         //
         // (both are wrapped)
@@ -1088,6 +1086,26 @@ mod test {
         b.insert("1行目\n2行目");
         b.set_cursor(Cursor::new(1, 2));
         b.move_cursor_with_line_wrap(5, 1, 0); // Move up
+        assert_eq!(b.cursor(), &Cursor::new(0, 2));
+
+        // abcd     =>   abc|d
+        // 123|4         1234
+        //
+        //   (two lines)
+        let mut b = Buffer::new();
+        b.insert("abcd\n1234");
+        b.set_cursor(Cursor::new(1, 3));
+        b.move_cursor_with_line_wrap(10, 1, 0); // Move up
+        assert_eq!(b.cursor(), &Cursor::new(0, 3));
+
+        // ab       =>   ab|
+        // 12345|        12345
+        //
+        //   (two lines)
+        let mut b = Buffer::new();
+        b.insert("ab\n12345");
+        b.set_cursor(Cursor::new(1, 5));
+        b.move_cursor_with_line_wrap(10, 1, 0); // Move up
         assert_eq!(b.cursor(), &Cursor::new(0, 2));
 
         // aあbc| => aあbc|
