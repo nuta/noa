@@ -318,8 +318,9 @@ impl Buffer {
     pub fn move_cursor(&mut self, up: usize, down: usize, left: usize, right: usize) {
         self.cancel_selection();
         match &mut self.cursor {
-            Cursor::Normal { pos, .. } => {
+            Cursor::Normal { pos, logical_x } => {
                 pos.move_by(&self.rope, up, down, left, right);
+                *logical_x = pos.x;
             }
             Cursor::Selection { .. } => unreachable!(),
         }
@@ -346,9 +347,9 @@ impl Buffer {
     pub fn move_cursor_with_line_wrap(&mut self, cols: usize, up: usize, down: usize) {
         self.cancel_selection();
 
-        let mut pos = match &self.cursor {
-            Cursor::Normal { pos, .. } => pos.clone(),
-            Cursor::Selection { range, .. } => range.end.clone(),
+        let (mut pos, logical_x) = match &self.cursor {
+            Cursor::Normal { pos, logical_x } => (pos.clone(), *logical_x),
+            Cursor::Selection { range, logical_x } => (range.end.clone(), *logical_x),
         };
 
         for _ in 0..down {
@@ -366,6 +367,9 @@ impl Buffer {
                     // Move at the same display column in the next line in the buffer.
                     pos.y += 1;
                     pos.x = 0;
+                    let prefix_width = self.width_in_display(pos.y, 0, min(self.line_len(pos.y), logical_x));
+                    dbg!(self.line_len(pos.y), logical_x, prefix_width);
+                    let from_left = prefix_width % (cols + 1);
                     loop {
                         if pos.x >= self.line_len(pos.y)
                             || self.width_in_display(pos.y, 0, pos.x) >= from_left
@@ -949,7 +953,7 @@ mod test {
     fn insert_at_eof() {
         let mut b = Buffer::new();
         b.insert("abc");
-        b.move_cursor(0, 1, 0, 0); // Move down
+        b.move_cursor(0, 1, 0, 0);
         assert_eq!(b.cursor(), &Cursor::new(1, 0));
         b.insert_char('x');
         assert_eq!(b.text(), "abc\nx");
@@ -989,9 +993,9 @@ mod test {
         assert_eq!(b.cursor(), &Cursor::new(2, 5));
         b.move_cursor(0, 0, 1, 0); // Move right
         assert_eq!(b.cursor(), &Cursor::new(2, 4));
-        b.move_cursor(1, 0, 0, 0); // Move up
+        b.move_cursor(1, 0, 0, 0);
         assert_eq!(b.cursor(), &Cursor::new(1, 3));
-        b.move_cursor(0, 3, 0, 0); // Move down
+        b.move_cursor(0, 3, 0, 0);
         assert_eq!(b.cursor(), &Cursor::new(3, 0));
         b.move_cursor(0, 0, 1, 0); // Move left
         assert_eq!(b.cursor(), &Cursor::new(2, 5));
@@ -1037,9 +1041,9 @@ mod test {
         let mut b = Buffer::new();
         b.insert("aあbい12");
         b.set_cursor(Cursor::new(0, 2));
-        b.move_cursor_with_line_wrap(4, 0, 1); // Move down
+        b.move_cursor_with_line_wrap(4, 0, 1);
         assert_eq!(b.cursor(), &Cursor::new(0, 5));
-        b.move_cursor_with_line_wrap(4, 0, 1); // Move down
+        b.move_cursor_with_line_wrap(4, 0, 1);
         assert_eq!(b.cursor(), &Cursor::new(1, 0));
 
         // wxyz          wxyz
@@ -1050,7 +1054,7 @@ mod test {
         let mut b = Buffer::new();
         b.insert("wxyzaあbい12");
         b.set_cursor(Cursor::new(0, 6));
-        b.move_cursor_with_line_wrap(4, 0, 1); // Move down
+        b.move_cursor_with_line_wrap(4, 0, 1);
         assert_eq!(b.cursor(), &Cursor::new(0, 9));
 
         // aあbc|   =>   aあbc
@@ -1060,7 +1064,7 @@ mod test {
         let mut b = Buffer::new();
         b.insert("aあbcい");
         b.set_cursor(Cursor::new(0, 4));
-        b.move_cursor_with_line_wrap(5, 0, 1); // Move down
+        b.move_cursor_with_line_wrap(5, 0, 1);
         assert_eq!(b.cursor(), &Cursor::new(0, 5));
 
         // 1行|目   =>   1行目
@@ -1070,7 +1074,7 @@ mod test {
         let mut b = Buffer::new();
         b.insert("1行目\n2行目");
         b.set_cursor(Cursor::new(0, 2));
-        b.move_cursor_with_line_wrap(5, 0, 1); // Move down
+        b.move_cursor_with_line_wrap(5, 0, 1);
         assert_eq!(b.cursor(), &Cursor::new(1, 2));
 
         // aあbc| => aあbc
@@ -1078,16 +1082,16 @@ mod test {
         let mut b = Buffer::new();
         b.insert("aあbc");
         b.set_cursor(Cursor::new(0, 4));
-        b.move_cursor_with_line_wrap(5, 0, 1); // Move down
+        b.move_cursor_with_line_wrap(5, 0, 1);
         assert_eq!(b.cursor(), &Cursor::new(1, 0));
 
         // | =>
         //      |
         let mut b = Buffer::new();
         b.set_cursor(Cursor::new(0, 0));
-        b.move_cursor_with_line_wrap(5, 0, 1); // Move down
+        b.move_cursor_with_line_wrap(5, 0, 1);
         assert_eq!(b.cursor(), &Cursor::new(1, 0));
-        b.move_cursor_with_line_wrap(5, 0, 10); // Move down
+        b.move_cursor_with_line_wrap(5, 0, 10);
         assert_eq!(b.cursor(), &Cursor::new(1, 0));
     }
 
@@ -1100,7 +1104,7 @@ mod test {
         let mut b = Buffer::new();
         b.insert("aあbい12");
         b.set_cursor(Cursor::new(0, 5));
-        b.move_cursor_with_line_wrap(4, 1, 0); // Move up
+        b.move_cursor_with_line_wrap(4, 1, 0);
         assert_eq!(b.cursor(), &Cursor::new(0, 2));
 
         // wxyz         wxy|z
@@ -1111,7 +1115,7 @@ mod test {
         let mut b = Buffer::new();
         b.insert("wxyzaあbい12");
         b.set_cursor(Cursor::new(0, 6));
-        b.move_cursor_with_line_wrap(4, 1, 0); // Move up
+        b.move_cursor_with_line_wrap(4, 1, 0);
         assert_eq!(b.cursor(), &Cursor::new(0, 3));
 
         // 1行目   =>   1行|目
@@ -1121,7 +1125,7 @@ mod test {
         let mut b = Buffer::new();
         b.insert("1行目\n2行目");
         b.set_cursor(Cursor::new(1, 2));
-        b.move_cursor_with_line_wrap(5, 1, 0); // Move up
+        b.move_cursor_with_line_wrap(5, 1, 0);
         assert_eq!(b.cursor(), &Cursor::new(0, 2));
 
         // abcd     =>   abc|d
@@ -1131,7 +1135,7 @@ mod test {
         let mut b = Buffer::new();
         b.insert("abcd\n1234");
         b.set_cursor(Cursor::new(1, 3));
-        b.move_cursor_with_line_wrap(10, 1, 0); // Move up
+        b.move_cursor_with_line_wrap(10, 1, 0);
         assert_eq!(b.cursor(), &Cursor::new(0, 3));
 
         // ab       =>   ab|
@@ -1141,21 +1145,46 @@ mod test {
         let mut b = Buffer::new();
         b.insert("ab\n12345");
         b.set_cursor(Cursor::new(1, 5));
-        b.move_cursor_with_line_wrap(10, 1, 0); // Move up
+        b.move_cursor_with_line_wrap(10, 1, 0);
         assert_eq!(b.cursor(), &Cursor::new(0, 2));
 
         // aあbc| => aあbc|
         let mut b = Buffer::new();
         b.insert("aあbc");
         b.set_cursor(Cursor::new(0, 4));
-        b.move_cursor_with_line_wrap(5, 1, 0); // Move up
+        b.move_cursor_with_line_wrap(5, 1, 0);
         assert_eq!(b.cursor(), &Cursor::new(0, 4));
 
         // | => |
         let mut b = Buffer::new();
         b.set_cursor(Cursor::new(0, 0));
-        b.move_cursor_with_line_wrap(5, 1, 0); // Move up
+        b.move_cursor_with_line_wrap(5, 1, 0);
         assert_eq!(b.cursor(), &Cursor::new(0, 0));
+    }
+
+    #[test]
+    fn logical_cursor_x() {
+        // abc|d   =>   abcd
+        //           
+        // 1234         123|4
+        let mut b = Buffer::new();
+        b.insert("abcd\n\n1234");
+        b.set_cursor(Cursor::new(0, 3));
+        b.move_cursor_with_line_wrap(30, 0, 2);
+        assert_eq!(b.cursor(), &Cursor::new(2, 3));
+
+        // abc|d   =>   abcd    =>   abcd    =>   abcd
+        // xy           xy|          x|y          xy
+        // 1234         1234         1234         1|234
+        let mut b = Buffer::new();
+        b.insert("abcd\nxy\n1234");
+        b.set_cursor(Cursor::new(0, 3));
+        b.move_cursor_with_line_wrap(30, 0, 1);
+        assert_eq!(b.cursor(), &Cursor::new(1, 2));
+        b.move_cursor(0, 0, 1, 0);
+        assert_eq!(b.cursor(), &Cursor::new(1, 1));
+        b.move_cursor_with_line_wrap(30, 0, 1);
+        assert_eq!(b.cursor(), &Cursor::new(2, 1));
     }
 
     #[test]
