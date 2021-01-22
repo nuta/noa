@@ -654,6 +654,13 @@ impl Buffer {
     pub fn backspace(&mut self) {
         self.rope.reset_modified_line();
 
+        // Move the cursor at the end of previous line if it is at EOF.
+        if let Cursor::Normal { pos, .. } = &self.cursor {
+            if pos.y > 0 && pos.y == self.num_lines() {
+                self.cursor = Cursor::new(pos.y - 1, self.line_len(pos.y - 1));
+            }
+        }
+
         // Determine the range to be deleted.
         let range = match self.cursor() {
             Cursor::Normal { pos, .. } => {
@@ -925,6 +932,28 @@ mod test {
         b.insert_char('y');
         assert_eq!(b.text(), "abc\nxy");
         assert_eq!(b.cursor(), &Cursor::new(1, 2));
+    }
+
+    #[test]
+    fn backspace_at_eof() {
+        let mut b = Buffer::new();
+        b.insert("abc");
+        b.set_cursor(Cursor::new(1, 0));
+        b.backspace();
+        assert_eq!(b.text(), "ab");
+        assert_eq!(b.cursor(), &Cursor::new(0, 2));
+
+        let mut b = Buffer::new();
+        b.insert("abc\n");
+        b.set_cursor(Cursor::new(1, 0));
+        b.backspace();
+        assert_eq!(b.text(), "abc");
+        assert_eq!(b.cursor(), &Cursor::new(0, 3));
+
+        let mut b = Buffer::new();
+        b.backspace();
+        assert_eq!(b.text(), "");
+        assert_eq!(b.cursor(), &Cursor::new(0, 0));
     }
 
     #[test]
