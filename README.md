@@ -7,11 +7,11 @@ A opinionated terminal text editor written just for me.
 
 Features (or TODO)
 ------------------
-- [ ] Basic editing
+- [x] Basic editing
   - [x] Clean up
-  - [ ] Logical x
-- [ ] Terminal
-  - [ ] Wrapping
+  - [x] Logical x
+- [x] Terminal
+  - [x] Wrapping
 - [ ] Finder
 - [ ] Commander
 - [ ] Mouse
