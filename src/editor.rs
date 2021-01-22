@@ -184,14 +184,14 @@ impl Editor {
                 (KeyCode::Char('w'), CTRL) => {
                     let mut buffer = self.current_buffer.borrow_mut();
                     if let Some(current_word_range) = buffer.prev_word_range() {
-                        buffer.set_cursor(Cursor::Selection(current_word_range));
+                        buffer.set_cursor(Cursor::from_range(&current_word_range));
                         buffer.backspace();
                     }
                 }
                 (KeyCode::Char('w'), ALT) => {
                     let mut buffer = self.current_buffer.borrow_mut();
                     if let Some(current_word_range) = buffer.current_word_range() {
-                        buffer.set_cursor(Cursor::Selection(current_word_range));
+                        buffer.set_cursor(Cursor::from_range(&current_word_range));
                         buffer.backspace();
                     }
                 }

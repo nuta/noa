@@ -135,7 +135,7 @@ impl fmt::Display for Range {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Cursor {
     Normal { pos: Point },
-    Selection(Range),
+    Selection { range: Range },
 }
 
 impl Cursor {
@@ -149,10 +149,14 @@ impl Cursor {
         Cursor::new(pos.y, pos.x)
     }
 
+    pub fn from_range(range: &Range) -> Cursor {
+        Cursor::Selection { range: range.clone() }
+    }
+
     pub fn front(&self) -> &Point {
         match self {
             Cursor::Normal { pos } => pos,
-            Cursor::Selection(Range { start, .. }) => start,
+            Cursor::Selection{ range: Range { start, .. }, .. } => start,
         }
     }
 }
@@ -161,12 +165,12 @@ impl Ord for Cursor {
     fn cmp(&self, other: &Cursor) -> Ordering {
         let a = match self {
             Cursor::Normal { pos, .. } => pos,
-            Cursor::Selection(Range { start, .. }) => start,
+            Cursor::Selection{ range: Range { start, .. }, .. } => start,
         };
 
         let b = match other {
             Cursor::Normal { pos, .. } => pos,
-            Cursor::Selection(Range { start, .. }) => start,
+            Cursor::Selection{ range: Range { start, .. }, .. } => start,
         };
 
         a.cmp(b)
