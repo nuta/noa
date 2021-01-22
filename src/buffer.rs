@@ -512,8 +512,6 @@ impl Buffer {
     }
 
     pub fn insert(&mut self, string: &str) {
-        self.rope.reset_modified_line();
-
         let string_count = string.chars().count();
         let (remove, insert_at, end) = match &self.cursor {
             Cursor::Normal { pos, .. } => (None, pos, pos),
@@ -590,7 +588,6 @@ impl Buffer {
     }
 
     pub fn tab(&mut self) {
-        self.rope.reset_modified_line();
         let pos = match &self.cursor {
             Cursor::Normal { pos, .. } => pos,
             Cursor::Selection(range) => range.front(),
@@ -627,7 +624,6 @@ impl Buffer {
 
     // Decrease indent levels.
     pub fn back_tab(&mut self) {
-        self.rope.reset_modified_line();
         let pos = match &self.cursor {
             Cursor::Normal { pos, .. } => pos,
             Cursor::Selection(range) => range.front(),
@@ -652,8 +648,6 @@ impl Buffer {
     }
 
     pub fn backspace(&mut self) {
-        self.rope.reset_modified_line();
-
         // Move the cursor at the end of previous line if it is at EOF.
         if let Cursor::Normal { pos, .. } = &self.cursor {
             if pos.y > 0 && pos.y == self.num_lines() {
@@ -682,7 +676,6 @@ impl Buffer {
     }
 
     pub fn delete(&mut self) {
-        self.rope.reset_modified_line();
         // Determine the range to be deleted.
         let range = match self.cursor() {
             Cursor::Normal { pos, .. } => {
@@ -707,14 +700,12 @@ impl Buffer {
     }
 
     pub fn truncate(&mut self) {
-        self.rope.reset_modified_line();
 
         self.select_until_end_of_line();
         self.delete();
     }
 
     pub fn truncate_reverse(&mut self) {
-        self.rope.reset_modified_line();
 
         self.select_until_beginning_of_line();
         self.delete();

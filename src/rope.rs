@@ -182,7 +182,6 @@ impl PartialOrd for Cursor {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Rope {
     inner: ropey::Rope,
-    modified_line: Option<usize>,
     cached_num_lines: usize,
 }
 
@@ -190,7 +189,6 @@ impl Rope {
     pub fn new() -> Rope {
         Rope {
             inner: ropey::Rope::new(),
-            modified_line: None,
             cached_num_lines: 1,
         }
     }
@@ -200,7 +198,6 @@ impl Rope {
         let cached_num_lines = inner.len_lines();
         Ok(Rope {
             inner,
-            modified_line: None,
             cached_num_lines,
         })
     }
@@ -227,14 +224,6 @@ impl Rope {
         } else {
             self.line(line).len_chars()
         }
-    }
-
-    pub fn modified_line(&self) -> &Option<usize> {
-        &self.modified_line
-    }
-
-    pub fn reset_modified_line(&mut self) {
-        self.modified_line = None;
     }
 
     pub fn text(&self) -> String {
@@ -269,7 +258,6 @@ impl Rope {
 
     fn on_modified(&mut self, start_y: usize) {
         self.cached_num_lines = self.inner.len_lines();
-        self.modified_line = Some(start_y);
     }
 
     /// Returns a line except new line characters.
