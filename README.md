@@ -19,6 +19,7 @@ Features (or TODO)
 - [ ] Auto indentation
 - [ ] Copy & paste
 - [ ] Format on save
+- [ ] Backup
 - [ ] Faster search algorithm
 
 Installation

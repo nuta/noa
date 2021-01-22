@@ -46,27 +46,34 @@ fn main() {
     CombinedLogger::init(vec![WriteLogger::new(log_level, log_config, log_file)]).unwrap();
 
     std::panic::set_hook(Box::new(|info| {
-        use crossterm::{cursor, execute, terminal};
+        use crossterm::{
+            cursor,
+            event::DisableMouseCapture,
+            execute,
+            terminal::{disable_raw_mode, LeaveAlternateScreen},
+        };
         use std::io::{self, Write};
 
         let mut stdout = io::stdout();
-        execute!(stdout, terminal::LeaveAlternateScreen).unwrap();
+        execute!(stdout, LeaveAlternateScreen).unwrap();
+        execute!(stdout, DisableMouseCapture).ok();
         execute!(stdout, cursor::Show).unwrap();
+        disable_raw_mode().ok();
         error!("{}", info);
-        error!("{:#?}", backtrace::Backtrace::new());
 
         let panic_handler = better_panic::Settings::auto()
             .most_recent_first(false)
             .create_panic_handler();
         panic_handler(info);
+        std::process::exit(1);
     }));
 
     trace!("starting noa...");
     let opt = Opt::from_args();
     let mut editor = editor::Editor::new();
-    // for file in opt.files.iter().rev() {
-    //     editor.open_file(file);
-    // }
+    for path in opt.files.iter().rev() {
+        editor.open_file(path);
+    }
 
     editor.run();
 }

@@ -92,6 +92,15 @@ impl Buffer {
         Ok(buffer)
     }
 
+    pub fn open_or_create_file(path: &Path) -> std::io::Result<Buffer> {
+        // Create the file if it does not exist.
+        std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(path)?;
+        Buffer::open_file(path)
+    }
+
     pub fn set_text(&mut self, text: &str) {
         self.rope.clear();
         self.rope.insert(&Point::new(0, 0), text);
@@ -315,6 +324,110 @@ impl Buffer {
         }
     }
 
+    fn width_in_display(&self, y: usize, x_start: usize, x_end: usize) -> usize {
+        assert!(x_start <= x_end);
+        assert!(x_end <= self.line_len(y));
+        if y == self.num_lines() {
+            return 0;
+        }
+
+        use unicode_width::UnicodeWidthStr;
+        let rest = self.line_substr(y, x_start);
+        let end_i = rest
+            .char_indices()
+            .skip(x_end - x_start)
+            .next()
+            .map(|(i, _)| i)
+            .unwrap_or_else(|| rest.len());
+        UnicodeWidthStr::width_cjk(&rest[..end_i])
+    }
+
+    pub fn move_cursor_with_line_wrap(&mut self, cols: usize, up: usize, down: usize) {
+        let mut pos = match &self.cursor {
+            Cursor::Normal { pos, .. } => pos.clone(),
+            Cursor::Selection(range) => range.end.clone(),
+        };
+
+        for _ in 0..down {
+            let prev_x = pos.x;
+            let prev_y = pos.y;
+            let prefix_width = self.width_in_display(pos.y, 0, pos.x);
+            let from_left = prefix_width % (cols + 1);
+            // Move at the same display column in the next line in the display.
+            'outer1: loop {
+                if pos.x >= self.line_len(pos.y) {
+                    if pos.y == self.num_lines() || pos.x - prev_x > cols - from_left {
+                        break;
+                    }
+
+                    // Move at the same display column in the next line in the buffer.
+                    pos.y += 1;
+                    pos.x = 0;
+                    loop {
+                        if pos.x >= self.line_len(pos.y)
+                            || self.width_in_display(pos.y, 0, pos.x) >= from_left
+                        {
+                            break 'outer1;
+                        }
+
+                        pos.x += 1;
+                    }
+                }
+
+                if self.width_in_display(pos.y, prev_x, pos.x) >= cols {
+                    break;
+                }
+
+                pos.x += 1;
+            }
+        }
+
+        for _ in 0..up {
+            let prev_x = pos.x;
+            let prev_y = pos.y;
+            let prefix_width = self.width_in_display(pos.y, 0, pos.x);
+            let from_left = prefix_width % (cols + 1);
+            // Move at the same display column in the previous line in the display.
+            'outer2: loop {
+                if pos.x == 0 {
+                    if pos.y == 0 {
+                        pos.x = prev_x;
+                        break;
+                    }
+
+                    // Move at the same display column in the previous line in the buffer.
+                    let prev_line_len = self.line_len(pos.y - 1);
+                    pos.y -= 1;
+                    pos.x = prev_line_len;
+                    let prev_line_width = self.width_in_display(pos.y, 0, prev_line_len) % cols;
+                    loop {
+                        if pos.x == 0
+                            || self.width_in_display(pos.y, pos.x, prev_line_len)
+                                > min(prev_line_width, cols - from_left)
+                        {
+                            break 'outer2;
+                        }
+
+                        pos.x -= 1;
+                    }
+                }
+
+                if self.width_in_display(pos.y, pos.x, prev_x) >= cols {
+                    break;
+                }
+
+                pos.x -= 1;
+            }
+        }
+
+        match &mut self.cursor {
+            Cursor::Normal {
+                pos: current_pos, ..
+            } => *current_pos = pos,
+            Cursor::Selection(range) => range.end = pos,
+        };
+    }
+
     pub fn move_to_end_of_line(&mut self) {
         let y = match self.cursor() {
             Cursor::Normal { pos, .. } => pos.y,
@@ -424,7 +537,9 @@ impl Buffer {
         let y_diff = num_newlines_added.saturating_sub(num_newlines_deleted);
 
         let x_diff = string
-            .rfind('\n')
+            .chars()
+            .rev()
+            .position(|c| c == '\n')
             .map(|x| string_count - x - 1)
             .unwrap_or(string_count);
 
@@ -462,10 +577,12 @@ impl Buffer {
 
     pub fn enter_with_indent(&mut self) {
         let pos = self.main_cursor_pos();
-        let do_auto_indent = self.indent_size(pos.y) > 0
+        let do_auto_indent = 
+            pos.y < self.num_lines()
+            && (self.indent_size(pos.y) > 0
             || self
                 .line_substr(pos.y, pos.x.saturating_sub(1))
-                .ends_with('{');
+                .ends_with('{'));
         self.insert_char('\n');
         if do_auto_indent {
             self.tab();
@@ -811,7 +928,7 @@ mod test {
     }
 
     #[test]
-    fn single_cursor() {
+    fn move_cursor() {
         let mut b = Buffer::new();
         b.move_cursor(1, 0, 0, 0); // Do nothing
         b.insert("A\nDEF\n12345");
@@ -855,6 +972,116 @@ mod test {
         b.insert_char('あ');
         b.insert_char('!');
         assert_eq!(b.text(), "aあ!");
+    }
+
+    #[test]
+    fn move_down_cursor_in_wrapped_line() {
+        // aあ|b   =>   aあb   =>   aあb
+        // い12         い1|2       い12
+        //                         |
+        // (both are wrapped)
+        let mut b = Buffer::new();
+        b.insert("aあbい12");
+        b.set_cursor(Cursor::new(0, 2));
+        b.move_cursor_with_line_wrap(4, 0, 1); // Move down
+        assert_eq!(b.cursor(), &Cursor::new(0, 5));
+        b.move_cursor_with_line_wrap(4, 0, 1); // Move down
+        assert_eq!(b.cursor(), &Cursor::new(1, 0));
+
+        // wxyz          wxyz
+        // aあ|b   =>   aあb
+        // い12         い1|2
+        //
+        // (both are wrapped)
+        let mut b = Buffer::new();
+        b.insert("wxyzaあbい12");
+        b.set_cursor(Cursor::new(0, 6));
+        b.move_cursor_with_line_wrap(4, 0, 1); // Move down
+        assert_eq!(b.cursor(), &Cursor::new(0, 9));
+
+        // aあbc|   =>   aあbc
+        // い            い|
+        //
+        // (both are wrapped)
+        let mut b = Buffer::new();
+        b.insert("aあbcい");
+        b.set_cursor(Cursor::new(0, 4));
+        b.move_cursor_with_line_wrap(5, 0, 1); // Move down
+        assert_eq!(b.cursor(), &Cursor::new(0, 5));
+
+        // 1行|目   =>   1行目
+        // 2行目         2行|目
+        //
+        //   (two lines)
+        let mut b = Buffer::new();
+        b.insert("1行目\n2行目");
+        b.set_cursor(Cursor::new(0, 2));
+        b.move_cursor_with_line_wrap(5, 0, 1); // Move down
+        assert_eq!(b.cursor(), &Cursor::new(1, 2));
+
+        // aあbc| => aあbc
+        //          |
+        let mut b = Buffer::new();
+        b.insert("aあbc");
+        b.set_cursor(Cursor::new(0, 4));
+        b.move_cursor_with_line_wrap(5, 0, 1); // Move down
+        assert_eq!(b.cursor(), &Cursor::new(1, 0));
+
+        // | =>
+        //      |
+        let mut b = Buffer::new();
+        b.set_cursor(Cursor::new(0, 0));
+        b.move_cursor_with_line_wrap(5, 0, 1); // Move down
+        assert_eq!(b.cursor(), &Cursor::new(1, 0));
+        b.move_cursor_with_line_wrap(5, 0, 10); // Move down
+        assert_eq!(b.cursor(), &Cursor::new(1, 0));
+    }
+
+    #[test]
+    fn move_up_cursor_in_wrapped_line() {
+        // aあb   =>   aあ|b
+        // い1|2         い12
+        //
+        // (both are wrapped)
+        let mut b = Buffer::new();
+        b.insert("aあbい12");
+        b.set_cursor(Cursor::new(0, 5));
+        b.move_cursor_with_line_wrap(4, 1, 0); // Move up
+        assert_eq!(b.cursor(), &Cursor::new(0, 2));
+
+        // wxyz         wxy|z
+        // aあ|b   =>   aあb
+        // い12         い12
+        //
+        // (both are wrapped)
+        let mut b = Buffer::new();
+        b.insert("wxyzaあbい12");
+        b.set_cursor(Cursor::new(0, 6));
+        b.move_cursor_with_line_wrap(4, 1, 0); // Move up
+        assert_eq!(b.cursor(), &Cursor::new(0, 3));
+
+        // 1行目   =>   1行|目
+        // 2行|目       2行目
+        //
+        //   (two lines)
+        let mut b = Buffer::new();
+        b.insert("1行目\n2行目");
+        b.set_cursor(Cursor::new(1, 2));
+        b.move_cursor_with_line_wrap(5, 1, 0); // Move up
+        assert_eq!(b.cursor(), &Cursor::new(0, 2));
+
+        // aあbc| => aあbc|
+        let mut b = Buffer::new();
+        b.insert("aあbc");
+        b.set_cursor(Cursor::new(0, 4));
+        b.move_cursor_with_line_wrap(5, 1, 0); // Move up
+        assert_eq!(b.cursor(), &Cursor::new(0, 4));
+
+        // | => |
+        let mut b = Buffer::new();
+        b.set_cursor(Cursor::new(0, 0));
+        b.move_cursor_with_line_wrap(5, 1, 0); // Move up
+        assert_eq!(b.cursor(), &Cursor::new(0, 0));
     }
 
     #[test]

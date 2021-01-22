@@ -1,13 +1,16 @@
 use crate::buffer::{Buffer, TopLeft};
 use crate::editor::Event;
-use crate::rope::Point;
+use crate::rope::{Cursor, Point};
+use crossterm::cursor::{self, MoveTo};
 use crossterm::event::{
     self, DisableMouseCapture, EnableMouseCapture, Event as TermEvent, MouseButton,
 };
 pub use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent as RawMouseEvent};
+use crossterm::style::{Attribute, Color, Print, SetAttribute, SetForegroundColor};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, size, EnterAlternateScreen, LeaveAlternateScreen,
 };
+use crossterm::terminal::{Clear, ClearType};
 use crossterm::{execute, queue};
 use std::cmp::{max, min};
 use std::io::{stdout, Write};
@@ -126,6 +129,7 @@ pub fn handle_term_event(event_queue: Sender<Event>) {
 pub struct Terminal {
     rows: usize,
     cols: usize,
+    text_cols: usize,
     current_top_left: TopLeft,
     current_num_lines: usize,
     text_start_x: usize,
@@ -137,8 +141,13 @@ impl Terminal {
     pub fn new(event_queue: Sender<Event>) -> Terminal {
         let (cols, rows) = size().expect("failed to get the terminal size");
         enable_raw_mode().expect("failed to enable the raw mode");
-        execute!(stdout(), EnableMouseCapture).expect("failed to enable mouse capture");
-        execute!(stdout(), EnterAlternateScreen).expect("failed to enter the alternative screen");
+        queue!(
+            stdout(),
+            EnterAlternateScreen,
+            Clear(ClearType::All),
+            EnableMouseCapture,
+        )
+        .ok();
 
         thread::spawn(move || {
             handle_term_event(event_queue);
@@ -147,6 +156,7 @@ impl Terminal {
         Terminal {
             rows: rows as usize,
             cols: cols as usize,
+            text_cols: 0, // Filled in draw.
             current_top_left: TopLeft::new(0, 0),
             current_num_lines: 0,
             text_start_x: 0,
@@ -159,10 +169,175 @@ impl Terminal {
         self.rows
     }
 
+    pub fn text_cols(&self) -> usize {
+        self.text_cols
+    }
+
     pub fn resize(&mut self, rows: usize, cols: usize) {
         self.rows = rows;
         self.cols = cols;
     }
 
-    pub fn draw(&mut self) {}
+    pub fn draw(&mut self, buffer: &mut Buffer) {
+        let mut stdout = stdout();
+        if self.cols < 10 || self.rows < 5 {
+            queue!(
+                stdout,
+                Clear(ClearType::All),
+                MoveTo(0, 0),
+                Print("too small!"),
+            )
+            .unwrap();
+            stdout.flush().unwrap();
+            return;
+        }
+
+        let lineno_width = num_of_digits(buffer.num_lines()) + 2;
+        let text_offset = lineno_width + 1;
+        let text_height = self.rows - 1;
+        let text_width = self.cols - text_offset;
+        self.text_cols = text_width;
+
+        // Adjust top left.
+        buffer.adjust_top_left(text_height, text_width);
+        let top_left = buffer.top_left();
+        self.current_top_left = top_left.clone();
+        self.current_num_lines = buffer.num_lines();
+        self.text_start_x = text_offset;
+        self.text_end_x = text_offset + text_width;
+        self.text_height = text_height;
+
+        // Draw the text area.
+        let mut y = top_left.y;
+        let mut wrapped = None;
+        let mut cursor_pos = None;
+        for display_y in 0..text_height {
+            // Move the cursor at the beginning of the next line.
+            queue!(
+                stdout,
+                MoveTo(0, display_y as u16 + 1),
+                SetAttribute(Attribute::Reset),
+            )
+            .ok();
+
+            // Handle the cursor at the end of file.
+            let main_pos = buffer.main_cursor_pos();
+            if y == main_pos.y && main_pos.y == buffer.num_lines() && cursor_pos.is_none() {
+                cursor_pos = Some((display_y, 0));
+            }
+
+            // Get the string chunks of the current (or next) line.
+            let (mut chunks, chunk_char_start) = match wrapped {
+                Some(inner) => inner,
+                None if y < buffer.num_lines() => (buffer.line(y).chunks().peekable(), 0),
+                None => {
+                    // Out of bounds.
+                    queue!(
+                        stdout,
+                        SetAttribute(Attribute::Reset),
+                        Clear(ClearType::UntilNewLine),
+                    )
+                    .ok();
+                    continue;
+                }
+            };
+
+            // Line number.
+            queue!(
+                stdout,
+                Print(whitespaces(lineno_width - num_of_digits(y + 1) - 1)),
+                Print(y + 1),
+                Print(' '),
+                SetAttribute(Attribute::Reset),
+                Print(' '),
+            )
+            .ok();
+
+            // Text.
+            let mut chunk_i = 0;
+            let mut display_x = 0;
+            let mut remaining_width = text_width;
+            'outer: while remaining_width > 0 {
+                let s = match chunks.peek() {
+                    Some(s) => s,
+                    None => break,
+                };
+
+                chunk_i = 0;
+                let mut x = chunk_char_start;
+                for c in s.chars().skip(chunk_char_start) {
+                    let char_width = UnicodeWidthChar::width_cjk(c).unwrap_or(1);
+                    if char_width > remaining_width {
+                        break 'outer;
+                    }
+
+                    if y == main_pos.y && x == main_pos.x {
+                        cursor_pos = Some((display_y, display_x));
+                    }
+
+                    queue!(stdout, Print(c)).ok();
+                    remaining_width -= char_width;
+                    chunk_i += 1;
+                    display_x += 1;
+                    x += 1;
+                }
+
+                // Printed all characters in the chunk. Visit the next one.
+                chunks.next();
+            }
+
+            // Handle the cursor at the end of line.
+            if y == main_pos.y && main_pos.x == buffer.line_len(main_pos.y) {
+                cursor_pos = Some((display_y, display_x));
+            }
+
+            queue!(stdout, Clear(ClearType::UntilNewLine)).ok();
+
+            match chunks.peek() {
+                Some(_) => {
+                    // There're remaining unprinted chunks in the line, i.e.,
+                    // we need line wrapping.
+                    trace!(
+                        "rw={}, text_w={}, chunk_i={}, c={:?}",
+                        remaining_width,
+                        text_width,
+                        chunk_i,
+                        chunks.peek()
+                    );
+                    wrapped = Some((chunks, chunk_char_start + chunk_i));
+                }
+                None => {
+                    // Printed all chunks in the line.
+                    wrapped = None;
+                    y += 1;
+                }
+            }
+        }
+
+        // The status line.
+        queue!(
+            stdout,
+            MoveTo(0, 0),
+            Print(buffer.name()),
+            Print(' '),
+            SetAttribute(Attribute::Reset),
+        )
+        .ok();
+
+        // Move and show the cursor.
+        if let Some((y, x)) = cursor_pos {
+            trace!("cursor_pos={:?} ({:?})", cursor_pos, buffer.cursor());
+            queue!(stdout, MoveTo((text_offset + x) as u16, 1 + y as u16), cursor::Show).ok();
+        }
+
+        stdout.flush().ok();
+    }
+}
+
+impl Drop for Terminal {
+    fn drop(&mut self) {
+        execute!(stdout(), LeaveAlternateScreen).ok();
+        execute!(stdout(), DisableMouseCapture).ok();
+        disable_raw_mode().ok();
+    }
 }
