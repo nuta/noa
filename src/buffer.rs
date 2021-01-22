@@ -106,13 +106,16 @@ impl Buffer {
         self.rope.insert(&Point::new(0, 0), text);
 
         let mut pos = match self.cursor {
-            Cursor::Normal { pos } => pos,
-            Cursor::Selection{ range: Range { end, .. }, .. } => end,
+            Cursor::Normal { pos, .. } => pos,
+            Cursor::Selection {
+                range: Range { end, .. },
+                ..
+            } => end,
         };
 
         pos.y = min(pos.y, self.rope.num_lines().saturating_sub(1));
         pos.x = min(pos.x, self.rope.line_len(pos.y));
-        self.cursor = Cursor::Normal { pos };
+        self.cursor = Cursor::from_point(&pos);
     }
 
     pub fn reset_dirty_flag(&mut self) {
@@ -236,8 +239,8 @@ impl Buffer {
 
     pub fn main_cursor_pos(&self) -> &Point {
         match &self.cursor {
-            Cursor::Normal { pos } => pos,
-            Cursor::Selection { range , .. } => &range.end,
+            Cursor::Normal { pos, .. } => pos,
+            Cursor::Selection { range, .. } => &range.end,
         }
     }
 
@@ -252,7 +255,10 @@ impl Buffer {
     pub fn adjust_top_left(&mut self, rows: usize, cols: usize) {
         let pos = match &self.cursor {
             Cursor::Normal { pos, .. } => pos,
-            Cursor::Selection{ range: Range { end, .. }, .. } => end,
+            Cursor::Selection {
+                range: Range { end, .. },
+                ..
+            } => end,
         };
 
         // Scroll Up.
@@ -295,7 +301,7 @@ impl Buffer {
     }
 
     pub fn centering(&mut self, rows: usize) {
-        if let Cursor::Normal { pos } = self.cursor() {
+        if let Cursor::Normal { pos, .. } = self.cursor() {
             self.top_left.y = pos.y.saturating_sub(rows / 2);
         }
     }
@@ -303,7 +309,7 @@ impl Buffer {
     fn cancel_selection(&mut self) {
         match &mut self.cursor {
             Cursor::Normal { .. } => {}
-            Cursor::Selection { range , .. } => {
+            Cursor::Selection { range, .. } => {
                 self.cursor = Cursor::from_point(&range.end);
             }
         }
@@ -342,7 +348,7 @@ impl Buffer {
 
         let mut pos = match &self.cursor {
             Cursor::Normal { pos, .. } => pos.clone(),
-            Cursor::Selection { range , .. } => range.end.clone(),
+            Cursor::Selection { range, .. } => range.end.clone(),
         };
 
         for _ in 0..down {
@@ -425,14 +431,17 @@ impl Buffer {
             Cursor::Normal {
                 pos: current_pos, ..
             } => *current_pos = pos,
-            Cursor::Selection { range , .. } => range.end = pos,
+            Cursor::Selection { range, .. } => range.end = pos,
         };
     }
 
     pub fn move_to_end_of_line(&mut self) {
         let y = match self.cursor() {
             Cursor::Normal { pos, .. } => pos.y,
-            Cursor::Selection{ range: Range { end, .. }, .. } => end.y,
+            Cursor::Selection {
+                range: Range { end, .. },
+                ..
+            } => end.y,
         };
 
         self.set_cursor(Cursor::new(y, self.rope.line_len(y)));
@@ -441,7 +450,10 @@ impl Buffer {
     pub fn move_to_beginning_of_line(&mut self) {
         let y = match self.cursor() {
             Cursor::Normal { pos, .. } => pos.y,
-            Cursor::Selection{ range: Range { end, .. }, .. } => end.y,
+            Cursor::Selection {
+                range: Range { end, .. },
+                ..
+            } => end.y,
         };
 
         self.set_cursor(Cursor::new(y, 0));
@@ -450,7 +462,10 @@ impl Buffer {
     pub fn move_to_prev_word(&mut self) {
         let pos = match self.cursor() {
             Cursor::Normal { pos, .. } => pos,
-            Cursor::Selection{ range: Range { start, .. }, .. } => start,
+            Cursor::Selection {
+                range: Range { start, .. },
+                ..
+            } => start,
         };
 
         let new_pos = self.rope.prev_word_end(&pos);
@@ -460,7 +475,10 @@ impl Buffer {
     pub fn move_to_next_word(&mut self) {
         let pos = match &mut self.cursor {
             Cursor::Normal { pos, .. } => pos,
-            Cursor::Selection{ range: Range { start, .. }, .. } => start,
+            Cursor::Selection {
+                range: Range { start, .. },
+                ..
+            } => start,
         };
 
         let new_pos = self.rope.next_word_end(&pos);
@@ -470,7 +488,10 @@ impl Buffer {
     pub fn select(&mut self, up: usize, down: usize, left: usize, right: usize) {
         let (start, mut end) = match &mut self.cursor {
             Cursor::Normal { pos, .. } => (*pos, *pos),
-            Cursor::Selection{ range: Range { start, end }, .. } => (*start, *end),
+            Cursor::Selection {
+                range: Range { start, end },
+                ..
+            } => (*start, *end),
         };
 
         end.move_by(&self.rope, up, down, left, right);
@@ -480,7 +501,10 @@ impl Buffer {
     pub fn select_until_beginning_of_line(&mut self) {
         let (mut start, mut end) = match self.cursor() {
             Cursor::Normal { pos, .. } => (*pos, *pos),
-            Cursor::Selection{ range: Range { start, end }, .. } => (*start, *end),
+            Cursor::Selection {
+                range: Range { start, end },
+                ..
+            } => (*start, *end),
         };
 
         if end == start && end.x == 0 && start.y > 0 {
@@ -496,7 +520,10 @@ impl Buffer {
     pub fn select_until_end_of_line(&mut self) {
         let (start, mut end) = match self.cursor() {
             Cursor::Normal { pos, .. } => (*pos, *pos),
-            Cursor::Selection{ range: Range { start, end }, .. } => (*start, *end),
+            Cursor::Selection {
+                range: Range { start, end },
+                ..
+            } => (*start, *end),
         };
 
         end.x = self.rope.line_len(end.y);
@@ -516,7 +543,7 @@ impl Buffer {
         let string_count = string.chars().count();
         let (remove, insert_at, end) = match &self.cursor {
             Cursor::Normal { pos, .. } => (None, pos, pos),
-            Cursor::Selection { range , .. } => (Some(range), range.front(), range.back()),
+            Cursor::Selection { range, .. } => (Some(range), range.front(), range.back()),
         };
 
         if let Some(remove) = remove {
@@ -590,7 +617,7 @@ impl Buffer {
     pub fn tab(&mut self) {
         let pos = match &self.cursor {
             Cursor::Normal { pos, .. } => pos,
-            Cursor::Selection { range , .. } => range.front(),
+            Cursor::Selection { range, .. } => range.front(),
         };
 
         // Should we do auto-indent?
@@ -626,7 +653,7 @@ impl Buffer {
     pub fn back_tab(&mut self) {
         let pos = match &self.cursor {
             Cursor::Normal { pos, .. } => pos,
-            Cursor::Selection { range , .. } => range.front(),
+            Cursor::Selection { range, .. } => range.front(),
         };
 
         let n = min(
@@ -668,7 +695,7 @@ impl Buffer {
 
                 Range::from_points(start, *pos)
             }
-            Cursor::Selection { range , .. } => range.clone(),
+            Cursor::Selection { range, .. } => range.clone(),
         };
 
         self.rope.remove(&range);
@@ -692,7 +719,7 @@ impl Buffer {
 
                 Range::from_points(*pos, end)
             }
-            Cursor::Selection { range , .. } => range.clone(),
+            Cursor::Selection { range, .. } => range.clone(),
         };
 
         self.rope.remove(&range);
@@ -717,7 +744,7 @@ impl Buffer {
 
         let (ys, x) = match self.cursor() {
             Cursor::Normal { pos, .. } => (pos.y..=pos.y, pos.x),
-            Cursor::Selection { range , .. } => {
+            Cursor::Selection { range, .. } => {
                 let front = range.front();
                 (front.y..=range.back().y, front.x)
             }
@@ -786,7 +813,7 @@ impl Buffer {
     pub fn copy_selection(&mut self) -> String {
         let mut text = String::new();
         let range = match &self.cursor {
-            Cursor::Selection { range , .. } => {
+            Cursor::Selection { range, .. } => {
                 for chunk in self.rope.sub_str(range).chunks() {
                     text += chunk;
                 }
@@ -804,7 +831,10 @@ impl Buffer {
     pub fn current_word(&self) -> Option<String> {
         let pos = match &self.cursor {
             Cursor::Normal { pos, .. } => pos,
-            Cursor::Selection{ range: Range { start, .. }, .. } => start,
+            Cursor::Selection {
+                range: Range { start, .. },
+                ..
+            } => start,
         };
 
         self.rope.word_at(pos).map(|(_, word)| word)
@@ -813,7 +843,10 @@ impl Buffer {
     pub fn current_word_range(&self) -> Option<Range> {
         let pos = match &self.cursor {
             Cursor::Normal { pos, .. } => pos,
-            Cursor::Selection{ range: Range { start, .. }, .. } => start,
+            Cursor::Selection {
+                range: Range { start, .. },
+                ..
+            } => start,
         };
 
         self.rope.word_at(pos).map(|(range, _)| range)
@@ -822,7 +855,10 @@ impl Buffer {
     pub fn prev_word_range(&self) -> Option<Range> {
         let pos = match &self.cursor {
             Cursor::Normal { pos, .. } => pos,
-            Cursor::Selection{ range: Range { start, .. }, .. } => start,
+            Cursor::Selection {
+                range: Range { start, .. },
+                ..
+            } => start,
         };
 
         self.rope.prev_word_at(pos)

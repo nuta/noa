@@ -277,7 +277,7 @@ impl Terminal {
                 };
 
                 let mut x = chunk_char_start;
-                if let Cursor::Selection{ range, .. } = &buffer.cursor() {
+                if let Cursor::Selection { range, .. } = &buffer.cursor() {
                     if in_selection && *range.back() == Point::new(y, x) {
                         in_selection = false;
                         queue!(stdout, SetAttribute(Attribute::NoReverse)).ok();

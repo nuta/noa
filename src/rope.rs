@@ -132,16 +132,17 @@ impl fmt::Display for Range {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Eq, Clone)]
 pub enum Cursor {
-    Normal { pos: Point },
-    Selection { range: Range },
+    Normal { pos: Point, logical_x: usize },
+    Selection { range: Range, logical_x: usize },
 }
 
 impl Cursor {
     pub fn new(y: usize, x: usize) -> Cursor {
         Cursor::Normal {
             pos: Point::new(y, x),
+            logical_x: x,
         }
     }
 
@@ -150,13 +151,29 @@ impl Cursor {
     }
 
     pub fn from_range(range: &Range) -> Cursor {
-        Cursor::Selection { range: range.clone() }
+        Cursor::Selection {
+            range: range.clone(),
+            logical_x: range.end.x,
+        }
     }
 
     pub fn front(&self) -> &Point {
         match self {
-            Cursor::Normal { pos } => pos,
-            Cursor::Selection{ range: Range { start, .. }, .. } => start,
+            Cursor::Normal { pos, .. } => pos,
+            Cursor::Selection {
+                range: Range { start, .. },
+                ..
+            } => start,
+        }
+    }
+}
+
+impl PartialEq for Cursor {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Cursor::Normal { pos: a, .. }, Cursor::Normal { pos: b, .. }) => a == b,
+            (Cursor::Selection { range: a, .. }, Cursor::Selection { range: b, .. }) => a == b,
+            _ => false,
         }
     }
 }
@@ -165,12 +182,18 @@ impl Ord for Cursor {
     fn cmp(&self, other: &Cursor) -> Ordering {
         let a = match self {
             Cursor::Normal { pos, .. } => pos,
-            Cursor::Selection{ range: Range { start, .. }, .. } => start,
+            Cursor::Selection {
+                range: Range { start, .. },
+                ..
+            } => start,
         };
 
         let b = match other {
             Cursor::Normal { pos, .. } => pos,
-            Cursor::Selection{ range: Range { start, .. }, .. } => start,
+            Cursor::Selection {
+                range: Range { start, .. },
+                ..
+            } => start,
         };
 
         a.cmp(b)
