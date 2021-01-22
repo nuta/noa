@@ -17,6 +17,7 @@ Features (or TODO)
 - [ ] Mouse
 - [ ] Undo & redo
 - [ ] Auto indentation
+  - [ ] Deindent by `}`
 - [ ] Copy & paste
 - [ ] Format on save
 - [ ] Backup
