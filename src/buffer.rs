@@ -337,8 +337,7 @@ impl Buffer {
         let rest = self.line_substr(y, x_start);
         let end_i = rest
             .char_indices()
-            .skip(x_end - x_start)
-            .next()
+            .nth(x_end - x_start)
             .map(|(i, _)| i)
             .unwrap_or_else(|| rest.len());
         UnicodeWidthStr::width_cjk(&rest[..end_i])
@@ -348,8 +347,8 @@ impl Buffer {
         self.cancel_selection();
 
         let (mut pos, logical_x) = match &self.cursor {
-            Cursor::Normal { pos, logical_x } => (pos.clone(), *logical_x),
-            Cursor::Selection { range, logical_x } => (range.end.clone(), *logical_x),
+            Cursor::Normal { pos, logical_x } => (*pos, *logical_x),
+            Cursor::Selection { range, logical_x } => (range.end, *logical_x),
         };
 
         for _ in 0..down {
@@ -367,7 +366,8 @@ impl Buffer {
                     // Move at the same display column in the next line in the buffer.
                     pos.y += 1;
                     pos.x = 0;
-                    let prefix_width = self.width_in_display(pos.y, 0, min(self.line_len(pos.y), logical_x));
+                    let prefix_width =
+                        self.width_in_display(pos.y, 0, min(self.line_len(pos.y), logical_x));
                     dbg!(self.line_len(pos.y), logical_x, prefix_width);
                     let from_left = prefix_width % (cols + 1);
                     loop {
@@ -816,14 +816,11 @@ impl Buffer {
 
     pub fn copy_selection(&mut self) -> String {
         let mut text = String::new();
-        let range = match &self.cursor {
-            Cursor::Selection { range, .. } => {
-                for chunk in self.rope.sub_str(range).chunks() {
-                    text += chunk;
-                }
+        if let Cursor::Selection { range, .. } = &self.cursor {
+            for chunk in self.rope.sub_str(range).chunks() {
+                text += chunk;
             }
-            _ => {}
-        };
+        }
 
         text
     }
@@ -1165,7 +1162,7 @@ mod test {
     #[test]
     fn logical_cursor_x() {
         // abc|d   =>   abcd
-        //           
+        //
         // 1234         123|4
         let mut b = Buffer::new();
         b.insert("abcd\n\n1234");

@@ -155,7 +155,6 @@ impl Editor {
                     self.current_buffer
                         .borrow_mut()
                         .centering(self.terminal.rows());
-                    return;
                 }
                 //
                 //  Text Editing.

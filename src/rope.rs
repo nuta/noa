@@ -378,8 +378,7 @@ impl Rope {
             .skip(line_len - pos.x)
             .enumerate()
             .skip_while(|(_, ch)| !is_word_char(*ch))
-            .skip_while(|(_, ch)| is_word_char(*ch))
-            .next()
+            .find(|(_, ch)| !is_word_char(*ch))
             .map(|(i, _)| pos.x - i)
             .unwrap_or(0);
 
@@ -395,8 +394,7 @@ impl Rope {
             .skip(pos.x)
             .enumerate()
             .skip_while(|(_, ch)| !is_word_char(*ch))
-            .skip_while(|(_, ch)| is_word_char(*ch))
-            .next()
+            .find(|(_, ch)| !is_word_char(*ch))
             .map(|(i, _)| pos.x + i)
             .unwrap_or_else(|| line.len_chars());
 
