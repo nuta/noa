@@ -254,7 +254,7 @@ impl Terminal {
             )
             .ok();
 
-            if let Cursor::Selection(range) = &buffer.cursor() {
+            if let Cursor::Selection { range, .. } = &buffer.cursor() {
                 if in_selection && *range.back() == Point::new(y, 0) {
                     in_selection = false;
                 } else if in_selection || *range.front() == Point::new(y, 0) {
@@ -277,7 +277,7 @@ impl Terminal {
                 };
 
                 let mut x = chunk_char_start;
-                if let Cursor::Selection(range) = &buffer.cursor() {
+                if let Cursor::Selection{ range, .. } = &buffer.cursor() {
                     if in_selection && *range.back() == Point::new(y, x) {
                         in_selection = false;
                         queue!(stdout, SetAttribute(Attribute::NoReverse)).ok();
@@ -304,7 +304,7 @@ impl Terminal {
                     display_x += 1;
                     x += 1;
 
-                    if let Cursor::Selection(range) = &buffer.cursor() {
+                    if let Cursor::Selection { range, .. } = &buffer.cursor() {
                         if in_selection && *range.back() == Point::new(y, x) {
                             in_selection = false;
                             queue!(stdout, SetAttribute(Attribute::NoReverse)).ok();
