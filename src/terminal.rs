@@ -254,15 +254,14 @@ impl Terminal {
             )
             .ok();
 
-            if in_selection {
-                if let Cursor::Selection(range) = &buffer.cursor() {
-                    if *range.back() == Point::new(y, 0) {
-                        in_selection = false;
-                    } else {
-                        queue!(stdout, SetAttribute(Attribute::Reverse)).ok();
-                        if buffer.line_len(y) == 0 {
-                            queue!(stdout, Print(' ')).ok();
-                        }
+            if let Cursor::Selection(range) = &buffer.cursor() {
+                if in_selection && *range.back() == Point::new(y, 0) {
+                    in_selection = false;
+                } else if in_selection || *range.front() == Point::new(y, 0) {
+                    in_selection = true;
+                    queue!(stdout, SetAttribute(Attribute::Reverse)).ok();
+                    if buffer.line_len(y) == 0 {
+                        queue!(stdout, Print(' ')).ok();
                     }
                 }
             }
