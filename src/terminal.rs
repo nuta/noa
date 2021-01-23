@@ -406,7 +406,6 @@ impl Terminal {
         let mut y_remaining = min(self.rows - 1, 15);
         for (i, item) in finder.items().iter().enumerate() {
             queue!(stdout, MoveTo(0, y)).ok();
-            trace!("finder.selected_item_index()={}", finder.selected_item_index());
             if i == finder.selected_item_index() {
                 queue!(
                     stdout,
