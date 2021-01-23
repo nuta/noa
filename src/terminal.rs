@@ -224,6 +224,8 @@ impl Terminal {
         self.text_end_x = text_offset + text_width;
         self.text_height = text_height;
 
+        let main_pos = buffer.main_cursor_pos();
+
         // Draw the text area.
         let mut y = top_left.y;
         let mut wrapped = None;
@@ -239,7 +241,6 @@ impl Terminal {
             .ok();
 
             // Handle the cursor at the end of file.
-            let main_pos = buffer.main_cursor_pos();
             if y == main_pos.y && main_pos.y == buffer.num_lines() && cursor_pos.is_none() {
                 cursor_pos = Some((display_y, 0));
             }
@@ -263,6 +264,7 @@ impl Terminal {
             // Line number.
             queue!(
                 stdout,
+                SetForegroundColor(Color::DarkGrey),
                 Print(whitespaces(lineno_width - num_of_digits(y + 1) - 1)),
                 Print(y + 1),
                 Print(' '),
@@ -362,12 +364,31 @@ impl Terminal {
         }
 
         // The status line.
+        //
+        //     (25)                          main.c [+]
+        //     ^^^^-- column #      name ----^^^^^^ ^^^--- dirty idicator
+        //
+        let colno_width = num_of_digits(main_pos.x) + 2;
+        let indicator = if buffer.is_dirty() { " [+]" } else { "" };
+        let indicator_width = indicator.display_width();
+        let buffer_name = buffer.name();
+        let name_width = min(
+            buffer_name.display_width(),
+            self.cols - (colno_width + indicator_width),
+        );
         queue!(
             stdout,
             MoveTo(0, 0),
-            Print(truncate(buffer.name(), self.cols)),
-            Print(' '),
+            SetForegroundColor(Color::Blue),
+            Print('('),
+            Print(main_pos.x),
+            Print(')'),
             Clear(ClearType::UntilNewLine),
+            MoveTo((self.cols - (name_width + indicator_width)) as u16, 0),
+            SetAttribute(Attribute::Bold),
+            Print(truncate(buffer_name, name_width)),
+            SetForegroundColor(Color::Yellow),
+            Print(indicator),
             SetAttribute(Attribute::Reset),
         )
         .ok();
