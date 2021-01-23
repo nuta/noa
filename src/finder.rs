@@ -1,7 +1,8 @@
 use crate::editor::Event;
+use crate::buffer::Buffer;
 use crate::rope::Point;
 use ignore::WalkBuilder;
-use std::collections::{binary_heap::Iter, BinaryHeap};
+use std::collections::{binary_heap::Iter, BinaryHeap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
@@ -37,9 +38,13 @@ impl<P: Ord + Eq, T> PartialEq for WithPriority<P, T> {
 
 impl<P: Ord + Eq, T> Eq for WithPriority<P, T> {}
 
+const BUFFER_PRIORITY: isize = 10;
+const FILE_PRIORITY: isize = 0;
+
 #[derive(Debug, Clone)]
 pub enum FinderItem {
     File { path: PathBuf, pos: Option<Point> },
+    Buffer { path: PathBuf },
 }
 
 pub struct Finder {
@@ -97,7 +102,7 @@ impl Finder {
         self.selected += 1;
     }
 
-    pub fn query(&mut self, query: &str) {
+    pub fn query<'a>(&mut self, query: &str) {
         if matches!(&self.current_query, Some(current) if current == query) {
             return;
         }
@@ -116,11 +121,22 @@ impl Finder {
             });
         }
     }
+
+    pub fn provide_buffer(&mut self, query: &str, buffer: &Buffer) {
+        if let Some(path) = buffer.path() {
+        if let Some(score) = fuzzy_match(query, path.to_str().unwrap()) {
+            self.items.write().unwrap().push(WithPriority::new(score + BUFFER_PRIORITY, FinderItem::Buffer {
+            path: path.to_path_buf(),
+         }));
+        }
+    }
+}
 }
 
 fn fuzzy_match(query: &str, text: &str) -> Option<isize> {
     sublime_fuzzy::best_match(query, text).map(|m| m.score())
 }
+
 
 fn provide_file_paths(
     query: &str,
@@ -134,7 +150,7 @@ fn provide_file_paths(
         if let Ok(e) = e {
             let path = e.into_path();
             if let Some(score) = fuzzy_match(query, path.to_str().unwrap()) {
-                files.push((score, FinderItem::File { path, pos: None }));
+                files.push((FILE_PRIORITY + score, FinderItem::File { path, pos: None }));
 
                 if files.len() >= NUM_MATCHES_MAX {
                     break;

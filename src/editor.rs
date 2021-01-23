@@ -182,6 +182,9 @@ impl Editor {
                         self.current_buffer.borrow_mut().goto(pos.y, pos.x);
                     }
                 }
+                FinderItem::Buffer { path } => {
+                    self.open_file(&path);
+                }
             }
         }
     }
@@ -190,7 +193,11 @@ impl Editor {
         match self.mode {
             EditorMode::Normal => {}
             EditorMode::Finder => {
-                self.finder.query(&self.prompt_input.text());
+                let query = self.prompt_input.text();
+                self.finder.query(&query);
+                for buffer in self.buffers.values() {
+                    self.finder.provide_buffer(&query, &*buffer.borrow());
+                }
             }
         }
     }

@@ -417,6 +417,7 @@ impl Terminal {
 
             let suffix = match &item.data {
                 FinderItem::File { .. } => "file",
+                FinderItem::Buffer { .. } => "buffer",
             };
 
             let suffix_width = suffix.display_width();
@@ -433,6 +434,11 @@ impl Terminal {
                     pos: Some(pos),
                 } => {
                     unimplemented!();
+                }
+                FinderItem::Buffer { path } => {
+                    let s = truncate(path.to_str().unwrap(), item_width_max);
+                    queue!(stdout, Print(s));
+                    s.display_width()
                 }
             };
 
