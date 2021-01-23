@@ -169,7 +169,7 @@ impl Editor {
 
     fn notify<T: Into<String>>(&self, level: NotificationLevel, message: T) {
         let message = message.into();
-        trace!("notification: {}", message);
+        trace!("notify: {}", message);
         *self.notification.borrow_mut() = Some(Notification {
             level,
             created_at: Instant::now(),
