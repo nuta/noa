@@ -5,7 +5,7 @@ use crate::line_edit::LineEdit;
 use crate::rope::{Cursor, Point};
 use crossterm::cursor::{self, MoveTo};
 use crossterm::event::{
-    self, DisableMouseCapture, EnableMouseCapture, Event as TermEvent, MouseButton,
+    self, DisableMouseCapture, EnableMouseCapture, Event as TermEvent,
 };
 pub use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent as RawMouseEvent};
 use crossterm::style::{Attribute, Color, Print, SetAttribute, SetForegroundColor};
@@ -14,7 +14,7 @@ use crossterm::terminal::{
 };
 use crossterm::terminal::{Clear, ClearType};
 use crossterm::{execute, queue};
-use std::cmp::{max, min};
+use std::cmp::{min};
 use std::io::{stdout, Write};
 use std::sync::mpsc::Sender;
 use std::thread;
@@ -71,7 +71,7 @@ pub fn handle_term_event(event_queue: Sender<Event>) {
             TermEvent::Key(key) => {
                 event_queue.send(Event::Key(key)).ok();
             }
-            TermEvent::Mouse(mouse) => {
+            TermEvent::Mouse(_mouse) => {
                 // event_queue.enqueue(Event::Mouse(mouse));
             }
             TermEvent::Resize(cols, rows) => {
@@ -231,7 +231,7 @@ impl Terminal {
         let mut wrapped = None;
         let mut cursor_pos = None;
         let mut in_selection = false;
-        let mut drawed_eof = false;
+        let _drawed_eof = false;
         for display_y in 0..text_height {
             // Move the cursor at the beginning of the next line.
             queue!(
@@ -484,8 +484,8 @@ impl Terminal {
                     s.display_width()
                 }
                 FinderItem::File {
-                    path,
-                    pos: Some(pos),
+                    path: _,
+                    pos: Some(_pos),
                 } => {
                     unimplemented!();
                 }

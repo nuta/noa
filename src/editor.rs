@@ -5,7 +5,7 @@ use crate::rope::Cursor;
 use crate::terminal::{KeyCode, KeyEvent, KeyModifiers, Terminal};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::fs::OpenOptions;
+
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::mpsc::{channel, Receiver};
@@ -118,7 +118,7 @@ impl Editor {
         }
 
         // TODO: Update buffer names.
-        for buffer in self.buffers.values() {}
+        for _buffer in self.buffers.values() {}
     }
 
     pub fn run(&mut self) -> ExitStatus {

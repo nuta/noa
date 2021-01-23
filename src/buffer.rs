@@ -2,11 +2,11 @@ use crate::editorconfig::{EditorConfig, IndentStyle};
 use crate::language::{guess_language, Language};
 use crate::rope::*;
 use std::cmp::{max, min};
-use std::collections::HashSet;
+
 use std::fs;
-use std::ops::RangeInclusive;
+
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
+
 use tempfile::NamedTempFile;
 
 #[derive(Clone, Debug)]
@@ -341,7 +341,7 @@ impl Buffer {
 
         for _ in 0..down {
             let prev_x = pos.x;
-            let prev_y = pos.y;
+            let _prev_y = pos.y;
             let prefix_width = self.width_in_display(pos.y, 0, pos.x);
             let from_left = prefix_width % (cols + 1);
             // Move at the same display column in the next line in the display.
@@ -378,7 +378,7 @@ impl Buffer {
 
         for _ in 0..up {
             let prev_x = pos.x;
-            let prev_y = pos.y;
+            let _prev_y = pos.y;
             let prefix_width = self.width_in_display(pos.y, 0, pos.x);
             let from_left = prefix_width % (cols + 1);
             // Move at the same display column in the previous line in the display.
@@ -532,7 +532,7 @@ impl Buffer {
 
     pub fn insert(&mut self, string: &str) {
         let string_count = string.chars().count();
-        let (remove, insert_at, end) = match &self.cursor {
+        let (remove, insert_at, _end) = match &self.cursor {
             Cursor::Normal { pos, .. } => (None, pos, pos),
             Cursor::Selection { range, .. } => (Some(range), range.front(), range.back()),
         };
@@ -733,7 +733,7 @@ impl Buffer {
             None => return,
         };
 
-        let (ys, x) = match self.cursor() {
+        let (ys, _x) = match self.cursor() {
             Cursor::Normal { pos, .. } => (pos.y..=pos.y, pos.x),
             Cursor::Selection { range, .. } => {
                 let front = range.front();

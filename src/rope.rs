@@ -283,7 +283,7 @@ impl Rope {
         self.on_modified(range.front().y);
     }
 
-    fn on_modified(&mut self, start_y: usize) {
+    fn on_modified(&mut self, _start_y: usize) {
         self.cached_num_lines = self.inner.len_lines();
     }
 
