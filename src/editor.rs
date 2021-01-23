@@ -74,6 +74,19 @@ impl Editor {
     }
 
     pub fn open_file(&mut self, path: &Path) {
+        // Switch the buffer if the file is already opened.
+        match std::fs::canonicalize(path) {
+            Ok(abs_path) => {
+                if let Some(buffer) = self.buffers.get(&abs_path) {
+                    self.current_buffer = buffer.clone();
+                    return;
+                }
+            }
+            Err(err) => {
+                self.error(format!("couldn't resolve the path: {:?}", err));
+            }
+        }
+
         // FIXME: save if modified
         match Buffer::open_file(path) {
             Ok(buffer) => {
@@ -149,7 +162,7 @@ impl Editor {
     }
 
     fn enter_in_finder(&mut self) {
-        if let Some(item) = self.finder.selected_item().cloned() {
+        if let Some(item) = self.finder.selected_item() {
             match item {
                 FinderItem::File { path, pos } => {
                     self.open_file(&path);
@@ -322,6 +335,18 @@ impl Editor {
                 }
                 (KeyCode::Delete, NONE) | (KeyCode::Char('d'), CTRL) => {
                     self.prompt_input.delete();
+                }
+                (KeyCode::Left, NONE) => {
+                    self.prompt_input.move_left();
+                }
+                (KeyCode::Right, NONE) => {
+                    self.prompt_input.move_right();
+                }
+                (KeyCode::Up, SHIFT) => {
+                    self.finder.move_prev();
+                }
+                (KeyCode::Down, SHIFT) => {
+                    self.finder.move_next();
                 }
                 (KeyCode::Char('a'), CTRL) => {
                     self.prompt_input.move_to_beginning_of_line();
