@@ -56,18 +56,13 @@ impl Editor {
     pub fn new() -> Editor {
         let (tx, rx) = channel();
 
+        // Prepare the noa directory.
         let noa_dir = dirs::home_dir().unwrap().join(".noa");
         std::fs::create_dir_all(&noa_dir).expect("failed to create ~/.noa");
 
         // Open the scratch buffer.
-        let scratch_path = noa_dir.join("scratch");
-        let mut scratch_buffer =
-            Buffer::open_or_create_file(&scratch_path).expect("failed to open the scratch file");
+        let mut scratch_buffer = Buffer::new();
         scratch_buffer.set_name("scratch");
-        let mut scratch_rc = Rc::new(RefCell::new(scratch_buffer));
-
-        let mut buffers = HashMap::new();
-        buffers.insert(scratch_path, scratch_rc.clone());
 
         Editor {
             exited: false,
@@ -76,8 +71,8 @@ impl Editor {
             finder: Finder::new(tx),
             prompt_input: LineEdit::new(),
             event_queue: rx,
-            buffers,
-            current_buffer: scratch_rc,
+            buffers: HashMap::new(),
+            current_buffer: Rc::new(RefCell::new(scratch_buffer)),
             notification: RefCell::new(None),
             backup_dir: noa_dir.join("backup"),
         }
