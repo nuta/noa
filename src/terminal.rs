@@ -358,7 +358,12 @@ impl Terminal {
 
                 chunk_i = 0;
                 for c in s.chars().skip(chunk_char_start) {
-                    if c.display_width() > remaining_width {
+                    let (tab, char_width) = match c {
+                        '\t' => (true, buffer.config().tab_width - x % buffer.config().tab_width),
+                        _ => (false, c.display_width()),
+                    };
+
+                    if char_width > remaining_width {
                         break 'outer;
                     }
 
@@ -366,10 +371,15 @@ impl Terminal {
                         cursor_pos = Some((display_y, display_x));
                     }
 
-                    queue!(stdout, Print(c)).ok();
-                    remaining_width -= c.display_width();
+                    if tab {
+                        queue!(stdout, Print(whitespaces(char_width))).ok();
+                    } else {
+                        queue!(stdout, Print(c)).ok();
+                    }
+
+                    remaining_width -= char_width;
                     chunk_i += 1;
-                    display_x += 1;
+                    display_x += char_width;
                     x += 1;
 
                     if let Cursor::Selection { range, .. } = &buffer.cursor() {

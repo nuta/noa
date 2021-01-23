@@ -1,3 +1,10 @@
+if (test) {
+	hello
+		if (test2) {
+			world
+		}
+}
+
 12345
 Helllo
 xyz

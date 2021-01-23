@@ -122,6 +122,10 @@ impl Buffer {
         self.file.as_deref()
     }
 
+    pub fn config(&self) -> &EditorConfig {
+        &self.config
+    }
+
     #[cfg(test)]
     pub fn text(&self) -> String {
         self.rope.text()
