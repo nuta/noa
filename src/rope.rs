@@ -113,17 +113,6 @@ impl Range {
     pub fn back(&self) -> &Point {
         max(&self.start, &self.end)
     }
-
-    pub fn overlaps_with(&self, other: &Range) -> bool {
-        !(self.end.y < other.start.y
-            || self.start.y > other.end.y
-            || (self.end.y == other.start.y && self.end.x < other.start.x)
-            || (self.start.y == other.end.y && self.start.x > other.end.x))
-    }
-
-    pub fn contains(&self, pos: Point) -> bool {
-        self.start <= pos && pos <= self.end
-    }
 }
 
 impl fmt::Display for Range {
@@ -154,16 +143,6 @@ impl Cursor {
         Cursor::Selection {
             range: range.clone(),
             logical_x: range.end.x,
-        }
-    }
-
-    pub fn front(&self) -> &Point {
-        match self {
-            Cursor::Normal { pos, .. } => pos,
-            Cursor::Selection {
-                range: Range { start, .. },
-                ..
-            } => start,
         }
     }
 }

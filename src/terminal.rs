@@ -231,7 +231,6 @@ impl Terminal {
         let mut wrapped = None;
         let mut cursor_pos = None;
         let mut in_selection = false;
-        let _drawed_eof = false;
         for display_y in 0..text_height {
             // Move the cursor at the beginning of the next line.
             queue!(
@@ -480,7 +479,7 @@ impl Terminal {
             let item_width = match &item.data {
                 FinderItem::File { path, pos: None } => {
                     let s = truncate(path.to_str().unwrap(), item_width_max);
-                    queue!(stdout, Print(s));
+                    queue!(stdout, Print(s)).ok();
                     s.display_width()
                 }
                 FinderItem::File {
@@ -491,7 +490,7 @@ impl Terminal {
                 }
                 FinderItem::Buffer { path } => {
                     let s = truncate(path.to_str().unwrap(), item_width_max);
-                    queue!(stdout, Print(s));
+                    queue!(stdout, Print(s)).ok();
                     s.display_width()
                 }
             };

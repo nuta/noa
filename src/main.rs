@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 #[cfg(test)]
 #[macro_use]
 extern crate pretty_assertions;
@@ -5,8 +7,6 @@ extern crate pretty_assertions;
 extern crate log;
 #[macro_use]
 extern crate lazy_static;
-#[macro_use]
-extern crate maplit;
 
 mod buffer;
 mod editor;

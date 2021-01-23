@@ -7,8 +7,6 @@ use std::fs;
 
 use std::path::{Path, PathBuf};
 
-use tempfile::NamedTempFile;
-
 #[derive(Clone, Debug)]
 pub struct TopLeft {
     pub y: usize,
@@ -27,8 +25,6 @@ pub struct Buffer {
     name: String,
     version: usize,
     file: Option<PathBuf>,
-    tmpfile: NamedTempFile,
-    tmpfile_version: Rope,
     cursor: Cursor,
     top_left: TopLeft,
     undo_stack: Vec<Rope>,
@@ -46,8 +42,6 @@ impl Buffer {
             version: 1,
             name: String::new(),
             file: None,
-            tmpfile: NamedTempFile::new().unwrap(),
-            tmpfile_version: Rope::new(),
             cursor: Cursor::new(0, 0),
             top_left: TopLeft::new(0, 0),
             undo_stack: Vec::new(),
@@ -77,8 +71,6 @@ impl Buffer {
             version: 1,
             name: String::new(),
             file: Some(path.canonicalize()?),
-            tmpfile: NamedTempFile::new()?,
-            tmpfile_version: Rope::new(),
             cursor: Cursor::new(0, 0),
             top_left: TopLeft::new(0, 0),
             undo_stack: Vec::new(),
@@ -92,15 +84,7 @@ impl Buffer {
         Ok(buffer)
     }
 
-    pub fn open_or_create_file(path: &Path) -> std::io::Result<Buffer> {
-        // Create the file if it does not exist.
-        std::fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(path)?;
-        Buffer::open_file(path)
-    }
-
+    #[cfg(test)]
     pub fn set_text(&mut self, text: &str) {
         self.rope.clear();
         self.rope.insert(&Point::new(0, 0), text);
@@ -139,22 +123,6 @@ impl Buffer {
         self.is_dirty
     }
 
-    pub fn version(&self) -> usize {
-        self.version
-    }
-
-    pub fn language(&self) -> &'static Language {
-        &self.language
-    }
-
-    pub fn file(&self) -> &Option<PathBuf> {
-        &self.file
-    }
-
-    pub fn config(&self) -> &EditorConfig {
-        &self.config
-    }
-
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -163,22 +131,11 @@ impl Buffer {
         self.name = name.into();
     }
 
-    pub fn update_tmpfile(&mut self) {
-        if self.tmpfile_version != self.rope {
-            std::fs::write(self.tmpfile.path(), self.text()).ok();
-        }
-
-        self.tmpfile_version = self.rope.clone();
-    }
-
-    pub fn tmpfile(&self) -> &Path {
-        self.tmpfile.path()
-    }
-
     pub fn path(&self) -> Option<&Path> {
         self.file.as_deref()
     }
 
+    #[cfg(test)]
     pub fn text(&self) -> String {
         self.rope.text()
     }
@@ -191,20 +148,13 @@ impl Buffer {
         self.line(line).chars().skip(start).collect()
     }
 
+    #[cfg(test)]
     pub fn set_language(&mut self, language: &'static Language) {
         self.language = language;
     }
 
     pub fn is_virtual_file(&self) -> bool {
         self.file.is_none()
-    }
-
-    pub fn save_without_backup(&self) -> std::io::Result<()> {
-        if let Some(path) = &self.file {
-            self.rope.save_into_file(path)
-        } else {
-            Ok(())
-        }
     }
 
     pub fn save(&mut self, backup_dir: &Path) -> std::io::Result<()> {
@@ -568,11 +518,6 @@ impl Buffer {
         };
 
         self.set_cursor(Cursor::new(y, x));
-    }
-
-    pub fn clear(&mut self) {
-        self.rope = Rope::new();
-        self.cursor = Cursor::new(0, 0);
     }
 
     pub fn indent_size(&self, y: usize) -> usize {
