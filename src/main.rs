@@ -13,7 +13,9 @@ extern crate maplit;
 mod buffer;
 mod editor;
 mod editorconfig;
+mod finder;
 mod language;
+mod line_edit;
 mod rope;
 mod terminal;
 

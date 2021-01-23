@@ -1,5 +1,7 @@
 use crate::buffer::{Buffer, TopLeft};
 use crate::editor::Event;
+use crate::finder::{Finder, FinderItem};
+use crate::line_edit::LineEdit;
 use crate::rope::{Cursor, Point};
 use crossterm::cursor::{self, MoveTo};
 use crossterm::event::{
@@ -178,7 +180,7 @@ impl Terminal {
         self.cols = cols;
     }
 
-    pub fn draw(&mut self, buffer: &mut Buffer) {
+    pub fn draw_buffer(&mut self, buffer: &mut Buffer) {
         let mut stdout = stdout();
         if self.cols < 10 || self.rows < 5 {
             queue!(
@@ -365,6 +367,11 @@ impl Terminal {
             .ok();
         }
 
+        stdout.flush().ok();
+    }
+
+    pub fn draw_finder(&mut self, finder: &Finder, input: &LineEdit) {
+        let mut stdout = stdout();
         stdout.flush().ok();
     }
 }

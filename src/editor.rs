@@ -1,6 +1,8 @@
 use crate::buffer::Buffer;
 use crate::rope::Cursor;
 use crate::terminal::{KeyCode, KeyEvent, KeyModifiers, Terminal};
+use crate::finder::{Finder, FinderItem};
+use crate::line_edit::LineEdit;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -29,12 +31,15 @@ pub struct Notification {
 
 enum EditorMode {
     Normal,
+    Finder,
 }
 
 pub struct Editor {
     exited: bool,
     mode: EditorMode,
     terminal: Terminal,
+    finder: Finder,
+    prompt_input: LineEdit,
     event_queue: Receiver<Event>,
     buffers: HashMap<PathBuf, Rc<RefCell<Buffer>>>,
     current_buffer: Rc<RefCell<Buffer>>,
@@ -58,7 +63,9 @@ impl Editor {
         Editor {
             exited: false,
             mode: EditorMode::Normal,
-            terminal: Terminal::new(tx),
+            terminal: Terminal::new(tx.clone()),
+            finder: Finder::new(tx),
+            prompt_input: LineEdit::new(),
             event_queue: rx,
             buffers,
             current_buffer: scratch_rc,
@@ -98,7 +105,14 @@ impl Editor {
                 );
             }
 
-            self.terminal.draw(&mut *self.current_buffer.borrow_mut());
+            match self.mode {
+                EditorMode::Normal => {
+                    self.terminal.draw_buffer(&mut *self.current_buffer.borrow_mut());
+                }
+                EditorMode::Finder => {
+                    self.terminal.draw_finder(&self.finder, &self.prompt_input);
+                }
+            }
 
             if let Ok(ev) = self.event_queue.recv() {
                 self.handle_event(ev);
@@ -106,6 +120,7 @@ impl Editor {
 
             while let Ok(ev) = self.event_queue.try_recv() {
                 self.handle_event(ev);
+                self.update_modes();
             }
         }
     }
@@ -133,6 +148,28 @@ impl Editor {
         self.notify(NotificationLevel::Error, message);
     }
 
+    fn enter_in_finder(&mut self) {
+        if let Some(item) = self.finder.selected_item().cloned() {
+            match item {
+                FinderItem::File { path, pos } => {
+                    self.open_file(&path);
+                    if let Some(pos) = pos {
+                        self.current_buffer.borrow_mut().goto(pos.y, pos.x);
+                    }
+                }
+            }
+        }
+    }
+
+    fn update_modes(&mut self) {
+        match self.mode {
+            EditorMode::Normal => {}
+            EditorMode::Finder => {
+                self.finder.query(&self.prompt_input.text());
+            }
+        }
+    }
+
     fn handle_event(&mut self, ev: Event) {
         match ev {
             Event::Key(key) => self.handle_key_event(key),
@@ -150,6 +187,10 @@ impl Editor {
             EditorMode::Normal => match (key.code, key.modifiers) {
                 (KeyCode::Char('q'), CTRL) => {
                     self.exited = true;
+                }
+                (KeyCode::Char('f'), CTRL) => {
+                    self.prompt_input.clear();
+                    self.mode = EditorMode::Finder;
                 }
                 (KeyCode::Char('l'), CTRL) => {
                     self.current_buffer
@@ -265,6 +306,37 @@ impl Editor {
                 }
                 _ => {}
             },
+            EditorMode::Finder => match (key.code, key.modifiers) {
+                (KeyCode::Char('q'), CTRL) | (KeyCode::Esc, _) => {
+                    self.mode = EditorMode::Normal;
+                }
+                (KeyCode::Char(ch), NONE) | (KeyCode::Char(ch), SHIFT) => {
+                    self.prompt_input.insert_char(ch);
+                }
+                (KeyCode::Enter, NONE) => {
+                    self.enter_in_finder();
+                    self.mode = EditorMode::Normal;
+                }
+                (KeyCode::Backspace, NONE) => {
+                    self.prompt_input.backspace();
+                }
+                (KeyCode::Delete, NONE) | (KeyCode::Char('d'), CTRL) => {
+                    self.prompt_input.delete();
+                }
+                (KeyCode::Char('a'), CTRL) => {
+                    self.prompt_input.move_to_beginning_of_line();
+                }
+                (KeyCode::Char('e'), CTRL) => {
+                    self.prompt_input.move_to_end_of_line();
+                }
+                (KeyCode::Char('b'), ALT) => {
+                    self.prompt_input.move_to_prev_word();
+                }
+                (KeyCode::Char('f'), ALT) => {
+                    self.prompt_input.move_to_next_word();
+                }
+                _ => {}
+            }
         }
     }
 
@@ -272,6 +344,9 @@ impl Editor {
         match self.mode {
             EditorMode::Normal => {
                 self.current_buffer.borrow_mut().insert(&s);
+            }
+            EditorMode::Finder => {
+                self.prompt_input.insert(&s);
             }
         }
     }
