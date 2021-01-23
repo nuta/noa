@@ -231,6 +231,7 @@ impl Terminal {
         let mut wrapped = None;
         let mut cursor_pos = None;
         let mut in_selection = false;
+        let mut drawed_eof = false;
         for display_y in 0..text_height {
             // Move the cursor at the beginning of the next line.
             queue!(
@@ -274,9 +275,14 @@ impl Terminal {
                 )
                 .ok();
             } else {
+                if y == main_pos.y {
+                    queue!(stdout, SetAttribute(Attribute::Bold)).ok();
+                } else {
+                    queue!(stdout, SetForegroundColor(Color::DarkGrey)).ok();
+                }
+
                 queue!(
                     stdout,
-                    SetForegroundColor(Color::DarkGrey),
                     Print(whitespaces(lineno_width - num_of_digits(y + 1) - 1)),
                     Print(y + 1),
                     Print(' '),
@@ -391,12 +397,13 @@ impl Terminal {
         queue!(
             stdout,
             MoveTo(0, 0),
-            SetForegroundColor(Color::Blue),
+            SetForegroundColor(Color::DarkGrey),
             Print('('),
-            Print(main_pos.x),
+            Print(main_pos.x + 1),
             Print(')'),
             Clear(ClearType::UntilNewLine),
             MoveTo((self.cols - (name_width + indicator_width)) as u16, 0),
+            SetAttribute(Attribute::Reset),
             SetAttribute(Attribute::Bold),
             Print(truncate(buffer_name, name_width)),
             SetForegroundColor(Color::Yellow),
