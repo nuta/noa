@@ -124,11 +124,19 @@ impl Finder {
         true
     }
 
-    pub fn provide_buffer(&mut self, query: &str, buffer: &Buffer) {
+    pub fn provide_buffer(&mut self, query: &str, buffer: &Buffer, priority: isize) {
         if let Some(path) = buffer.path() {
-            if let Some(score) = fuzzy_match(query, path.to_str().unwrap()) {
+            if query.is_empty() {
+                // Priorize recently opened.
                 self.items.write().unwrap().push(WithPriority::new(
-                    score + BUFFER_PRIORITY,
+                    BUFFER_PRIORITY + priority,
+                    FinderItem::Buffer {
+                        path: path.to_path_buf(),
+                    },
+                ));
+            } else if let Some(similarity) = fuzzy_match(query, path.to_str().unwrap()) {
+                self.items.write().unwrap().push(WithPriority::new(
+                    BUFFER_PRIORITY + similarity + priority,
                     FinderItem::Buffer {
                         path: path.to_path_buf(),
                     },

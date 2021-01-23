@@ -48,6 +48,7 @@ pub struct Editor {
     prompt_input: LineEdit,
     event_queue: Receiver<Event>,
     buffers: HashMap<PathBuf, Rc<RefCell<Buffer>>>,
+    recent_buffers: Vec<Rc<RefCell<Buffer>>>,
     current_buffer: Rc<RefCell<Buffer>>,
     notification: RefCell<Option<Notification>>,
     backup_dir: PathBuf,
@@ -73,6 +74,7 @@ impl Editor {
             prompt_input: LineEdit::new(),
             event_queue: rx,
             buffers: HashMap::new(),
+            recent_buffers: Vec::new(),
             current_buffer: Rc::new(RefCell::new(scratch_buffer)),
             notification: RefCell::new(None),
             backup_dir: noa_dir.join("backup"),
@@ -85,6 +87,15 @@ impl Editor {
             Ok(abs_path) => {
                 if let Some(buffer) = self.buffers.get(&abs_path) {
                     self.current_buffer = buffer.clone();
+                    self.recent_buffers.remove(
+                        self.recent_buffers
+                            .iter()
+                            .enumerate()
+                            .find(|(i, b)| Rc::ptr_eq(b, buffer))
+                            .map(|(i, _)| i)
+                            .unwrap(),
+                    );
+                    self.recent_buffers.push(buffer.clone());
                     return;
                 } else {
                     abs_path
@@ -118,6 +129,7 @@ impl Editor {
 
                 let buffer_rc = Rc::new(RefCell::new(buffer));
                 self.buffers.insert(abs_path, buffer_rc.clone());
+                self.recent_buffers.push(buffer_rc.clone());
                 self.current_buffer = buffer_rc;
             }
             Err(err) => {
@@ -219,8 +231,9 @@ impl Editor {
                 let query = self.prompt_input.text();
                 let being_updated = self.finder.query(&query);
                 if being_updated {
-                    for buffer in self.buffers.values() {
-                        self.finder.provide_buffer(&query, &*buffer.borrow());
+                    for (i, buffer) in self.recent_buffers.iter().enumerate() {
+                        self.finder
+                            .provide_buffer(&query, &*buffer.borrow(), i as isize);
                     }
                 }
             }
