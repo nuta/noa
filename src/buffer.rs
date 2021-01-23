@@ -208,24 +208,12 @@ impl Buffer {
     }
 
     pub fn save(&mut self, backup_dir: &Path) -> std::io::Result<()> {
-        fn backup_path(backup_dir: &Path, base: &str, revision: usize) -> PathBuf {
-            backup_dir.join(format!("{}.{}", base, revision))
-        }
-
         if let Some(path) = &self.file {
-            let base = path.to_str().unwrap().replace('/', ".");
-            fs::create_dir_all(backup_dir)?;
-            fs::rename(
-                backup_path(backup_dir, &base, 2),
-                backup_path(backup_dir, &base, 3),
-            )
-            .ok();
-            fs::rename(
-                backup_path(backup_dir, &base, 1),
-                backup_path(backup_dir, &base, 2),
-            )
-            .ok();
-            fs::copy(path, backup_path(backup_dir, &base, 1)).ok();
+            if path.exists() {
+                let filename = path.to_str().unwrap().replace('/', ".");
+                fs::create_dir_all(backup_dir)?;
+                fs::copy(path, backup_dir.join(&filename)).ok();
+            }
             self.rope.save_into_file(path)?;
             self.is_dirty = false;
         }
