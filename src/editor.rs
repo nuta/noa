@@ -219,6 +219,10 @@ impl Editor {
         match self.mode {
             EditorMode::Normal => match (key.code, key.modifiers) {
                 (KeyCode::Char('q'), CTRL) => {
+                    let is_dirty = self.buffers.values().find(|b| b.borrow().is_dirty()).is_some();
+                    self.exited = true;
+                }
+                (KeyCode::Char('q'), ALT) => {
                     self.exited = true;
                 }
                 (KeyCode::Char('f'), CTRL) => {
