@@ -6,20 +6,6 @@ pub struct Language {
     pub comment_out: Option<&'static str>,
 }
 
-impl Hash for Language {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.name.hash(state);
-    }
-}
-
-impl PartialEq for Language {
-    fn eq(&self, other: &Language) -> bool {
-        self.name == other.name
-    }
-}
-
-impl Eq for Language {}
-
 lazy_static! {
     pub static ref PLAIN: Language = {
         Language {
