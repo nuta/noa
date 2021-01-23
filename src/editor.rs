@@ -81,17 +81,20 @@ impl Editor {
 
     pub fn open_file(&mut self, path: &Path) {
         // Switch the buffer if the file is already opened.
-        match std::fs::canonicalize(path) {
+        let abs_path = match std::fs::canonicalize(path) {
             Ok(abs_path) => {
                 if let Some(buffer) = self.buffers.get(&abs_path) {
                     self.current_buffer = buffer.clone();
                     return;
+                } else {
+                    abs_path
                 }
             }
             Err(err) => {
                 self.error(format!("couldn't resolve the path: {:?}", err));
+                return;
             }
-        }
+        };
 
         let writable = std::fs::OpenOptions::new()
             .read(true)
@@ -105,9 +108,18 @@ impl Editor {
 
         match Buffer::open_file(path) {
             Ok(mut buffer) => {
-                buffer.set_name(path.file_name().unwrap().to_str().unwrap());
+                // Update the buffer name.
+                let current_dir = std::env::current_dir().unwrap();
+                let name = match abs_path.strip_prefix(&current_dir) {
+                    Ok(stripped_path) => {
+                        stripped_path.to_str().unwrap()
+                    }
+                    Err(_) => {
+                        abs_path.to_str().unwrap()
+                    }
+                };
+                buffer.set_name(name);
 
-                let abs_path = buffer.path().as_ref().unwrap().to_path_buf();
                 let buffer_rc = Rc::new(RefCell::new(buffer));
                 self.buffers.insert(abs_path, buffer_rc.clone());
                 self.current_buffer = buffer_rc;
@@ -116,9 +128,6 @@ impl Editor {
                 self.error(format!("couldn't open: {:?}", err));
             }
         }
-
-        // TODO: Update buffer names.
-        for _buffer in self.buffers.values() {}
     }
 
     pub fn run(&mut self) -> ExitStatus {

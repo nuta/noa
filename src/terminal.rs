@@ -40,6 +40,41 @@ pub fn truncate(s: &str, width: usize) -> &str {
     &s[..min(s.chars().count(), width)]
 }
 
+pub fn with_ellipsis(s: &str, width: usize) -> String {
+    if s.display_width() <= width {
+        return s.to_owned();
+    }
+
+    if width <= 3 {
+        return ".".repeat(width);
+    }
+
+    let left_width = (width - 3) / 2;
+    let mut left_end = 0;
+    for (i, _) in s.char_indices() {
+        if s[..i].display_width() >= left_width {
+            // Don't update left_end to use the previous character.
+            left_end = i;
+            break;
+        }
+    }
+
+    let right_width = width - 3 - left_width;
+    let mut right_start = s.len();
+    for (i, _) in s.char_indices().rev() {
+        if s[i..].display_width() >= right_width {
+            right_start = i;
+            break;
+        }
+    }
+
+    let mut new_s = String::with_capacity(width);
+    new_s.push_str(&s[..left_end]);
+    new_s.push_str("...");
+    new_s.push_str(&s[right_start..]);
+    new_s
+}
+
 fn whitespaces(n: usize) -> String {
     " ".repeat(n)
 }
@@ -382,7 +417,7 @@ impl Terminal {
 
         // The status line.
         //           notification
-        //          VVVVVVVVVVVVVV
+        //          VVVVVVVVVVVVVVV
         //     (25) saved {} lines                  main.c [+]
         //     ^^^^^- column #             name ----^^^^^^ ^^^--- dirty idicator
         //
@@ -390,8 +425,8 @@ impl Terminal {
         let indicator = if buffer.is_dirty() { " [+]" } else { "" };
         let indicator_width = indicator.display_width();
         let notification_width = min(
-            notification.map(|n| n.message.display_width()).unwrap_or(0),
-            self.cols - (colno_width + 10 /* name width */ + indicator_width),
+            notification.map(|n| n.message.display_width()).unwrap_or(0) + 1,
+            self.cols - (colno_width + 1 /* pad */ + 10 /* name width */ + indicator_width),
         );
         let buffer_name = buffer.name();
         let name_width = min(
@@ -407,18 +442,19 @@ impl Terminal {
             Print(") "),
             SetAttribute(Attribute::Bold),
             match notification.map(|n| n.level) {
-                Some(NotificationLevel::Info) => SetForegroundColor(Color::Reset),
+                Some(NotificationLevel::Info) => SetForegroundColor(Color::Green),
                 Some(NotificationLevel::Error) => SetForegroundColor(Color::Red),
                 None => SetForegroundColor(Color::Reset),
             },
-            Print(truncate(
+            Print(with_ellipsis(
                 notification.map(|n| n.message.as_str()).unwrap_or(""),
                 notification_width
             )),
             Clear(ClearType::UntilNewLine),
-            SetForegroundColor(Color::Reset),
+            SetAttribute(Attribute::Reset),
+            SetForegroundColor(Color::Cyan),
             MoveTo((self.cols - (name_width + indicator_width)) as u16, 0),
-            Print(truncate(buffer_name, name_width)),
+            Print(with_ellipsis(buffer_name, name_width)),
             SetForegroundColor(Color::Yellow),
             Print(indicator),
             SetAttribute(Attribute::Reset),
@@ -526,5 +562,21 @@ impl Drop for Terminal {
         execute!(stdout(), LeaveAlternateScreen).ok();
         execute!(stdout(), DisableMouseCapture).ok();
         disable_raw_mode().ok();
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_with_ellipsis() {
+        assert_eq!(with_ellipsis("123456789", 0), "");
+        assert_eq!(with_ellipsis("123456789", 1), ".");
+        assert_eq!(with_ellipsis("123456789", 3), "...");
+        assert_eq!(with_ellipsis("123456789", 9), "123456789");
+        assert_eq!(with_ellipsis("123456789", 5), "1...9");
+        assert_eq!(with_ellipsis("123456789", 6), "1...89");
+        assert_eq!(with_ellipsis("123456789abcdefg", 10), "123...defg");
     }
 }
