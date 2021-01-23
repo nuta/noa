@@ -2,7 +2,7 @@ use crate::buffer::Buffer;
 use crate::editor::Event;
 use crate::rope::Point;
 use ignore::WalkBuilder;
-use std::collections::{BinaryHeap};
+use std::collections::BinaryHeap;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, RwLock, RwLockReadGuard};

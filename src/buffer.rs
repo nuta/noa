@@ -525,7 +525,6 @@ impl Buffer {
         let line = self.rope.line(y);
         'outer: for c in line.chunks() {
             for ch in c.chars() {
-                trace!("ch='{}' {}, n={}", ch, ch.is_ascii_whitespace(), n);
                 if !ch.is_ascii_whitespace() {
                     break 'outer;
                 }
@@ -537,16 +536,31 @@ impl Buffer {
         n
     }
 
-    pub fn enter_with_indent(&mut self) {
-        let pos = self.main_cursor_pos();
-        let do_auto_indent = pos.y < self.num_lines()
-            && (self.indent_size(pos.y) > 0
-                || self
-                    .line_substr(pos.y, pos.x.saturating_sub(1))
-                    .ends_with('{'));
-        self.insert_char('\n');
-        if do_auto_indent {
-            self.tab();
+    pub fn insert_with_smart_indent(&mut self, ch: char) {
+        match ch {
+            '\n' => {
+                let pos = self.main_cursor_pos();
+                let do_auto_indent = pos.y < self.num_lines()
+                    && (self.indent_size(pos.y) > 0
+                        || self
+                            .line_substr(pos.y, pos.x.saturating_sub(1))
+                            .ends_with('{'));
+                self.insert_char('\n');
+                if do_auto_indent {
+                    self.tab();
+                }
+            }
+            '}' => {
+                if matches!(self.cursor, Cursor::Normal { pos, .. } if self.indent_size(pos.y) == self.line_len(pos.y))
+                {
+                    self.back_tab();
+                }
+
+                self.insert_char('}');
+            }
+            _ => {
+                self.insert_char(ch);
+            }
         }
     }
 
@@ -565,7 +579,17 @@ impl Buffer {
             } else {
                 0
             };
-            let indent_size = max(prev_indent_size, self.config.indent_size);
+            let increase_depth = self
+                .line_substr(
+                    pos.y.saturating_sub(1),
+                    self.line_len(pos.y.saturating_sub(1)).saturating_sub(1),
+                )
+                .ends_with('{');
+            let indent_size = if increase_depth {
+                prev_indent_size + self.config.indent_size
+            } else {
+                max(prev_indent_size, self.config.indent_size)
+            };
             let num_chars = indent_size - (pos.x % indent_size);
 
             x = pos.x + num_chars;
@@ -1509,22 +1533,28 @@ mod test {
 
     #[test]
     fn indent_by_tab() {
+        let mut b = Buffer::new();
+        b.set_cursor(Cursor::new(0, 0));
+        b.tab();
+        assert_eq!(&b.text(), "    ");
+        assert_eq!(b.cursor(), &Cursor::new(0, 4));
+        b.tab();
+        assert_eq!(&b.text(), "        ");
+        assert_eq!(b.cursor(), &Cursor::new(0, 8));
+
         let mut b = Buffer::from_str("abc");
         b.set_cursor(Cursor::new(0, 0));
         b.tab();
         assert_eq!(&b.text(), "    abc");
         assert_eq!(b.cursor(), &Cursor::new(0, 4));
+        b.tab();
+        assert_eq!(&b.text(), "        abc");
+        assert_eq!(b.cursor(), &Cursor::new(0, 8));
 
         let mut b = Buffer::from_str("  abc");
         b.set_cursor(Cursor::new(0, 2));
         b.tab();
         assert_eq!(&b.text(), "    abc");
-        assert_eq!(b.cursor(), &Cursor::new(0, 4));
-
-        let mut b = Buffer::from_str("    abc");
-        b.set_cursor(Cursor::new(0, 2));
-        b.tab();
-        assert_eq!(&b.text(), "      abc");
         assert_eq!(b.cursor(), &Cursor::new(0, 4));
     }
 
@@ -1559,6 +1589,20 @@ mod test {
         b.tab();
         assert_eq!(&b.text(), "        foo();\n        ");
         assert_eq!(b.cursor(), &Cursor::new(1, 8));
+    }
+
+    #[test]
+    fn smart_indent() {
+        let mut b = Buffer::new();
+        b.insert("    if (expr) ");
+        b.insert_with_smart_indent('{');
+        b.insert_with_smart_indent('\n');
+        assert_eq!(&b.text(), "    if (expr) {\n        ");
+        assert_eq!(b.cursor(), &Cursor::new(1, 8));
+
+        b.insert_with_smart_indent('}');
+        assert_eq!(&b.text(), "    if (expr) {\n    }");
+        assert_eq!(b.cursor(), &Cursor::new(1, 5));
     }
 
     #[test]

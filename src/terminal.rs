@@ -4,9 +4,7 @@ use crate::finder::{Finder, FinderItem};
 use crate::line_edit::LineEdit;
 use crate::rope::{Cursor, Point};
 use crossterm::cursor::{self, MoveTo};
-use crossterm::event::{
-    self, DisableMouseCapture, EnableMouseCapture, Event as TermEvent,
-};
+use crossterm::event::{self, DisableMouseCapture, EnableMouseCapture, Event as TermEvent};
 pub use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent as RawMouseEvent};
 use crossterm::style::{Attribute, Color, Print, SetAttribute, SetForegroundColor};
 use crossterm::terminal::{
@@ -14,7 +12,7 @@ use crossterm::terminal::{
 };
 use crossterm::terminal::{Clear, ClearType};
 use crossterm::{execute, queue};
-use std::cmp::{min};
+use std::cmp::min;
 use std::io::{stdout, Write};
 use std::sync::mpsc::Sender;
 use std::thread;

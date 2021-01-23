@@ -111,12 +111,8 @@ impl Editor {
                 // Update the buffer name.
                 let current_dir = std::env::current_dir().unwrap();
                 let name = match abs_path.strip_prefix(&current_dir) {
-                    Ok(stripped_path) => {
-                        stripped_path.to_str().unwrap()
-                    }
-                    Err(_) => {
-                        abs_path.to_str().unwrap()
-                    }
+                    Ok(stripped_path) => stripped_path.to_str().unwrap(),
+                    Err(_) => abs_path.to_str().unwrap(),
                 };
                 buffer.set_name(name);
 
@@ -303,10 +299,14 @@ impl Editor {
                 //  Text Editing.
                 //
                 (KeyCode::Char(ch), NONE) | (KeyCode::Char(ch), SHIFT) => {
-                    self.current_buffer.borrow_mut().insert_char(ch);
+                    self.current_buffer
+                        .borrow_mut()
+                        .insert_with_smart_indent(ch);
                 }
                 (KeyCode::Enter, NONE) => {
-                    self.current_buffer.borrow_mut().enter_with_indent();
+                    self.current_buffer
+                        .borrow_mut()
+                        .insert_with_smart_indent('\n');
                 }
                 (KeyCode::Backspace, NONE) => {
                     self.current_buffer.borrow_mut().backspace();
