@@ -158,7 +158,7 @@ impl Editor {
             }
 
             // Clear the notification.
-            if matches!(&*self.notification.borrow(), Some(Notification { created_at, .. }) if created_at.elapsed().as_secs() > 8)
+            if matches!(&*self.notification.borrow(), Some(Notification { created_at, .. }) if created_at.elapsed().as_secs() > 5)
             {
                 *self.notification.borrow_mut() = None;
             }
