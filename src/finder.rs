@@ -102,9 +102,9 @@ impl Finder {
         self.selected += 1;
     }
 
-    pub fn query<'a>(&mut self, query: &str) {
+    pub fn query<'a>(&mut self, query: &str) -> bool {
         if matches!(&self.current_query, Some(current) if current == query) {
-            return;
+            return false;
         }
 
         self.clear();
@@ -120,6 +120,8 @@ impl Finder {
                 event_queue.send(Event::Redraw).ok();
             });
         }
+
+        true
     }
 
     pub fn provide_buffer(&mut self, query: &str, buffer: &Buffer) {

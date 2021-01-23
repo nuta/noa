@@ -194,9 +194,11 @@ impl Editor {
             EditorMode::Normal => {}
             EditorMode::Finder => {
                 let query = self.prompt_input.text();
-                self.finder.query(&query);
-                for buffer in self.buffers.values() {
-                    self.finder.provide_buffer(&query, &*buffer.borrow());
+                let being_updated = self.finder.query(&query);
+                if being_updated {
+                    for buffer in self.buffers.values() {
+                        self.finder.provide_buffer(&query, &*buffer.borrow());
+                    }
                 }
             }
         }
