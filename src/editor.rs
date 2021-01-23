@@ -1,8 +1,8 @@
 use crate::buffer::Buffer;
-use crate::rope::Cursor;
-use crate::terminal::{KeyCode, KeyEvent, KeyModifiers, Terminal};
 use crate::finder::{Finder, FinderItem};
 use crate::line_edit::LineEdit;
+use crate::rope::Cursor;
+use crate::terminal::{KeyCode, KeyEvent, KeyModifiers, Terminal};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -90,7 +90,9 @@ impl Editor {
 
         // FIXME: save if modified
         match Buffer::open_file(path) {
-            Ok(buffer) => {
+            Ok(mut buffer) => {
+                buffer.set_name(path.file_name().unwrap().to_str().unwrap());
+
                 let abs_path = buffer.path().as_ref().unwrap().to_path_buf();
                 let buffer_rc = Rc::new(RefCell::new(buffer));
                 self.buffers.insert(abs_path, buffer_rc.clone());
@@ -99,6 +101,11 @@ impl Editor {
             Err(err) => {
                 self.error(format!("couldn't open: {:?}", err));
             }
+        }
+
+
+        // TODO: Update buffer names.
+        for buffer in self.buffers.values() {
         }
     }
 
@@ -121,21 +128,25 @@ impl Editor {
 
             match self.mode {
                 EditorMode::Normal => {
-                    self.terminal.draw_buffer(&mut *self.current_buffer.borrow_mut());
+                    self.terminal
+                        .draw_buffer(&mut *self.current_buffer.borrow_mut());
                 }
                 EditorMode::Finder => {
                     self.terminal.draw_finder(&self.finder, &self.prompt_input);
                 }
             }
 
+            // Wait for the next event...
             if let Ok(ev) = self.event_queue.recv() {
                 self.handle_event(ev);
             }
 
+            // Receive other queued events.
             while let Ok(ev) = self.event_queue.try_recv() {
                 self.handle_event(ev);
-                self.update_modes();
             }
+
+            self.update_modes();
         }
     }
 
@@ -189,7 +200,7 @@ impl Editor {
             Event::Key(key) => self.handle_key_event(key),
             Event::KeyBatch(s) => self.handle_key_batch_event(s),
             Event::Resize { rows, cols } => self.terminal.resize(rows, cols),
-            Event::Redraw => {},
+            Event::Redraw => {}
         }
     }
 
@@ -344,10 +355,10 @@ impl Editor {
                 (KeyCode::Right, NONE) => {
                     self.prompt_input.move_right();
                 }
-                (KeyCode::Up, SHIFT) => {
+                (KeyCode::Up, _) => {
                     self.finder.move_prev();
                 }
-                (KeyCode::Down, SHIFT) => {
+                (KeyCode::Down, _) => {
                     self.finder.move_next();
                 }
                 (KeyCode::Char('a'), CTRL) => {
@@ -363,7 +374,7 @@ impl Editor {
                     self.prompt_input.move_to_next_word();
                 }
                 _ => {}
-            }
+            },
         }
     }
 

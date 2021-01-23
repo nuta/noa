@@ -368,7 +368,6 @@ impl Buffer {
                     pos.x = 0;
                     let prefix_width =
                         self.width_in_display(pos.y, 0, min(self.line_len(pos.y), logical_x));
-                    dbg!(self.line_len(pos.y), logical_x, prefix_width);
                     let from_left = prefix_width % (cols + 1);
                     loop {
                         if pos.x >= self.line_len(pos.y)

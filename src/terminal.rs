@@ -19,7 +19,22 @@ use std::io::{stdout, Write};
 use std::sync::mpsc::Sender;
 use std::thread;
 use std::time::Duration;
-use unicode_width::UnicodeWidthChar;
+
+pub trait DisplayWidth {
+    fn display_width(&self) -> usize;
+}
+
+impl DisplayWidth for char {
+    fn display_width(&self) -> usize {
+        unicode_width::UnicodeWidthChar::width_cjk(*self).unwrap_or(1)
+    }
+}
+
+impl DisplayWidth for str {
+    fn display_width(&self) -> usize {
+        unicode_width::UnicodeWidthStr::width_cjk(self)
+    }
+}
 
 pub fn truncate(s: &str, width: usize) -> &str {
     &s[..min(s.chars().count(), width)]
@@ -291,8 +306,7 @@ impl Terminal {
 
                 chunk_i = 0;
                 for c in s.chars().skip(chunk_char_start) {
-                    let char_width = UnicodeWidthChar::width_cjk(c).unwrap_or(1);
-                    if char_width > remaining_width {
+                    if c.display_width() > remaining_width {
                         break 'outer;
                     }
 
@@ -301,7 +315,7 @@ impl Terminal {
                     }
 
                     queue!(stdout, Print(c)).ok();
-                    remaining_width -= char_width;
+                    remaining_width -= c.display_width();
                     chunk_i += 1;
                     display_x += 1;
                     x += 1;
@@ -351,8 +365,9 @@ impl Terminal {
         queue!(
             stdout,
             MoveTo(0, 0),
-            Print(buffer.name()),
+            Print(truncate(buffer.name(), self.cols)),
             Print(' '),
+            Clear(ClearType::UntilNewLine),
             SetAttribute(Attribute::Reset),
         )
         .ok();
@@ -372,6 +387,87 @@ impl Terminal {
 
     pub fn draw_finder(&mut self, finder: &Finder, input: &LineEdit) {
         let mut stdout = stdout();
+        queue!(
+            stdout,
+            cursor::Hide,
+            MoveTo(0, 0),
+            SetAttribute(Attribute::Reverse),
+            Print(" FIND "),
+            SetAttribute(Attribute::NoReverse),
+            Print(' '),
+            Print(truncate(&input.text(), self.cols - 7)),
+            Clear(ClearType::UntilNewLine),
+            MoveTo(0, 1),
+            Clear(ClearType::UntilNewLine),
+        )
+        .ok();
+
+        let mut y = 2;
+        let mut y_remaining = min(self.rows - 1, 15);
+        for (i, item) in finder.items().iter().enumerate() {
+            queue!(stdout, MoveTo(0, y)).ok();
+            trace!("finder.selected_item_index()={}", finder.selected_item_index());
+            if i == finder.selected_item_index() {
+                queue!(
+                    stdout,
+                    SetAttribute(Attribute::Bold),
+                    SetAttribute(Attribute::Underlined)
+                )
+                .ok();
+            }
+
+            let suffix = match &item.data {
+                FinderItem::File { .. } => "file",
+            };
+
+            let suffix_width = suffix.display_width();
+            let item_width_max = self.cols - (1 + suffix_width);
+
+            let item_width = match &item.data {
+                FinderItem::File { path, pos: None } => {
+                    let s = truncate(path.to_str().unwrap(), item_width_max);
+                    queue!(stdout, Print(s));
+                    s.display_width()
+                }
+                FinderItem::File {
+                    path,
+                    pos: Some(pos),
+                } => {
+                    unimplemented!();
+                }
+            };
+
+            queue!(
+                stdout,
+                Print(whitespaces(item_width_max - item_width)),
+                Print(suffix),
+                SetAttribute(Attribute::Reset),
+            )
+            .ok();
+
+            y += 1;
+            y_remaining -= 1;
+            if y_remaining == 0 {
+                break;
+            }
+        }
+
+        for _ in 0..y_remaining {
+            queue!(
+                stdout,
+                MoveTo(0, y),
+                Clear(ClearType::UntilNewLine),
+            )
+            .ok();
+            y += 1;
+        }
+
+        queue!(
+            stdout,
+            MoveTo(7 + input.cursor() as u16, 0),
+            cursor::Show,
+        ).ok();
+
         stdout.flush().ok();
     }
 }

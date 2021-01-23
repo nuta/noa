@@ -1,10 +1,10 @@
-use std::collections::{BinaryHeap, binary_heap::Iter};
-use std::sync::mpsc::Sender;
-use std::sync::{Arc, RwLock, RwLockReadGuard};
 use crate::editor::Event;
 use crate::rope::Point;
 use ignore::WalkBuilder;
+use std::collections::{binary_heap::Iter, BinaryHeap};
 use std::path::{Path, PathBuf};
+use std::sync::mpsc::Sender;
+use std::sync::{Arc, RwLock, RwLockReadGuard};
 
 pub struct WithPriority<P: Ord + Eq, T> {
     pub priority: P,
@@ -13,10 +13,7 @@ pub struct WithPriority<P: Ord + Eq, T> {
 
 impl<P: Ord + Eq, T> WithPriority<P, T> {
     pub fn new(priority: P, data: T) -> WithPriority<P, T> {
-        WithPriority {
-            priority,
-            data,
-        }
+        WithPriority { priority, data }
     }
 }
 
@@ -42,16 +39,14 @@ impl<P: Ord + Eq, T> Eq for WithPriority<P, T> {}
 
 #[derive(Debug, Clone)]
 pub enum FinderItem {
-    File {
-        path: PathBuf,
-        pos: Option<Point>,
-    }
+    File { path: PathBuf, pos: Option<Point> },
 }
 
 pub struct Finder {
     event_queue: Sender<Event>,
     selected: usize,
     items: Arc<RwLock<BinaryHeap<WithPriority<isize, FinderItem>>>>,
+    current_query: Option<String>,
 }
 
 impl Finder {
@@ -60,21 +55,30 @@ impl Finder {
             event_queue,
             selected: 0,
             items: Arc::new(RwLock::new(BinaryHeap::new())),
+            current_query: None,
         }
     }
 
     pub fn clear(&mut self) {
         self.items.write().unwrap().clear();
         self.selected = 0;
+        self.current_query = None;
     }
 
     pub fn items(&self) -> RwLockReadGuard<BinaryHeap<WithPriority<isize, FinderItem>>> {
         self.items.read().unwrap()
     }
 
+    pub fn selected_item_index(&self) -> usize {
+        self.selected
+    }
+
     pub fn selected_item(&self) -> Option<FinderItem> {
         let items = self.items.read().unwrap();
-        items.iter().nth(self.selected).map(|item| item.data.clone())
+        items
+            .iter()
+            .nth(self.selected)
+            .map(|item| item.data.clone())
     }
 
     pub fn move_prev(&mut self) {
@@ -94,16 +98,23 @@ impl Finder {
     }
 
     pub fn query(&mut self, query: &str) {
-        self.clear();
+        if matches!(&self.current_query, Some(current) if current == query) {
+            return;
+        }
 
-        let cwd = std::env::current_dir().unwrap();
-        let query2 = query.to_owned();
-        let event_queue2 = self.event_queue.clone();
-        let items2 = self.items.clone();
-        std::thread::spawn(move || {
-            provide_file_paths(&query2, items2, &cwd);
-            event_queue2.send(Event::Redraw).ok();
-        });
+        self.clear();
+        self.current_query = Some(query.to_string());
+
+        if !query.is_empty() {
+            let cwd = std::env::current_dir().unwrap();
+            let query = query.to_owned();
+            let event_queue = self.event_queue.clone();
+            let items = self.items.clone();
+            std::thread::spawn(move || {
+                provide_file_paths(&query, items, &cwd);
+                event_queue.send(Event::Redraw).ok();
+            });
+        }
     }
 }
 
@@ -111,7 +122,11 @@ fn fuzzy_match(query: &str, text: &str) -> Option<isize> {
     sublime_fuzzy::best_match(query, text).map(|m| m.score())
 }
 
-fn provide_file_paths(query: &str, items: Arc<RwLock<BinaryHeap<WithPriority<isize, FinderItem>>>>, dir: &Path) {
+fn provide_file_paths(
+    query: &str,
+    items: Arc<RwLock<BinaryHeap<WithPriority<isize, FinderItem>>>>,
+    dir: &Path,
+) {
     const NUM_MATCHES_MAX: usize = 128;
     let mut files = Vec::with_capacity(128);
     let walker = WalkBuilder::new(dir).build();
@@ -119,10 +134,7 @@ fn provide_file_paths(query: &str, items: Arc<RwLock<BinaryHeap<WithPriority<isi
         if let Ok(e) = e {
             let path = e.into_path();
             if let Some(score) = fuzzy_match(query, path.to_str().unwrap()) {
-                files.push((score, FinderItem::File {
-                    path,
-                    pos: None,
-                }));
+                files.push((score, FinderItem::File { path, pos: None }));
 
                 if files.len() >= NUM_MATCHES_MAX {
                     break;

@@ -26,16 +26,22 @@ impl LineEdit {
         self.cursor = 0;
     }
 
+    pub fn cursor(&self) -> usize {
+        self.cursor
+    }
+
     fn cursor_as_pos(&self) -> Point {
         Point::new(0, self.cursor)
     }
 
     pub fn insert(&mut self, s: &str) {
         self.rope.insert(&self.cursor_as_pos(), s);
+        self.cursor += s.chars().count();
     }
 
     pub fn insert_char(&mut self, c: char) {
         self.rope.insert_char(&self.cursor_as_pos(), c);
+        self.cursor += 1;
     }
 
     pub fn backspace(&mut self) {
@@ -43,7 +49,8 @@ impl LineEdit {
             return;
         }
 
-        self.rope.remove(&Range::new(0, self.cursor - 1, 0, self.cursor));
+        self.rope
+            .remove(&Range::new(0, self.cursor - 1, 0, self.cursor));
         self.cursor -= 1;
     }
 
@@ -52,7 +59,8 @@ impl LineEdit {
             return;
         }
 
-        self.rope.remove(&Range::new(0, self.cursor, 0, self.cursor + 1));
+        self.rope
+            .remove(&Range::new(0, self.cursor, 0, self.cursor + 1));
     }
 
     pub fn move_left(&mut self) {
