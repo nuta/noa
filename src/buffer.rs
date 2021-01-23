@@ -57,7 +57,7 @@ impl Buffer {
         };
 
         buffer.mark_undo_point();
-        buffer.is_dirty = false;
+        buffer.reset_dirty_flag();
         buffer
     }
 
@@ -215,7 +215,7 @@ impl Buffer {
                 fs::copy(path, backup_dir.join(&filename)).ok();
             }
             self.rope.save_into_file(path)?;
-            self.is_dirty = false;
+            self.reset_dirty_flag();
         }
 
         Ok(())
