@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::mpsc::{channel, Receiver};
 use std::time::Instant;
+use std::fs::OpenOptions;
 
 pub enum Event {
     Key(KeyEvent),
@@ -90,6 +91,11 @@ impl Editor {
             Err(err) => {
                 self.error(format!("couldn't resolve the path: {:?}", err));
             }
+        }
+
+        let writable = std::fs::OpenOptions::new().read(true).write(true).truncate(false).open(path).is_ok();
+        if !writable {
+            self.error(format!("not writable: {}", path.display()));
         }
 
         match Buffer::open_file(path) {
