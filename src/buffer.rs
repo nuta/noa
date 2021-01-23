@@ -21,9 +21,8 @@ impl TopLeft {
 
 pub struct Buffer {
     rope: Rope,
-    is_dirty: bool,
+    last_saved_rope: Rope,
     name: String,
-    version: usize,
     file: Option<PathBuf>,
     cursor: Cursor,
     top_left: TopLeft,
@@ -36,23 +35,19 @@ pub struct Buffer {
 impl Buffer {
     pub fn new() -> Buffer {
         let language = &crate::language::PLAIN;
-        let mut buffer = Buffer {
-            rope: Rope::new(),
-            is_dirty: false,
-            version: 1,
+        let rope = Rope::new();
+        Buffer {
+            rope: rope.clone(),
+            last_saved_rope: rope.clone(),
             name: String::new(),
             file: None,
             cursor: Cursor::new(0, 0),
             top_left: TopLeft::new(0, 0),
-            undo_stack: Vec::new(),
+            undo_stack: vec![rope],
             redo_stack: Vec::new(),
             language,
             config: EditorConfig::default(),
-        };
-
-        buffer.mark_undo_point();
-        buffer.reset_dirty_flag();
-        buffer
+        }
     }
 
     #[cfg(test)]
@@ -65,23 +60,19 @@ impl Buffer {
     pub fn open_file(path: &Path) -> std::io::Result<Buffer> {
         let language = guess_language(path);
         let file = std::fs::File::open(path)?;
-        let mut buffer = Buffer {
-            rope: Rope::from_reader(file)?,
-            is_dirty: false,
-            version: 1,
+        let rope = Rope::from_reader(file)?;
+        Ok(Buffer {
+            rope: rope.clone(),
+            last_saved_rope: rope.clone(),
             name: String::new(),
             file: Some(path.canonicalize()?),
             cursor: Cursor::new(0, 0),
             top_left: TopLeft::new(0, 0),
-            undo_stack: Vec::new(),
+            undo_stack: vec![rope],
             redo_stack: Vec::new(),
             language,
             config: EditorConfig::resolve(path),
-        };
-
-        buffer.mark_undo_point();
-        buffer.is_dirty = false;
-        Ok(buffer)
+        })
     }
 
     #[cfg(test)]
@@ -102,10 +93,6 @@ impl Buffer {
         self.cursor = Cursor::from_point(&pos);
     }
 
-    pub fn reset_dirty_flag(&mut self) {
-        self.is_dirty = false;
-    }
-
     #[cfg(test)]
     pub fn len(&self) -> usize {
         self.rope.len()
@@ -120,7 +107,7 @@ impl Buffer {
     }
 
     pub fn is_dirty(&self) -> bool {
-        self.is_dirty
+        self.rope != self.last_saved_rope
     }
 
     pub fn name(&self) -> &str {
@@ -165,7 +152,7 @@ impl Buffer {
                 fs::copy(path, backup_dir.join(&filename)).ok();
             }
             self.rope.save_into_file(path)?;
-            self.reset_dirty_flag();
+            self.last_saved_rope = self.rope.clone();
         }
 
         Ok(())
@@ -736,8 +723,6 @@ impl Buffer {
         }
 
         self.undo_stack.push(self.rope.clone());
-        self.version += 1;
-        self.is_dirty = true;
     }
 
     pub fn undo(&mut self) {
