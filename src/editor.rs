@@ -5,11 +5,11 @@ use crate::rope::Cursor;
 use crate::terminal::{KeyCode, KeyEvent, KeyModifiers, Terminal};
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::mpsc::{channel, Receiver};
 use std::time::Instant;
-use std::fs::OpenOptions;
 
 pub enum Event {
     Key(KeyEvent),
@@ -93,7 +93,12 @@ impl Editor {
             }
         }
 
-        let writable = std::fs::OpenOptions::new().read(true).write(true).truncate(false).open(path).is_ok();
+        let writable = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .truncate(false)
+            .open(path)
+            .is_ok();
         if !writable {
             self.error(format!("not writable: {}", path.display()));
         }
