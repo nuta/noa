@@ -209,8 +209,8 @@ impl Terminal {
             return;
         }
 
-        let lineno_width = num_of_digits(buffer.num_lines()) + 2;
-        let text_offset = lineno_width + 1;
+        let lineno_width = num_of_digits(buffer.num_lines()) + 1;
+        let text_offset = lineno_width;
         let text_height = self.rows - 1;
         let text_width = self.cols - text_offset;
         self.text_cols = text_width;
@@ -246,6 +246,7 @@ impl Terminal {
             }
 
             // Get the string chunks of the current (or next) line.
+            let is_wrapped = wrapped.is_some();
             let (mut chunks, chunk_char_start) = match wrapped {
                 Some(inner) => inner,
                 None if y < buffer.num_lines() => (buffer.line(y).chunks().peekable(), 0),
@@ -262,16 +263,27 @@ impl Terminal {
             };
 
             // Line number.
-            queue!(
-                stdout,
-                SetForegroundColor(Color::DarkGrey),
-                Print(whitespaces(lineno_width - num_of_digits(y + 1) - 1)),
-                Print(y + 1),
-                Print(' '),
-                SetAttribute(Attribute::Reset),
-                Print(' '),
-            )
-            .ok();
+            if is_wrapped {
+                queue!(
+                    stdout,
+                    SetForegroundColor(Color::DarkGrey),
+                    Print(whitespaces(lineno_width - 2)),
+                    Print("~"),
+                    SetAttribute(Attribute::Reset),
+                    Print(' '),
+                )
+                .ok();
+            } else {
+                queue!(
+                    stdout,
+                    SetForegroundColor(Color::DarkGrey),
+                    Print(whitespaces(lineno_width - num_of_digits(y + 1) - 1)),
+                    Print(y + 1),
+                    Print(' '),
+                    SetAttribute(Attribute::Reset),
+                )
+                .ok();
+            }
 
             if let Cursor::Selection { range, .. } = &buffer.cursor() {
                 if in_selection && *range.back() == Point::new(y, 0) {
