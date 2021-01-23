@@ -77,5 +77,13 @@ fn main() {
         editor.open_file(path);
     }
 
-    editor.run();
+    match editor.run() {
+        editor::ExitStatus::Gracefully => {}
+        editor::ExitStatus::ForceExit { unsaved_files } => {
+            println!("Unsaved files:");
+            for path in unsaved_files {
+                println!("{}", path.display());
+            }
+        }
+    }
 }

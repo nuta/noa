@@ -17,8 +17,8 @@ pub enum Event {
     Redraw,
 }
 
+#[derive(Clone, Copy)]
 pub enum NotificationLevel {
-    Report,
     Info,
     Error,
 }
@@ -27,12 +27,16 @@ pub struct Notification {
     pub level: NotificationLevel,
     pub message: String,
     pub created_at: Instant,
-    pub persist: bool,
 }
 
 enum EditorMode {
     Normal,
     Finder,
+}
+
+pub enum ExitStatus {
+    Gracefully,
+    ForceExit { unsaved_files: Vec<PathBuf> },
 }
 
 pub struct Editor {
@@ -45,14 +49,18 @@ pub struct Editor {
     buffers: HashMap<PathBuf, Rc<RefCell<Buffer>>>,
     current_buffer: Rc<RefCell<Buffer>>,
     notification: RefCell<Option<Notification>>,
+    backup_dir: PathBuf,
 }
 
 impl Editor {
     pub fn new() -> Editor {
         let (tx, rx) = channel();
 
+        let noa_dir = dirs::home_dir().unwrap().join(".noa");
+        std::fs::create_dir_all(&noa_dir).expect("failed to create ~/.noa");
+
         // Open the scratch buffer.
-        let scratch_path = dirs::home_dir().unwrap().join(".noa_scratch");
+        let scratch_path = noa_dir.join("scratch");
         let mut scratch_buffer =
             Buffer::open_or_create_file(&scratch_path).expect("failed to open the scratch file");
         scratch_buffer.set_name("scratch");
@@ -71,6 +79,7 @@ impl Editor {
             buffers,
             current_buffer: scratch_rc,
             notification: RefCell::new(None),
+            backup_dir: noa_dir.join("backup"),
         }
     }
 
@@ -88,7 +97,6 @@ impl Editor {
             }
         }
 
-        // FIXME: save if modified
         match Buffer::open_file(path) {
             Ok(mut buffer) => {
                 buffer.set_name(path.file_name().unwrap().to_str().unwrap());
@@ -107,27 +115,32 @@ impl Editor {
         for buffer in self.buffers.values() {}
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> ExitStatus {
         loop {
             if self.exited {
-                let num_unsaved = self
+                let unsaved_files: Vec<PathBuf> = self
                     .buffers
                     .values()
-                    .filter(|b| b.borrow().is_dirty())
-                    .count();
-                if num_unsaved == 0 {
-                    return;
+                    .filter(|b| {
+                        let b = b.borrow();
+                        !b.is_virtual_file() && b.is_dirty()
+                    })
+                    .map(|b| b.borrow().path().unwrap().to_owned())
+                    .collect();
+
+                if unsaved_files.is_empty() {
+                    return ExitStatus::Gracefully;
+                } else {
+                    return ExitStatus::ForceExit { unsaved_files };
                 }
-                self.notify(
-                    NotificationLevel::Error,
-                    format!("{} files remain dirty", num_unsaved),
-                );
             }
 
             match self.mode {
                 EditorMode::Normal => {
-                    self.terminal
-                        .draw_buffer(&mut *self.current_buffer.borrow_mut());
+                    self.terminal.draw_buffer(
+                        &mut *self.current_buffer.borrow_mut(),
+                        self.notification.borrow().as_ref(),
+                    );
                 }
                 EditorMode::Finder => {
                     self.terminal.draw_finder(&self.finder, &self.prompt_input);
@@ -144,6 +157,12 @@ impl Editor {
                 self.handle_event(ev);
             }
 
+            // Clear the notification.
+            if matches!(&*self.notification.borrow(), Some(Notification { created_at, .. }) if created_at.elapsed().as_secs() > 8)
+            {
+                self.notification = None;
+            }
+
             self.update_modes();
         }
     }
@@ -154,13 +173,8 @@ impl Editor {
         *self.notification.borrow_mut() = Some(Notification {
             level,
             created_at: Instant::now(),
-            persist: false,
             message: message.replace("\n", " "),
         });
-    }
-
-    fn report<T: Into<String>>(&self, message: T) {
-        self.notify(NotificationLevel::Report, message);
     }
 
     fn info<T: Into<String>>(&self, message: T) {
@@ -219,20 +233,56 @@ impl Editor {
         match self.mode {
             EditorMode::Normal => match (key.code, key.modifiers) {
                 (KeyCode::Char('q'), CTRL) => {
-                    let is_dirty = self.buffers.values().find(|b| b.borrow().is_dirty()).is_some();
-                    self.exited = true;
+                    // Quit if all buffers are clean.
+                    let num_unsaved = self
+                        .buffers
+                        .values()
+                        .filter(|b| b.borrow().is_dirty())
+                        .count();
+                    if num_unsaved > 0 {
+                        self.error(format!("{} files remain dirty", num_unsaved));
+                    } else {
+                        self.exited = true;
+                    }
                 }
                 (KeyCode::Char('q'), ALT) => {
+                    // Force quit.
                     self.exited = true;
+                }
+                (KeyCode::Char('s'), CTRL) => {
+                    // Save the current buffer.
+                    let mut buffer = self.current_buffer.borrow_mut();
+                    match buffer.save(&self.backup_dir) {
+                        Ok(_) => {
+                            self.info(format!("saved {} lines", buffer.num_lines()));
+                        }
+                        Err(err) => {
+                            self.error(format!("failed to save: {}", err));
+                        }
+                    }
+                }
+                (KeyCode::Char('o'), CTRL) => {
+                    // Save all buffers.
+                    let mut failure = None;
+                    for buffer in self.buffers.values() {
+                        let mut buffer = buffer.borrow_mut();
+                        if let Err(err) = buffer.save(&self.backup_dir) {
+                            failure = Some((buffer.name().to_string(), err));
+                        }
+                    }
+
+                    match failure {
+                        Some((name, err)) => {
+                            self.error(format!("failed to save: {}: {}", name, err));
+                        }
+                        None => {
+                            self.info(format!("saved all {} files", self.buffers.len()));
+                        }
+                    }
                 }
                 (KeyCode::Char('f'), CTRL) => {
                     self.prompt_input.clear();
                     self.mode = EditorMode::Finder;
-                }
-                (KeyCode::Char('l'), CTRL) => {
-                    self.current_buffer
-                        .borrow_mut()
-                        .centering(self.terminal.rows());
                 }
                 //
                 //  Text Editing.
@@ -281,6 +331,11 @@ impl Editor {
                 //
                 //  Move cursors.
                 //
+                (KeyCode::Char('l'), CTRL) => {
+                    self.current_buffer
+                        .borrow_mut()
+                        .centering(self.terminal.rows());
+                }
                 (KeyCode::PageUp, NONE) => {
                     self.current_buffer
                         .borrow_mut()

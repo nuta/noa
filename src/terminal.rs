@@ -1,5 +1,5 @@
 use crate::buffer::{Buffer, TopLeft};
-use crate::editor::Event;
+use crate::editor::{Event, Notification, NotificationLevel};
 use crate::finder::{Finder, FinderItem};
 use crate::line_edit::LineEdit;
 use crate::rope::{Cursor, Point};
@@ -195,9 +195,9 @@ impl Terminal {
         self.cols = cols;
     }
 
-    pub fn draw_buffer(&mut self, buffer: &mut Buffer) {
+    pub fn draw_buffer(&mut self, buffer: &mut Buffer, notification: Option<&Notification>) {
         let mut stdout = stdout();
-        if self.cols < 10 || self.rows < 5 {
+        if self.cols < 20 || self.rows < 5 {
             queue!(
                 stdout,
                 Clear(ClearType::All),
@@ -382,17 +382,22 @@ impl Terminal {
         }
 
         // The status line.
+        //           notification
+        //          VVVVVVVVVVVVVV
+        //     (25) saved {} lines                  main.c [+]
+        //     ^^^^^- column #             name ----^^^^^^ ^^^--- dirty idicator
         //
-        //     (25)                          main.c [+]
-        //     ^^^^-- column #      name ----^^^^^^ ^^^--- dirty idicator
-        //
-        let colno_width = num_of_digits(main_pos.x) + 2;
+        let colno_width = num_of_digits(main_pos.x) + 3;
         let indicator = if buffer.is_dirty() { " [+]" } else { "" };
         let indicator_width = indicator.display_width();
+        let notification_width = min(
+            notification.map(|n| n.message.display_width()).unwrap_or(0),
+            self.cols - (colno_width + 10 /* name width */ + indicator_width),
+        );
         let buffer_name = buffer.name();
         let name_width = min(
             buffer_name.display_width(),
-            self.cols - (colno_width + indicator_width),
+            self.cols - (colno_width + notification_width + indicator_width),
         );
         queue!(
             stdout,
@@ -400,11 +405,20 @@ impl Terminal {
             SetForegroundColor(Color::DarkGrey),
             Print('('),
             Print(main_pos.x + 1),
-            Print(')'),
-            Clear(ClearType::UntilNewLine),
-            MoveTo((self.cols - (name_width + indicator_width)) as u16, 0),
-            SetAttribute(Attribute::Reset),
+            Print(") "),
             SetAttribute(Attribute::Bold),
+            match notification.map(|n| n.level) {
+                Some(NotificationLevel::Info) => SetForegroundColor(Color::Reset),
+                Some(NotificationLevel::Error) => SetForegroundColor(Color::Red),
+                None => SetForegroundColor(Color::Reset),
+            },
+            Print(truncate(
+                notification.map(|n| n.message.as_str()).unwrap_or(""),
+                notification_width
+            )),
+            Clear(ClearType::UntilNewLine),
+            SetForegroundColor(Color::Reset),
+            MoveTo((self.cols - (name_width + indicator_width)) as u16, 0),
             Print(truncate(buffer_name, name_width)),
             SetForegroundColor(Color::Yellow),
             Print(indicator),

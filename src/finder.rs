@@ -102,7 +102,7 @@ impl Finder {
         self.selected += 1;
     }
 
-    pub fn query<'a>(&mut self, query: &str) -> bool {
+    pub fn query(&mut self, query: &str) -> bool {
         if matches!(&self.current_query, Some(current) if current == query) {
             return false;
         }
