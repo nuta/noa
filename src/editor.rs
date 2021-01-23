@@ -14,6 +14,7 @@ pub enum Event {
     Key(KeyEvent),
     KeyBatch(String),
     Resize { rows: usize, cols: usize },
+    Redraw,
 }
 
 pub enum NotificationLevel {
@@ -188,6 +189,7 @@ impl Editor {
             Event::Key(key) => self.handle_key_event(key),
             Event::KeyBatch(s) => self.handle_key_batch_event(s),
             Event::Resize { rows, cols } => self.terminal.resize(rows, cols),
+            Event::Redraw => {},
         }
     }
 

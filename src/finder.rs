@@ -1,9 +1,44 @@
+use std::collections::{BinaryHeap, binary_heap::Iter};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 use crate::editor::Event;
 use crate::rope::Point;
 use ignore::WalkBuilder;
 use std::path::{Path, PathBuf};
+
+pub struct WithPriority<P: Ord + Eq, T> {
+    pub priority: P,
+    pub data: T,
+}
+
+impl<P: Ord + Eq, T> WithPriority<P, T> {
+    pub fn new(priority: P, data: T) -> WithPriority<P, T> {
+        WithPriority {
+            priority,
+            data,
+        }
+    }
+}
+
+impl<P: Ord + Eq, T> PartialOrd for WithPriority<P, T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.priority.cmp(&other.priority))
+    }
+}
+
+impl<P: Ord + Eq, T> Ord for WithPriority<P, T> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.priority.cmp(&other.priority)
+    }
+}
+
+impl<P: Ord + Eq, T> PartialEq for WithPriority<P, T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.priority == other.priority
+    }
+}
+
+impl<P: Ord + Eq, T> Eq for WithPriority<P, T> {}
 
 #[derive(Debug, Clone)]
 pub enum FinderItem {
@@ -16,7 +51,7 @@ pub enum FinderItem {
 pub struct Finder {
     event_queue: Sender<Event>,
     selected: usize,
-    items: Arc<RwLock<Vec<FinderItem>>>,
+    items: Arc<RwLock<BinaryHeap<WithPriority<isize, FinderItem>>>>,
 }
 
 impl Finder {
@@ -24,7 +59,7 @@ impl Finder {
         Finder {
             event_queue,
             selected: 0,
-            items: Arc::new(RwLock::new(Vec::new())),
+            items: Arc::new(RwLock::new(BinaryHeap::new())),
         }
     }
 
@@ -33,17 +68,13 @@ impl Finder {
         self.selected = 0;
     }
 
-    pub fn items(&self) -> RwLockReadGuard<Vec<FinderItem>> {
+    pub fn items(&self) -> RwLockReadGuard<BinaryHeap<WithPriority<isize, FinderItem>>> {
         self.items.read().unwrap()
     }
 
     pub fn selected_item(&self) -> Option<FinderItem> {
         let items = self.items.read().unwrap();
-        if items.is_empty() {
-            return None;
-        }
-
-        Some(items[self.selected].clone())
+        items.iter().nth(self.selected).map(|item| item.data.clone())
     }
 
     pub fn move_prev(&mut self) {
@@ -63,31 +94,35 @@ impl Finder {
     }
 
     pub fn query(&mut self, query: &str) {
+        self.clear();
+
         let cwd = std::env::current_dir().unwrap();
         let query2 = query.to_owned();
         let event_queue2 = self.event_queue.clone();
         let items2 = self.items.clone();
         std::thread::spawn(move || {
-            provide_file_paths(&query2, event_queue2, items2, &cwd);
+            provide_file_paths(&query2, items2, &cwd);
+            event_queue2.send(Event::Redraw).ok();
         });
     }
 }
 
-fn provide_file_paths(query: &str, event_queue: Sender<Event>, items: Arc<RwLock<Vec<FinderItem>>>, dir: &Path) {
+fn fuzzy_match(query: &str, text: &str) -> Option<isize> {
+    sublime_fuzzy::best_match(query, text).map(|m| m.score())
+}
+
+fn provide_file_paths(query: &str, items: Arc<RwLock<BinaryHeap<WithPriority<isize, FinderItem>>>>, dir: &Path) {
     const NUM_MATCHES_MAX: usize = 128;
     let mut files = Vec::with_capacity(128);
     let walker = WalkBuilder::new(dir).build();
     for e in walker {
         if let Ok(e) = e {
             let path = e.into_path();
-            let display_name = path.to_str().unwrap().to_owned();
-
-            // TODO: fuzzy match
-            if display_name.contains(query) {
-                files.push(FinderItem::File {
+            if let Some(score) = fuzzy_match(query, path.to_str().unwrap()) {
+                files.push((score, FinderItem::File {
                     path,
                     pos: None,
-                });
+                }));
 
                 if files.len() >= NUM_MATCHES_MAX {
                     break;
@@ -96,5 +131,7 @@ fn provide_file_paths(query: &str, event_queue: Sender<Event>, items: Arc<RwLock
         }
     }
 
-    items.write().unwrap().append(&mut files);
+    for (score, item) in files {
+        items.write().unwrap().push(WithPriority::new(score, item));
+    }
 }

@@ -23,6 +23,7 @@ dirs = "3"
 regex = "1"
 tempfile = "3"
 ignore = "0"
+sublime_fuzzy = "0"
 
 [dev-dependencies]
 pretty_assertions = "0"
