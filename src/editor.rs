@@ -103,10 +103,8 @@ impl Editor {
             }
         }
 
-
         // TODO: Update buffer names.
-        for buffer in self.buffers.values() {
-        }
+        for buffer in self.buffers.values() {}
     }
 
     pub fn run(&mut self) {

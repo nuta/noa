@@ -458,20 +458,11 @@ impl Terminal {
         }
 
         for _ in 0..y_remaining {
-            queue!(
-                stdout,
-                MoveTo(0, y),
-                Clear(ClearType::UntilNewLine),
-            )
-            .ok();
+            queue!(stdout, MoveTo(0, y), Clear(ClearType::UntilNewLine),).ok();
             y += 1;
         }
 
-        queue!(
-            stdout,
-            MoveTo(7 + input.cursor() as u16, 0),
-            cursor::Show,
-        ).ok();
+        queue!(stdout, MoveTo(7 + input.cursor() as u16, 0), cursor::Show,).ok();
 
         stdout.flush().ok();
     }

@@ -1,5 +1,5 @@
-use crate::editor::Event;
 use crate::buffer::Buffer;
+use crate::editor::Event;
 use crate::rope::Point;
 use ignore::WalkBuilder;
 use std::collections::{binary_heap::Iter, BinaryHeap, HashMap};
@@ -126,19 +126,21 @@ impl Finder {
 
     pub fn provide_buffer(&mut self, query: &str, buffer: &Buffer) {
         if let Some(path) = buffer.path() {
-        if let Some(score) = fuzzy_match(query, path.to_str().unwrap()) {
-            self.items.write().unwrap().push(WithPriority::new(score + BUFFER_PRIORITY, FinderItem::Buffer {
-            path: path.to_path_buf(),
-         }));
+            if let Some(score) = fuzzy_match(query, path.to_str().unwrap()) {
+                self.items.write().unwrap().push(WithPriority::new(
+                    score + BUFFER_PRIORITY,
+                    FinderItem::Buffer {
+                        path: path.to_path_buf(),
+                    },
+                ));
+            }
         }
     }
-}
 }
 
 fn fuzzy_match(query: &str, text: &str) -> Option<isize> {
     sublime_fuzzy::best_match(query, text).map(|m| m.score())
 }
-
 
 fn provide_file_paths(
     query: &str,
