@@ -6,7 +6,7 @@ use crate::rope::{Cursor, Point};
 use crossterm::cursor::{self, MoveTo};
 use crossterm::event::{self, DisableMouseCapture, EnableMouseCapture, Event as TermEvent};
 pub use crossterm::event::{
-    KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent as RawMouseEvent,
+    KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent as RawMouseEvent, MouseEventKind,
 };
 use crossterm::style::{Attribute, Color, Print, SetAttribute, SetForegroundColor};
 use crossterm::terminal::{
@@ -630,36 +630,85 @@ impl Terminal {
         const LEFT: MouseButton = MouseButton::Left;
         const ALT: KeyModifiers = KeyModifiers::ALT;
         match (ev, self.last_clicked) {
-            (RawMouseEvent::Down(LEFT, x, y, _), _) if (x as usize) < self.text_start_x => {
-                Some(MouseEvent::ClickLineNo {
-                    y: self.current_top_left.y + y as usize - 1,
-                })
-            }
-            (RawMouseEvent::Down(LEFT, x, y, modifiers), Some(last_clicked))
-                if last_clicked.elapsed() < Duration::from_millis(400) =>
-            {
+            (
+                RawMouseEvent {
+                    kind: MouseEventKind::Down(LEFT),
+                    column,
+                    row,
+                    ..
+                },
+                _,
+            ) if (column as usize) < self.text_start_x => Some(MouseEvent::ClickLineNo {
+                y: self.current_top_left.y + row as usize - 1,
+            }),
+            (
+                RawMouseEvent {
+                    kind: MouseEventKind::Down(LEFT),
+                    column,
+                    row,
+                    modifiers,
+                },
+                Some(last_clicked),
+            ) if last_clicked.elapsed() < Duration::from_millis(400) => {
                 self.last_clicked = Some(Instant::now());
-                self.in_text_area(y, x)
+                self.in_text_area(row, column)
                     .map(|pos| MouseEvent::DoubleClickText {
                         pos,
                         alt: modifiers == ALT,
                     })
             }
-            (RawMouseEvent::Down(LEFT, x, y, modifiers), _) => {
+            (
+                RawMouseEvent {
+                    kind: MouseEventKind::Down(LEFT),
+                    column,
+                    row,
+                    modifiers,
+                },
+                _,
+            ) => {
                 self.last_clicked = Some(Instant::now());
-                self.in_text_area(y, x).map(|pos| MouseEvent::ClickText {
-                    pos,
-                    alt: modifiers == ALT,
-                })
+                self.in_text_area(row, column)
+                    .map(|pos| MouseEvent::ClickText {
+                        pos,
+                        alt: modifiers == ALT,
+                    })
             }
-            (RawMouseEvent::Drag(_, x, y, _), _) if (x as usize) < self.text_start_x => {
-                Some(MouseEvent::DragLineNo { y: y as usize })
+            (
+                RawMouseEvent {
+                    kind: MouseEventKind::Drag(LEFT),
+                    row,
+                    column,
+                    ..
+                },
+                _,
+            ) if (column as usize) < self.text_start_x => {
+                Some(MouseEvent::DragLineNo { y: row as usize })
             }
-            (RawMouseEvent::Drag(_, x, y, _), _) => self
-                .in_text_area(y, x)
+            (
+                RawMouseEvent {
+                    kind: MouseEventKind::Drag(LEFT),
+                    row,
+                    column,
+                    ..
+                },
+                _,
+            ) => self
+                .in_text_area(row, column)
                 .map(|pos| MouseEvent::DragText { pos }),
-            (RawMouseEvent::ScrollDown(..), _) => Some(MouseEvent::ScrollDown),
-            (RawMouseEvent::ScrollUp(..), _) => Some(MouseEvent::ScrollUp),
+            (
+                RawMouseEvent {
+                    kind: MouseEventKind::ScrollDown,
+                    ..
+                },
+                _,
+            ) => Some(MouseEvent::ScrollDown),
+            (
+                RawMouseEvent {
+                    kind: MouseEventKind::ScrollUp,
+                    ..
+                },
+                _,
+            ) => Some(MouseEvent::ScrollUp),
             _ => {
                 trace!("unhandled event: {:?}", ev);
                 None

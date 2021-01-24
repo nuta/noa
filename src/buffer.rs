@@ -687,6 +687,14 @@ impl Buffer {
             }
         }
 
+        if let Cursor::Normal { pos, .. } = &self.cursor {
+            // Decrease the indentation level if the cursor is in an indent.
+            if pos.x <= self.indent_size(pos.y) {
+                self.back_tab();
+                return;
+            }
+        }
+
         // Determine the range to be deleted.
         let range = match self.cursor() {
             Cursor::Normal { pos, .. } => {
