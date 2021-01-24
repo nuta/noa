@@ -1,11 +1,11 @@
 use crate::buffer::Buffer;
 use crate::finder::{Finder, FinderItem};
 use crate::line_edit::LineEdit;
-use crate::rope::Cursor;
-use crate::terminal::{KeyCode, KeyEvent, KeyModifiers, Terminal};
+use crate::rope::{Cursor, Range};
+use crate::terminal::{KeyCode, KeyEvent, KeyModifiers, Terminal, RawMouseEvent, MouseEvent};
 use std::cell::RefCell;
 use std::collections::HashMap;
-
+use std::cmp::min;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::mpsc::{channel, Receiver};
@@ -14,6 +14,7 @@ use std::time::Instant;
 pub enum Event {
     Key(KeyEvent),
     KeyBatch(String),
+    Mouse(RawMouseEvent),
     Resize { rows: usize, cols: usize },
     Redraw,
 }
@@ -244,6 +245,11 @@ impl Editor {
         match ev {
             Event::Key(key) => self.handle_key_event(key),
             Event::KeyBatch(s) => self.handle_key_batch_event(s),
+            Event::Mouse(mouse) => {
+                if let Some(ev) = self.terminal.convert_raw_mouse_event(mouse) {
+                    self.handle_mouse_event(ev);
+                }
+            }
             Event::Resize { rows, cols } => self.terminal.resize(rows, cols),
             Event::Redraw => {}
         }
@@ -480,6 +486,45 @@ impl Editor {
             EditorMode::Finder => {
                 self.prompt_input.insert(&s);
             }
+        }
+    }
+
+    fn handle_mouse_event(&mut self, ev: MouseEvent) {
+        trace!("mouse: {:?}", ev);
+        let mut buffer = self.current_buffer.borrow_mut();
+        match ev {
+            MouseEvent::ClickText { pos, alt: true } => {
+                // TODO:
+            }
+            MouseEvent::DoubleClickText { pos, .. } => {
+                if let Some(range) = buffer.current_word_range() {
+                    buffer.select_by_ranges(&range);
+                } else {
+                    buffer.goto(pos.y, pos.x)
+                }
+            }
+            MouseEvent::ClickText { pos, .. } => {
+                buffer.goto(pos.y, pos.x);
+            }
+            MouseEvent::ClickLineNo { y, .. } if y >= buffer.num_lines() => {
+                // Out of bounds. Do nothing.
+            }
+            MouseEvent::ClickLineNo { y, .. } => {
+                buffer.select_line(y);
+            }
+            MouseEvent::Drag { pos: mut drag_pos } => {
+                let start_pos = match buffer.cursor() {
+                    Cursor::Selection { range, ..} => range.start,
+                    Cursor::Normal { pos, .. } => *pos,
+                };
+
+                drag_pos.y = min(drag_pos.y, buffer.num_lines());
+                drag_pos.x = min(drag_pos.x, buffer.line_len(drag_pos.y));
+                let range = Range::from_points(start_pos, drag_pos);
+                buffer.select_by_ranges(&range);
+            }
+            MouseEvent::ScrollUp => buffer.scroll_up(5),
+            MouseEvent::ScrollDown => buffer.scroll_down(5),
         }
     }
 }

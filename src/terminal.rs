@@ -5,7 +5,7 @@ use crate::line_edit::LineEdit;
 use crate::rope::{Cursor, Point};
 use crossterm::cursor::{self, MoveTo};
 use crossterm::event::{self, DisableMouseCapture, EnableMouseCapture, Event as TermEvent};
-pub use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent as RawMouseEvent};
+pub use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent as RawMouseEvent, MouseButton};
 use crossterm::style::{Attribute, Color, Print, SetAttribute, SetForegroundColor};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, size, EnterAlternateScreen, LeaveAlternateScreen,
@@ -16,7 +16,7 @@ use std::cmp::min;
 use std::io::{stdout, Write};
 use std::sync::mpsc::Sender;
 use std::thread;
-use std::time::Duration;
+use std::time::{Instant, Duration};
 
 pub trait DisplayWidth {
     fn display_width(&self) -> usize;
@@ -104,8 +104,8 @@ pub fn handle_term_event(event_queue: Sender<Event>) {
             TermEvent::Key(key) => {
                 event_queue.send(Event::Key(key)).ok();
             }
-            TermEvent::Mouse(_mouse) => {
-                // event_queue.enqueue(Event::Mouse(mouse));
+            TermEvent::Mouse(mouse) => {
+                event_queue.send(Event::Mouse(mouse)).ok();
             }
             TermEvent::Resize(cols, rows) => {
                 event_queue
@@ -176,12 +176,36 @@ pub fn handle_term_event(event_queue: Sender<Event>) {
     }
 }
 
+#[derive(Debug)]
+pub enum MouseEvent {
+    ClickText {
+        /// The position in the buffer. They could be larger than the line lengths.
+        pos: Point,
+        alt: bool,
+    },
+    DoubleClickText {
+        /// The position in the buffer. They could be larger than the line lengths.
+        pos: Point,
+        alt: bool,
+    },
+    ClickLineNo {
+        y: usize,
+    },
+    ScrollUp,
+    ScrollDown,
+    Drag {
+        /// The position in the buffer. They could be larger than the line lengths.
+        pos: Point,
+    },
+}
+
 pub struct Terminal {
     rows: usize,
     cols: usize,
     text_cols: usize,
     current_top_left: TopLeft,
     current_num_lines: usize,
+    last_clicked: Option<Instant>,
     text_start_x: usize,
     text_end_x: usize,
     text_height: usize,
@@ -209,6 +233,7 @@ impl Terminal {
             text_cols: 0, // Filled in draw.
             current_top_left: TopLeft::new(0, 0),
             current_num_lines: 0,
+            last_clicked: None,
             text_start_x: 0,
             text_end_x: 0,
             text_height: 0,
@@ -568,6 +593,55 @@ impl Terminal {
         queue!(stdout, MoveTo((7 + input.cursor() - input.top_left()) as u16, 0), cursor::Show,).ok();
 
         stdout.flush().ok();
+    }
+
+    fn in_text_area(&self, y: u16, x: u16) -> Option<Point> {
+        let in_text_area = (y as usize) >= 1
+            && self.text_start_x <= (x as usize)
+            && (x as usize) <= self.text_end_x;
+
+        if !in_text_area {
+            return None;
+        }
+
+        let pos_y = self.current_top_left.y + y as usize - 1;
+        let pos_x = x as usize - self.text_start_x;
+        Some(Point::new(pos_y, pos_x))
+    }
+
+    pub fn convert_raw_mouse_event(&mut self, ev: RawMouseEvent) -> Option<MouseEvent> {
+        const LEFT: MouseButton = MouseButton::Left;
+        const ALT: KeyModifiers = KeyModifiers::ALT;
+        match (ev, self.last_clicked) {
+            (RawMouseEvent::Down(LEFT, x, y, _), _) if (x as usize) < self.text_start_x => {
+                Some(MouseEvent::ClickLineNo {
+                    y: self.current_top_left.y + y as usize - 1
+                })
+            }
+            (RawMouseEvent::Down(LEFT, x, y, modifiers), Some(last_clicked)) if last_clicked.elapsed() < Duration::from_millis(400) => {
+                self.last_clicked = Some(Instant::now());
+                self.in_text_area(y, x).map(|pos| MouseEvent::DoubleClickText {
+                    pos,
+                    alt: modifiers == ALT,
+                })
+            }
+            (RawMouseEvent::Down(LEFT, x, y, modifiers), _) => {
+                self.last_clicked = Some(Instant::now());
+                self.in_text_area(y, x).map(|pos| MouseEvent::ClickText {
+                    pos,
+                    alt: modifiers == ALT,
+                })
+            }
+            (RawMouseEvent::Drag(_, x, y, _), _) => {
+                self.in_text_area(y, x).map(|pos| MouseEvent::Drag { pos })
+            }
+            (RawMouseEvent::ScrollDown(..), _) => Some(MouseEvent::ScrollDown),
+            (RawMouseEvent::ScrollUp(..), _) => Some(MouseEvent::ScrollUp),
+            _ => {
+                trace!("unhandled event: {:?}", ev);
+                None
+            }
+        }
     }
 }
 

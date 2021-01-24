@@ -473,6 +473,11 @@ impl Buffer {
         self.set_cursor(Cursor::from_range(&Range::from_points(start, end)));
     }
 
+    pub fn select_line(&mut self, y: usize) {
+        self.set_cursor(Cursor::new(y, 0));
+        self.select_until_end_of_line();
+    }
+
     pub fn insert_char(&mut self, ch: char) {
         self.insert(&ch.to_string())
     }
@@ -814,6 +819,10 @@ impl Buffer {
         };
 
         self.rope.prev_word_at(pos)
+    }
+
+    pub fn select_by_ranges(&mut self, selection: &Range) {
+        self.cursor = Cursor::from_range(selection);
     }
 
     pub fn find(&mut self, needle: &str) -> Vec<Range> {
