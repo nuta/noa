@@ -336,12 +336,11 @@ impl Buffer {
                     pos.x = prev_line_len;
                     let prev_line_width =
                         self.width_in_display(pos.y, 0, prev_line_len) % (cols + 1);
-                    let logical_x_width =
-                        if logical_x <= prev_line_len {
-                            self.width_in_display(pos.y, 0, logical_x) % (cols + 1)
-                        } else {
-                            0
-                        };
+                    let logical_x_width = if logical_x <= prev_line_len {
+                        self.width_in_display(pos.y, 0, logical_x) % (cols + 1)
+                    } else {
+                        0
+                    };
                     if prev_line_width <= from_left {
                         break;
                     }
@@ -627,7 +626,9 @@ impl Buffer {
 
     pub fn tab(&mut self) {
         match self.cursor.clone() {
-            Cursor::Normal { pos, .. } => { self.do_indent(&pos); }
+            Cursor::Normal { pos, .. } => {
+                self.do_indent(&pos);
+            }
             Cursor::Selection { range, .. } => {
                 let end_y = if range.back().x == 0 {
                     max(range.front().y, range.back().y.saturating_sub(1))
@@ -662,13 +663,16 @@ impl Buffer {
 
     pub fn back_tab(&mut self) {
         match self.cursor.clone() {
-            Cursor::Normal { pos, .. } => { self.do_deindent(&pos); }
-            Cursor::Selection { range, .. } if range.start.y == range.end.y => {
-                let y = range.start.y;
-                self.do_deindent(&Point::new(y, self.indent_size(y)));
+            Cursor::Normal { pos, .. } => {
+                self.do_deindent(&pos);
             }
             Cursor::Selection { range, .. } => {
-                for y in (range.front().y..range.back().y).rev() {
+                let end_y = if range.back().x == 0 {
+                    max(range.front().y, range.back().y.saturating_sub(1))
+                } else {
+                    range.back().y
+                };
+                for y in (range.front().y..=end_y).rev() {
                     self.do_deindent(&Point::new(y, self.indent_size(y)));
                 }
             }
@@ -743,27 +747,37 @@ impl Buffer {
             None => return,
         };
 
-        let (ys, _x) = match self.cursor() {
-            Cursor::Normal { pos, .. } => (pos.y..=pos.y, pos.x),
+        let (old_x, y_start, y_end) = match self.cursor() {
+            Cursor::Normal { pos, .. } => (pos.x, pos.y, pos.y),
             Cursor::Selection { range, .. } => {
-                let front = range.front();
-                (front.y..=range.back().y, front.x)
+                let end_y = if range.back().x == 0 {
+                    max(range.front().y, range.back().y.saturating_sub(1))
+                } else {
+                    range.back().y
+                };
+
+                (0, range.front().y, end_y)
             }
         };
 
         let prefix_len = prefix.chars().count();
-        for y in ys {
+        let mut new_x = 0;
+        for y in y_start..=y_end {
             let indent_size = self.indent_size(y);
             if self.line_substr(y, indent_size).starts_with(prefix) {
+                new_x = old_x.saturating_sub(prefix_len);
                 self.rope
                     .remove(&Range::new(y, indent_size, y, indent_size + prefix_len));
             } else {
+                new_x = old_x + prefix_len;
                 self.rope.insert(&Point::new(y, indent_size), prefix);
             }
         }
 
-        if let Cursor::Normal { pos, .. } = &mut self.cursor {
-            pos.x += prefix_len;
+        if y_start == y_end {
+            self.cursor = Cursor::new(y_start, new_x);
+        } else {
+            self.cursor = Cursor::from_range(&Range::new(y_start, 0, y_end, 0));
         }
     }
 
@@ -1731,17 +1745,22 @@ mod test {
     fn comment_out() {
         let mut b = Buffer::from_str("abc");
         b.set_language(&crate::language::CXX);
-        b.set_cursor(Cursor::new(0, 3));
+        b.set_cursor(Cursor::new(0, 1));
         b.toggle_comment_out();
         assert_eq!(&b.text(), "// abc");
-        assert_eq!(b.cursor(), &Cursor::new(0, 6));
+        assert_eq!(b.cursor(), &Cursor::new(0, 4));
 
-        let mut b = Buffer::from_str("");
-        b.set_language(&crate::language::CXX);
+        b.set_text("");
         b.set_cursor(Cursor::new(0, 0));
         b.toggle_comment_out();
         assert_eq!(&b.text(), "// ");
         assert_eq!(b.cursor(), &Cursor::new(0, 3));
+
+        b.set_text("    x\n    y\n    z");
+        b.set_cursor(Cursor::from_range(&Range::new(0, 0, 3, 0)));
+        b.toggle_comment_out();
+        assert_eq!(&b.text(), "    // x\n    // y\n    // z");
+        assert_eq!(b.cursor(), &Cursor::from_range(&Range::new(0, 0, 2, 0)));
     }
 
     #[test]
@@ -1757,6 +1776,12 @@ mod test {
         b.set_cursor(Cursor::new(0, 0));
         b.toggle_comment_out();
         assert_eq!(&b.text(), "");
+
+        b.set_text("// \n\n// z");
+        b.set_cursor(Cursor::from_range(&Range::new(0, 0, 2, 4)));
+        b.toggle_comment_out();
+        assert_eq!(&b.text(), "\n// \nz");
+        assert_eq!(b.cursor(), &Cursor::from_range(&Range::new(0, 0, 2, 0)));
     }
 
     #[test]

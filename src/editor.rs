@@ -2,10 +2,10 @@ use crate::buffer::Buffer;
 use crate::finder::{Finder, FinderItem};
 use crate::line_edit::LineEdit;
 use crate::rope::{Cursor, Range};
-use crate::terminal::{KeyCode, KeyEvent, KeyModifiers, Terminal, RawMouseEvent, MouseEvent};
+use crate::terminal::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, RawMouseEvent, Terminal};
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::cmp::min;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::mpsc::{channel, Receiver};
@@ -167,7 +167,8 @@ impl Editor {
                     );
                 }
                 EditorMode::Finder => {
-                    self.terminal.draw_finder(&self.finder, &mut self.prompt_input);
+                    self.terminal
+                        .draw_finder(&self.finder, &mut self.prompt_input);
                 }
             }
 
@@ -514,7 +515,7 @@ impl Editor {
             }
             MouseEvent::DragLineNo { y } => {
                 let start_y = match buffer.cursor() {
-                    Cursor::Selection { range, ..} => range.front().y,
+                    Cursor::Selection { range, .. } => range.front().y,
                     Cursor::Normal { pos, .. } => pos.y,
                 };
 
@@ -524,7 +525,7 @@ impl Editor {
             }
             MouseEvent::DragText { pos: mut drag_pos } => {
                 let start_pos = match buffer.cursor() {
-                    Cursor::Selection { range, ..} => range.start,
+                    Cursor::Selection { range, .. } => range.start,
                     Cursor::Normal { pos, .. } => *pos,
                 };
 

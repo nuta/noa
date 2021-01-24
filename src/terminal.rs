@@ -5,7 +5,9 @@ use crate::line_edit::LineEdit;
 use crate::rope::{Cursor, Point};
 use crossterm::cursor::{self, MoveTo};
 use crossterm::event::{self, DisableMouseCapture, EnableMouseCapture, Event as TermEvent};
-pub use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent as RawMouseEvent, MouseButton};
+pub use crossterm::event::{
+    KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent as RawMouseEvent,
+};
 use crossterm::style::{Attribute, Color, Print, SetAttribute, SetForegroundColor};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, size, EnterAlternateScreen, LeaveAlternateScreen,
@@ -16,7 +18,7 @@ use std::cmp::min;
 use std::io::{stdout, Write};
 use std::sync::mpsc::Sender;
 use std::thread;
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
 pub trait DisplayWidth {
     fn display_width(&self) -> usize;
@@ -387,7 +389,10 @@ impl Terminal {
                 chunk_i = 0;
                 for c in s.chars().skip(chunk_char_start) {
                     let (tab, char_width) = match c {
-                        '\t' => (true, buffer.config().tab_width - x % buffer.config().tab_width),
+                        '\t' => (
+                            true,
+                            buffer.config().tab_width - x % buffer.config().tab_width,
+                        ),
                         _ => (false, c.display_width()),
                     };
 
@@ -511,11 +516,15 @@ impl Terminal {
     }
 
     pub fn draw_finder(&mut self, finder: &Finder, input: &mut LineEdit) {
-        let text_width= self.cols - 8;
+        let text_width = self.cols - 8;
         input.adjust_top_left(text_width);
 
         let text = &input.text();
-        let text_index = text.char_indices().nth(input.top_left()).map(|(i, _)| i).unwrap_or(0);
+        let text_index = text
+            .char_indices()
+            .nth(input.top_left())
+            .map(|(i, _)| i)
+            .unwrap_or(0);
 
         let mut stdout = stdout();
         queue!(
@@ -593,7 +602,12 @@ impl Terminal {
             y += 1;
         }
 
-        queue!(stdout, MoveTo((7 + input.cursor() - input.top_left()) as u16, 0), cursor::Show,).ok();
+        queue!(
+            stdout,
+            MoveTo((7 + input.cursor() - input.top_left()) as u16, 0),
+            cursor::Show,
+        )
+        .ok();
 
         stdout.flush().ok();
     }
@@ -618,15 +632,18 @@ impl Terminal {
         match (ev, self.last_clicked) {
             (RawMouseEvent::Down(LEFT, x, y, _), _) if (x as usize) < self.text_start_x => {
                 Some(MouseEvent::ClickLineNo {
-                    y: self.current_top_left.y + y as usize - 1
+                    y: self.current_top_left.y + y as usize - 1,
                 })
             }
-            (RawMouseEvent::Down(LEFT, x, y, modifiers), Some(last_clicked)) if last_clicked.elapsed() < Duration::from_millis(400) => {
+            (RawMouseEvent::Down(LEFT, x, y, modifiers), Some(last_clicked))
+                if last_clicked.elapsed() < Duration::from_millis(400) =>
+            {
                 self.last_clicked = Some(Instant::now());
-                self.in_text_area(y, x).map(|pos| MouseEvent::DoubleClickText {
-                    pos,
-                    alt: modifiers == ALT,
-                })
+                self.in_text_area(y, x)
+                    .map(|pos| MouseEvent::DoubleClickText {
+                        pos,
+                        alt: modifiers == ALT,
+                    })
             }
             (RawMouseEvent::Down(LEFT, x, y, modifiers), _) => {
                 self.last_clicked = Some(Instant::now());
@@ -638,9 +655,9 @@ impl Terminal {
             (RawMouseEvent::Drag(_, x, y, _), _) if (x as usize) < self.text_start_x => {
                 Some(MouseEvent::DragLineNo { y: y as usize })
             }
-            (RawMouseEvent::Drag(_, x, y, _), _) => {
-                self.in_text_area(y, x).map(|pos| MouseEvent::DragText { pos })
-            }
+            (RawMouseEvent::Drag(_, x, y, _), _) => self
+                .in_text_area(y, x)
+                .map(|pos| MouseEvent::DragText { pos }),
             (RawMouseEvent::ScrollDown(..), _) => Some(MouseEvent::ScrollDown),
             (RawMouseEvent::ScrollUp(..), _) => Some(MouseEvent::ScrollUp),
             _ => {
