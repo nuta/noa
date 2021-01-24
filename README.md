@@ -12,15 +12,18 @@ Features (or TODO)
   - [x] Logical x
 - [x] Terminal
   - [x] Wrapping
-- [ ] Finder
-- [ ] Commander
-- [ ] Mouse
+- [x] Finder
+- [x] Mouse
+- [x] Auto indentation
+  - [x] Deindent by `}`
+- [x] Backup
 - [ ] Undo & redo
-- [ ] Auto indentation
-  - [ ] Deindent by `}`
 - [ ] Copy & paste
-- [ ] Format on save
+- [ ] Commander
 - [ ] Backup
+- [ ] Open link
+- [ ] Completion
+- [ ] Format on save
 - [ ] Faster search algorithm
 
 Installation
