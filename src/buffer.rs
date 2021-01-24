@@ -336,13 +336,19 @@ impl Buffer {
                     pos.x = prev_line_len;
                     let prev_line_width =
                         self.width_in_display(pos.y, 0, prev_line_len) % (cols + 1);
+                    let logical_x_width =
+                        if logical_x <= prev_line_len {
+                            self.width_in_display(pos.y, 0, logical_x) % (cols + 1)
+                        } else {
+                            0
+                        };
                     if prev_line_width <= from_left {
                         break;
                     }
                     loop {
                         if pos.x == 0
                             || self.width_in_display(pos.y, pos.x, prev_line_len)
-                                >= prev_line_width - from_left
+                                >= prev_line_width - max(from_left, logical_x_width)
                         {
                             break 'outer2;
                         }
@@ -1105,7 +1111,7 @@ mod test {
     }
 
     #[test]
-    fn logical_cursor_x() {
+    fn logical_cursor_x_when_moving_down() {
         // abc|d   =>   abcd
         //
         // 1234         123|4
@@ -1127,6 +1133,31 @@ mod test {
         assert_eq!(b.cursor(), &Cursor::new(1, 1));
         b.move_cursor_with_line_wrap(30, 0, 1);
         assert_eq!(b.cursor(), &Cursor::new(2, 1));
+    }
+
+    #[test]
+    fn logical_cursor_x_when_moving_up() {
+        // abcd    =>   abc|d
+        //
+        // 123|4        1234
+        let mut b = Buffer::new();
+        b.insert("abcd\n\n1234");
+        b.set_cursor(Cursor::new(2, 3));
+        b.move_cursor_with_line_wrap(30, 2, 0);
+        assert_eq!(b.cursor(), &Cursor::new(0, 3));
+
+        // abcd    =>   abcd    =>   abcd    =>   a|bcd
+        // xy           xy|          x|y          xy
+        // 123|4        1234         1234         1234
+        let mut b = Buffer::new();
+        b.insert("abcd\nxy\n1234");
+        b.set_cursor(Cursor::new(2, 3));
+        b.move_cursor_with_line_wrap(30, 1, 0);
+        assert_eq!(b.cursor(), &Cursor::new(1, 2));
+        b.move_cursor(0, 0, 1, 0);
+        assert_eq!(b.cursor(), &Cursor::new(1, 1));
+        b.move_cursor_with_line_wrap(30, 1, 0);
+        assert_eq!(b.cursor(), &Cursor::new(0, 1));
     }
 
     #[test]
