@@ -574,16 +574,10 @@ impl Buffer {
         }
     }
 
-    pub fn tab(&mut self) {
-        let pos = match &self.cursor {
-            Cursor::Normal { pos, .. } => pos,
-            Cursor::Selection { range, .. } => range.front(),
-        };
-
+    fn do_indent(&mut self, pos: &Point) {
         // Should we do auto-indent?
         let auto_indent = pos.x <= self.indent_size(pos.y);
-        let x;
-        if auto_indent {
+        let new_x = if auto_indent {
             let prev_indent_size = if pos.y > 0 {
                 self.indent_size(pos.y - 1)
             } else {
@@ -602,7 +596,6 @@ impl Buffer {
             };
             let num_chars = indent_size - (pos.x % indent_size);
 
-            x = pos.x + num_chars;
             let ch = match self.config.indent_style {
                 IndentStyle::Space => ' ',
                 IndentStyle::Tab => '\t',
@@ -610,22 +603,45 @@ impl Buffer {
             for _ in 0..num_chars {
                 self.rope.insert_char(pos, ch);
             }
+
+            pos.x + num_chars
         } else {
-            // Not auto indent; the user just wants to input '\t'.
-            self.rope.insert_char(pos, '\t');
-            x = pos.x + 1;
-        }
-
-        self.cursor = Cursor::new(pos.y, x);
-    }
-
-    // Decrease indent levels.
-    pub fn back_tab(&mut self) {
-        let pos = match &self.cursor {
-            Cursor::Normal { pos, .. } => pos,
-            Cursor::Selection { range, .. } => range.front(),
+            match self.config.indent_style {
+                IndentStyle::Space => {
+                    // Insert spaces until the next indentation level.
+                    let n = self.config.indent_size - (pos.x % self.config.indent_size);
+                    for _ in 0..n {
+                        self.rope.insert_char(pos, ' ');
+                    }
+                    pos.x + n
+                }
+                IndentStyle::Tab => {
+                    self.rope.insert_char(pos, '\t');
+                    pos.x + 1
+                }
+            }
         };
 
+        self.cursor = Cursor::new(pos.y, new_x);
+    }
+
+    pub fn tab(&mut self) {
+        match self.cursor.clone() {
+            Cursor::Normal { pos, .. } => { self.do_indent(&pos); }
+            Cursor::Selection { range, .. } => {
+                let end_y = if range.back().x == 0 {
+                    max(range.front().y, range.back().y.saturating_sub(1))
+                } else {
+                    range.back().y
+                };
+                for y in (range.front().y..=end_y).rev() {
+                    self.do_indent(&Point::new(y, self.indent_size(y)));
+                }
+            }
+        }
+    }
+
+    pub fn do_deindent(&mut self, pos: &Point) {
         let n = min(
             self.indent_size(pos.y),
             if pos.x % self.config.indent_size == 0 {
@@ -641,6 +657,21 @@ impl Buffer {
             self.cursor = Cursor::new(pos.y, pos.x.saturating_sub(n));
         } else {
             self.cursor = Cursor::new(pos.y, pos.x);
+        }
+    }
+
+    pub fn back_tab(&mut self) {
+        match self.cursor.clone() {
+            Cursor::Normal { pos, .. } => { self.do_deindent(&pos); }
+            Cursor::Selection { range, .. } if range.start.y == range.end.y => {
+                let y = range.start.y;
+                self.do_deindent(&Point::new(y, self.indent_size(y)));
+            }
+            Cursor::Selection { range, .. } => {
+                for y in (range.front().y..range.back().y).rev() {
+                    self.do_deindent(&Point::new(y, self.indent_size(y)));
+                }
+            }
         }
     }
 
@@ -1636,6 +1667,27 @@ mod test {
         b.insert_with_smart_indent('}');
         assert_eq!(&b.text(), "    if (expr) {\n    }");
         assert_eq!(b.cursor(), &Cursor::new(1, 5));
+    }
+
+    #[test]
+    fn indent_with_selection() {
+        let mut b = Buffer::from_str("xyz");
+        b.set_cursor(Cursor::from_range(&Range::new(0, 1, 0, 3)));
+        b.tab();
+        assert_eq!(&b.text(), "    xyz");
+        assert_eq!(b.cursor(), &Cursor::new(0, 4));
+
+        let mut b = Buffer::from_str("    a\n    b");
+        b.set_cursor(Cursor::from_range(&Range::new(0, 0, 1, 1)));
+        b.tab();
+        assert_eq!(&b.text(), "        a\n        b");
+        assert_eq!(b.cursor(), &Cursor::new(0, 8));
+
+        let mut b = Buffer::from_str("    a\n   b\n  c\n d\nxyz");
+        b.set_cursor(Cursor::from_range(&Range::new(0, 0, 4, 0)));
+        b.tab();
+        assert_eq!(&b.text(), "        a\n    b\n    c\n    d\nxyz");
+        assert_eq!(b.cursor(), &Cursor::new(0, 8));
     }
 
     #[test]
