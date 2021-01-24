@@ -709,10 +709,7 @@ impl Terminal {
                 },
                 _,
             ) => Some(MouseEvent::ScrollUp),
-            _ => {
-                trace!("unhandled event: {:?}", ev);
-                None
-            }
+            _ => None,
         }
     }
 }
