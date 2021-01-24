@@ -498,7 +498,7 @@ impl Editor {
             }
             MouseEvent::DoubleClickText { pos, .. } => {
                 if let Some(range) = buffer.current_word_range() {
-                    buffer.select_by_ranges(&range);
+                    buffer.select_by_range(&range);
                 } else {
                     buffer.goto(pos.y, pos.x)
                 }
@@ -520,7 +520,7 @@ impl Editor {
 
                 let end_y = min(y, buffer.num_lines());
                 let range = Range::new(start_y, 0, end_y, 0);
-                buffer.select_by_ranges(&range);
+                buffer.select_by_range(&range);
             }
             MouseEvent::DragText { pos: mut drag_pos } => {
                 let start_pos = match buffer.cursor() {
@@ -531,7 +531,7 @@ impl Editor {
                 drag_pos.y = min(drag_pos.y, buffer.num_lines() - 1);
                 drag_pos.x = min(drag_pos.x, buffer.line_len(drag_pos.y));
                 let range = Range::from_points(start_pos, drag_pos);
-                buffer.select_by_ranges(&range);
+                buffer.select_by_range(&range);
             }
             MouseEvent::ScrollUp => buffer.scroll_up(5),
             MouseEvent::ScrollDown => buffer.scroll_down(5),

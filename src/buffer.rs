@@ -436,6 +436,14 @@ impl Buffer {
         self.set_cursor(Cursor::from_range(&Range::from_points(start, end)));
     }
 
+    pub fn select_by_range(&mut self, selection: &Range) {
+        if selection.start == selection.end {
+            self.cursor = Cursor::from_point(&selection.start);
+        } else {
+            self.cursor = Cursor::from_range(selection);
+        }
+    }
+
     pub fn select_until_beginning_of_line(&mut self) {
         let (mut start, mut end) = match self.cursor() {
             Cursor::Normal { pos, .. } => (*pos, *pos),
@@ -819,10 +827,6 @@ impl Buffer {
         };
 
         self.rope.prev_word_at(pos)
-    }
-
-    pub fn select_by_ranges(&mut self, selection: &Range) {
-        self.cursor = Cursor::from_range(selection);
     }
 
     pub fn find(&mut self, needle: &str) -> Vec<Range> {
