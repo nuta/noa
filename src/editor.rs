@@ -512,13 +512,23 @@ impl Editor {
             MouseEvent::ClickLineNo { y, .. } => {
                 buffer.select_line(y);
             }
-            MouseEvent::Drag { pos: mut drag_pos } => {
+            MouseEvent::DragLineNo { y } => {
+                let start_y = match buffer.cursor() {
+                    Cursor::Selection { range, ..} => range.front().y,
+                    Cursor::Normal { pos, .. } => pos.y,
+                };
+
+                let end_y = min(y, buffer.num_lines());
+                let range = Range::new(start_y, 0, end_y, 0);
+                buffer.select_by_ranges(&range);
+            }
+            MouseEvent::DragText { pos: mut drag_pos } => {
                 let start_pos = match buffer.cursor() {
                     Cursor::Selection { range, ..} => range.start,
                     Cursor::Normal { pos, .. } => *pos,
                 };
 
-                drag_pos.y = min(drag_pos.y, buffer.num_lines());
+                drag_pos.y = min(drag_pos.y, buffer.num_lines() - 1);
                 drag_pos.x = min(drag_pos.x, buffer.line_len(drag_pos.y));
                 let range = Range::from_points(start_pos, drag_pos);
                 buffer.select_by_ranges(&range);

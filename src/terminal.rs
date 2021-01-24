@@ -191,12 +191,15 @@ pub enum MouseEvent {
     ClickLineNo {
         y: usize,
     },
-    ScrollUp,
-    ScrollDown,
-    Drag {
+    DragLineNo {
+        y: usize,
+    },
+    DragText {
         /// The position in the buffer. They could be larger than the line lengths.
         pos: Point,
     },
+    ScrollUp,
+    ScrollDown,
 }
 
 pub struct Terminal {
@@ -632,8 +635,11 @@ impl Terminal {
                     alt: modifiers == ALT,
                 })
             }
+            (RawMouseEvent::Drag(_, x, y, _), _) if (x as usize) < self.text_start_x => {
+                Some(MouseEvent::DragLineNo { y: y as usize })
+            }
             (RawMouseEvent::Drag(_, x, y, _), _) => {
-                self.in_text_area(y, x).map(|pos| MouseEvent::Drag { pos })
+                self.in_text_area(y, x).map(|pos| MouseEvent::DragText { pos })
             }
             (RawMouseEvent::ScrollDown(..), _) => Some(MouseEvent::ScrollDown),
             (RawMouseEvent::ScrollUp(..), _) => Some(MouseEvent::ScrollUp),
