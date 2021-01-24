@@ -482,7 +482,13 @@ impl Terminal {
         stdout.flush().ok();
     }
 
-    pub fn draw_finder(&mut self, finder: &Finder, input: &LineEdit) {
+    pub fn draw_finder(&mut self, finder: &Finder, input: &mut LineEdit) {
+        let text_width= self.cols - 8;
+        input.adjust_top_left(text_width);
+
+        let text = &input.text();
+        let text_index = text.char_indices().nth(input.top_left()).map(|(i, _)| i).unwrap_or(0);
+
         let mut stdout = stdout();
         queue!(
             stdout,
@@ -492,7 +498,7 @@ impl Terminal {
             Print(" FIND "),
             SetAttribute(Attribute::NoReverse),
             Print(' '),
-            Print(truncate(&input.text(), self.cols - 7)),
+            Print(truncate(&text[text_index..], text_width)),
             Clear(ClearType::UntilNewLine),
             MoveTo(0, 1),
             Clear(ClearType::UntilNewLine),
@@ -559,7 +565,7 @@ impl Terminal {
             y += 1;
         }
 
-        queue!(stdout, MoveTo(7 + input.cursor() as u16, 0), cursor::Show,).ok();
+        queue!(stdout, MoveTo((7 + input.cursor() - input.top_left()) as u16, 0), cursor::Show,).ok();
 
         stdout.flush().ok();
     }

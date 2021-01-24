@@ -3,6 +3,7 @@ use crate::rope::{Point, Range, Rope};
 pub struct LineEdit {
     rope: Rope,
     cursor: usize,
+    top_left: usize,
 }
 
 impl LineEdit {
@@ -10,6 +11,7 @@ impl LineEdit {
         LineEdit {
             rope: Rope::new(),
             cursor: 0,
+            top_left: 0,
         }
     }
 
@@ -24,6 +26,10 @@ impl LineEdit {
     pub fn clear(&mut self) {
         self.rope.clear();
         self.cursor = 0;
+    }
+
+    pub fn top_left(&self) -> usize {
+        self.top_left
     }
 
     pub fn cursor(&self) -> usize {
@@ -63,6 +69,20 @@ impl LineEdit {
             .remove(&Range::new(0, self.cursor, 0, self.cursor + 1));
     }
 
+    pub fn adjust_top_left(&mut self, cols: usize) {
+        // Scroll Right.
+        if self.cursor > self.top_left + cols {
+            self.top_left = self.cursor - cols;
+        }
+
+        // Scroll Left.
+        if self.cursor < self.top_left {
+            self.top_left = self.cursor;
+        }
+
+        trace!("c={}, l={}", self.cursor, self.top_left);
+    }
+
     pub fn move_left(&mut self) {
         if self.cursor > 0 {
             self.cursor -= 1;
@@ -91,5 +111,29 @@ impl LineEdit {
     pub fn move_to_prev_word(&mut self) {
         let new_pos = self.rope.prev_word_end(&self.cursor_as_pos());
         self.cursor = new_pos.x;
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn adjust_top_left() {
+        let mut le = LineEdit::new();
+        le.insert("abcde");
+        le.adjust_top_left(5);
+        assert_eq!(le.top_left(), 0);
+
+        le.adjust_top_left(4);
+        assert_eq!(le.top_left(), 1);
+
+        le.insert_char('f');
+        le.adjust_top_left(4);
+        assert_eq!(le.top_left(), 2);
+
+        le.move_to_beginning_of_line();
+        le.adjust_top_left(4);
+        assert_eq!(le.top_left(), 0);
     }
 }

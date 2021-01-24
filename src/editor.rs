@@ -166,7 +166,7 @@ impl Editor {
                     );
                 }
                 EditorMode::Finder => {
-                    self.terminal.draw_finder(&self.finder, &self.prompt_input);
+                    self.terminal.draw_finder(&self.finder, &mut self.prompt_input);
                 }
             }
 
