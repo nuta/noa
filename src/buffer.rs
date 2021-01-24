@@ -687,9 +687,9 @@ impl Buffer {
             }
         }
 
+        // Decrease the indentation level if the cursor is in an indent.
         if let Cursor::Normal { pos, .. } = &self.cursor {
-            // Decrease the indentation level if the cursor is in an indent.
-            if pos.x <= self.indent_size(pos.y) {
+            if pos.x > 0 && pos.x <= self.indent_size(pos.y) {
                 self.back_tab();
                 return;
             }
