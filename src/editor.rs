@@ -501,7 +501,6 @@ impl Editor {
     }
 
     fn handle_mouse_event(&mut self, ev: MouseEvent) {
-        trace!("mouse: {:?}", ev);
         let mut buffer = self.current_buffer.borrow_mut();
         match ev {
             MouseEvent::ClickText { pos, alt: true } => {

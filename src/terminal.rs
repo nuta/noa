@@ -563,7 +563,6 @@ impl Terminal {
         .ok();
 
         // Move and show the cursor.
-        trace!("cursor_pos={:?}", cursor_pos);
         if let Some((y, x)) = cursor_pos {
             queue!(
                 stdout,
