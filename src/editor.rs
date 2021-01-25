@@ -547,8 +547,8 @@ impl Editor {
                 let range = Range::from_points(start_pos, drag_pos);
                 buffer.select_by_range(&range);
             }
-            MouseEvent::ScrollUp => buffer.scroll_up(3),
-            MouseEvent::ScrollDown => buffer.scroll_down(3),
+            MouseEvent::ScrollUp => buffer.scroll_up(7),
+            MouseEvent::ScrollDown => buffer.scroll_down(7),
         }
     }
 }

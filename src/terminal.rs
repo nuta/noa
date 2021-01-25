@@ -286,6 +286,11 @@ impl Terminal {
             return;
         }
 
+        queue!(
+            stdout,
+            cursor::Hide,
+        ).ok();
+
         self.cursor_text_map.clear();
 
         let lineno_width = num_of_digits(buffer.num_lines()) + 1;
@@ -310,6 +315,7 @@ impl Terminal {
         let mut wrapped = None;
         let mut cursor_pos = None;
         let mut in_selection = false;
+        let mut x_base = 0;
         for display_y in 0..text_height {
             // Move the cursor at the beginning of the next line.
             queue!(
@@ -328,7 +334,10 @@ impl Terminal {
             let is_wrapped = wrapped.is_some();
             let (mut chunks, chunk_char_start) = match wrapped {
                 Some(inner) => inner,
-                None if y < buffer.num_lines() => (buffer.line(y).chunks().peekable(), 0),
+                None if y < buffer.num_lines() => {
+                    x_base = 0;
+                    (buffer.line(y).chunks().peekable(), 0)
+                },
                 None => {
                     // Out of bounds.
                     queue!(
@@ -392,7 +401,7 @@ impl Terminal {
                     None => break,
                 };
 
-                let mut x = chunk_char_start;
+                let mut x = x_base + chunk_char_start;
                 if let Cursor::Selection { range, .. } = &buffer.cursor() {
                     if in_selection && *range.back() == Point::new(y, x) {
                         in_selection = false;
@@ -450,6 +459,7 @@ impl Terminal {
                     chunk_i += 1;
                     display_x += char_width;
                     x += 1;
+                    x_base += 1;
                     end_x = max(x, end_x);
 
                     if let Cursor::Selection { range, .. } = &buffer.cursor() {
@@ -553,6 +563,7 @@ impl Terminal {
         .ok();
 
         // Move and show the cursor.
+        trace!("cursor_pos={:?}", cursor_pos);
         if let Some((y, x)) = cursor_pos {
             queue!(
                 stdout,
@@ -648,7 +659,7 @@ impl Terminal {
         }
 
         for _ in 0..y_remaining {
-            queue!(stdout, MoveTo(0, y), Clear(ClearType::UntilNewLine),).ok();
+            queue!(stdout, MoveTo(0, y), Clear(ClearType::UntilNewLine)).ok();
             y += 1;
         }
 
@@ -699,7 +710,7 @@ impl Terminal {
                     modifiers,
                 },
                 Some(last_clicked),
-            ) if last_clicked.elapsed() < Duration::from_millis(400) => {
+            ) if last_clicked.elapsed() < Duration::from_millis(200) => {
                 self.last_clicked = None;
                 self.in_text_area(row, column)
                     .map(|pos| MouseEvent::DoubleClickText {
