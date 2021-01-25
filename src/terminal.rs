@@ -16,7 +16,7 @@ use crossterm::terminal::{
 };
 use crossterm::terminal::{Clear, ClearType};
 use crossterm::{execute, queue};
-use std::cmp::min;
+use std::cmp::{max, min};
 use std::collections::HashMap;
 use std::io::{stdout, Write};
 use std::sync::mpsc::Sender;
@@ -385,6 +385,7 @@ impl Terminal {
             let mut chunk_i = 0;
             let mut display_x = 0;
             let mut remaining_width = text_width;
+            let mut end_x = 0;
             'outer: while remaining_width > 0 {
                 let s = match chunks.peek() {
                     Some(s) => s,
@@ -449,6 +450,7 @@ impl Terminal {
                     chunk_i += 1;
                     display_x += char_width;
                     x += 1;
+                    end_x = max(x, end_x);
 
                     if let Cursor::Selection { range, .. } = &buffer.cursor() {
                         if in_selection && *range.back() == Point::new(y, x) {
@@ -474,6 +476,19 @@ impl Terminal {
             if y == main_pos.y && main_pos.x == buffer.line_len(main_pos.y) {
                 cursor_pos = Some((display_y, display_x));
             }
+
+            if remaining_width > 0 {
+                if let Some(pos) = cursor_hover {
+                    if y == pos.y && end_x <= pos.x {
+                        queue!(stdout, SetBackgroundColor(Color::DarkGrey), Print(' '), SetBackgroundColor(Color::Reset)).ok();
+                    }
+                }
+            }
+
+            self.cursor_text_map.insert(
+                Point::new(1 + display_y, 0),
+                Point::new(y, end_x),
+            );
 
             queue!(stdout, Clear(ClearType::UntilNewLine)).ok();
 
@@ -656,18 +671,9 @@ impl Terminal {
             return None;
         }
 
-        match self
-            .cursor_text_map
-            .get(&Point::new(y as usize, x as usize))
-        {
-            Some(buffer_pos) => Some(buffer_pos.clone()),
-            None => {
-                // FIXME:
-                let pos_y = self.current_top_left.y + y as usize - 1;
-                let pos_x = x as usize - self.text_start_x;
-                Some(Point::new(pos_y, pos_x))
-            }
-        }
+        self.cursor_text_map.get(&Point::new(y as usize, x as usize))
+            .or_else(|| self.cursor_text_map.get(&Point::new(y as usize, 0)))
+            .cloned()
     }
 
     pub fn convert_raw_mouse_event(&mut self, ev: RawMouseEvent) -> Option<MouseEvent> {
@@ -694,7 +700,7 @@ impl Terminal {
                 },
                 Some(last_clicked),
             ) if last_clicked.elapsed() < Duration::from_millis(400) => {
-                self.last_clicked = Some(Instant::now());
+                self.last_clicked = None;
                 self.in_text_area(row, column)
                     .map(|pos| MouseEvent::DoubleClickText {
                         pos,
