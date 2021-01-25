@@ -4,7 +4,7 @@ use std::fmt;
 use std::fs::OpenOptions;
 use std::path::Path;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct Point {
     pub y: usize,
     pub x: usize,

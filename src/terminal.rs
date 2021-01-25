@@ -8,13 +8,16 @@ use crossterm::event::{self, DisableMouseCapture, EnableMouseCapture, Event as T
 pub use crossterm::event::{
     KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent as RawMouseEvent, MouseEventKind,
 };
-use crossterm::style::{Attribute, Color, Print, SetAttribute, SetForegroundColor};
+use crossterm::style::{
+    Attribute, Color, Print, SetAttribute, SetBackgroundColor, SetForegroundColor,
+};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, size, EnterAlternateScreen, LeaveAlternateScreen,
 };
 use crossterm::terminal::{Clear, ClearType};
 use crossterm::{execute, queue};
 use std::cmp::min;
+use std::collections::HashMap;
 use std::io::{stdout, Write};
 use std::sync::mpsc::Sender;
 use std::thread;
@@ -181,12 +184,12 @@ pub fn handle_term_event(event_queue: Sender<Event>) {
 #[derive(Debug)]
 pub enum MouseEvent {
     ClickText {
-        /// The position in the buffer. They could be larger than the line lengths.
+        /// The position in the buffer. They could be out of bounds of the text.
         pos: Point,
         alt: bool,
     },
     DoubleClickText {
-        /// The position in the buffer. They could be larger than the line lengths.
+        /// The position in the buffer. They could be out of bounds of the text.
         pos: Point,
         alt: bool,
     },
@@ -197,7 +200,11 @@ pub enum MouseEvent {
         y: usize,
     },
     DragText {
-        /// The position in the buffer. They could be larger than the line lengths.
+        /// The position in the buffer. They could be out of bounds of the text.
+        pos: Point,
+    },
+    HoverText {
+        /// The position in the buffer. They could be out of bounds of the text.
         pos: Point,
     },
     ScrollUp,
@@ -214,6 +221,7 @@ pub struct Terminal {
     text_start_x: usize,
     text_end_x: usize,
     text_height: usize,
+    cursor_text_map: HashMap<Point, Point>,
 }
 
 impl Terminal {
@@ -242,6 +250,7 @@ impl Terminal {
             text_start_x: 0,
             text_end_x: 0,
             text_height: 0,
+            cursor_text_map: HashMap::new(),
         }
     }
 
@@ -258,7 +267,12 @@ impl Terminal {
         self.cols = cols;
     }
 
-    pub fn draw_buffer(&mut self, buffer: &mut Buffer, notification: Option<&Notification>) {
+    pub fn draw_buffer(
+        &mut self,
+        buffer: &mut Buffer,
+        notification: Option<&Notification>,
+        cursor_hover: Option<&Point>,
+    ) {
         let mut stdout = stdout();
         if self.cols < 20 || self.rows < 5 {
             queue!(
@@ -271,6 +285,8 @@ impl Terminal {
             stdout.flush().unwrap();
             return;
         }
+
+        self.cursor_text_map.clear();
 
         let lineno_width = num_of_digits(buffer.num_lines()) + 1;
         let text_offset = lineno_width;
@@ -404,11 +420,30 @@ impl Terminal {
                         cursor_pos = Some((display_y, display_x));
                     }
 
+                    if let Some(pos) = cursor_hover {
+                        if y == pos.y && x == pos.x {
+                            queue!(stdout, SetBackgroundColor(Color::DarkGrey)).ok();
+                        }
+                    }
+
                     if tab {
                         queue!(stdout, Print(whitespaces(char_width))).ok();
+                        for i in 0..char_width {
+                            self.cursor_text_map.insert(
+                                Point::new(1 + display_y, text_offset + display_x + i),
+                                Point::new(y, x),
+                            );
+                        }
                     } else {
                         queue!(stdout, Print(c)).ok();
+                        self.cursor_text_map.insert(
+                            Point::new(1 + display_y, text_offset + display_x),
+                            Point::new(y, x),
+                        );
                     }
+
+                    // Clear the cursor hover.
+                    queue!(stdout, SetBackgroundColor(Color::Reset)).ok();
 
                     remaining_width -= char_width;
                     chunk_i += 1;
@@ -621,9 +656,18 @@ impl Terminal {
             return None;
         }
 
-        let pos_y = self.current_top_left.y + y as usize - 1;
-        let pos_x = x as usize - self.text_start_x;
-        Some(Point::new(pos_y, pos_x))
+        match self
+            .cursor_text_map
+            .get(&Point::new(y as usize, x as usize))
+        {
+            Some(buffer_pos) => Some(buffer_pos.clone()),
+            None => {
+                // FIXME:
+                let pos_y = self.current_top_left.y + y as usize - 1;
+                let pos_x = x as usize - self.text_start_x;
+                Some(Point::new(pos_y, pos_x))
+            }
+        }
     }
 
     pub fn convert_raw_mouse_event(&mut self, ev: RawMouseEvent) -> Option<MouseEvent> {
@@ -709,6 +753,17 @@ impl Terminal {
                 },
                 _,
             ) => Some(MouseEvent::ScrollUp),
+            (
+                RawMouseEvent {
+                    kind: MouseEventKind::Moved,
+                    row,
+                    column,
+                    ..
+                },
+                _,
+            ) => self
+                .in_text_area(row, column)
+                .map(|pos| MouseEvent::HoverText { pos }),
             _ => None,
         }
     }

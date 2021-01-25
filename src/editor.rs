@@ -1,7 +1,7 @@
 use crate::buffer::Buffer;
 use crate::finder::{Finder, FinderItem};
 use crate::line_edit::LineEdit;
-use crate::rope::{Cursor, Range};
+use crate::rope::{Cursor, Point, Range};
 use crate::terminal::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, RawMouseEvent, Terminal};
 use std::cell::RefCell;
 use std::cmp::min;
@@ -53,6 +53,7 @@ pub struct Editor {
     current_buffer: Rc<RefCell<Buffer>>,
     notification: RefCell<Option<Notification>>,
     backup_dir: PathBuf,
+    cursor_hover: Option<Point>,
 }
 
 impl Editor {
@@ -79,6 +80,7 @@ impl Editor {
             current_buffer: Rc::new(RefCell::new(scratch_buffer)),
             notification: RefCell::new(None),
             backup_dir: noa_dir.join("backup"),
+            cursor_hover: None,
         }
     }
 
@@ -164,6 +166,7 @@ impl Editor {
                     self.terminal.draw_buffer(
                         &mut *self.current_buffer.borrow_mut(),
                         self.notification.borrow().as_ref(),
+                        self.cursor_hover.as_ref(),
                     );
                 }
                 EditorMode::Finder => {
@@ -243,6 +246,13 @@ impl Editor {
     }
 
     fn handle_event(&mut self, ev: Event) {
+        match ev {
+            Event::Key(_) | Event::KeyBatch(_) | Event::Mouse(_) => {
+                self.cursor_hover = None;
+            }
+            _ => {}
+        }
+
         match ev {
             Event::Key(key) => self.handle_key_event(key),
             Event::KeyBatch(s) => self.handle_key_batch_event(s),
@@ -382,10 +392,10 @@ impl Editor {
                         .scroll_down(self.terminal.rows());
                 }
                 (KeyCode::Char('d'), ALT) => {
-                    self.current_buffer.borrow_mut().scroll_up(5);
+                    self.current_buffer.borrow_mut().move_to_prev_block();
                 }
                 (KeyCode::Char('c'), ALT) => {
-                    self.current_buffer.borrow_mut().scroll_down(5);
+                    self.current_buffer.borrow_mut().move_to_next_block();
                 }
                 (KeyCode::Up, NONE) => {
                     self.current_buffer.borrow_mut().move_cursor_with_line_wrap(
@@ -497,6 +507,9 @@ impl Editor {
             MouseEvent::ClickText { pos, alt: true } => {
                 // TODO:
             }
+            MouseEvent::HoverText { pos, .. } => {
+                self.cursor_hover = Some(pos);
+            }
             MouseEvent::DoubleClickText { pos, .. } => {
                 if let Some(range) = buffer.current_word_range() {
                     buffer.select_by_range(&range);
@@ -534,8 +547,8 @@ impl Editor {
                 let range = Range::from_points(start_pos, drag_pos);
                 buffer.select_by_range(&range);
             }
-            MouseEvent::ScrollUp => buffer.scroll_up(5),
-            MouseEvent::ScrollDown => buffer.scroll_down(5),
+            MouseEvent::ScrollUp => buffer.scroll_up(3),
+            MouseEvent::ScrollDown => buffer.scroll_down(3),
         }
     }
 }
