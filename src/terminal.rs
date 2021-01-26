@@ -218,6 +218,12 @@ struct Pixel {
     x: usize,
 }
 
+impl Pixel {
+    pub const fn new(y: usize, x: usize) -> Pixel {
+        Pixel { y, x }
+    }
+}
+
 pub struct PixelMap {
     map: Vec<Option<Point>>,
     width: usize,
@@ -707,14 +713,10 @@ impl Terminal {
         let mut wrapped: Option<(Peekable<Chunks>, usize)> = None;
         let mut cursor_pixel = None;
         for display_y_off in 0..text_height {
-            let mut pixel = Pixel {
-                y: text_y_start + display_y_off,
-                x: text_offset,
-            };
             // Move the cursor at the beginning of the next display row.
             queue!(
                 stdout,
-                MoveTo(0, pixel.y as u16),
+                MoveTo(0, (text_y_start + display_y_off) as u16),
                 SetAttribute(Attribute::Reset),
             )
             .ok();
@@ -728,7 +730,7 @@ impl Terminal {
             );
 
             // Get the string chunks of the current (or next) buffer line.
-            let (mut chunks, chunk_start_idx) = match wrapped {
+            let (mut chunks, mut chunk_start_idx) = match wrapped {
                 Some(inner) => inner,
                 None if pos.y < buffer.num_lines() => (buffer.line(pos.y).chunks().peekable(), 0),
                 None => {
@@ -744,15 +746,16 @@ impl Terminal {
             };
 
             // Render chunks until the end of the display row.
-            let mut remaining_width = text_width;
-            'outer: while remaining_width > 0 {
+            let mut pixel = Pixel::new(text_y_start + display_y_off,text_offset);
+            let mut chunk_printed_idx = 0;
+            'outer: loop {
                 let s = match chunks.peek() {
                     Some(s) => s,
                     None => break,
                 };
 
                 for c in s.chars().skip(chunk_start_idx) {
-                    let (tab, char_width) = match c {
+                    let (tab, width) = match c {
                         '\t' => (
                             true,
                             buffer.config().tab_width - pos.x % buffer.config().tab_width,
@@ -760,19 +763,25 @@ impl Terminal {
                         _ => (false, c.display_width()),
                     };
 
-                    if char_width > remaining_width {
+                    if pixel.x + width > self.cols {
                         break 'outer;
                     }
 
                     if tab {
-                        queue!(stdout, Print(whitespaces(char_width))).ok();
+                        queue!(stdout, Print(whitespaces(width))).ok();
                     } else {
                         queue!(stdout, Print(c)).ok();
                     }
+
+                    pos.x += 1;
+                    chunk_printed_idx += 1;
+                    pixel.x += width;
                 }
 
                 // Printed all characters in the chunk. Visit the next one.
                 chunks.next();
+                chunk_printed_idx = 0;
+                chunk_start_idx = 0;
             }
 
             // Clear the previously printed contents.
@@ -782,7 +791,7 @@ impl Terminal {
                 Some(_) => {
                     // There're remaining unprinted chunks in the line, i.e.,
                     // we need line wrapping.
-                    wrapped = Some((chunks, 0));
+                    wrapped = Some((chunks, chunk_start_idx + chunk_printed_idx));
                 }
                 None => {
                     // Printed all chunks in the line.
