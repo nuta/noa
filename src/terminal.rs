@@ -274,7 +274,7 @@ pub struct Terminal {
     // TODO: Remove,
     text_cols: usize,
     current_top_left: TopLeft,
-    text_x_start: usize,
+    display_x_text_start: usize,
 }
 
 impl Terminal {
@@ -299,7 +299,7 @@ impl Terminal {
             text_cols: 0, // Filled in draw.
             current_top_left: TopLeft::new(0, 0),
             last_clicked: None,
-            text_x_start: 0,
+            display_x_text_start: 0,
             pixel_map: PixelMap::new(),
         }
     }
@@ -342,16 +342,16 @@ impl Terminal {
 
         trace!("self.rows={}, self.cols={}", self.rows, self.cols);
         let lineno_width = num_of_digits(buffer.num_lines()) + 1;
-        let text_x_start = lineno_width;
+        let display_x_text_start = lineno_width;
         let text_height = self.rows - 1;
-        let text_width = self.cols - text_x_start;
+        let text_width = self.cols - display_x_text_start;
         self.text_cols = text_width;
 
         // Adjust top left.
         buffer.adjust_top_left(text_height, text_width);
         let top_left = buffer.top_left();
         self.current_top_left = top_left.clone();
-        self.text_x_start = text_x_start;
+        self.display_x_text_start = display_x_text_start;
 
         let main_pos = buffer.main_cursor_pos();
 
@@ -517,14 +517,14 @@ impl Terminal {
                         queue!(stdout, Print(whitespaces(char_width))).ok();
                         for i in 0..char_width {
                             self.pixel_map.set_pixel(
-                                &Point::new(1 + display_y, text_x_start + display_x + i),
+                                &Point::new(1 + display_y, display_x_text_start + display_x + i),
                                 &Point::new(y, x),
                             );
                         }
                     } else {
                         queue!(stdout, Print(c)).ok();
                         self.pixel_map.set_pixel(
-                            &Point::new(1 + display_y, text_x_start + display_x),
+                            &Point::new(1 + display_y, display_x_text_start + display_x),
                             &Point::new(y, x),
                         );
                     }
@@ -648,7 +648,7 @@ impl Terminal {
         if let Some(Point { y, x }) = cursor_pos {
             queue!(
                 stdout,
-                MoveTo((text_x_start + x) as u16, 1 + y as u16),
+                MoveTo((display_x_text_start + x) as u16, 1 + y as u16),
                 cursor::Show
             )
             .ok();
@@ -681,15 +681,14 @@ impl Terminal {
         self.pixel_map.clear(self.rows, self.cols);
 
         let lineno_max_width = num_of_digits(buffer.num_lines()) + 1;
-        let text_y_start = 1;
-        let text_x_start = lineno_max_width;
-        let text_height = self.rows - text_y_start;
-        let text_width = self.cols - text_x_start;
-        self.text_cols = text_width;
-        self.text_x_start = text_x_start;
+        let display_y_text_start = 1;
+        let display_x_text_start = lineno_max_width;
+
+        self.display_x_text_start = display_x_text_start;
+        self.text_cols = self.cols - display_x_text_start;
 
         // Adjust top left.
-        buffer.adjust_top_left(text_height, text_width);
+        buffer.adjust_top_left(self.rows - display_y_text_start, self.cols - display_x_text_start);
         let top_left = buffer.top_left();
         self.current_top_left = top_left.clone();
 
@@ -701,11 +700,11 @@ impl Terminal {
         let mut pos = Point::new(top_left.y, top_left.x);
         let mut wrapped: Option<(Peekable<Chunks>, usize)> = None;
         let mut cursor_pixel = None;
-        for display_y_off in 0..text_height {
+        for display_y in display_y_text_start..self.rows {
             // Move the cursor at the beginning of the next display row.
             queue!(
                 stdout,
-                MoveTo(0, (text_y_start + display_y_off) as u16),
+                MoveTo(0, display_y as u16),
                 SetAttribute(Attribute::Reset),
             )
             .ok();
@@ -735,7 +734,7 @@ impl Terminal {
             };
 
             // Render chunks until the end of the display row.
-            let mut pixel = Pixel::new(text_y_start + display_y_off,text_x_start);
+            let mut pixel = Pixel::new(display_y,display_x_text_start);
             let mut chunk_printed_idx = 0;
             'outer: loop {
                 let s = match chunks.peek() {
@@ -796,7 +795,7 @@ impl Terminal {
         if let Some(Pixel { y, x }) = cursor_pixel {
             queue!(
                 stdout,
-                MoveTo((text_x_start + x) as u16, (1 + y) as u16),
+                MoveTo((display_x_text_start + x) as u16, (1 + y) as u16),
                 cursor::Show
             )
             .ok();
@@ -991,14 +990,14 @@ impl Terminal {
                                 queue!(stdout, Print(whitespaces(char_width))).ok();
                                 for i in 0..char_width {
                                     self.pixel_map.set_pixel(
-                                        &Point::new(1 + display_y, text_x_start + display_x + i),
+                                        &Point::new(1 + display_y, display_x_text_start + display_x + i),
                                         &Point::new(y, x),
                                     );
                                 }
                             } else {
                                 queue!(stdout, Print(c)).ok();
                                 self.pixel_map.set_pixel(
-                                    &Point::new(1 + display_y, text_x_start + display_x),
+                                    &Point::new(1 + display_y, display_x_text_start + display_x),
                                     &Point::new(y, x),
                                 );
                             }
@@ -1221,7 +1220,7 @@ impl Terminal {
 
     fn in_text_area(&self, y: u16, x: u16) -> Option<Point> {
         let in_text_area = (y as usize) >= 1
-            && self.text_x_start <= (x as usize);
+            && self.display_x_text_start <= (x as usize);
         if !in_text_area {
             return None;
         }
@@ -1247,7 +1246,7 @@ impl Terminal {
                     ..
                 },
                 _,
-            ) if (column as usize) < self.text_x_start => Some(MouseEvent::ClickLineNo {
+            ) if (column as usize) < self.display_x_text_start => Some(MouseEvent::ClickLineNo {
                 y: self.current_top_left.y + row as usize - 1,
             }),
             (
@@ -1290,7 +1289,7 @@ impl Terminal {
                     ..
                 },
                 _,
-            ) if (column as usize) < self.text_x_start => {
+            ) if (column as usize) < self.display_x_text_start => {
                 Some(MouseEvent::DragLineNo { y: row as usize })
             }
             (
