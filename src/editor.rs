@@ -10,6 +10,8 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::mpsc::{channel, Receiver};
 use std::time::Instant;
+use std::io::prelude::*;
+use std::io::BufReader;
 
 pub enum Event {
     Key(KeyEvent),
@@ -118,6 +120,21 @@ impl Editor {
             .is_ok();
         if !writable {
             self.error(format!("not writable: {}", path.display()));
+        }
+
+        if let Ok(meta) = std::fs::metadata(path) {
+            if meta.len() >= 64 * 1024 {
+                self.error(format!("too big: {}", path.display()));
+                return;
+            }
+
+            let num_lines = std::fs::File::open(path)
+                .map(|f| BufReader::new(f).lines().count())
+                .unwrap_or(0);
+            if num_lines < 5 && meta.len() >= 8 * 1024 {
+                self.error(format!("too long line: {}", path.display()));
+                // return;
+            }
         }
 
         match Buffer::open_file(path) {

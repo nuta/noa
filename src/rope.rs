@@ -390,7 +390,7 @@ fn is_word_char(ch: char) -> bool {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     #[test]

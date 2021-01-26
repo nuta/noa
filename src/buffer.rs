@@ -61,6 +61,7 @@ impl Buffer {
         let language = guess_language(path);
         let file = std::fs::File::open(path)?;
         let rope = Rope::from_reader(file)?;
+
         Ok(Buffer {
             rope: rope.clone(),
             last_saved_rope: rope.clone(),
@@ -135,8 +136,42 @@ impl Buffer {
         self.rope.line(line)
     }
 
+    /// Returns `(chunk_idx, char_idx_in_chunk)`.
+    pub fn line_substr_chunk(&self, line: usize, start: usize) -> Option<(usize, usize)> {
+        let mut remaining = start;
+        for (chunk_i, chunk) in self.line(line).chunks().enumerate() {
+            for (char_i, _) in chunk.char_indices() {
+                if remaining == 0 {
+                    return Some((chunk_i, char_i));
+                }
+                remaining -= 1;
+            }
+        }
+
+        None
+    }
+
     pub fn line_substr(&self, line: usize, start: usize) -> String {
-        self.line(line).chars().skip(start).collect()
+        let mut s = String::new();
+        let mut iter = self.line(line).chunks();
+        if start > 0 {
+            let mut skip = start;
+            'outer: while let Some(chunk) = iter.next() {
+                for (i, _) in chunk.char_indices() {
+                    if skip == 0 {
+                        s += &chunk[i..];
+                        break 'outer;
+                    }
+                    skip -= 1;
+                }
+            }
+        }
+
+        for chunk in iter {
+            s += chunk;
+        }
+
+        s
     }
 
     #[cfg(test)]
@@ -202,15 +237,16 @@ impl Buffer {
 
         self.top_left.y = min(self.top_left.y, self.num_lines().saturating_sub(rows / 2));
 
-        // Scroll Right.
-        if pos.x >= self.top_left.x + cols {
-            self.top_left.x = pos.x - cols + 1;
-        }
+        // TODO:
+        // // Scroll Right.
+        // if pos.x >= self.top_left.x + cols {
+        //     self.top_left.x = pos.x - cols + 1;
+        // }
 
-        // Scroll Left.
-        if pos.x < self.top_left.x {
-            self.top_left.x = pos.x;
-        }
+        // // Scroll Left.
+        // if pos.x < self.top_left.x {
+        //     self.top_left.x = pos.x;
+        // }
     }
 
     pub fn goto(&mut self, y: usize, x: usize) {
@@ -324,6 +360,10 @@ impl Buffer {
             let from_left = prefix_width % (cols + 1);
             // Move at the same display column in the previous line in the display.
             'outer2: loop {
+                if self.width_in_display(pos.y, pos.x, prev_x) >= cols {
+                    break;
+                }
+
                 if pos.x == 0 {
                     if pos.y == 0 {
                         pos.x = prev_x;
@@ -354,10 +394,6 @@ impl Buffer {
 
                         pos.x -= 1;
                     }
-                }
-
-                if self.width_in_display(pos.y, pos.x, prev_x) >= cols {
-                    break;
                 }
 
                 pos.x -= 1;
@@ -980,8 +1016,9 @@ impl Buffer {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
+    use ::test::Bencher;
 
     #[test]
     fn insertion_and_deletion() {
@@ -1900,5 +1937,27 @@ mod test {
         assert_eq!(b.text(), "ab");
         b.paste("123");
         assert_eq!(b.text(), "a123b");
+    }
+
+    #[test]
+    fn line_substr() {
+        let mut b = Buffer::from_str("abc\nxyz");
+        assert_eq!(b.line_substr(0, 0), "abc");
+
+        let mut b = Buffer::from_str("abc\nxyz");
+        assert_eq!(b.line_substr(0, 1), "bc");
+
+        let mut b = Buffer::from_str("");
+        assert_eq!(b.line_substr(0, 0), "");
+    }
+
+    #[bench]
+    fn bench_line_substr(b: &mut Bencher) {
+        let mut buffer = Buffer::new();
+        for _ in 0..10000 {
+            buffer.insert("0123456789");
+        }
+
+        b.iter(|| buffer.line_substr(0, 3000));
     }
 }
