@@ -268,14 +268,13 @@ impl PixelMap {
 pub struct Terminal {
     rows: usize,
     cols: usize,
+    last_clicked: Option<Instant>,
+    pixel_map: PixelMap,
+
+    // TODO: Remove,
     text_cols: usize,
     current_top_left: TopLeft,
-    current_num_lines: usize,
-    last_clicked: Option<Instant>,
-    text_start_x: usize,
-    text_end_x: usize,
-    text_height: usize,
-    pixel_map: PixelMap,
+    text_x_start: usize,
 }
 
 impl Terminal {
@@ -299,11 +298,8 @@ impl Terminal {
             cols: cols as usize,
             text_cols: 0, // Filled in draw.
             current_top_left: TopLeft::new(0, 0),
-            current_num_lines: 0,
             last_clicked: None,
-            text_start_x: 0,
-            text_end_x: 0,
-            text_height: 0,
+            text_x_start: 0,
             pixel_map: PixelMap::new(),
         }
     }
@@ -346,19 +342,16 @@ impl Terminal {
 
         trace!("self.rows={}, self.cols={}", self.rows, self.cols);
         let lineno_width = num_of_digits(buffer.num_lines()) + 1;
-        let text_offset = lineno_width;
+        let text_x_start = lineno_width;
         let text_height = self.rows - 1;
-        let text_width = self.cols - text_offset;
+        let text_width = self.cols - text_x_start;
         self.text_cols = text_width;
 
         // Adjust top left.
         buffer.adjust_top_left(text_height, text_width);
         let top_left = buffer.top_left();
         self.current_top_left = top_left.clone();
-        self.current_num_lines = buffer.num_lines();
-        self.text_start_x = text_offset;
-        self.text_end_x = text_offset + text_width;
-        self.text_height = text_height;
+        self.text_x_start = text_x_start;
 
         let main_pos = buffer.main_cursor_pos();
 
@@ -524,14 +517,14 @@ impl Terminal {
                         queue!(stdout, Print(whitespaces(char_width))).ok();
                         for i in 0..char_width {
                             self.pixel_map.set_pixel(
-                                &Point::new(1 + display_y, text_offset + display_x + i),
+                                &Point::new(1 + display_y, text_x_start + display_x + i),
                                 &Point::new(y, x),
                             );
                         }
                     } else {
                         queue!(stdout, Print(c)).ok();
                         self.pixel_map.set_pixel(
-                            &Point::new(1 + display_y, text_offset + display_x),
+                            &Point::new(1 + display_y, text_x_start + display_x),
                             &Point::new(y, x),
                         );
                     }
@@ -655,7 +648,7 @@ impl Terminal {
         if let Some(Point { y, x }) = cursor_pos {
             queue!(
                 stdout,
-                MoveTo((text_offset + x) as u16, 1 + y as u16),
+                MoveTo((text_x_start + x) as u16, 1 + y as u16),
                 cursor::Show
             )
             .ok();
@@ -683,26 +676,22 @@ impl Terminal {
             return;
         }
 
-        queue!(stdout, cursor::Hide,).ok();
+        queue!(stdout, cursor::Hide).ok();
 
         self.pixel_map.clear(self.rows, self.cols);
 
-        trace!("self.rows={}, self.cols={}", self.rows, self.cols);
         let lineno_max_width = num_of_digits(buffer.num_lines()) + 1;
         let text_y_start = 1;
-        let text_offset = lineno_max_width;
+        let text_x_start = lineno_max_width;
         let text_height = self.rows - text_y_start;
-        let text_width = self.cols - text_offset;
+        let text_width = self.cols - text_x_start;
         self.text_cols = text_width;
+        self.text_x_start = text_x_start;
 
         // Adjust top left.
         buffer.adjust_top_left(text_height, text_width);
         let top_left = buffer.top_left();
         self.current_top_left = top_left.clone();
-        self.current_num_lines = buffer.num_lines();
-        self.text_start_x = text_offset;
-        self.text_end_x = text_offset + text_width;
-        self.text_height = text_height;
 
         let main_pos = buffer.main_cursor_pos();
 
@@ -746,7 +735,7 @@ impl Terminal {
             };
 
             // Render chunks until the end of the display row.
-            let mut pixel = Pixel::new(text_y_start + display_y_off,text_offset);
+            let mut pixel = Pixel::new(text_y_start + display_y_off,text_x_start);
             let mut chunk_printed_idx = 0;
             'outer: loop {
                 let s = match chunks.peek() {
@@ -780,8 +769,8 @@ impl Terminal {
 
                 // Printed all characters in the chunk. Visit the next one.
                 chunks.next();
-                chunk_printed_idx = 0;
                 chunk_start_idx = 0;
+                chunk_printed_idx = 0;
             }
 
             // Clear the previously printed contents.
@@ -807,7 +796,7 @@ impl Terminal {
         if let Some(Pixel { y, x }) = cursor_pixel {
             queue!(
                 stdout,
-                MoveTo((self.text_start_x + x) as u16, (1 + y) as u16),
+                MoveTo((text_x_start + x) as u16, (1 + y) as u16),
                 cursor::Show
             )
             .ok();
@@ -1002,14 +991,14 @@ impl Terminal {
                                 queue!(stdout, Print(whitespaces(char_width))).ok();
                                 for i in 0..char_width {
                                     self.pixel_map.set_pixel(
-                                        &Point::new(1 + display_y, text_offset + display_x + i),
+                                        &Point::new(1 + display_y, text_x_start + display_x + i),
                                         &Point::new(y, x),
                                     );
                                 }
                             } else {
                                 queue!(stdout, Print(c)).ok();
                                 self.pixel_map.set_pixel(
-                                    &Point::new(1 + display_y, text_offset + display_x),
+                                    &Point::new(1 + display_y, text_x_start + display_x),
                                     &Point::new(y, x),
                                 );
                             }
@@ -1232,9 +1221,7 @@ impl Terminal {
 
     fn in_text_area(&self, y: u16, x: u16) -> Option<Point> {
         let in_text_area = (y as usize) >= 1
-            && self.text_start_x <= (x as usize)
-            && (x as usize) <= self.text_end_x;
-
+            && self.text_x_start <= (x as usize);
         if !in_text_area {
             return None;
         }
@@ -1260,7 +1247,7 @@ impl Terminal {
                     ..
                 },
                 _,
-            ) if (column as usize) < self.text_start_x => Some(MouseEvent::ClickLineNo {
+            ) if (column as usize) < self.text_x_start => Some(MouseEvent::ClickLineNo {
                 y: self.current_top_left.y + row as usize - 1,
             }),
             (
@@ -1303,7 +1290,7 @@ impl Terminal {
                     ..
                 },
                 _,
-            ) if (column as usize) < self.text_start_x => {
+            ) if (column as usize) < self.text_x_start => {
                 Some(MouseEvent::DragLineNo { y: row as usize })
             }
             (
