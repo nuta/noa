@@ -6,12 +6,12 @@ use crate::terminal::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, RawMouseEvent
 use std::cell::RefCell;
 use std::cmp::min;
 use std::collections::HashMap;
+use std::io::prelude::*;
+use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::mpsc::{channel, Receiver};
 use std::time::Instant;
-use std::io::prelude::*;
-use std::io::BufReader;
 
 pub enum Event {
     Key(KeyEvent),

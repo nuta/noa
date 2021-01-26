@@ -1018,7 +1018,7 @@ impl Buffer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ::test::Bencher;
+    use test::Bencher;
 
     #[test]
     fn insertion_and_deletion() {

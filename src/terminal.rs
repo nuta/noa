@@ -243,9 +243,13 @@ impl PixelMap {
     }
 
     pub fn display_pos_to_text_pos(&self, display_pos: &Point) -> Option<&Point> {
-        trace!("pixel: {} -> {:?}", display_pos,
-            self.map.get(self.display_pos_to_index(display_pos)));
-        self.map.get(self.display_pos_to_index(display_pos))
+        trace!(
+            "pixel: {} -> {:?}",
+            display_pos,
+            self.map.get(self.display_pos_to_index(display_pos))
+        );
+        self.map
+            .get(self.display_pos_to_index(display_pos))
             .map(|o| o.as_ref())
             .unwrap_or(None)
     }
@@ -311,7 +315,7 @@ impl Terminal {
         self.cols = cols;
     }
 
-    pub fn draw_buffer(
+    pub fn draw_buffer2(
         &mut self,
         buffer: &mut Buffer,
         notification: Option<&Notification>,
@@ -330,10 +334,7 @@ impl Terminal {
             return;
         }
 
-        queue!(
-            stdout,
-            cursor::Hide,
-        ).ok();
+        queue!(stdout, cursor::Hide,).ok();
 
         self.pixel_map.clear(self.rows, self.cols);
 
@@ -396,11 +397,16 @@ impl Terminal {
                 None if y < buffer.num_lines() => {
                     x_base = 0;
                     (buffer.line(y).chunks().peekable(), 0)
-                },
+                }
                 None => {
                     // Out of bounds.
-                    trace!("skip: display_y={}/{}, y={}/{}",
-                        display_y, text_height, y, buffer.num_lines());
+                    trace!(
+                        "skip: display_y={}/{}, y={}/{}",
+                        display_y,
+                        text_height,
+                        y,
+                        buffer.num_lines()
+                    );
                     queue!(
                         stdout,
                         SetAttribute(Attribute::Reset),
@@ -411,8 +417,14 @@ impl Terminal {
                 }
             };
 
-            trace!("display_y={}/{}, x={}/{}, chunk_start={:?}",
-                display_y, text_height, x_base, buffer.line_len(y), chunk_char_start);
+            trace!(
+                "display_y={}/{}, x={}/{}, chunk_start={:?}",
+                display_y,
+                text_height,
+                x_base,
+                buffer.line_len(y),
+                chunk_char_start
+            );
 
             // Line number.
             if is_wrapped {
@@ -557,15 +569,19 @@ impl Terminal {
             if remaining_width > 0 {
                 if let Some(pos) = cursor_hover {
                     if y == pos.y && end_x <= pos.x {
-                        queue!(stdout, SetBackgroundColor(Color::DarkGrey), Print(' '), SetBackgroundColor(Color::Reset)).ok();
+                        queue!(
+                            stdout,
+                            SetBackgroundColor(Color::DarkGrey),
+                            Print(' '),
+                            SetBackgroundColor(Color::Reset)
+                        )
+                        .ok();
                     }
                 }
             }
 
-            self.pixel_map.set_pixel(
-                &Point::new(1 + display_y, 0),
-                &Point::new(y, end_x),
-            );
+            self.pixel_map
+                .set_pixel(&Point::new(1 + display_y, 0), &Point::new(y, end_x));
 
             queue!(stdout, Clear(ClearType::UntilNewLine)).ok();
 
@@ -642,7 +658,7 @@ impl Terminal {
         stdout.flush().ok();
     }
 
-    pub fn draw_buffer2(
+    pub fn draw_buffer(
         &mut self,
         buffer: &mut Buffer,
         notification: Option<&Notification>,
@@ -661,17 +677,15 @@ impl Terminal {
             return;
         }
 
-        queue!(
-            stdout,
-            cursor::Hide,
-        ).ok();
+        queue!(stdout, cursor::Hide,).ok();
 
         self.pixel_map.clear(self.rows, self.cols);
 
         trace!("self.rows={}, self.cols={}", self.rows, self.cols);
-        let lineno_width = num_of_digits(buffer.num_lines()) + 1;
-        let text_offset = lineno_width;
-        let text_height = self.rows - 1;
+        let lineno_max_width = num_of_digits(buffer.num_lines()) + 1;
+        let text_y_start = 1;
+        let text_offset = lineno_max_width;
+        let text_height = self.rows - text_y_start;
         let text_width = self.cols - text_offset;
         self.text_cols = text_width;
 
@@ -688,143 +702,60 @@ impl Terminal {
 
         use ropey::iter::Chunks;
         use std::iter::Peekable;
-        self.draw_text(&mut stdout, buffer);
-        self.draw_status_line(&mut stdout, buffer, &notification, &main_pos, &cursor_pos);
-        stdout.flush().ok();
-    }
 
-    pub fn draw_text(
-        &self,
-        stdout: &mut std::io::Stdout,
-        buffer: &Buffer,
-    ) {
-        // Draw the text area.
-        /*
-        let mut y = top_left.y;
-        let mut wrapped: Option<Peekable<Chunks>> = None;
-        let mut cursor_pos = None;
-        let mut in_selection = false;
-        let mut x_base = top_left.x;
-        let mut wrapped = if top_left.x > 0 {
-            let mut chunks = buffer.line(y).chunks().peekable();
-            let (chunk_i, char_i) = buffer.line_substr_chunk(y, top_left.x).unwrap();
-            for chunk in 0..chunk_i {
-                chunks.next();
-            }
-            Some((chunks, char_i))
-        } else {
-            None
-        };
-
-        for display_y in 0..text_height {
-            // Move the cursor at the beginning of the next line.
+        let mut pos = Point::new(top_left.y, top_left.x);
+        let mut wrapped: Option<(Peekable<Chunks>, usize)> = None;
+        let mut cursor_pixel = None;
+        for display_y_off in 0..text_height {
+            let mut pixel = Pixel {
+                y: text_y_start + display_y_off,
+                x: text_offset,
+            };
+            // Move the cursor at the beginning of the next display row.
             queue!(
                 stdout,
-                MoveTo(0, display_y as u16 + 1),
+                MoveTo(0, pixel.y as u16),
                 SetAttribute(Attribute::Reset),
             )
             .ok();
 
-            // Handle the cursor at the end of file.
-            if y == main_pos.y && main_pos.y == buffer.num_lines() && cursor_pos.is_none() {
-                cursor_pos = Some(Point::new(display_y, 0));
-            }
+            self.draw_line_number(
+                &mut stdout,
+                pos.y + 1,
+                lineno_max_width,
+                pos.y == main_pos.y,
+                wrapped.is_some(),
+            );
 
-            // Get the string chunks of the current (or next) line.
-            let is_wrapped = wrapped.is_some();
-            let (mut chunks, mut chunk_char_start) = match wrapped {
+            // Get the string chunks of the current (or next) buffer line.
+            let (mut chunks, chunk_start_idx) = match wrapped {
                 Some(inner) => inner,
-                None if y < buffer.num_lines() => {
-                    x_base = 0;
-                    (buffer.line(y).chunks().peekable(), 0)
-                },
+                None if pos.y < buffer.num_lines() => (buffer.line(pos.y).chunks().peekable(), 0),
                 None => {
-                    // Out of bounds.
-                    trace!("skip: display_y={}/{}, y={}/{}",
-                        display_y, text_height, y, buffer.num_lines());
+                    // Out of bounds of the buffer.
                     queue!(
                         stdout,
                         SetAttribute(Attribute::Reset),
-                        Clear(ClearType::UntilNewLine),
+                        Clear(ClearType::CurrentLine),
                     )
                     .ok();
                     continue;
                 }
             };
 
-            trace!("display_y={}/{}, x={}/{}, chunk_start={:?}",
-                display_y, text_height, x_base, buffer.line_len(y), chunk_char_start);
-
-            // Line number.
-            if is_wrapped {
-                queue!(
-                    stdout,
-                    SetForegroundColor(Color::DarkGrey),
-                    Print(whitespaces(lineno_width - 2)),
-                    Print("~"),
-                    SetAttribute(Attribute::Reset),
-                    Print(' '),
-                )
-                .ok();
-            } else {
-                if y == main_pos.y {
-                    queue!(stdout, SetAttribute(Attribute::Bold)).ok();
-                } else {
-                    queue!(stdout, SetForegroundColor(Color::DarkGrey)).ok();
-                }
-
-                queue!(
-                    stdout,
-                    Print(whitespaces(lineno_width - num_of_digits(y + 1) - 1)),
-                    Print(y + 1),
-                    Print(' '),
-                    SetAttribute(Attribute::Reset),
-                )
-                .ok();
-            }
-
-            if let Cursor::Selection { range, .. } = &buffer.cursor() {
-                if in_selection && *range.back() == Point::new(y, 0) {
-                    in_selection = false;
-                } else if in_selection || *range.front() == Point::new(y, 0) {
-                    in_selection = true;
-                    queue!(stdout, SetAttribute(Attribute::Reverse)).ok();
-                    if buffer.line_len(y) == 0 {
-                        queue!(stdout, Print(' ')).ok();
-                    }
-                }
-            }
-
-            // Text.
-            let mut chunk_i = 0;
-            let mut display_x = 0;
+            // Render chunks until the end of the display row.
             let mut remaining_width = text_width;
-            let mut end_x = 0;
             'outer: while remaining_width > 0 {
                 let s = match chunks.peek() {
                     Some(s) => s,
                     None => break,
                 };
 
-                trace!("next chunk: {}/{:?}", chunk_char_start, s.len());
-
-                let mut x = x_base;
-                if let Cursor::Selection { range, .. } = &buffer.cursor() {
-                    if in_selection && *range.back() == Point::new(y, x) {
-                        in_selection = false;
-                        queue!(stdout, SetAttribute(Attribute::NoReverse)).ok();
-                    } else if !in_selection && *range.front() == Point::new(y, x) {
-                        in_selection = true;
-                        queue!(stdout, SetAttribute(Attribute::Reverse)).ok();
-                    }
-                }
-
-                chunk_i = 0;
-                for c in s.chars().skip(chunk_char_start) {
+                for c in s.chars().skip(chunk_start_idx) {
                     let (tab, char_width) = match c {
                         '\t' => (
                             true,
-                            buffer.config().tab_width - x % buffer.config().tab_width,
+                            buffer.config().tab_width - pos.x % buffer.config().tab_width,
                         ),
                         _ => (false, c.display_width()),
                     };
@@ -833,106 +764,320 @@ impl Terminal {
                         break 'outer;
                     }
 
-                    if y == main_pos.y && x == main_pos.x {
-                        cursor_pos = Some(Point::new(display_y, display_x));
-                    }
-
-                    if let Some(pos) = cursor_hover {
-                        if y == pos.y && x == pos.x {
-                            queue!(stdout, SetBackgroundColor(Color::DarkGrey)).ok();
-                        }
-                    }
-
                     if tab {
                         queue!(stdout, Print(whitespaces(char_width))).ok();
-                        for i in 0..char_width {
-                            self.pixel_map.set_pixel(
-                                &Point::new(1 + display_y, text_offset + display_x + i),
-                                &Point::new(y, x),
-                            );
-                        }
                     } else {
                         queue!(stdout, Print(c)).ok();
-                        self.pixel_map.set_pixel(
-                            &Point::new(1 + display_y, text_offset + display_x),
-                            &Point::new(y, x),
-                        );
-                    }
-
-                    // Clear the cursor hover.
-                    queue!(stdout, SetBackgroundColor(Color::Reset)).ok();
-
-                    remaining_width -= char_width;
-                    chunk_i += 1;
-                    display_x += char_width;
-                    x += 1;
-                    x_base += 1;
-                    end_x = max(x, end_x);
-
-                    if let Cursor::Selection { range, .. } = &buffer.cursor() {
-                        if in_selection && *range.back() == Point::new(y, x) {
-                            in_selection = false;
-                            queue!(stdout, SetAttribute(Attribute::NoReverse)).ok();
-                        } else if !in_selection && *range.front() == Point::new(y, x) {
-                            in_selection = true;
-                            queue!(stdout, SetAttribute(Attribute::Reverse)).ok();
-                        }
-
-                        // Print ' ' at the end of line if the newline character is selected.
-                        if in_selection && range.back().y > y && x == buffer.line_len(y) {
-                            queue!(stdout, Print(' ')).ok();
-                        }
                     }
                 }
 
                 // Printed all characters in the chunk. Visit the next one.
                 chunks.next();
-                chunk_char_start = 0;
             }
 
-            // Handle the cursor at the end of line.
-            if y == main_pos.y && main_pos.x == buffer.line_len(main_pos.y) {
-                cursor_pos = Some(Point::new(display_y, display_x));
-            }
-
-            if remaining_width > 0 {
-                if let Some(pos) = cursor_hover {
-                    if y == pos.y && end_x <= pos.x {
-                        queue!(stdout, SetBackgroundColor(Color::DarkGrey), Print(' '), SetBackgroundColor(Color::Reset)).ok();
-                    }
-                }
-            }
-
-            self.pixel_map.set_pixel(
-                &Point::new(1 + display_y, 0),
-                &Point::new(y, end_x),
-            );
-
+            // Clear the previously printed contents.
             queue!(stdout, Clear(ClearType::UntilNewLine)).ok();
 
             match chunks.peek() {
                 Some(_) => {
                     // There're remaining unprinted chunks in the line, i.e.,
                     // we need line wrapping.
-                    wrapped = Some((chunks, chunk_char_start + chunk_i));
+                    wrapped = Some((chunks, 0));
                 }
                 None => {
                     // Printed all chunks in the line.
                     wrapped = None;
-                    y += 1;
+                    pos.y += 1;
                 }
             }
         }
-        */
+
+        self.draw_status_line(&mut stdout, buffer, &notification, &main_pos);
+
+        // Move and show the cursor.
+        if let Some(Pixel { y, x }) = cursor_pixel {
+            queue!(
+                stdout,
+                MoveTo((self.text_start_x + x) as u16, (1 + y) as u16),
+                cursor::Show
+            )
+            .ok();
+        }
+
+        stdout.flush().ok();
     }
 
-    pub fn draw_status_line(
+    pub fn draw_line_number(
+        &self,
+        stdout: &mut std::io::Stdout,
+        lineno: usize,
+        lineno_max_width: usize,
+        active: bool,
+        wrapped: bool,
+    ) {
+        if wrapped {
+            queue!(
+                stdout,
+                SetForegroundColor(Color::DarkGrey),
+                Print(whitespaces(lineno_max_width - 2)),
+                Print("~"),
+                SetAttribute(Attribute::Reset),
+                Print(' '),
+            )
+            .ok();
+        } else {
+            if active {
+                queue!(stdout, SetAttribute(Attribute::Bold)).ok();
+            } else {
+                queue!(stdout, SetForegroundColor(Color::DarkGrey)).ok();
+            }
+
+            queue!(
+                stdout,
+                Print(whitespaces(lineno_max_width - num_of_digits(lineno) - 1)),
+                Print(lineno),
+                Print(' '),
+                SetAttribute(Attribute::Reset),
+            )
+            .ok();
+        }
+    }
+
+    pub fn draw_text(&self, stdout: &mut std::io::Stdout, buffer: &Buffer) {
+        // Draw the text area.
+        /*
+                let mut y = top_left.y;
+                let mut wrapped: Option<Peekable<Chunks>> = None;
+                let mut cursor_pos = None;
+                let mut in_selection = false;
+                let mut x_base = top_left.x;
+                let mut wrapped = if top_left.x > 0 {
+                    let mut chunks = buffer.line(y).chunks().peekable();
+                    let (chunk_i, char_i) = buffer.line_substr_chunk(y, top_left.x).unwrap();
+                    for chunk in 0..chunk_i {
+                        chunks.next();
+                    }
+                    Some((chunks, char_i))
+                } else {
+                    None
+                };
+
+                for display_y in 0..text_height {
+                    // Move the cursor at the beginning of the next line.
+                    queue!(
+                        stdout,
+                        MoveTo(0, display_y as u16 + 1),
+                        SetAttribute(Attribute::Reset),
+                    )
+                    .ok();
+
+                    // Handle the cursor at the end of file.
+                    if y == main_pos.y && main_pos.y == buffer.num_lines() && cursor_pos.is_none() {
+                        cursor_pos = Some(Point::new(display_y, 0));
+                    }
+
+                    // Get the string chunks of the current (or next) line.
+                    let is_wrapped = wrapped.is_some();
+                    let (mut chunks, mut chunk_char_start) = match wrapped {
+                        Some(inner) => inner,
+                        None if y < buffer.num_lines() => {
+                            x_base = 0;
+                            (buffer.line(y).chunks().peekable(), 0)
+                        },
+                        None => {
+                            // Out of bounds.
+                            trace!("skip: display_y={}/{}, y={}/{}",
+                                display_y, text_height, y, buffer.num_lines());
+                            queue!(
+                                stdout,
+                                SetAttribute(Attribute::Reset),
+                                Clear(ClearType::UntilNewLine),
+                            )
+                            .ok();
+                            continue;
+                        }
+                    };
+
+                    trace!("display_y={}/{}, x={}/{}, chunk_start={:?}",
+                        display_y, text_height, x_base, buffer.line_len(y), chunk_char_start);
+
+                    // Line number.
+                    if is_wrapped {
+                        queue!(
+                            stdout,
+                            SetForegroundColor(Color::DarkGrey),
+                            Print(whitespaces(lineno_width - 2)),
+                            Print("~"),
+                            SetAttribute(Attribute::Reset),
+                            Print(' '),
+                        )
+                        .ok();
+                    } else {
+                        if y == main_pos.y {
+                            queue!(stdout, SetAttribute(Attribute::Bold)).ok();
+                        } else {
+                            queue!(stdout, SetForegroundColor(Color::DarkGrey)).ok();
+                        }
+
+                        queue!(
+                            stdout,
+                            Print(whitespaces(lineno_width - num_of_digits(y + 1) - 1)),
+                            Print(y + 1),
+                            Print(' '),
+                            SetAttribute(Attribute::Reset),
+                        )
+                        .ok();
+                    }
+
+                    if let Cursor::Selection { range, .. } = &buffer.cursor() {
+                        if in_selection && *range.back() == Point::new(y, 0) {
+                            in_selection = false;
+                        } else if in_selection || *range.front() == Point::new(y, 0) {
+                            in_selection = true;
+                            queue!(stdout, SetAttribute(Attribute::Reverse)).ok();
+                            if buffer.line_len(y) == 0 {
+                                queue!(stdout, Print(' ')).ok();
+                            }
+                        }
+                    }
+
+                    // Text.
+                    let mut chunk_i = 0;
+                    let mut display_x = 0;
+                    let mut remaining_width = text_width;
+                    let mut end_x = 0;
+                    'outer: while remaining_width > 0 {
+                        let s = match chunks.peek() {
+                            Some(s) => s,
+                            None => break,
+                        };
+
+                        trace!("next chunk: {}/{:?}", chunk_char_start, s.len());
+
+                        let mut x = x_base;
+                        if let Cursor::Selection { range, .. } = &buffer.cursor() {
+                            if in_selection && *range.back() == Point::new(y, x) {
+                                in_selection = false;
+                                queue!(stdout, SetAttribute(Attribute::NoReverse)).ok();
+                            } else if !in_selection && *range.front() == Point::new(y, x) {
+                                in_selection = true;
+                                queue!(stdout, SetAttribute(Attribute::Reverse)).ok();
+                            }
+                        }
+
+                        chunk_i = 0;
+                        for c in s.chars().skip(chunk_char_start) {
+                            let (tab, char_width) = match c {
+                                '\t' => (
+                                    true,
+                                    buffer.config().tab_width - x % buffer.config().tab_width,
+                                ),
+                                _ => (false, c.display_width()),
+                            };
+
+                            if char_width > remaining_width {
+                                break 'outer;
+                            }
+
+                            if y == main_pos.y && x == main_pos.x {
+                                cursor_pos = Some(Point::new(display_y, display_x));
+                            }
+
+                            if let Some(pos) = cursor_hover {
+                                if y == pos.y && x == pos.x {
+                                    queue!(stdout, SetBackgroundColor(Color::DarkGrey)).ok();
+                                }
+                            }
+
+                            if tab {
+                                queue!(stdout, Print(whitespaces(char_width))).ok();
+                                for i in 0..char_width {
+                                    self.pixel_map.set_pixel(
+                                        &Point::new(1 + display_y, text_offset + display_x + i),
+                                        &Point::new(y, x),
+                                    );
+                                }
+                            } else {
+                                queue!(stdout, Print(c)).ok();
+                                self.pixel_map.set_pixel(
+                                    &Point::new(1 + display_y, text_offset + display_x),
+                                    &Point::new(y, x),
+                                );
+                            }
+
+                            // Clear the cursor hover.
+                            queue!(stdout, SetBackgroundColor(Color::Reset)).ok();
+
+                            remaining_width -= char_width;
+                            chunk_i += 1;
+                            display_x += char_width;
+                            x += 1;
+                            x_base += 1;
+                            end_x = max(x, end_x);
+
+                            if let Cursor::Selection { range, .. } = &buffer.cursor() {
+                                if in_selection && *range.back() == Point::new(y, x) {
+                                    in_selection = false;
+                                    queue!(stdout, SetAttribute(Attribute::NoReverse)).ok();
+                                } else if !in_selection && *range.front() == Point::new(y, x) {
+                                    in_selection = true;
+                                    queue!(stdout, SetAttribute(Attribute::Reverse)).ok();
+                                }
+
+                                // Print ' ' at the end of line if the newline character is selected.
+                                if in_selection && range.back().y > y && x == buffer.line_len(y) {
+                                    queue!(stdout, Print(' ')).ok();
+                                }
+                            }
+                        }
+
+                        // Printed all characters in the chunk. Visit the next one.
+                        chunks.next();
+                        chunk_char_start = 0;
+                    }
+
+                    // Handle the cursor at the end of line.
+                    if y == main_pos.y && main_pos.x == buffer.line_len(main_pos.y) {
+                        cursor_pos = Some(Point::new(display_y, display_x));
+                    }
+
+                    if remaining_width > 0 {
+                        if let Some(pos) = cursor_hover {
+                            if y == pos.y && end_x <= pos.x {
+                                queue!(stdout, SetBackgroundColor(Color::DarkGrey), Print(' '), SetBackgroundColor(Color::Reset)).ok();
+                            }
+                        }
+                    }
+
+                    self.pixel_map.set_pixel(
+                        &Point::new(1 + display_y, 0),
+                        &Point::new(y, end_x),
+                    );
+
+                    queue!(stdout, Clear(ClearType::UntilNewLine)).ok();
+
+                    match chunks.peek() {
+                        Some(_) => {
+                            // There're remaining unprinted chunks in the line, i.e.,
+                            // we need line wrapping.
+                            wrapped = Some((chunks, chunk_char_start + chunk_i));
+                        }
+                        None => {
+                            // Printed all chunks in the line.
+                            wrapped = None;
+                            y += 1;
+                        }
+                    }
+                }
+        w        */
+    }
+
+    fn draw_status_line(
         &self,
         stdout: &mut std::io::Stdout,
         buffer: &Buffer,
         notification: &Option<&Notification>,
         main_pos: &Point,
-        cursor_pos: &Option<Point>,
     ) {
         //           notification
         //          VVVVVVVVVVVVVVV
@@ -977,16 +1122,6 @@ impl Terminal {
             SetAttribute(Attribute::Reset),
         )
         .ok();
-
-        // Move and show the cursor.
-        if let Some(Point { y, x }) = cursor_pos {
-            queue!(
-                stdout,
-                MoveTo((self.text_start_x + x) as u16, (1 + y) as u16),
-                cursor::Show
-            )
-            .ok();
-        }
     }
 
     pub fn draw_finder(&mut self, finder: &Finder, input: &mut LineEdit) {
@@ -1095,8 +1230,12 @@ impl Terminal {
             return None;
         }
 
-        self.pixel_map.display_pos_to_text_pos(&Point::new(y as usize, x as usize))
-            .or_else(|| self.pixel_map.display_pos_to_text_pos(&Point::new(y as usize, 0)))
+        self.pixel_map
+            .display_pos_to_text_pos(&Point::new(y as usize, x as usize))
+            .or_else(|| {
+                self.pixel_map
+                    .display_pos_to_text_pos(&Point::new(y as usize, 0))
+            })
             .cloned()
     }
 
