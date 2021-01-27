@@ -756,7 +756,13 @@ impl Terminal {
                     None => break,
                 };
 
-                trace!("d_y={}, chunk={:?}, start={}, len={}", pixel.y, s.as_ptr(), chunk_start_idx, s.len());
+                trace!(
+                    "d_y={}, chunk={:?}, start={}, len={}",
+                    pixel.y,
+                    s.as_ptr(),
+                    chunk_start_idx,
+                    s.len()
+                );
 
                 for c in s.chars().skip(chunk_start_idx) {
                     let (tab, width) = match c {
