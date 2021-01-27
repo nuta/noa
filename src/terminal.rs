@@ -688,7 +688,10 @@ impl Terminal {
         self.text_cols = self.cols - display_x_text_start;
 
         // Adjust top left.
-        buffer.adjust_top_left(self.rows - display_y_text_start, self.cols - display_x_text_start);
+        buffer.adjust_top_left(
+            self.rows - display_y_text_start,
+            self.cols - display_x_text_start,
+        );
         let top_left = buffer.top_left();
         self.current_top_left = top_left.clone();
 
@@ -734,7 +737,7 @@ impl Terminal {
             };
 
             // Render chunks until the end of the display row.
-            let mut pixel = Pixel::new(display_y,display_x_text_start);
+            let mut pixel = Pixel::new(display_y, display_x_text_start);
             let mut chunk_printed_idx = 0;
             'outer: loop {
                 let s = match chunks.peek() {
@@ -753,6 +756,10 @@ impl Terminal {
 
                     if pixel.x + width > self.cols {
                         break 'outer;
+                    }
+
+                    if pos == *main_pos {
+                        cursor_pixel = Some(pixel.clone());
                     }
 
                     if tab {
@@ -793,12 +800,7 @@ impl Terminal {
 
         // Move and show the cursor.
         if let Some(Pixel { y, x }) = cursor_pixel {
-            queue!(
-                stdout,
-                MoveTo((display_x_text_start + x) as u16, (1 + y) as u16),
-                cursor::Show
-            )
-            .ok();
+            queue!(stdout, MoveTo(x as u16, y as u16), cursor::Show).ok();
         }
 
         stdout.flush().ok();
@@ -990,8 +992,7 @@ impl Terminal {
     }
 
     fn in_text_area(&self, y: u16, x: u16) -> Option<Point> {
-        let in_text_area = (y as usize) >= 1
-            && self.display_x_text_start <= (x as usize);
+        let in_text_area = (y as usize) >= 1 && self.display_x_text_start <= (x as usize);
         if !in_text_area {
             return None;
         }
