@@ -697,11 +697,22 @@ impl Terminal {
 
         let main_pos = buffer.main_cursor_pos();
 
+        trace!("main_pos={}, top_left={:?}", main_pos, top_left);
+
         use ropey::iter::Chunks;
         use std::iter::Peekable;
 
         let mut pos = Point::new(top_left.y, top_left.x);
-        let mut wrapped: Option<(Peekable<Chunks>, usize)> = None;
+        let mut wrapped: Option<(Peekable<Chunks>, usize)> = if top_left.x == 0 {
+            None
+        } else {
+            let mut chunks = buffer.line(top_left.y).chunks().peekable();
+            let (chunk_i, char_i) = buffer.line_substr_chunk(top_left.y, top_left.x).unwrap();
+            for chunk in 0..chunk_i {
+                chunks.next();
+            }
+            Some((chunks, char_i))
+        };
         let mut cursor_pixel = None;
         for display_y in display_y_text_start..self.rows {
             // Move the cursor at the beginning of the next display row.
@@ -744,6 +755,8 @@ impl Terminal {
                     Some(s) => s,
                     None => break,
                 };
+
+                trace!("d_y={}, chunk={:?}, start={}, len={}", pixel.y, s.as_ptr(), chunk_start_idx, s.len());
 
                 for c in s.chars().skip(chunk_start_idx) {
                     let (tab, width) = match c {
@@ -792,6 +805,7 @@ impl Terminal {
                     // Printed all chunks in the line.
                     wrapped = None;
                     pos.y += 1;
+                    pos.x = 0;
                 }
             }
         }

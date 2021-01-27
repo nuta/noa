@@ -237,16 +237,29 @@ impl Buffer {
 
         self.top_left.y = min(self.top_left.y, self.num_lines().saturating_sub(rows / 2));
 
-        // TODO:
-        // // Scroll Right.
-        // if pos.x >= self.top_left.x + cols {
-        //     self.top_left.x = pos.x - cols + 1;
-        // }
+        if self.top_left.x > pos.x {
+            self.top_left.x = 0;
+        }
 
-        // // Scroll Left.
-        // if pos.x < self.top_left.x {
-        //     self.top_left.x = pos.x;
-        // }
+        // Scroll column until it reaches the cursor in a wrapped line.
+        if self.width_in_display(self.top_left.y, self.top_left.x, self.line_len(self.top_left.y)) >= rows * cols {
+            self.top_left.y = pos.y;
+        }
+
+        while self.width_in_display(pos.y, self.top_left.x, pos.x) >= (rows - self.top_left.y) * cols {
+            let mut remaining = cols;
+            // Scroll a display row.
+            for c in self.line_substr(pos.y, self.top_left.x).chars() {
+                use crate::terminal::DisplayWidth;
+                let w = c.display_width();
+                if remaining < w {
+                    break;
+                }
+
+                self.top_left.x += 1;
+                remaining -= w;
+            }
+        }
     }
 
     pub fn goto(&mut self, y: usize, x: usize) {
