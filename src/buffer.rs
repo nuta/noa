@@ -237,8 +237,21 @@ impl Buffer {
 
         self.top_left.y = min(self.top_left.y, self.num_lines().saturating_sub(rows / 2));
 
-        if self.top_left.x > pos.x {
-            self.top_left.x = 0;
+        // Scroll up until it reaches the cursor in a wrapped line.
+        while self.top_left.x > pos.x {
+            let mut remaining = cols;
+            // Scroll a display row.
+            trace!("scroll up");
+            for c in self.line_substr(pos.y, min(self.top_left.x, self.line_len(pos.y))).chars() {
+                use crate::terminal::DisplayWidth;
+                let w = c.display_width();
+                if remaining < w {
+                    break;
+                }
+
+                self.top_left.x -= 1;
+                remaining -= w;
+            }
         }
 
         if self.width_in_display(
@@ -250,21 +263,27 @@ impl Buffer {
             self.top_left.y = pos.y;
         }
 
-        // Scroll column until it reaches the cursor in a wrapped line.
+        // Scroll down until it reaches the cursor in a wrapped line.
+        trace!("w={}, {}", self.width_in_display(pos.y, self.top_left.x, pos.x), (rows - (pos.y - self.top_left.y)) * cols);
         while self.width_in_display(pos.y, self.top_left.x, pos.x)
-            >= (rows - self.top_left.y) * cols
+            >= (rows - (pos.y - self.top_left.y)) * cols
         {
-            let mut remaining = cols;
-            // Scroll a display row.
-            for c in self.line_substr(pos.y, self.top_left.x).chars() {
-                use crate::terminal::DisplayWidth;
-                let w = c.display_width();
-                if remaining < w {
-                    break;
-                }
+            trace!("scroll down");
+            if pos.y == self.top_left.y {
+                let mut remaining = cols;
+                // Scroll a display row.
+                for c in self.line_substr(pos.y, self.top_left.x).chars() {
+                    use crate::terminal::DisplayWidth;
+                    let w = c.display_width();
+                    if remaining < w {
+                        break;
+                    }
 
-                self.top_left.x += 1;
-                remaining -= w;
+                    self.top_left.x += 1;
+                    remaining -= w;
+                }
+            } else {
+                self.top_left.y += 1;
             }
         }
     }
