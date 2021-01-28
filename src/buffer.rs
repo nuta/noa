@@ -256,7 +256,11 @@ impl Buffer {
 
         if self.width_in_display(
             self.top_left.y,
-            self.top_left.x,
+            if pos.y == self.top_left.y {
+                self.top_left.x
+            } else {
+                0
+            },
             self.line_len(self.top_left.y),
         ) >= rows * cols
         {
@@ -264,11 +268,24 @@ impl Buffer {
         }
 
         // Scroll down until it reaches the cursor in a wrapped line.
-        trace!("w={}, {}", self.width_in_display(pos.y, self.top_left.x, pos.x), (rows - (pos.y - self.top_left.y)) * cols);
-        while self.width_in_display(pos.y, self.top_left.x, pos.x)
+
+        trace!("w={}, {}", self.width_in_display(pos.y, if pos.y == self.top_left.y {
+            self.top_left.x
+        } else {
+            0
+        }, pos.x), (rows - (pos.y - self.top_left.y)) * cols);
+
+        while self.width_in_display(pos.y, if pos.y == self.top_left.y {
+            self.top_left.x
+        } else {
+            0
+        }, pos.x)
             >= (rows - (pos.y - self.top_left.y)) * cols
         {
-            trace!("scroll down");
+            trace!("scroll down: tl={:?} pos={:?} logical_x={}", self.top_left, pos, match self.cursor() {
+                Cursor::Normal { logical_x, .. } => logical_x,
+                Cursor::Selection { logical_x, .. } => logical_x,
+            });
             if pos.y == self.top_left.y {
                 let mut remaining = cols;
                 // Scroll a display row.
@@ -284,6 +301,7 @@ impl Buffer {
                 }
             } else {
                 self.top_left.y += 1;
+                self.top_left.x = 0;
             }
         }
     }
@@ -1281,7 +1299,7 @@ mod tests {
         b.insert("aあbc");
         b.set_cursor(Cursor::new(0, 4));
         b.move_cursor_with_line_wrap(5, 1, 0);
-        assert_eq!(b.cursor(), &Cursor::new(0, 4));
+        assert_eq!(b.cursor(), &Cursor::new(0, 0));
 
         // | => |
         let mut b = Buffer::new();

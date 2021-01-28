@@ -707,6 +707,7 @@ impl Terminal {
             None
         } else {
             let mut chunks = buffer.line(top_left.y).chunks().peekable();
+
             let (chunk_i, char_i) = buffer.line_substr_chunk(top_left.y, top_left.x).unwrap();
             for chunk in 0..chunk_i {
                 chunks.next();

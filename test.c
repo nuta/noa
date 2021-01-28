@@ -17,6 +17,6 @@ xyz
 ABC
 2
 This isverrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrry llonger line                               123456 caaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaatttttttttttttt and abcdefg let char_width = UnicodeWidthChar::width_cjk(c).unwrap_or(1);
-
-
+123
+asd
 adwawd
