@@ -4,6 +4,8 @@ import (
 export (
 )
 
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa123456789
+
 if (test) {
 	hello
 		if (test2) {

@@ -1,13 +1,14 @@
 use crate::editorconfig::{EditorConfig, IndentStyle};
 use crate::language::{guess_language, Language};
 use crate::rope::*;
+use crate::terminal::DisplayWidth;
 use std::cmp::{max, min};
 
 use std::fs;
 
 use std::path::{Path, PathBuf};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TopLeft {
     pub y: usize,
     pub x: usize,
@@ -216,93 +217,36 @@ impl Buffer {
         &self.top_left
     }
 
-    pub fn adjust_top_left(&mut self, rows: usize, cols: usize) {
+    pub fn relocate_top_left(&mut self, height: usize, width: usize) {
         let pos = match &self.cursor {
             Cursor::Normal { pos, .. } => pos,
             Cursor::Selection {
                 range: Range { end, .. },
                 ..
             } => end,
-        };
+        }
+        .clone();
 
-        // Scroll Up.
         if pos.y < self.top_left.y {
             self.top_left.y = pos.y;
         }
 
+        let mut last_y = 0;
+        let mut remaining = height;
+        for y in self.top_left.y..min(self.num_lines(), self.top_left.y + height) {
+            let w = self.width_in_display(y, 0, self.line_len(y));
+            let h = w / width + 1;
+            last_y = y;
+            if h >= remaining {
+                break;
+            }
+
+            remaining -= h;
+        }
+
         // Scroll Down.
-        if pos.y >= self.top_left.y + rows {
-            self.top_left.y = pos.y - rows + 1;
-        }
-
-        self.top_left.y = min(self.top_left.y, self.num_lines().saturating_sub(rows / 2));
-
-        // Scroll up until it reaches the cursor in a wrapped line.
-        while self.top_left.x > pos.x {
-            let mut remaining = cols;
-            // Scroll a display row.
-            trace!("scroll up");
-            for c in self.line_substr(pos.y, min(self.top_left.x, self.line_len(pos.y))).chars() {
-                use crate::terminal::DisplayWidth;
-                let w = c.display_width();
-                if remaining < w {
-                    break;
-                }
-
-                self.top_left.x -= 1;
-                remaining -= w;
-            }
-        }
-
-        if self.width_in_display(
-            self.top_left.y,
-            if pos.y == self.top_left.y {
-                self.top_left.x
-            } else {
-                0
-            },
-            self.line_len(self.top_left.y),
-        ) >= rows * cols
-        {
+        if pos.y >= last_y {
             self.top_left.y = pos.y;
-        }
-
-        // Scroll down until it reaches the cursor in a wrapped line.
-
-        trace!("w={}, {}", self.width_in_display(pos.y, if pos.y == self.top_left.y {
-            self.top_left.x
-        } else {
-            0
-        }, pos.x), (rows - (pos.y - self.top_left.y)) * cols);
-
-        while self.width_in_display(pos.y, if pos.y == self.top_left.y {
-            self.top_left.x
-        } else {
-            0
-        }, pos.x)
-            >= (rows - (pos.y - self.top_left.y)) * cols
-        {
-            trace!("scroll down: tl={:?} pos={:?} logical_x={}", self.top_left, pos, match self.cursor() {
-                Cursor::Normal { logical_x, .. } => logical_x,
-                Cursor::Selection { logical_x, .. } => logical_x,
-            });
-            if pos.y == self.top_left.y {
-                let mut remaining = cols;
-                // Scroll a display row.
-                for c in self.line_substr(pos.y, self.top_left.x).chars() {
-                    use crate::terminal::DisplayWidth;
-                    let w = c.display_width();
-                    if remaining < w {
-                        break;
-                    }
-
-                    self.top_left.x += 1;
-                    remaining -= w;
-                }
-            } else {
-                self.top_left.y += 1;
-                self.top_left.x = 0;
-            }
         }
     }
 
@@ -1356,6 +1300,33 @@ mod tests {
         assert_eq!(b.cursor(), &Cursor::new(1, 1));
         b.move_cursor_with_line_wrap(30, 1, 0);
         assert_eq!(b.cursor(), &Cursor::new(0, 1));
+    }
+
+    #[test]
+    fn relocate_top_left() {
+        // line #1!!!
+        // abc          <--- wrapped
+        // line #2!!!
+        // V---------------------- top_left
+        // line #3!!!
+        // x|yz         <--- wrapped
+        let mut b = Buffer::from_str("line #1!!!abc\nline #2!!!\nline #3!!!xyz");
+        b.top_left = TopLeft::new(2, 0);
+
+        // x|yz   =>   a|bc
+        b.set_cursor(Cursor::new(0, 11));
+        b.relocate_top_left(2, 10);
+        assert_eq!(b.top_left(), &TopLeft::new(0, 0));
+
+        // a|bc   =>   l|ine #2!!!
+        b.set_cursor(Cursor::new(1, 1));
+        b.relocate_top_left(2, 10);
+        assert_eq!(b.top_left(), &TopLeft::new(1, 0));
+
+        // a|bc   =>   x|yz
+        b.set_cursor(Cursor::new(2, 10));
+        b.relocate_top_left(2, 10);
+        assert_eq!(b.top_left(), &TopLeft::new(2, 0));
     }
 
     #[test]
