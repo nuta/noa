@@ -136,21 +136,6 @@ impl Buffer {
         self.rope.line(line)
     }
 
-    /// Returns `(chunk_idx, char_idx_in_chunk)`.
-    pub fn line_substr_chunk(&self, line: usize, start: usize) -> Option<(usize, usize)> {
-        let mut remaining = start;
-        for (chunk_i, chunk) in self.line(line).chunks().enumerate() {
-            for (char_i, _) in chunk.char_indices() {
-                if remaining == 0 {
-                    return Some((chunk_i, char_i));
-                }
-                remaining -= 1;
-            }
-        }
-
-        None
-    }
-
     pub fn line_substr(&self, line: usize, start: usize) -> String {
         let mut s = String::new();
         let mut iter = self.line(line).chunks();
@@ -306,14 +291,13 @@ impl Buffer {
             return 0;
         }
 
-        use unicode_width::UnicodeWidthStr;
         let rest = self.line_substr(y, x_start);
         let end_i = rest
             .char_indices()
             .nth(x_end - x_start)
             .map(|(i, _)| i)
             .unwrap_or_else(|| rest.len());
-        UnicodeWidthStr::width_cjk(&rest[..end_i])
+        rest[..end_i].display_width()
     }
 
     pub fn move_cursor_with_line_wrap(&mut self, cols: usize, up: usize, down: usize) {
@@ -2013,6 +1997,39 @@ mod tests {
 
         let mut b = Buffer::from_str("");
         assert_eq!(b.line_substr(0, 0), "");
+    }
+
+    #[test]
+    fn width_in_display() {
+        let mut b = Buffer::from_str("aあ");
+        assert_eq!(b.width_in_display(0, 0, 2), 3);
+        let mut b = Buffer::from_str("12345\nあbc");
+        assert_eq!(b.width_in_display(1, 0, 3), 4);
+
+        let mut b = Buffer::from_str("");
+        assert_eq!(b.width_in_display(1, 0, 0), 0);
+        let mut b = Buffer::from_str("");
+        assert_eq!(b.width_in_display(0, 0, 0), 0);
+    }
+
+    #[bench]
+    fn bench_width_in_display_200chars(b: &mut Bencher) {
+        let mut buffer = Buffer::new();
+        for _ in 0..20 {
+            buffer.insert("0123456789");
+        }
+
+        b.iter(|| buffer.width_in_display(0, 0, buffer.len()));
+    }
+
+    #[bench]
+    fn bench_width_in_display_10000chars(b: &mut Bencher) {
+        let mut buffer = Buffer::new();
+        for _ in 0..1000 {
+            buffer.insert("0123456789");
+        }
+
+        b.iter(|| buffer.width_in_display(0, 0, buffer.len()));
     }
 
     #[bench]
