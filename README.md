@@ -55,7 +55,19 @@ interested can grasp the concept of its underlying concept called *structural re
 
 ### Examples
 ```
-/open_file/g        -- Search for the next occurrence of `open_file`
+/Emacs/r/Vim/       -- Replace the next occurence of "Emacs" with "Vim".
+,/Emacs/r/Vim/      -- Replace the all occurences of "Emacs" with "Vim" in the text.
+./Emacs/r/Vim/      -- Replace the all occurences of "Emacs" with "Vim" in 
+                       the selection.
+
+G%r#/*\1"#          -- Select the current code block (e.g. enclosed by `{` and `}`)
+                       and comment out the part by `/* */`.
+,x/foo/Cr/"\1"/     -- Search all "foo", transform them to uppercase, and then
+                       enclose them with double quotes: foo -> FOO -> "FOO"
+
+11g                 -- Goto the 11th line.
+
+/open_file/g        -- Move to the next occurrence of "open_file"
 /open_file/         -- ditto (from *Some Helpful Exceptions* below)
 /open_file          -- ditto (from *Some Helpful Exceptions* below)
 ```
@@ -63,6 +75,10 @@ interested can grasp the concept of its underlying concept called *structural re
 ### Syntax
 The NED language consists of an address and arbitrary number of pairs of opecode
 and its operand.
+
+Each opcode takes as input a list of matches, edits matches if necessary, and
+outputs a list of matches. For the first opcode, the range specified by
+*address* is given as the single match.
 
 ```
 [addr?][opcode1][operand1*][whitespace?][opcode2][operand2*] ...
@@ -73,7 +89,8 @@ and its operand.
 are added just for redability. `<regex>` is a regular expression enclosed by the first character.
 
 ```
-[addr] m <regex>              -- Select the whole matches that match the regex.
+[addr] x <char><regex><char>  -- Extract the matches (like `egrep -o`).
+[addr] X <char><regex><char>  -- Select the whole matching addr/matches.
 [addr] a <string>             -- Append a string.
 [addr] i <string>             -- Prepend a string.
 [addr] r <string>             -- Replace matches with string.
@@ -87,6 +104,7 @@ are added just for redability. `<regex>` is a regular expression enclosed by the
                                      $  -- The end of a line.
                                      %  -- Corresponding block symbols (e.g. "{}").
                                 (empty) -- The first match.
+[addr] G [^|$%]               -- Select until the positions as described above.
 [addr] c                      -- Transform to lowercase.
 [addr] C                      -- Transform to uppercase.
 ```
@@ -105,8 +123,18 @@ are added just for redability. `<regex>` is a regular expression enclosed by the
 [addr1],[addr2]     -- The range of beginning of `addr1` and the end of `addr2`.
 ```
 
+### Regular Expressions
+- `\1`, `\2`, ... are replaced by the groups in a match, for example,
+  if `/a(.c)/r/__\1__` is applied to `"abc"`, it will be `"__bc__"`.
+
 ### Some Helpful Exceptions
 - If no opcode is given (i.e. only `addr`), it will be interpreted as `[addr]g`. That is,
-  it moves to the first match.
-- If no opcode is given (i.e. only `addr`), it is allowed to omit the closing character
-  in the regular expression in the `addr`.
+  it moves to the beginning of the address.
+- The closing character in a regular expression can be omitted by EOF,
+  i.e. `/foo` instead of `/foo/`.
+
+### Notes
+- `/foo` and `x/foo` outputs the same (single match of the next "foo"), however,
+  they come from different concepts: *address* and *opcode*. Unlike the address,
+  *x* opcode can output multiple matches in the text. For instance, `3,10x/foo/`
+  outputs all occurences of "foo" in the line 3-10 (inclusive).
