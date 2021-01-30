@@ -128,7 +128,6 @@ impl Buffer {
         &self.config
     }
 
-    #[cfg(test)]
     pub fn text(&self) -> String {
         self.rope.text()
     }
@@ -227,25 +226,33 @@ impl Buffer {
         }
         .clone();
 
+        // Scroll up.
         if pos.y < self.top_left.y {
             self.top_left.y = pos.y;
         }
 
         let mut last_y = 0;
-        let mut remaining = height;
-        for y in self.top_left.y..min(self.num_lines(), self.top_left.y + height) {
-            let w = self.width_in_display(y, 0, self.line_len(y));
-            let h = w / width + 1;
-            last_y = y;
-            if h >= remaining {
-                break;
+        for _ in 0..2 {
+            let mut remaining = height;
+            for y in self.top_left.y..=min(self.num_lines(), self.top_left.y + height) {
+                let w = self.width_in_display(y, 0, self.line_len(y));
+                let h = w / width + 1;
+                last_y = y;
+                if h >= remaining {
+                    break;
+                }
+
+                remaining -= h;
             }
 
-            remaining -= h;
+            // Scroll down.
+            if pos.y > last_y {
+                self.top_left.y += 1;
+            }
         }
 
-        // Scroll Down.
-        if pos.y >= last_y {
+        // The cursor is still out of bounds.
+        if pos.y > last_y {
             self.top_left.y = pos.y;
         }
     }
@@ -319,7 +326,6 @@ impl Buffer {
 
         for _ in 0..down {
             let prev_x = pos.x;
-            let _prev_y = pos.y;
             let prefix_width = self.width_in_display(pos.y, 0, pos.x);
             let from_left = prefix_width % (cols + 1);
             // Move at the same display column in the next line in the display.
@@ -333,11 +339,11 @@ impl Buffer {
                     pos.y += 1;
                     pos.x = 0;
                     let prefix_width =
-                        self.width_in_display(pos.y, 0, min(self.line_len(pos.y), logical_x));
+                    self.width_in_display(pos.y, 0, min(self.line_len(pos.y), logical_x));
                     let from_left = prefix_width % (cols + 1);
                     loop {
                         if pos.x >= self.line_len(pos.y)
-                            || self.width_in_display(pos.y, 0, pos.x) >= from_left
+                        || self.width_in_display(pos.y, 0, pos.x) >= from_left
                         {
                             break 'outer1;
                         }
@@ -356,7 +362,6 @@ impl Buffer {
 
         for _ in 0..up {
             let prev_x = pos.x;
-            let _prev_y = pos.y;
             let prefix_width = self.width_in_display(pos.y, 0, pos.x);
             let from_left = prefix_width % (cols + 1);
             // Move at the same display column in the previous line in the display.
@@ -375,20 +380,18 @@ impl Buffer {
                     let prev_line_len = self.line_len(pos.y - 1);
                     pos.y -= 1;
                     pos.x = prev_line_len;
-                    let prev_line_width =
-                        self.width_in_display(pos.y, 0, prev_line_len) % (cols + 1);
-                    let logical_x_width = if logical_x <= prev_line_len {
-                        self.width_in_display(pos.y, 0, logical_x) % (cols + 1)
-                    } else {
-                        0
+                    let prev_line_width = {
+                        let w = self.width_in_display(pos.y, 0, prev_line_len);
+                        if w % cols == 0 && w > 0 { cols } else {w % cols }
                     };
                     if prev_line_width <= from_left {
                         break;
                     }
                     loop {
                         if pos.x == 0
+                            || pos.x == logical_x
                             || self.width_in_display(pos.y, pos.x, prev_line_len)
-                                >= prev_line_width - max(from_left, logical_x_width)
+                                >= prev_line_width - from_left
                         {
                             break 'outer2;
                         }
@@ -575,15 +578,22 @@ impl Buffer {
         let num_newlines_deleted = remove.map(|r| r.back().y - r.front().y).unwrap_or(0);
         let y_diff = num_newlines_added.saturating_sub(num_newlines_deleted);
 
-        let x_diff = string
-            .chars()
-            .rev()
-            .position(|c| c == '\n')
-            .map(|x| string_count - x - 1)
-            .unwrap_or(string_count);
+        let mut last_newline_idx = None;
+        for (i, ch) in string.chars().enumerate() {
+            if ch == '\n' {
+                last_newline_idx = Some(i);
+            }
+        }
+
+        let x_diff =
+            last_newline_idx
+                .map(|x| string_count - x - 1)
+                .unwrap_or(string_count);
 
         let y = insert_at.y + y_diff;
-        let x = if string.contains('\n') {
+        let x = if string.ends_with('\n') {
+            0
+        } else if string.contains('\n') {
             x_diff
         } else {
             insert_at.x + x_diff
@@ -626,6 +636,8 @@ impl Buffer {
                 self.insert_char(ch);
             }
         }
+
+        dbg!(&self.cursor);
     }
 
     fn inherit_indent(&mut self, y: usize) {
@@ -1040,6 +1052,19 @@ mod tests {
     }
 
     #[test]
+    fn insertion_with_newlines() {
+        let mut b = Buffer::new();
+        b.insert("abc\n");
+        assert_eq!(b.text(), "abc\n");
+        assert_eq!(b.cursor(), &Cursor::new(1, 0));
+
+        let mut b = Buffer::new();
+        b.insert("abc\nx\ny");
+        assert_eq!(b.text(), "abc\nx\ny");
+        assert_eq!(b.cursor(), &Cursor::new(2, 1));
+    }
+
+    #[test]
     fn insert_at_eof() {
         let mut b = Buffer::new();
         b.insert("abc");
@@ -1237,6 +1262,17 @@ mod tests {
         b.set_cursor(Cursor::new(1, 5));
         b.move_cursor_with_line_wrap(10, 1, 0);
         assert_eq!(b.cursor(), &Cursor::new(0, 2));
+
+        // abcde   =>    a|bcde
+        // fg            fg
+        // x|            x
+        let mut b = Buffer::new();
+        b.insert("abcdefg\nx");
+        b.set_cursor(Cursor::Normal { pos: Point::new(1, 1), logical_x: 4 });
+        b.move_cursor_with_line_wrap(5, 1, 0);
+        assert_eq!(b.cursor(), &Cursor::new(0, 6));
+        b.move_cursor_with_line_wrap(5, 1, 0);
+        assert_eq!(b.cursor(), &Cursor::new(0, 1));
 
         // aあbc| => aあbc|
         let mut b = Buffer::new();

@@ -372,15 +372,8 @@ impl Terminal {
             )
             .ok();
 
-            self.draw_line_number(
-                &mut stdout,
-                pos.y + 1,
-                lineno_max_width,
-                pos.y == main_pos.y,
-                wrapped.is_some(),
-            );
-
             // Get the string chunks of the current (or next) buffer line.
+            let is_wrapped = wrapped.is_some();
             let (mut chunks, mut chunk_start_idx) = match wrapped {
                 Some(inner) => inner,
                 None if pos.y < buffer.num_lines() => (buffer.line(pos.y).chunks().peekable(), 0),
@@ -395,6 +388,15 @@ impl Terminal {
                     continue;
                 }
             };
+
+            // The pos.y is in the bufer. Print the line number.
+            self.draw_line_number(
+                &mut stdout,
+                pos.y + 1,
+                lineno_max_width,
+                pos.y == main_pos.y,
+                is_wrapped,
+            );
 
             let mut pixel = Pixel::new(display_y, display_x_text_start);
 
@@ -420,7 +422,7 @@ impl Terminal {
                         _ => (false, c.display_width()),
                     };
 
-                    if pos == *main_pos && chunk_start_idx == 0 {
+                    if pos == *main_pos && is_wrapped {
                         cursor_pixel = pixel.clone();
                     }
 
