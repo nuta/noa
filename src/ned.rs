@@ -166,9 +166,7 @@ impl<'a> Parser<'a> {
                 self.consume();
                 Some(Address::EOF)
             }
-            Some('/') => {
-                Some(Address::Match(self.parse_regex()?))
-            }
+            Some('/') => Some(Address::Match(self.parse_regex()?)),
             Some(ch) if ch.is_ascii_digit() => {
                 let mut n = 0;
                 while let Some(ch) = self.peek() {
@@ -242,134 +240,60 @@ impl<'a> Parser<'a> {
 mod tests {
     use super::*;
 
-    impl Query {
-        // Implement our own partial_eq since Regex is not PartialEq intentionally.
-        fn assert_eq(&self, other: &Query) {
-            match (self.addr, other.addr) {
-                (Address::Current, Address::Current)
-                | (Address::EOF, Address::EOF) => {}
-                (Address::LineNo(lineno1), Address::LineNo(lineno2))  if lineno1 == lineno2 => {}
-                (Address::Match(regex1), Address::Match(regex2)) => {
-                    assert_eq!(regex1.as_str(), regex2.as_str());
-                }
-                (Address::Range { start: start1, end: end2 }) => {
-                    assert_eq!(regex1.as_str(), regex2.as_str());
-                }
-            }
-
-            dbg!(&self.ops, &other.ops);
-            assert_eq!(self.ops.len(), other.ops.len());
-            for (i, (op1, op2)) in self.ops.iter().zip(other.ops.iter()).enumerate() {
-                match (op1, op2) {
-                    (Op::Extract { regex: regex1 }, Op::Extract { regex: regex2 }) => {
-                        assert_eq!(regex1.as_str(), regex2.as_str());
-                    }
-                    (Op::Jump(jump1), Op::Jump(jump2)) => {
-                        assert_eq!(jump1, jump2);
-                    }
-                    (_, _) => {
-                        panic!("{}-th elements are not equal", i);
-                    }
-                }
-            }
-        }
-    }
-
     fn parse(query: &str) -> Query {
-        Parser::new(query).parse().unwrap()
-    }
-
-    fn failing_parse(query: &str) -> ParseError {
-        Parser::new(query).parse().unwrap_err()
+        Parser::new(query).parse()
     }
 
     #[test]
-    fn test_parse_addr() {
-        parse("").assert_eq(&Query {
-            addr: Address::Forward {
-                start: Box::new(Address::Current),
-                end: Box::new(Address::EOF),
-            },
-            ops: vec![Op::Jump(JumpTo::FirstMatch)],
-        });
+    fn test_parser() {
+        assert_eq!(
+            parse(""),
+            Ok(Query {
+                addr: Address::Forward {
+                    start: Box::new(Address::Current),
+                    end: Box::new(Address::EOF),
+                },
+                ops: vec![Op::Jump(JumpTo::FirstMatch)],
+            })
+        );
 
-        parse("x/a?c/").assert_eq(&Query {
-            addr: Address::Forward {
-                start: Box::new(Address::Current),
-                end: Box::new(Address::EOF),
-            },
-            ops: vec![Op::Extract {
-                regex: Regex::new("a?c").unwrap(),
-            }],
-        });
+        assert_eq!(
+            parse("x/a?c/"),
+            Ok(Query {
+                addr: Address::Forward {
+                    start: Box::new(Address::Current),
+                    end: Box::new(Address::EOF),
+                },
+                ops: vec![Op::Extract {
+                    regex: Regex::new("a?c").unwrap(),
+                }],
+            })
+        );
 
-        parse(",x/a?c/").assert_eq(&Query {
-            addr: Address::Range {
-                start: Box::new(Address::LineNo(0)),
-                end: Box::new(Address::EOF),
-            },
-            ops: vec![Op::Extract {
-                regex: Regex::new("a?c").unwrap(),
-            }],
-        });
+        assert_eq!(
+            parse(",x/a?c/"),
+            Ok(Query {
+                addr: Address::Range {
+                    start: Box::new(Address::LineNo(0)),
+                    end: Box::new(Address::EOF),
+                },
+                ops: vec![Op::Extract {
+                    regex: Regex::new("a?c").unwrap(),
+                }],
+            })
+        );
 
-        parse("x/\\//").assert_eq(&Query {
-            addr: Address::Forward {
-                start: Box::new(Address::Current),
-                end: Box::new(Address::EOF),
-            },
-            ops: vec![Op::Extract {
-                regex: Regex::new("/").unwrap(),
-            }],
-        });
-
-        // assert_eq!(parse_addr("."), Ok((1, Some(Address::Current))));
-        // assert_eq!(parse_addr("$"), Ok((1, Some(Address::EOF))));
-        // assert_eq!(parse_addr("0"), Ok((1, Some(Address::LineNo(0)))));
-        // assert_eq!(parse_addr("1"), Ok((1, Some(Address::LineNo(1)))));
-        // assert_eq!(parse_addr("123"), Ok((3, Some(Address::LineNo(123)))));
-        // assert_eq!(
-        //     parse_addr("12,34"),
-        //     Ok((
-        //         5,
-        //         Some(Address::Range {
-        //             start: Box::new(Address::LineNo((12))),
-        //             end: Box::new(Address::LineNo((34))),
-        //         })
-        //     ))
-        // );
-        // assert_eq!(
-        //     parse_addr("12,"),
-        //     Ok((
-        //         3,
-        //         Some(Address::Range {
-        //             start: Box::new(Address::LineNo((12))),
-        //             end: Box::new(Address::EOF),
-        //         })
-        //     ))
-        // );
-        // assert_eq!(
-        //     parse_addr(",34"),
-        //     Ok((
-        //         3,
-        //         Some(Address::Range {
-        //             start: Box::new(Address::LineNo(0)),
-        //             end: Box::new(Address::LineNo((34))),
-        //         })
-        //     ))
-        // );
-        // assert_eq!(
-        //     parse_addr(","),
-        //     Ok((
-        //         1,
-        //         Some(Address::Range {
-        //             start: Box::new(Address::LineNo(0)),
-        //             end: Box::new(Address::EOF),
-        //         })
-        //     ))
-        // );
+        assert_eq!(
+            parse("x/\\//"),
+            Ok(Query {
+                addr: Address::Forward {
+                    start: Box::new(Address::Current),
+                    end: Box::new(Address::EOF),
+                },
+                ops: vec![Op::Extract {
+                    regex: Regex::new("/").unwrap(),
+                }],
+            })
+        );
     }
-
-    #[test]
-    fn opcode_x() {}
 }
