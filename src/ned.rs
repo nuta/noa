@@ -94,9 +94,7 @@ fn parse_addr(cmd: &str) -> Result<(usize, Option<Address>), NedError> {
 
             Some(Address::LineNo(n as usize))
         }
-        _ => {
-            None
-        }
+        _ => None,
     };
 
     // Handle compound addresses.
@@ -144,22 +142,46 @@ mod tests {
         assert_eq!(parse_addr("0"), Ok((1, Some(Address::LineNo(0)))));
         assert_eq!(parse_addr("1"), Ok((1, Some(Address::LineNo(1)))));
         assert_eq!(parse_addr("123"), Ok((3, Some(Address::LineNo(123)))));
-        assert_eq!(parse_addr("12,34"), Ok((5, Some(Address::Range {
-            start: Box::new(Address::LineNo((12))),
-            end: Box::new(Address::LineNo((34))),
-        }))));
-        assert_eq!(parse_addr("12,"), Ok((3, Some(Address::Range {
-            start: Box::new(Address::LineNo((12))),
-            end: Box::new(Address::EOF),
-        }))));
-        assert_eq!(parse_addr(",34"), Ok((3, Some(Address::Range {
-            start: Box::new(Address::LineNo(0)),
-            end: Box::new(Address::LineNo((34))),
-        }))));
-        assert_eq!(parse_addr(","), Ok((1, Some(Address::Range {
-            start: Box::new(Address::LineNo(0)),
-            end: Box::new(Address::EOF),
-        }))));
+        assert_eq!(
+            parse_addr("12,34"),
+            Ok((
+                5,
+                Some(Address::Range {
+                    start: Box::new(Address::LineNo((12))),
+                    end: Box::new(Address::LineNo((34))),
+                })
+            ))
+        );
+        assert_eq!(
+            parse_addr("12,"),
+            Ok((
+                3,
+                Some(Address::Range {
+                    start: Box::new(Address::LineNo((12))),
+                    end: Box::new(Address::EOF),
+                })
+            ))
+        );
+        assert_eq!(
+            parse_addr(",34"),
+            Ok((
+                3,
+                Some(Address::Range {
+                    start: Box::new(Address::LineNo(0)),
+                    end: Box::new(Address::LineNo((34))),
+                })
+            ))
+        );
+        assert_eq!(
+            parse_addr(","),
+            Ok((
+                1,
+                Some(Address::Range {
+                    start: Box::new(Address::LineNo(0)),
+                    end: Box::new(Address::EOF),
+                })
+            ))
+        );
     }
 
     #[test]
