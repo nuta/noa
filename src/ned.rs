@@ -11,12 +11,14 @@ struct InOut<'a> {
     matches: Vec<Match<'a>>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 enum Address {
     // `.`
     Current,
     // `0`, `123`, ...
     LineNo(usize),
+    // `/.../`
+    Match(Regex),
     // `$`
     EOF,
     // `a1,a2`
@@ -164,6 +166,9 @@ impl<'a> Parser<'a> {
                 self.consume();
                 Some(Address::EOF)
             }
+            Some('/') => {
+                Some(Address::Match(self.parse_regex()?))
+            }
             Some(ch) if ch.is_ascii_digit() => {
                 let mut n = 0;
                 while let Some(ch) = self.peek() {
@@ -240,7 +245,18 @@ mod tests {
     impl Query {
         // Implement our own partial_eq since Regex is not PartialEq intentionally.
         fn assert_eq(&self, other: &Query) {
-            assert_eq!(self.addr, other.addr);
+            match (self.addr, other.addr) {
+                (Address::Current, Address::Current)
+                | (Address::EOF, Address::EOF) => {}
+                (Address::LineNo(lineno1), Address::LineNo(lineno2))  if lineno1 == lineno2 => {}
+                (Address::Match(regex1), Address::Match(regex2)) => {
+                    assert_eq!(regex1.as_str(), regex2.as_str());
+                }
+                (Address::Range { start: start1, end: end2 }) => {
+                    assert_eq!(regex1.as_str(), regex2.as_str());
+                }
+            }
+
             dbg!(&self.ops, &other.ops);
             assert_eq!(self.ops.len(), other.ops.len());
             for (i, (op1, op2)) in self.ops.iter().zip(other.ops.iter()).enumerate() {
