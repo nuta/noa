@@ -1,5 +1,5 @@
 use crate::rope::{Cursor, Range, Rope};
-use regex::{Captures, Regex, RegexBuilder};
+use regex::{Captures, RegexBuilder};
 use std::iter::Peekable;
 use std::str::Chars;
 
@@ -7,11 +7,33 @@ struct Match<'a> {
     captures: Captures<'a>,
 }
 
+/// A wrapper of Regex to implement PartialEq to simplify unit tests.
+#[derive(Debug)]
+struct Regex(regex::Regex);
+
+impl Regex {
+    pub fn new(pattern: &str) -> Result<Regex, regex::Error> {
+        Ok(Regex(regex::Regex::new(pattern)?))
+    }
+}
+
+impl Into<Regex> for regex::Regex {
+    fn into(self) -> Regex {
+        Regex(self)
+    }
+}
+
+impl PartialEq for Regex {
+    fn eq(&self, other: &Regex) -> bool {
+        self.0.as_str() == other.0.as_str()
+    }
+}
+
 struct InOut<'a> {
     matches: Vec<Match<'a>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum Address {
     // `.`
     Current,
@@ -38,7 +60,7 @@ enum JumpTo {
     FirstMatch,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum Op {
     /// `x`
     Extract { regex: Regex },
@@ -46,7 +68,7 @@ enum Op {
     Jump(JumpTo),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 struct Query {
     addr: Address,
     ops: Vec<Op>,
@@ -229,6 +251,7 @@ impl<'a> Parser<'a> {
             .ignore_whitespace(false)
             .multi_line(false)
             .build()
+            .map(|regex| regex.into())
             .map_err(|err| ParseError {
                 cursor: self.last_consumed_cursor(),
                 kind: ParseErrorKind::InvalidRegex(err),
@@ -240,7 +263,7 @@ impl<'a> Parser<'a> {
 mod tests {
     use super::*;
 
-    fn parse(query: &str) -> Query {
+    fn parse(query: &str) -> Result<Query, ParseError> {
         Parser::new(query).parse()
     }
 
