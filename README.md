@@ -59,17 +59,18 @@ interested can grasp the concept of its underlying concept called *structural re
 ./Emacs/r/Vim/      -- Replace the all occurences of "Emacs" with "Vim" in 
                        the selection.
 
-.g$i/;              -- Insert a semicolon at the end of lines in the current selection.
+.j$i/;              -- Insert a semicolon at the end of lines in the current selection.
 #d                  -- Delete the current word.
 S{r#/*\1*/#         -- Select the current code block enclosed by `{` and `}`
                        and then comment out the part by `/* */`.
 ,x/foo/Cr/"\1"/     -- Search all "foo", transform them to uppercase, and then
                        enclose them with double quotes: foo -> FOO -> "FOO"
+.y/,/s"r/\0 /       -- "foo", "bar" => foo bar
 ,p(rustfmt)         -- Execute rustfmt(1) and input the whole text.
 
-11g                 -- Goto the 11th line.
+11j                 -- Goto the 11th line.
 
-/open_file/g        -- Move to the next occurrence of "open_file"
+/open_file/j        -- Move to the next occurrence of "open_file"
 /open_file/         -- ditto (from *Some Helpful Exceptions* below)
 /open_file          -- ditto (from *Some Helpful Exceptions* below)
 ```
@@ -78,48 +79,52 @@ S{r#/*\1*/#         -- Select the current code block enclosed by `{` and `}`
 The NED language consists of an address and arbitrary number of pairs of opecode
 and its operand.
 
-Each opcode takes as input a list of matches, edits matches if necessary, and
-outputs a list of matches. For the first opcode, the range specified by
-*address* is given as the single match.
-
 ```
 [addr?][opcode1][operand1*][whitespace?][opcode2][operand2*] ...
 ```
 
+`[addr]` is an optional *address* specifier.
+
+Each opcode takes as input a list of matches, edits matches if necessary, and
+outputs a list of matches. For the first opcode, the range specified by
+*address* is given as the single match.
+
 ### Opcodes
-`[addr]` is an optional *Address* specifier. Whitespaces around opcodes (`m`, `a`, ...)
-are added just for redability. `<regex>` is a regular expression enclosed by the 
+Whitespaces around opcodes (`m`, `a`, ...) are added just for redability.
+`<regex>` is a regular expression enclosed by the 
 first character. `</>` is an any character (except backslash) which delimits
 a regular expression `<regex>`, string `<string>`, etc.
 
 ```
-[addr] x </><regex></>        -- Extract the matches (like `egrep -o`).
-[addr] X </><regex></>        -- Select the whole matching addr/matches.
-[addr] a </><string></>       -- Append a string.
-[addr] i </><string></>       -- Prepend a string.
-[addr] r </><string></>       -- Replace matches with string.
-[addr] d                      -- Delete matches.
-[addr] p</><cmd></>           -- Run a shell command. Specifically, for each
-                                 match `m`, runs "echo `m` | cmd", and then
-                                 replaces the range `m` with its output.
-[addr] f <char>               -- Select the next occurrence of the character.
-[addr] b <char>               -- Select the previous occurrence of the character.
-[addr] s <char>               -- Select the string surrounded by the character.
-                                 (excluding <char>).
-[addr] S <char>               -- Select the string surrounded by the character
-                                 (including <char>).
-[addr] g [^|$%]               -- Go to:
-                                     ^  -- The beginning of a line.
-                                     |  -- The first non-whitespace character in
-                                           a line.
-                                     $  -- The end of a line.
-                                (empty) -- The first match.
-[addr] c                      -- Transform to lowercase.
-[addr] C                      -- Transform to uppercase.
+g </><regex></>    -- Filter matches by the regex (like `egrep`).
+v </><regex></>    -- Filter out matches by the regex (like `egrep -v`).
+x </><regex></>    -- Extract the matches (like `egrep -o`).
+y </><regex></>    -- Extract substring before/between/after the matches.
+a </><string></>   -- Append a string.
+i </><string></>   -- Prepend a string.
+r </><string></>   -- Replace matches with string.
+d                  -- Delete matches.
+p </><cmd></>      -- Run a shell command. Specifically, for each match `m`,
+                      runs "echo `m` | cmd", and then replaces the range `m`
+                      with its output.
+f <pattern>        -- Select the next occurrence of the character.
+b <pattern>        -- Select the previous occurrence of the character.
+s <pattern>        -- Select the string surrounded by the character
+                      (excluding <pattern>).
+S <pattern>        -- Select the string surrounded by the character
+                      (including <pattern>).
+j [^|$%]           -- Jump To:
+                            ^  -- The beginning of a line.
+                            |  -- The first non-whitespace character in
+                                  a line.
+                            $  -- The end of a line.
+                      (empty)  -- The first match.
+c                  -- Transform to lowercase.
+C                  -- Transform to uppercase.
 ```
 
 ### Address
-*Address* is a range of text where the command will be applied.
+*Address* is an inclusive range of text where the command will be applied.
 
 ```
 (empty)             -- The whole text.
@@ -137,7 +142,7 @@ a regular expression `<regex>`, string `<string>`, etc.
   if `/a(.c)/r/__\1__` is applied to `"abc"`, it will be `"__bc__"`.
 
 ### Some Helpful Exceptions
-- If no opcode is given (i.e. only `addr`), it will be interpreted as `[addr]g`. That is,
+- If no opcode is given (i.e. only `addr`), it will be interpreted as `[addr]j`. That is,
   it moves to the beginning of the address.
 - The closing character in a regular expression can be omitted by EOF,
   i.e. `/foo` instead of `/foo/`.
