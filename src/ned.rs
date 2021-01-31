@@ -287,6 +287,26 @@ mod tests {
             }],
         });
 
+        parse(",x/a?c/").assert_eq(&Query {
+            addr: Address::Range {
+                start: Box::new(Address::LineNo(0)),
+                end: Box::new(Address::EOF),
+            },
+            ops: vec![Op::Extract {
+                regex: Regex::new("a?c").unwrap(),
+            }],
+        });
+
+        parse("x/\\//").assert_eq(&Query {
+            addr: Address::Forward {
+                start: Box::new(Address::Current),
+                end: Box::new(Address::EOF),
+            },
+            ops: vec![Op::Extract {
+                regex: Regex::new("/").unwrap(),
+            }],
+        });
+
         // assert_eq!(parse_addr("."), Ok((1, Some(Address::Current))));
         // assert_eq!(parse_addr("$"), Ok((1, Some(Address::EOF))));
         // assert_eq!(parse_addr("0"), Ok((1, Some(Address::LineNo(0)))));
