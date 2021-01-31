@@ -80,6 +80,8 @@ enum Op {
     Delete,
     /// `j`
     Jump(JumpTo),
+    /// `p`
+    ShellCommand(String),
     /// `c`
     Lowercase,
     /// `C`
@@ -126,6 +128,15 @@ impl Engine {
     pub fn execute_on_rope(&mut self, rope: &mut Rope) -> Result<(), ParseError> {
         Ok(())
     }
+}
+
+fn build_regex(pattern: &str) -> Result<Regex, regex::Error> {
+    RegexBuilder::new(pattern)
+        .case_insensitive(false)
+        .ignore_whitespace(false)
+        .multi_line(false)
+        .build()
+        .map(|regex| regex.into())
 }
 
 struct Parser<'a> {
@@ -178,6 +189,9 @@ impl<'a> Parser<'a> {
                 }
                 Some('d') => {
                     ops.push(Op::Delete);
+                }
+                Some('p') => {
+                    ops.push(Op::ShellCommand(self.parse_string()?));
                 }
                 Some('c') => {
                     ops.push(Op::Lowercase);
@@ -281,47 +295,36 @@ impl<'a> Parser<'a> {
                 break;
             }
 
-            s.push(ch);
+            if ch == '\\' && self.peek() == Some(delim) {
+                self.consume();
+                s.push(delim);
+            } else {
+                s.push(ch);
+            }
         }
 
         Ok(s)
     }
 
-    fn parse_regex(&mut self) -> Result<Regex, ParseError> {
-        let delim = match self.consume() {
-            Some(delim) => delim,
-            None => {
-                return Err(ParseError {
-                    cursor: self.last_consumed_cursor(),
-                    kind: ParseErrorKind::EmptyRegex,
-                })
-            }
-        };
-
-        let mut regex_str = String::new();
-        while let Some(ch) = self.consume() {
-            if ch == delim {
-                break;
-            }
-
-            if ch == '\\' && self.peek() == Some(delim) {
-                self.consume();
-                regex_str.push(delim);
-            } else {
-                regex_str.push(ch);
-            }
-        }
-
-        RegexBuilder::new(&regex_str)
-            .case_insensitive(false)
-            .ignore_whitespace(false)
-            .multi_line(false)
-            .build()
-            .map(|regex| regex.into())
-            .map_err(|err| ParseError {
+    fn parse_pattern(&mut self) -> Result<Regex, ParseError> {
+        match self.peek() {
+            Some('/') => self.parse_regex(),
+            Some(ch) => build_regex(&ch.to_string()).map_err(|err| ParseError {
                 cursor: self.last_consumed_cursor(),
                 kind: ParseErrorKind::InvalidRegex(err),
-            })
+            }),
+            None => Err(ParseError {
+                cursor: self.cursor,
+                kind: ParseErrorKind::EmptyRegex,
+            }),
+        }
+    }
+
+    fn parse_regex(&mut self) -> Result<Regex, ParseError> {
+        build_regex(&self.parse_string()?).map_err(|err| ParseError {
+            cursor: self.last_consumed_cursor(),
+            kind: ParseErrorKind::InvalidRegex(err),
+        })
     }
 }
 

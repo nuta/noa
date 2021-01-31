@@ -84,7 +84,8 @@ outputs a list of matches. For the first opcode, the range specified by
 Whitespaces around opcodes (`m`, `a`, ...) are added just for redability.
 `<regex>` is a regular expression enclosed by the 
 first character. `</>` is an any character (except backslash) which delimits
-a regular expression `<regex>`, string `<string>`, etc.
+a regular expression `<regex>`, string `<string>`, etc. `<pattern>` is a character
+or regular expression enclosed by `/` if it starts with `/`.
 
 ```
 g </><regex></>    -- Filter matches by the regex (like `egrep`).
@@ -95,7 +96,7 @@ a </><string></>   -- Append a string.
 i </><string></>   -- Prepend a string.
 r </><string></>   -- Replace matches with string.
 d                  -- Delete matches.
-p </><cmd></>      -- Run a shell command. Specifically, for each match `m`,
+p </><string></>   -- Run a shell command. Specifically, for each match `m`,
                       runs "echo `m` | cmd", and then replaces the range `m`
                       with its output.
 f <pattern>        -- Select the next occurrence of the character.
@@ -109,7 +110,7 @@ j [^|$%]           -- Jump To:
                             |  -- The first non-whitespace character in
                                   a line.
                             $  -- The end of a line.
-                      (empty)  -- The first match.
+                      (empty)  -- The beginning of first match.
 c                  -- Transform to lowercase.
 C                  -- Transform to uppercase.
 ```
@@ -135,8 +136,6 @@ C                  -- Transform to uppercase.
                        If [addr1] and/or [addr2] are omitted, they're interpreted
                        as `0` and `$` respectively.
 (empty)             -- Interpreted as `.+`.
-
-,                   -- idiom: the whole text. Interpreted as `0,$`.
 ```
 
 ### Regular Expressions
