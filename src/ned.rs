@@ -139,6 +139,8 @@ mod tests {
     #[test]
     fn test_parse_addr() {
         assert_eq!(parse_addr(""), Ok((0, None)));
+        assert_eq!(parse_addr("."), Ok((1, Some(Address::Current))));
+        assert_eq!(parse_addr("$"), Ok((1, Some(Address::EOF))));
         assert_eq!(parse_addr("0"), Ok((1, Some(Address::LineNo(0)))));
         assert_eq!(parse_addr("1"), Ok((1, Some(Address::LineNo(1)))));
         assert_eq!(parse_addr("123"), Ok((3, Some(Address::LineNo(123)))));
