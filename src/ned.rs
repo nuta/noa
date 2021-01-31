@@ -35,20 +35,20 @@ struct InOut<'a> {
 
 #[derive(Debug, PartialEq)]
 enum Address {
-    // `.`
+    /// `.`
     Current,
-    // `0`, `123`, ...
+    /// `0`, `123`, ...
     LineNo(usize),
-    // `/.../`
+    /// `/.../`
     Match(Regex),
-    // `$`
+    /// `$`
     EOF,
-    // `a1,a2`
+    /// `a1,a2`
     Range {
         start: Box<Address>,
         end: Box<Address>,
     },
-    // `a1+a2`
+    /// `a1+a2`
     Forward {
         start: Box<Address>,
         end: Box<Address>,
@@ -57,7 +57,14 @@ enum Address {
 
 #[derive(Debug, PartialEq)]
 enum JumpTo {
+    /// (empty)
     FirstMatch,
+    /// `^`
+    Beginning,
+    /// `|`
+    AfterIndent,
+    /// `$`
+    End,
 }
 
 #[derive(Debug, PartialEq)]
@@ -70,6 +77,14 @@ enum Op {
     Extract(Regex),
     /// `y`
     ExtractReverse(Regex),
+    /// `f`
+    SearchForward(Regex),
+    /// `b`
+    SearchBackward(Regex),
+    /// `s`
+    SurroundWithOutDelim(Regex),
+    /// `S`
+    SurroundWithDelim(Regex),
     /// `i`
     Prepend(String),
     /// `a`
@@ -177,6 +192,18 @@ impl<'a> Parser<'a> {
                 }
                 Some('y') => {
                     ops.push(Op::ExtractReverse(self.parse_regex()?));
+                }
+                Some('f') => {
+                    ops.push(Op::SearchForward(self.parse_pattern()?));
+                }
+                Some('b') => {
+                    ops.push(Op::SearchBackward(self.parse_pattern()?));
+                }
+                Some('s') => {
+                    ops.push(Op::SurroundWithOutDelim(self.parse_pattern()?));
+                }
+                Some('S') => {
+                    ops.push(Op::SurroundWithDelim(self.parse_pattern()?));
                 }
                 Some('i') => {
                     ops.push(Op::Prepend(self.parse_string()?));
