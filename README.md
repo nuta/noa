@@ -60,10 +60,11 @@ interested can grasp the concept of its underlying concept called *structural re
 ./Emacs/r/Vim/      -- Replace the all occurences of "Emacs" with "Vim" in 
                        the selection.
 
-G%r#/*\1"#          -- Select the current code block (e.g. enclosed by `{` and `}`)
-                       and comment out the part by `/* */`.
+S{r#/*\1*/#         -- Select the current code block enclosed by `{` and `}`
+                       and then comment out the part by `/* */`.
 ,x/foo/Cr/"\1"/     -- Search all "foo", transform them to uppercase, and then
                        enclose them with double quotes: foo -> FOO -> "FOO"
+,p(rustfmt)         -- Execute rustfmt(1) and input the whole text.
 
 11g                 -- Goto the 11th line.
 
@@ -95,16 +96,21 @@ are added just for redability. `<regex>` is a regular expression enclosed by the
 [addr] i <string>             -- Prepend a string.
 [addr] r <string>             -- Replace matches with string.
 [addr] d                      -- Delete matches.
+[addr] p<char><cmd><char>     -- Run a shell command. Specifically, for each
+                                 match `m`, runs "echo `m` | cmd", and then
+                                 replaces the range `m` with its output.
 [addr] f <char>               -- Select the next occurrence of the character.
 [addr] b <char>               -- Select the previous occurrence of the character.
 [addr] s <char>               -- Select the string surrounded by the character.
+                                 (excluding <char>).
+[addr] S <char>               -- Select the string surrounded by the character
+                                 (including <char>).
 [addr] g [^|$%]               -- Go to:
                                      ^  -- The beginning of a line.
-                                     |  -- The first non-whitespace character in a line.
+                                     |  -- The first non-whitespace character in
+                                           a line.
                                      $  -- The end of a line.
-                                     %  -- Corresponding block symbols (e.g. "{}").
                                 (empty) -- The first match.
-[addr] G [^|$%]               -- Select until the positions as described above.
 [addr] c                      -- Transform to lowercase.
 [addr] C                      -- Transform to uppercase.
 ```
