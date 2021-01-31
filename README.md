@@ -123,16 +123,18 @@ C                  -- Transform to uppercase.
 (number)            -- The whole line excluding the trailing newline. The number
                        represents the relative line number.
 /regex/             -- A regular expression enclosed by `/` or `#`.
-[addr1]+[addr2]     -- The range until `addr2` from the end of `addr1`.
+[addr1]+[addr2]     -- The range until [addr2] from the end of [addr1].
                        If [addr1] and/or [addr2] are omitted, they're interpreted
-                       as `.` and `$` respectively.
-[addr1]-[addr2]     -- The range towards `addr2` from the beginning of `addr1` (backwards).
+                       as `.` and `$` respectively. If [addr2] is (number), it's
+                       intrepreted as a *relative* number.
+[addr1]-[addr2]     -- Searches backwards for [addr2] from the beginning of [addr1].
                        If [addr1] and/or [addr2] are omitted, they're interpreted
-                       as `.` and `0` respectively.
-[addr1],[addr2]     -- The range of beginning of `addr1` and the end of `addr2`.
+                       as `.` and `0` respectively. If [addr2] is (number), it's
+                       intrepreted as a *relative* number.
+[addr1],[addr2]     -- The range of beginning of [addr1] and the end of [addr2].
                        If [addr1] and/or [addr2] are omitted, they're interpreted
                        as `0` and `$` respectively.
-(empty)             -- 
+(empty)             -- Interpreted as `.+`.
 
 ,                   -- idiom: the whole text. Interpreted as `0,$`.
 ```

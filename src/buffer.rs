@@ -323,11 +323,11 @@ impl Buffer {
                     pos.y += 1;
                     pos.x = 0;
                     let prefix_width =
-                    self.width_in_display(pos.y, 0, min(self.line_len(pos.y), logical_x));
+                        self.width_in_display(pos.y, 0, min(self.line_len(pos.y), logical_x));
                     let from_left = prefix_width % (cols + 1);
                     loop {
                         if pos.x >= self.line_len(pos.y)
-                        || self.width_in_display(pos.y, 0, pos.x) >= from_left
+                            || self.width_in_display(pos.y, 0, pos.x) >= from_left
                         {
                             break 'outer1;
                         }
@@ -366,7 +366,11 @@ impl Buffer {
                     pos.x = prev_line_len;
                     let prev_line_width = {
                         let w = self.width_in_display(pos.y, 0, prev_line_len);
-                        if w % cols == 0 && w > 0 { cols } else {w % cols }
+                        if w % cols == 0 && w > 0 {
+                            cols
+                        } else {
+                            w % cols
+                        }
                     };
                     if prev_line_width <= from_left {
                         break;
@@ -569,10 +573,9 @@ impl Buffer {
             }
         }
 
-        let x_diff =
-            last_newline_idx
-                .map(|x| string_count - x - 1)
-                .unwrap_or(string_count);
+        let x_diff = last_newline_idx
+            .map(|x| string_count - x - 1)
+            .unwrap_or(string_count);
 
         let y = insert_at.y + y_diff;
         let x = if string.ends_with('\n') {
@@ -1194,7 +1197,10 @@ mod tests {
         // x|            x
         let mut b = Buffer::new();
         b.insert("abcdefg\nx");
-        b.set_cursor(Cursor::Normal { pos: Point::new(1, 1), logical_x: 4 });
+        b.set_cursor(Cursor::Normal {
+            pos: Point::new(1, 1),
+            logical_x: 4,
+        });
         b.move_cursor_with_line_wrap(5, 1, 0);
         assert_eq!(b.cursor(), &Cursor::new(0, 6));
         b.move_cursor_with_line_wrap(5, 1, 0);
