@@ -3,27 +3,31 @@ noa
 [![Build Status](https://travis-ci.com/nuta/noa.svg?branch=master)](https://travis-ci.com/nuta/noa)
 [![Latest version](https://img.shields.io/crates/v/noa.svg)](https://crates.io/crates/noa)
 
-A opinionated terminal text editor written just for me.
+A simplistic terminal-based text editor which is surely not your cup of tea. By sacrificing your favorite Vim/Emacs/VS Code features, it allows you to focus on editing without any annoying distractions.
 
-Features (or TODO)
-------------------
-- [x] Basic editing
-  - [x] Clean up
-  - [x] Logical x
-- [x] Terminal
-  - [x] Wrapping
-- [x] Finder
-- [x] Mouse
-- [x] Auto indentation
-  - [x] Deindent by `}`
-- [x] Backup
+Features
+--------
+- Structural-regular-expression-based editing mode (see below)
+- Fuzzy file search
+- Mouse support
+- EditorConfig support
+- Auto indentation
+- Soft wrap
 - [ ] Undo & redo
 - [ ] Copy & paste
-- [ ] Commander
-- [ ] Backup
-- [ ] Open link
-- [ ] Completion
-- [ ] Format on save
+
+Planned Features
+----------------
+- Word completion
+- Language Server Protocol support
+- Format on save
+- Support opening a link on iTerm (something like `src/main.c:11`)
+
+Unsupported Features (intentionally)
+------------------------------------
+- Tabs / Windows
+- Syntax highlighting
+- Multiple cursors
 
 Installation
 ------------
@@ -31,19 +35,6 @@ Installation
 ```
 $ cargo install noa
 ```
-
-Building from source
---------------------
-```
-$ cargo build --release
-$ ./target/release/noa
-```
-
-License
--------
-CC0 or MIT. Choose whichever you prefer.
-
-----
 
 NED Language
 ------------
@@ -152,3 +143,7 @@ C                  -- Transform to uppercase.
   they come from different concepts: *address* and *opcode*. Unlike the address,
   *x* opcode can output multiple matches in the text. For instance, `3,10x/foo/`
   outputs all occurences of "foo" in the line 3-10 (inclusive).
+
+License
+-------
+CC0 or MIT. Choose whichever you prefer.

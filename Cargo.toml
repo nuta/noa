@@ -3,10 +3,10 @@ name = "noa"
 version = "0.0.0"
 edition = "2018"
 authors = ["Seiya Nuta <nuta@seiya.me>"]
-description = "A opinionated terminal text editor written just for me."
+description = "A simplistic terminal-based text editor which is surely not your cup of tea."
 license = "CC0-1.0 OR MIT"
 readme = "README.md"
-repository = "https://github.com/nuta/nsh"
+repository = "https://github.com/nuta/noa"
 
 [dependencies]
 log = "0"
