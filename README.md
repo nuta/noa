@@ -57,7 +57,7 @@ S{r#/*\1*/#         -- Select the current code block enclosed by `{` and `}`
 ,x/foo/Cr/"\1"/     -- Search all "foo", transform them to uppercase, and then
                        enclose them with double quotes: foo -> FOO -> "FOO"
 .y/,/s"r/\0 /       -- "foo", "bar" => foo bar
-,p(rustfmt)         -- Execute rustfmt(1) and input the whole text.
+,p(rustfmt)         -- Apply rustfmt(1) to the whole text.
 
 11j                 -- Goto the 11th line.
 
@@ -118,14 +118,23 @@ C                  -- Transform to uppercase.
 *Address* is an inclusive range of text where the command will be applied.
 
 ```
-(empty)             -- The whole text.
 .                   -- The current selection or cursor.
 #                   -- The current word.
-(number)            -- The whole line. The number represents the relative line number.
-(regex)             -- A regular expression enclosed by `/` or `#`.
+(number)            -- The whole line excluding the trailing newline. The number
+                       represents the relative line number.
+/regex/             -- A regular expression enclosed by `/` or `#`.
 [addr1]+[addr2]     -- The range until `addr2` from the end of `addr1`.
-[addr1]-[addr2]     -- The range until `addr2` from the beginning of `addr1` (backwards).
+                       If [addr1] and/or [addr2] are omitted, they're interpreted
+                       as `.` and `$` respectively.
+[addr1]-[addr2]     -- The range towards `addr2` from the beginning of `addr1` (backwards).
+                       If [addr1] and/or [addr2] are omitted, they're interpreted
+                       as `.` and `0` respectively.
 [addr1],[addr2]     -- The range of beginning of `addr1` and the end of `addr2`.
+                       If [addr1] and/or [addr2] are omitted, they're interpreted
+                       as `0` and `$` respectively.
+(empty)             -- 
+
+,                   -- idiom: the whole text. Interpreted as `0,$`.
 ```
 
 ### Regular Expressions

@@ -952,64 +952,6 @@ impl Buffer {
 
         self.rope.prev_word_at(pos)
     }
-
-    pub fn find(&mut self, needle: &str) -> Vec<Range> {
-        if needle.is_empty() {
-            return Vec::new();
-        }
-
-        // TODO: Implement a well-known better algorithm.
-        let needle_chars: Vec<char> = needle.chars().collect();
-        let mut matches = Vec::new();
-        let mut y = 0;
-        let mut x = 0;
-        for ch in self.rope.chars() {
-            for m in &mut matches {
-                match m {
-                    (0, _) => {
-                        // this `m` does not match.
-                    }
-                    (next_index, _) if *next_index == needle_chars.len() => {
-                        // This `m` matches to the needle.
-                    }
-                    (next_index, _) if needle_chars[*next_index] == ch => {
-                        // This `m` partially matches to the needle. Go to the
-                        // next char...
-                        *next_index += 1;
-                    }
-                    (next_index, _) => {
-                        // this `m` does not match.
-                        *next_index = 0;
-                    }
-                }
-            }
-
-            if ch == needle_chars[0] {
-                matches.push((1, Point::new(y, x)));
-            }
-
-            if ch == '\n' {
-                y += 1;
-                x = 0;
-            } else {
-                x += 1;
-            }
-        }
-
-        let y_len = needle.matches('\n').count();
-        let last_newline_idx = needle.rfind('\n');
-
-        matches
-            .iter()
-            .filter(|(index, _)| *index == needle_chars.len())
-            .map(|(_, start)| {
-                let x = last_newline_idx
-                    .map(|i| needle.len() - i - 1)
-                    .unwrap_or_else(|| start.x + needle.len());
-                Range::new(start.y, start.x, start.y + y_len, x)
-            })
-            .collect::<Vec<Range>>()
-    }
 }
 
 #[cfg(test)]
@@ -1752,33 +1694,6 @@ mod tests {
         assert_eq!(b.cursor(), &Cursor::new(0, 0));
         b.move_to_next_block();
         assert_eq!(b.cursor(), &Cursor::new(1, 0));
-    }
-
-    #[test]
-    fn find() {
-        // 012345678901234567890
-        // hello rust from rust
-        //       ^^^^      ^^^^
-        let mut b = Buffer::from_str("hello rust from rust");
-        assert_eq!(
-            &b.find("rust"),
-            &[Range::new(0, 6, 0, 10), Range::new(0, 16, 0, 20),]
-        );
-
-        let mut b = Buffer::from_str("hello rust from rust");
-        assert_eq!(&b.find("rrrrr"), &[]);
-
-        let mut b = Buffer::from_str("abXYZ\nXYZab");
-        assert_eq!(
-            &b.find("XYZ"),
-            &[Range::new(0, 2, 0, 5), Range::new(1, 0, 1, 3),]
-        );
-
-        let mut b = Buffer::from_str("abXY\nZab");
-        assert_eq!(&b.find("XY\nZ"), &[Range::new(0, 2, 1, 1),]);
-
-        let mut b = Buffer::from_str("");
-        assert_eq!(&b.find("rrrrr"), &[]);
     }
 
     #[test]

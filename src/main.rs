@@ -17,6 +17,7 @@ mod editorconfig;
 mod finder;
 mod language;
 mod line_edit;
+mod ned;
 mod rope;
 mod terminal;
 
