@@ -63,9 +63,11 @@ enum JumpTo {
 #[derive(Debug, PartialEq)]
 enum Op {
     /// `x`
-    Extract { regex: Regex },
+    Extract(Regex),
     /// `j`
     Jump(JumpTo),
+    /// `r`
+    ReplaceWith(String),
 }
 
 #[derive(Debug, PartialEq)]
@@ -138,9 +140,10 @@ impl<'a> Parser<'a> {
         loop {
             match self.consume() {
                 Some('x') => {
-                    ops.push(Op::Extract {
-                        regex: self.parse_regex()?,
-                    });
+                    ops.push(Op::Extract(self.parse_regex()?));
+                }
+                Some('r') => {
+                    ops.push(Op::ReplaceWith(self.parse_string()?));
                 }
                 Some(opcode) => {
                     return Err(ParseError {
@@ -221,6 +224,29 @@ impl<'a> Parser<'a> {
         Ok(addr)
     }
 
+    fn parse_string(&mut self) -> Result<String, ParseError> {
+        let delim = match self.consume() {
+            Some(delim) => delim,
+            None => {
+                return Err(ParseError {
+                    cursor: self.last_consumed_cursor(),
+                    kind: ParseErrorKind::EmptyRegex,
+                })
+            }
+        };
+
+        let mut s = String::new();
+        while let Some(ch) = self.consume() {
+            if ch == delim {
+                break;
+            }
+
+            s.push(ch);
+        }
+
+        Ok(s)
+    }
+
     fn parse_regex(&mut self) -> Result<Regex, ParseError> {
         let delim = match self.consume() {
             Some(delim) => delim,
@@ -287,9 +313,7 @@ mod tests {
                     start: Box::new(Address::Current),
                     end: Box::new(Address::EOF),
                 },
-                ops: vec![Op::Extract {
-                    regex: Regex::new("a?c").unwrap(),
-                }],
+                ops: vec![Op::Extract(Regex::new("a?c").unwrap())]
             })
         );
 
@@ -300,9 +324,7 @@ mod tests {
                     start: Box::new(Address::LineNo(0)),
                     end: Box::new(Address::EOF),
                 },
-                ops: vec![Op::Extract {
-                    regex: Regex::new("a?c").unwrap(),
-                }],
+                ops: vec![Op::Extract(Regex::new("a?c").unwrap())]
             })
         );
 
@@ -313,9 +335,21 @@ mod tests {
                     start: Box::new(Address::Current),
                     end: Box::new(Address::EOF),
                 },
-                ops: vec![Op::Extract {
-                    regex: Regex::new("/").unwrap(),
-                }],
+                ops: vec![Op::Extract(Regex::new("/").unwrap())]
+            })
+        );
+
+        assert_eq!(
+            parse("x/a?c/r/xyz"),
+            Ok(Query {
+                addr: Address::Forward {
+                    start: Box::new(Address::Current),
+                    end: Box::new(Address::EOF),
+                },
+                ops: vec![
+                    Op::Extract(Regex::new("a?c").unwrap()),
+                    Op::ReplaceWith("xyz".to_owned()),
+                ],
             })
         );
     }
