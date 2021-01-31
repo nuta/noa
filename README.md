@@ -50,7 +50,7 @@ interested can grasp the concept of its underlying concept called *structural re
 ./Emacs/r/Vim/      -- Replace the all occurences of "Emacs" with "Vim" in 
                        the selection.
 
-.j$i/;              -- Insert a semicolon at the end of lines in the current selection.
+.+-j$a/;            -- Append a semicolon at the end of lines in the current selection.
 #d                  -- Delete the current word.
 S{r#/*\1*/#         -- Select the current code block enclosed by `{` and `}`
                        and then comment out the part by `/* */`.
@@ -105,11 +105,11 @@ s <pattern>        -- Select the string surrounded by the character
                       (excluding <pattern>).
 S <pattern>        -- Select the string surrounded by the character
                       (including <pattern>).
-j [^|$%]           -- Jump To:
-                            ^  -- The beginning of a line.
+j [^|$]            -- Jump To:
+                            ^  -- The beginning of the match.
                             |  -- The first non-whitespace character in
-                                  a line.
-                            $  -- The end of a line.
+                                  the match.
+                            $  -- The end of a match.
                       (empty)  -- The beginning of first match.
 c                  -- Transform to lowercase.
 C                  -- Transform to uppercase.

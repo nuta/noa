@@ -53,6 +53,11 @@ enum Address {
         start: Box<Address>,
         end: Box<Address>,
     },
+    /// `a1+a2`
+    Backward {
+        start: Box<Address>,
+        end: Box<Address>,
+    },
 }
 
 #[derive(Debug, PartialEq)]
@@ -180,6 +185,10 @@ impl<'a> Parser<'a> {
 
         let mut ops = Vec::new();
         loop {
+            while matches!(self.peek(), Some(ch) if ch.is_ascii_whitespace()) {
+                self.consume();
+            }
+
             match self.consume() {
                 Some('g') => {
                     ops.push(Op::Filter(self.parse_regex()?));
@@ -225,6 +234,14 @@ impl<'a> Parser<'a> {
                 }
                 Some('C') => {
                     ops.push(Op::Upcase);
+                }
+                Some('j') => {
+                    ops.push(Op::Jump(match self.peek() {
+                        Some('^') => { self.consume(); JumpTo::Beginning }
+                        Some('|') => { self.consume(); JumpTo::AfterIndent }
+                        Some('$') => { self.consume(); JumpTo::End }
+                        _ => JumpTo::FirstMatch,
+                    }));
                 }
                 Some(opcode) => {
                     return Err(ParseError {
@@ -297,6 +314,22 @@ impl<'a> Parser<'a> {
                 Some(Address::Range {
                     start: Box::new(addr1.unwrap_or(Address::LineNo(0))),
                     end: Box::new(end.unwrap_or(Address::EOF)),
+                })
+            }
+            Some('+') => {
+                self.consume();
+                let end = self.parse_addr()?;
+                Some(Address::Forward {
+                    start: Box::new(addr1.unwrap_or(Address::Current)),
+                    end: Box::new(end.unwrap_or(Address::EOF)),
+                })
+            }
+            Some('-') => {
+                self.consume();
+                let end = self.parse_addr()?;
+                Some(Address::Backward {
+                    start: Box::new(addr1.unwrap_or(Address::Current)),
+                    end: Box::new(end.unwrap_or(Address::LineNo(0))),
                 })
             }
             _ => addr1,
@@ -419,6 +452,20 @@ mod tests {
                 ops: vec![
                     Op::Extract(Regex::new("a?c").unwrap()),
                     Op::ReplaceWith("xyz".to_owned()),
+                ],
+            })
+        );
+
+        assert_eq!(
+            parse(".+-j$a/;"),
+            Ok(Query {
+                addr: Address::Forward {
+                    start: Box::new(Address::Current),
+                    end: Box::new(Address::EOF),
+                },
+                ops: vec![
+                    Op::Jump(JumpTo::End),
+                    Op::Append(";".to_owned()),
                 ],
             })
         );
