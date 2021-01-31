@@ -24,7 +24,6 @@ Features (or TODO)
 - [ ] Open link
 - [ ] Completion
 - [ ] Format on save
-- [ ] Faster search algorithm
 
 Installation
 ------------
@@ -60,6 +59,8 @@ interested can grasp the concept of its underlying concept called *structural re
 ./Emacs/r/Vim/      -- Replace the all occurences of "Emacs" with "Vim" in 
                        the selection.
 
+.g$i/;              -- Insert a semicolon at the end of lines in the current selection.
+#d                  -- Delete the current word.
 S{r#/*\1*/#         -- Select the current code block enclosed by `{` and `}`
                        and then comment out the part by `/* */`.
 ,x/foo/Cr/"\1"/     -- Search all "foo", transform them to uppercase, and then
@@ -87,16 +88,18 @@ outputs a list of matches. For the first opcode, the range specified by
 
 ### Opcodes
 `[addr]` is an optional *Address* specifier. Whitespaces around opcodes (`m`, `a`, ...)
-are added just for redability. `<regex>` is a regular expression enclosed by the first character.
+are added just for redability. `<regex>` is a regular expression enclosed by the 
+first character. `</>` is an any character (except backslash) which delimits
+a regular expression `<regex>`, string `<string>`, etc.
 
 ```
-[addr] x <char><regex><char>  -- Extract the matches (like `egrep -o`).
-[addr] X <char><regex><char>  -- Select the whole matching addr/matches.
-[addr] a <string>             -- Append a string.
-[addr] i <string>             -- Prepend a string.
-[addr] r <string>             -- Replace matches with string.
+[addr] x </><regex></>        -- Extract the matches (like `egrep -o`).
+[addr] X </><regex></>        -- Select the whole matching addr/matches.
+[addr] a </><string></>       -- Append a string.
+[addr] i </><string></>       -- Prepend a string.
+[addr] r </><string></>       -- Replace matches with string.
 [addr] d                      -- Delete matches.
-[addr] p<char><cmd><char>     -- Run a shell command. Specifically, for each
+[addr] p</><cmd></>           -- Run a shell command. Specifically, for each
                                  match `m`, runs "echo `m` | cmd", and then
                                  replaces the range `m` with its output.
 [addr] f <char>               -- Select the next occurrence of the character.
