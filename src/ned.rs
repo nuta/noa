@@ -62,12 +62,28 @@ enum JumpTo {
 
 #[derive(Debug, PartialEq)]
 enum Op {
+    /// `g`
+    Filter(Regex),
+    /// `v`
+    FilterOut(Regex),
     /// `x`
     Extract(Regex),
-    /// `j`
-    Jump(JumpTo),
+    /// `y`
+    ExtractReverse(Regex),
+    /// `i`
+    Prepend(String),
+    /// `a`
+    Append(String),
     /// `r`
     ReplaceWith(String),
+    /// `d`
+    Delete,
+    /// `j`
+    Jump(JumpTo),
+    /// `c`
+    Lowercase,
+    /// `C`
+    Upcase,
 }
 
 #[derive(Debug, PartialEq)]
@@ -139,11 +155,35 @@ impl<'a> Parser<'a> {
         let mut ops = Vec::new();
         loop {
             match self.consume() {
+                Some('g') => {
+                    ops.push(Op::Filter(self.parse_regex()?));
+                }
+                Some('v') => {
+                    ops.push(Op::FilterOut(self.parse_regex()?));
+                }
                 Some('x') => {
                     ops.push(Op::Extract(self.parse_regex()?));
                 }
+                Some('y') => {
+                    ops.push(Op::ExtractReverse(self.parse_regex()?));
+                }
+                Some('i') => {
+                    ops.push(Op::Prepend(self.parse_string()?));
+                }
+                Some('a') => {
+                    ops.push(Op::Append(self.parse_string()?));
+                }
                 Some('r') => {
                     ops.push(Op::ReplaceWith(self.parse_string()?));
+                }
+                Some('d') => {
+                    ops.push(Op::Delete);
+                }
+                Some('c') => {
+                    ops.push(Op::Lowercase);
+                }
+                Some('C') => {
+                    ops.push(Op::Upcase);
                 }
                 Some(opcode) => {
                     return Err(ParseError {
