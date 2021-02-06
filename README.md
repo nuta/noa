@@ -50,7 +50,7 @@ interested can grasp the concept of its underlying concept called *structural re
 ./Emacs/r/Vim/      -- Replace the all occurences of "Emacs" with "Vim" in 
                        the selection.
 
-.lj$a/;             -- Append a semicolon at the end of lines in the current selection.
+.+-j$a/;            -- Append a semicolon at the end of lines in the current selection.
 #d                  -- Delete the current word.
 S{r#/*\1*/#         -- Select the current code block enclosed by `{` and `}`
                        and then comment out the part by `/* */`.
@@ -123,6 +123,10 @@ j [^|$]            -- Jump To:
 [addr1],[addr2]     -- The range of beginning of [addr1] and the end of [addr2].
                        If [addr1] and/or [addr2] are omitted, they're interpreted
                        as `0` and `$` respectively.
+[addr1]+[addr2]     -- Evaluate [addr2] from the end of [addr1] (forward search
+                       towards the end of the file).
+[addr1]-[addr2]     -- Evaluate [addr2] from the beginning of [addr1] (backward
+                       search towards the beginning of the file).
 (empty)             -- Interpreted as `.`.
 ```
 

@@ -436,6 +436,35 @@ mod tests {
         );
 
         assert_eq!(
+            parse("+1-2"),
+            Ok(vec![
+                Query {
+                    addr: Address::Forward {
+                        from: Box::new(Address::Current),
+                        addr: Box::new(Address::Backward {
+                            from: Box::new(Address::LineNo(1)),
+                            addr: Box::new(Address::LineNo(2)),
+                        }),
+                    },
+                    op: Op::Jump(JumpTo::FirstMatch),
+                },
+            ])
+        );
+
+        assert_eq!(
+            parse("$-/a?c/"),
+            Ok(vec![
+                Query {
+                    addr: Address::Backward {
+                        from: Box::new(Address::EOF),
+                        addr: Box::new(Address::Match(Regex::new("a?c").unwrap())),
+                    },
+                    op: Op::Jump(JumpTo::FirstMatch),
+                },
+            ])
+        );
+
+        assert_eq!(
             parse(".+-j$a/;"),
             Ok(vec![
                 Query {
