@@ -50,7 +50,7 @@ interested can grasp the concept of its underlying concept called *structural re
 ./Emacs/r/Vim/      -- Replace the all occurences of "Emacs" with "Vim" in 
                        the selection.
 
-.+-j$a/;            -- Append a semicolon at the end of lines in the current selection.
+.lj$a/;             -- Append a semicolon at the end of lines in the current selection.
 #d                  -- Delete the current word.
 S{r#/*\1*/#         -- Select the current code block enclosed by `{` and `}`
                        and then comment out the part by `/* */`.
@@ -71,7 +71,7 @@ The NED language consists of an address and arbitrary number of pairs of opecode
 and its operand.
 
 ```
-[addr?][opcode1][operand1*][whitespace?][opcode2][operand2*] ...
+[addr1?][opcode1][operand1*][whitespace?][addr2?][opcode2][operand2*] ...
 ```
 
 `[addr]` is an optional *address* specifier.
@@ -94,13 +94,11 @@ x </><regex></>    -- Extract the matches (like `egrep -o`).
 y </><regex></>    -- Extract substring before/between/after the matches.
 a </><string></>   -- Append a string.
 i </><string></>   -- Prepend a string.
-r </><string></>   -- Replace matches with string.
+c </><string></>   -- Replace matches with string.
 d                  -- Delete matches.
 p </><string></>   -- Run a shell command. Specifically, for each match `m`,
                       runs "echo `m` | cmd", and then replaces the range `m`
                       with its output.
-f <pattern>        -- Select the next occurrence of the character.
-b <pattern>        -- Select the previous occurrence of the character.
 s <pattern>        -- Select the string surrounded by the character
                       (excluding <pattern>).
 S <pattern>        -- Select the string surrounded by the character
@@ -111,8 +109,6 @@ j [^|$]            -- Jump To:
                                   the match.
                             $  -- The end of a match.
                       (empty)  -- The beginning of first match.
-c                  -- Transform to lowercase.
-C                  -- Transform to uppercase.
 ```
 
 ### Address
@@ -124,18 +120,10 @@ C                  -- Transform to uppercase.
 (number)            -- The whole line excluding the trailing newline. The number
                        represents the relative line number.
 /regex/             -- A regular expression enclosed by `/` or `#`.
-[addr1]+[addr2]     -- The range until [addr2] from the end of [addr1].
-                       If [addr1] and/or [addr2] are omitted, they're interpreted
-                       as `.` and `$` respectively. If [addr2] is (number), it's
-                       intrepreted as a *relative* number.
-[addr1]-[addr2]     -- Searches backwards for [addr2] from the beginning of [addr1].
-                       If [addr1] and/or [addr2] are omitted, they're interpreted
-                       as `.` and `0` respectively. If [addr2] is (number), it's
-                       intrepreted as a *relative* number.
 [addr1],[addr2]     -- The range of beginning of [addr1] and the end of [addr2].
                        If [addr1] and/or [addr2] are omitted, they're interpreted
                        as `0` and `$` respectively.
-(empty)             -- Interpreted as `.+`.
+(empty)             -- Interpreted as `.`.
 ```
 
 ### Regular Expressions
