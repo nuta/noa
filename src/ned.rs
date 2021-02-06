@@ -478,6 +478,23 @@ mod tests {
         );
 
         assert_eq!(
+            parse("+1-2+3"),
+            Ok(vec![Query {
+                addr: Address::Forward {
+                    from: Box::new(Address::Backward {
+                        from: Box::new(Address::Forward {
+                            from: Box::new(Address::Current),
+                            addr: Box::new(Address::LineNo(1)),
+                        }),
+                        addr: Box::new(Address::LineNo(2)),
+                    }),
+                    addr: Box::new(Address::LineNo(3)),
+                },
+                op: Op::Jump(JumpTo::FirstMatch),
+            },])
+        );
+
+        assert_eq!(
             parse("+-"),
             Ok(vec![Query {
                 addr: Address::Backward {
