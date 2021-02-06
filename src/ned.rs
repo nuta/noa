@@ -252,8 +252,16 @@ impl<'a> Parser<'a> {
         ch
     }
 
-    fn parse_addr(&mut self) -> Result<Option<Address>, ParseError> {
-        let addr1 = match self.peek() {
+    fn reset_iter(&mut self, cursor: usize) {
+        self.cursor = 0;
+        self.iter = self.query.chars().peekable();
+        for _ in 0..cursor {
+            self.consume();
+        }
+    }
+
+    fn parse_simple_addr(&mut self) -> Result<Option<Address>, ParseError> {
+        Ok(match self.peek() {
             Some('.') => {
                 self.consume();
                 Some(Address::Current)
@@ -277,38 +285,58 @@ impl<'a> Parser<'a> {
                 Some(Address::LineNo(n as usize))
             }
             _ => None,
-        };
+        })
+    }
 
-        // Handle compound addresses.
-        let addr = match self.peek() {
+    fn parse_offset_addr(&mut self) -> Result<Option<Address>, ParseError> {
+        let prev_cursor = self.cursor;
+        let mut from = self.parse_simple_addr()?;
+        loop {
+            let addr = match self.peek() {
+                Some('+') => {
+                    self.consume();
+                    let end = self.parse_simple_addr()?;
+                    Some(Address::Forward {
+                        from: Box::new(from.unwrap_or(Address::Current)),
+                        addr: Box::new(end.unwrap_or(Address::LineNo((1)))),
+                    })
+                }
+                Some('-') => {
+                    self.consume();
+                    let end = self.parse_simple_addr()?;
+                    Some(Address::Backward {
+                        from: Box::new(from.unwrap_or(Address::Current)),
+                        addr: Box::new(end.unwrap_or(Address::LineNo((1)))),
+                    })
+                }
+                _ => { return Ok(from); }
+            };
+
+            from = addr;
+        }
+    }
+
+    fn parse_range_addr(&mut self) -> Result<Option<Address>, ParseError> {
+        let prev_cursor = self.cursor;
+        let start = self.parse_offset_addr()?;
+        Ok(match self.peek() {
             Some(',') => {
                 self.consume();
-                let end = self.parse_addr()?;
+                let end = self.parse_offset_addr()?;
                 Some(Address::Range {
-                    start: Box::new(addr1.unwrap_or(Address::LineNo(0))),
+                    start: Box::new(start.unwrap_or(Address::LineNo(0))),
                     end: Box::new(end.unwrap_or(Address::EOF)),
                 })
             }
-            Some('+') => {
-                self.consume();
-                let end = self.parse_addr()?;
-                Some(Address::Forward {
-                    from: Box::new(addr1.unwrap_or(Address::Current)),
-                    addr: Box::new(end.unwrap_or(Address::LineNo((0)))),
-                })
+            _ => {
+                self.reset_iter(prev_cursor);
+                self.parse_offset_addr()?
             }
-            Some('-') => {
-                self.consume();
-                let end = self.parse_addr()?;
-                Some(Address::Backward {
-                    from: Box::new(addr1.unwrap_or(Address::Current)),
-                    addr: Box::new(end.unwrap_or(Address::LineNo((0)))),
-                })
-            }
-            _ => addr1,
-        };
+        })
+    }
 
-        Ok(addr)
+    fn parse_addr(&mut self) -> Result<Option<Address>, ParseError> {
+        return self.parse_range_addr();
     }
 
     fn parse_string(&mut self) -> Result<String, ParseError> {
@@ -437,43 +465,53 @@ mod tests {
 
         assert_eq!(
             parse("+1-2"),
-            Ok(vec![
-                Query {
-                    addr: Address::Forward {
+            Ok(vec![Query {
+                addr: Address::Backward {
+                    from: Box::new(Address::Forward {
                         from: Box::new(Address::Current),
-                        addr: Box::new(Address::Backward {
-                            from: Box::new(Address::LineNo(1)),
-                            addr: Box::new(Address::LineNo(2)),
-                        }),
-                    },
-                    op: Op::Jump(JumpTo::FirstMatch),
+                        addr: Box::new(Address::LineNo(1)),
+                    }),
+                    addr: Box::new(Address::LineNo(2)),
                 },
-            ])
+                op: Op::Jump(JumpTo::FirstMatch),
+            },])
+        );
+
+        assert_eq!(
+            parse("+-"),
+            Ok(vec![Query {
+                addr: Address::Backward {
+                    from: Box::new(Address::Forward {
+                        from: Box::new(Address::Current),
+                        addr: Box::new(Address::LineNo(1)),
+                    }),
+                    addr: Box::new(Address::LineNo(1)),
+                },
+                op: Op::Jump(JumpTo::FirstMatch),
+            },])
         );
 
         assert_eq!(
             parse("$-/a?c/"),
-            Ok(vec![
-                Query {
-                    addr: Address::Backward {
-                        from: Box::new(Address::EOF),
-                        addr: Box::new(Address::Match(Regex::new("a?c").unwrap())),
-                    },
-                    op: Op::Jump(JumpTo::FirstMatch),
+            Ok(vec![Query {
+                addr: Address::Backward {
+                    from: Box::new(Address::EOF),
+                    addr: Box::new(Address::Match(Regex::new("a?c").unwrap())),
                 },
-            ])
+                op: Op::Jump(JumpTo::FirstMatch),
+            },])
         );
 
         assert_eq!(
             parse(".+-j$a/;"),
             Ok(vec![
                 Query {
-                    addr: Address::Forward {
-                        from: Box::new(Address::Current),
-                        addr: Box::new(Address::Backward {
+                    addr: Address::Backward {
+                        from: Box::new(Address::Forward {
                             from: Box::new(Address::Current),
-                            addr: Box::new(Address::LineNo(0)),
+                            addr: Box::new(Address::LineNo(1)),
                         }),
+                        addr: Box::new(Address::LineNo(1)),
                     },
                     op: Op::Jump(JumpTo::End),
                 },
