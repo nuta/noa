@@ -199,6 +199,13 @@ impl Rope {
         }
     }
 
+    pub fn from_str(text: &str) -> Rope {
+        Rope {
+            inner: ropey::Rope::from_str(text),
+            cached_num_lines: 1,
+        }
+    }
+
     pub fn from_reader<T: std::io::Read>(reader: T) -> std::io::Result<Rope> {
         let inner = ropey::Rope::from_reader(reader)?;
         let cached_num_lines = inner.len_lines();

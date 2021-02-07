@@ -116,6 +116,7 @@ j [^|$]            -- Jump To:
 
 ```
 .                   -- The current selection or cursor.
+$                   -- The end of the text.
 #                   -- The current word.
 (number)            -- The whole line excluding the trailing newline. The number
                        represents the relative line number.
@@ -127,7 +128,7 @@ j [^|$]            -- Jump To:
                        towards the end of the file).
 [addr1]-[addr2]     -- Evaluate [addr2] from the beginning of [addr1] (backward
                        search towards the beginning of the file).
-(empty)             -- Interpreted as `.`.
+(empty)             -- Interpreted as `.,$`.
 ```
 
 ### Regular Expressions

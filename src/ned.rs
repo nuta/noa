@@ -1,10 +1,12 @@
-use crate::rope::{Cursor, Range, Rope};
+use crate::rope::{Cursor, Point, Range, Rope};
+use crate::buffer::Buffer;
 use regex::{Captures, RegexBuilder};
 use std::iter::Peekable;
 use std::str::Chars;
 
 struct Match<'a> {
-    captures: Captures<'a>,
+    range: Range,
+    captures: Option<Captures<'a>>,
 }
 
 /// A wrapper of Regex to implement PartialEq to simplify unit tests.
@@ -27,10 +29,6 @@ impl PartialEq for Regex {
     fn eq(&self, other: &Regex) -> bool {
         self.0.as_str() == other.0.as_str()
     }
-}
-
-struct InOut<'a> {
-    matches: Vec<Match<'a>>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -119,6 +117,11 @@ pub struct ParseError {
     kind: ParseErrorKind,
 }
 
+#[derive(Debug)]
+pub struct Changes {
+    first_modified_line: Option<usize>,
+}
+
 pub struct Engine {
     queries: Vec<Query>,
     cursor: Range,
@@ -133,11 +136,49 @@ impl Engine {
         })
     }
 
-    pub fn execute(&mut self, text: &str) -> Result<(), ParseError> {
-        Ok(())
+    pub fn execute(&mut self, buffer: &mut Buffer) -> Result<Changes, ParseError> {
+        let mut first_modified_line = None;
+        let whole_text = Range::from_points(
+            Point::new(0, 0),
+            Point::new(buffer.num_lines(), buffer.line_len(buffer.num_lines() - 1)),
+        );
+        let mut matches = vec![Match { range: whole_text, captures: None }];
+
+        for query in &self.queries {
+            let mut new_matches = Vec::new();
+            for m in matches {
+                let range = self.evaluate_addr(buffer, &m, &query.addr)?;
+                self.evaluate_op(buffer, &mut new_matches, &m, &query.op)?;
+            }
+
+            matches = new_matches;
+        }
+
+        Ok(Changes {
+            first_modified_line,
+        })
     }
 
-    pub fn execute_on_rope(&mut self, rope: &mut Rope) -> Result<(), ParseError> {
+    fn evaluate_addr(&self, buffer: &mut Buffer, m: &Match, addr: &Address) -> Result<Range, ParseError> {
+        Ok(m.range.to_owned())
+    }
+
+    fn evaluate_op(&self, buffer: &mut Buffer, new_matches: &mut Vec<Match>, m: &Match, op: &Op) -> Result<(), ParseError> {
+        match op {
+            Op::Filter(regex) => {}
+            Op::FilterOut(regex) => {}
+            Op::Extract(regex) => {}
+            Op::ExtractReverse(regex) => {}
+            Op::SurroundWithOutDelim(regex) => {}
+            Op::SurroundWithDelim(regex) => {}
+            Op::Prepend(text) => {}
+            Op::Append(text) => {}
+            Op::ReplaceWith(text) => {}
+            Op::Delete => {}
+            Op::Jump(to) => {}
+            Op::ShellCommand(cmd) => {}
+        }
+
         Ok(())
     }
 }
@@ -309,7 +350,9 @@ impl<'a> Parser<'a> {
                         addr: Box::new(end.unwrap_or(Address::LineNo((1)))),
                     })
                 }
-                _ => { return Ok(from); }
+                _ => {
+                    return Ok(from);
+                }
             };
 
             from = addr;
@@ -517,6 +560,29 @@ mod tests {
                 },
                 op: Op::Jump(JumpTo::FirstMatch),
             },])
+        );
+
+        assert_eq!(
+            parse(",x/int/ +-i/unsigned/"),
+            Ok(vec![
+                Query {
+                    addr: Address::Range {
+                        start: Box::new(Address::LineNo(0)),
+                        end: Box::new(Address::EOF),
+                    },
+                    op: Op::Extract(Regex::new("int").unwrap()),
+                },
+                Query {
+                    addr: Address::Backward {
+                        from: Box::new(Address::Forward {
+                            from: Box::new(Address::Current),
+                            addr: Box::new(Address::LineNo(1)),
+                        }),
+                        addr: Box::new(Address::LineNo(1)),
+                    },
+                    op: Op::Prepend("unsigned".to_owned()),
+                }
+            ])
         );
 
         assert_eq!(
