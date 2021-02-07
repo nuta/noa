@@ -113,6 +113,10 @@ impl Range {
     pub fn back(&self) -> &Point {
         max(&self.start, &self.end)
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.start == self.end
+    }
 }
 
 impl fmt::Display for Range {

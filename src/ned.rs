@@ -6,13 +6,13 @@ use std::str::Chars;
 use std::process::{Command, Stdio};
 use std::io::Write;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct Captures {
     /// The capture can be `None` if the group does not appear in the match.
     unnamed: Vec<Option<Range>>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct Match {
     range: Range,
     captures: Option<Captures>,
@@ -292,8 +292,12 @@ impl Engine {
         op: &Op,
     ) -> Result<(), ExecutionError> {
         match op {
-            Op::Filter(regex) => {}
-            Op::FilterOut(regex) => {}
+            Op::Filter(regex) => {
+                // TODO:
+            }
+            Op::FilterOut(regex) => {
+                // TODO:
+            }
             Op::Extract(regex) => {
                 new_matches.extend(regex.match_all(buffer, &m.range).drain(..).map(
                     |(range, captures)| Match {
@@ -302,9 +306,33 @@ impl Engine {
                     },
                 ));
             }
-            Op::ExtractReverse(regex) => {}
-            Op::SurroundWithOutDelim(regex) => {}
-            Op::SurroundWithDelim(regex) => {}
+            Op::ExtractReverse(regex) => {
+                let mut front = m.range.front().clone();
+                for (next, _) in regex.match_all(buffer, &m.range) {
+                    let range = Range::from_points(front, *next.front());
+                    if !range.is_empty() {
+                        new_matches.push(Match {
+                            range,
+                            captures: None,
+                        });
+                    }
+                    front = *next.back();
+                }
+
+                let range = Range::from_points(front, *m.range.back());
+                if !range.is_empty() {
+                    new_matches.push(Match {
+                        range,
+                        captures: None,
+                    });
+                }
+            }
+            Op::SurroundWithOutDelim(regex) => {
+                // TODO:
+            }
+            Op::SurroundWithDelim(regex) => {
+                // TODO:
+            }
             Op::Prepend(text) => {
                 buffer.set_cursor(Cursor::from_point(m.range.front()));
                 buffer.insert(&text);
@@ -338,7 +366,9 @@ impl Engine {
                     captures: None,
                 });
             }
-            Op::Jump(to) => {}
+            Op::Jump(to) => {
+                // TODO:
+            }
             Op::ShellCommand(cmd) => {
                 let mut child = Command::new("bash")
                     .args(&["-c", &cmd])
@@ -811,6 +841,17 @@ mod tests {
         let buffer = run("abcd", "/b.*/ c/X/").unwrap();
         assert_eq!(buffer.text(), "aX");
         assert_eq!(buffer.cursor(), &Cursor::new(0, 2));
+    }
+
+    #[test]
+    fn match_reverse_and_replace() {
+        let buffer = run("a1b2c3d", "y/[1-9]/ c/./").unwrap();
+        assert_eq!(buffer.text(), ".1.2.3.");
+        assert_eq!(buffer.cursor(), &Cursor::new(0, 7));
+
+        let buffer = run("", "y/.*/ c//").unwrap();
+        assert_eq!(buffer.text(), "");
+        assert_eq!(buffer.cursor(), &Cursor::new(0, 0));
     }
 
     #[test]
