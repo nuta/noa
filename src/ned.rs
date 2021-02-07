@@ -3,6 +3,8 @@ use crate::rope::{Cursor, Point, Range, Rope};
 use regex::RegexBuilder;
 use std::iter::Peekable;
 use std::str::Chars;
+use std::process::{Command, Stdio};
+use std::io::Write;
 
 #[derive(Clone)]
 struct Captures {
@@ -165,8 +167,15 @@ pub struct ParseError {
 }
 
 #[derive(Debug)]
+pub enum ExecutionError {
+    CommandError(std::io::Error),
+    ExitedWith {
+        stderr: String,
+    }
+}
+
+#[derive(Debug)]
 pub struct Changes {
-    first_modified_line: Option<usize>,
 }
 
 pub struct Engine {
@@ -183,8 +192,7 @@ impl Engine {
         })
     }
 
-    pub fn execute(&mut self, buffer: &mut Buffer) -> Result<Changes, ParseError> {
-        let mut first_modified_line = None;
+    pub fn execute(&mut self, buffer: &mut Buffer) -> Result<Changes, ExecutionError> {
         let whole_text = Range::from_points(
             Point::new(0, 0),
             Point::new(
@@ -209,7 +217,6 @@ impl Engine {
         }
 
         Ok(Changes {
-            first_modified_line,
         })
     }
 
@@ -218,7 +225,7 @@ impl Engine {
         buffer: &Buffer,
         m: &Match,
         addr: &Address,
-    ) -> Result<Option<Match>, ParseError> {
+    ) -> Result<Option<Match>, ExecutionError> {
         Ok(match addr {
             Address::Current => Some(Match {
                 range: m.range.clone(),
@@ -283,7 +290,7 @@ impl Engine {
         new_matches: &mut Vec<Match>,
         m: &Match,
         op: &Op,
-    ) -> Result<(), ParseError> {
+    ) -> Result<(), ExecutionError> {
         match op {
             Op::Filter(regex) => {}
             Op::FilterOut(regex) => {}
@@ -332,7 +339,31 @@ impl Engine {
                 });
             }
             Op::Jump(to) => {}
-            Op::ShellCommand(cmd) => {}
+            Op::ShellCommand(cmd) => {
+                let mut child = Command::new("bash")
+                    .args(&["-c", &cmd])
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .stdin(Stdio::piped())
+                    .spawn()
+                    .map_err(ExecutionError::CommandError)?;
+
+                let mut stdin = child.stdin.as_mut().unwrap();
+                for chunk in buffer.substr(&m.range).chunks() {
+                    stdin.write_all(chunk.as_bytes()).map_err(ExecutionError::CommandError)?;
+                }
+
+                let output = child.wait_with_output().map_err(ExecutionError::CommandError)?;
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                if output.status.success() {
+                    buffer.select_by_range(&m.range);
+                    buffer.delete();
+                    buffer.insert(&stdout);
+                } else {
+                    let stderr = String::from_utf8_lossy(&output.stderr).into();
+                    return Err(ExecutionError::ExitedWith { stderr });
+                }
+            }
         }
 
         Ok(())
