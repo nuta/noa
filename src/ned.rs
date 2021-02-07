@@ -187,7 +187,10 @@ impl Engine {
         let mut first_modified_line = None;
         let whole_text = Range::from_points(
             Point::new(0, 0),
-            Point::new(buffer.num_lines(), buffer.line_len(buffer.num_lines() - 1)),
+            Point::new(
+                buffer.num_lines() - 1,
+                buffer.line_len(buffer.num_lines() - 1),
+            ),
         );
         let mut matches = vec![Match {
             range: whole_text,
@@ -760,5 +763,22 @@ mod tests {
                 }
             ])
         );
+    }
+
+    fn run(text: &str, query: &str) -> Result<Buffer, ParseError> {
+        let mut buffer = Buffer::from_str(text);
+        Engine::new(query)?.execute(&mut buffer);
+        Ok(buffer)
+    }
+
+    #[test]
+    fn match_and_replace() {
+        let buffer = run("abc", "/b/ c/X/").unwrap();
+        assert_eq!(buffer.text(), "aXc");
+        assert_eq!(buffer.cursor(), &Cursor::new(0, 2));
+
+        let buffer = run("abcd", "/b.*/ c/X/").unwrap();
+        assert_eq!(buffer.text(), "aX");
+        assert_eq!(buffer.cursor(), &Cursor::new(0, 2));
     }
 }
