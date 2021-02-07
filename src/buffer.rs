@@ -190,6 +190,13 @@ impl Buffer {
         &self.cursor
     }
 
+    pub fn cursor_as_range(&self) -> Range {
+        match &self.cursor {
+            Cursor::Normal { pos, .. } => Range::from_points(*pos, *pos),
+            Cursor::Selection { range, .. } => range.clone(),
+        }
+    }
+
     pub fn main_cursor_pos(&self) -> &Point {
         match &self.cursor {
             Cursor::Normal { pos, .. } => pos,

@@ -4,11 +4,13 @@ use regex::RegexBuilder;
 use std::iter::Peekable;
 use std::str::Chars;
 
+#[derive(Clone)]
 struct Captures {
     /// The capture can be `None` if the group does not appear in the match.
     unnamed: Vec<Option<Range>>,
 }
 
+#[derive(Clone)]
 struct Match {
     range: Range,
     captures: Option<Captures>,
@@ -23,6 +25,22 @@ fn char_index_to_range(buffer: &Buffer, range: &Range, start: usize, end: usize)
     Range::new(start_y, start_x, end_y, end_x)
 }
 
+fn process_captures(
+    buffer: &Buffer,
+    range: &Range,
+    captures: regex::Captures<'_>,
+) -> (Range, Captures) {
+    let whole_match = captures.get(0).unwrap();
+    let whole_range = char_index_to_range(buffer, range, whole_match.start(), whole_match.end());
+
+    let mut unnamed = Vec::new();
+    for c in captures.iter().skip(1) {
+        unnamed.push(c.map(|c| char_index_to_range(buffer, range, c.start(), c.end())));
+    }
+
+    (whole_range, Captures { unnamed })
+}
+
 /// A wrapper of Regex to implement PartialEq to simplify unit tests.
 #[derive(Debug)]
 struct Regex(regex::Regex);
@@ -32,20 +50,19 @@ impl Regex {
         Ok(Regex(regex::Regex::new(pattern)?))
     }
 
-    pub fn find_first_match(&self, buffer: &Buffer, range: &Range) -> Option<(Range, Captures)> {
+    pub fn match_all(&self, buffer: &Buffer, range: &Range) -> Vec<(Range, Captures)> {
         let heystack = buffer.substr(range).to_string();
-        self.0.captures(&heystack).map(|captures| {
-            let whole_match = captures.get(0).unwrap();
-            let whole_range =
-                char_index_to_range(buffer, range, whole_match.start(), whole_match.end());
+        self.0
+            .captures_iter(&heystack)
+            .map(|captures| process_captures(buffer, range, captures))
+            .collect()
+    }
 
-            let mut unnamed = Vec::new();
-            for c in captures.iter().skip(1) {
-                unnamed.push(c.map(|c| char_index_to_range(buffer, range, c.start(), c.end())));
-            }
-
-            (whole_range, Captures { unnamed })
-        })
+    pub fn match_first(&self, buffer: &Buffer, range: &Range) -> Option<(Range, Captures)> {
+        let heystack = buffer.substr(range).to_string();
+        self.0
+            .captures(&heystack)
+            .map(|captures| process_captures(buffer, range, captures))
     }
 }
 
@@ -227,7 +244,7 @@ impl Engine {
             }
             Address::Match(regex) => {
                 regex
-                    .find_first_match(&buffer, &m.range)
+                    .match_first(&buffer, &m.range)
                     .map(|(range, captures)| Match {
                         range,
                         captures: Some(captures),
@@ -267,14 +284,50 @@ impl Engine {
         match op {
             Op::Filter(regex) => {}
             Op::FilterOut(regex) => {}
-            Op::Extract(regex) => {}
+            Op::Extract(regex) => {
+                new_matches.extend(regex.match_all(buffer, &m.range).drain(..).map(
+                    |(range, captures)| Match {
+                        range,
+                        captures: Some(captures),
+                    },
+                ));
+            }
             Op::ExtractReverse(regex) => {}
             Op::SurroundWithOutDelim(regex) => {}
             Op::SurroundWithDelim(regex) => {}
-            Op::Prepend(text) => {}
-            Op::Append(text) => {}
-            Op::ReplaceWith(text) => {}
-            Op::Delete => {}
+            Op::Prepend(text) => {
+                buffer.set_cursor(Cursor::from_point(m.range.front()));
+                buffer.insert(&text);
+                new_matches.push(Match {
+                    range: buffer.cursor_as_range(),
+                    captures: None,
+                });
+            }
+            Op::Append(text) => {
+                buffer.set_cursor(Cursor::from_point(m.range.back()));
+                buffer.insert(&text);
+                new_matches.push(Match {
+                    range: buffer.cursor_as_range(),
+                    captures: None,
+                });
+            }
+            Op::ReplaceWith(text) => {
+                buffer.select_by_range(&m.range);
+                buffer.delete();
+                buffer.insert(&text);
+                new_matches.push(Match {
+                    range: buffer.cursor_as_range(),
+                    captures: None,
+                });
+            }
+            Op::Delete => {
+                buffer.select_by_range(&m.range);
+                buffer.delete();
+                new_matches.push(Match {
+                    range: buffer.cursor_as_range(),
+                    captures: None,
+                });
+            }
             Op::Jump(to) => {}
             Op::ShellCommand(cmd) => {}
         }
