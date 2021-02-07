@@ -812,4 +812,11 @@ mod tests {
         assert_eq!(buffer.text(), "aX");
         assert_eq!(buffer.cursor(), &Cursor::new(0, 2));
     }
+
+    #[test]
+    fn shell_command() {
+        let buffer = run("abcde", "/b../ p#tr '[a-z]' '[A-Z]'#").unwrap();
+        assert_eq!(buffer.text(), "aBCDe");
+        assert_eq!(buffer.cursor(), &Cursor::new(0, 4));
+    }
 }
