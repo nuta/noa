@@ -1,12 +1,26 @@
-use crate::rope::{Cursor, Point, Range, Rope};
 use crate::buffer::Buffer;
-use regex::{Captures, RegexBuilder};
+use crate::rope::{Cursor, Point, Range, Rope};
+use regex::RegexBuilder;
 use std::iter::Peekable;
 use std::str::Chars;
 
-struct Match<'a> {
+struct Captures {
+    /// The capture can be `None` if the group does not appear in the match.
+    unnamed: Vec<Option<Range>>,
+}
+
+struct Match {
     range: Range,
-    captures: Option<Captures<'a>>,
+    captures: Option<Captures>,
+}
+
+fn char_index_to_range(buffer: &Buffer, range: &Range, start: usize, end: usize) -> Range {
+    let slice = buffer.substr(range);
+    let start_y = range.start.y + slice.byte_to_line(start);
+    let start_x = slice.byte_to_char(start - slice.line_to_byte(start_y - range.start.y));
+    let end_y = range.end.y + slice.byte_to_line(end);
+    let end_x = slice.byte_to_char(end - slice.line_to_byte(end_y - range.end.y));
+    Range::new(start_y, start_x, end_y, end_x)
 }
 
 /// A wrapper of Regex to implement PartialEq to simplify unit tests.
@@ -16,6 +30,22 @@ struct Regex(regex::Regex);
 impl Regex {
     pub fn new(pattern: &str) -> Result<Regex, regex::Error> {
         Ok(Regex(regex::Regex::new(pattern)?))
+    }
+
+    pub fn find_first_match(&self, buffer: &Buffer, range: &Range) -> Option<(Range, Captures)> {
+        let heystack = buffer.substr(range).to_string();
+        self.0.captures(&heystack).map(|captures| {
+            let whole_match = captures.get(0).unwrap();
+            let whole_range =
+                char_index_to_range(buffer, range, whole_match.start(), whole_match.end());
+
+            let mut unnamed = Vec::new();
+            for c in captures.iter().skip(1) {
+                unnamed.push(c.map(|c| char_index_to_range(buffer, range, c.start(), c.end())));
+            }
+
+            (whole_range, Captures { unnamed })
+        })
     }
 }
 
@@ -142,13 +172,17 @@ impl Engine {
             Point::new(0, 0),
             Point::new(buffer.num_lines(), buffer.line_len(buffer.num_lines() - 1)),
         );
-        let mut matches = vec![Match { range: whole_text, captures: None }];
+        let mut matches = vec![Match {
+            range: whole_text,
+            captures: None,
+        }];
 
         for query in &self.queries {
             let mut new_matches = Vec::new();
             for m in matches {
-                let range = self.evaluate_addr(buffer, &m, &query.addr)?;
-                self.evaluate_op(buffer, &mut new_matches, &m, &query.op)?;
+                if let Some(m) = self.evaluate_addr(buffer, &m, &query.addr)? {
+                    self.evaluate_op(buffer, &mut new_matches, &m, &query.op)?;
+                }
             }
 
             matches = new_matches;
@@ -159,11 +193,77 @@ impl Engine {
         })
     }
 
-    fn evaluate_addr(&self, buffer: &mut Buffer, m: &Match, addr: &Address) -> Result<Range, ParseError> {
-        Ok(m.range.to_owned())
+    fn evaluate_addr(
+        &self,
+        buffer: &Buffer,
+        m: &Match,
+        addr: &Address,
+    ) -> Result<Option<Match>, ParseError> {
+        Ok(match addr {
+            Address::Current => Some(Match {
+                range: m.range.clone(),
+                captures: None,
+            }),
+            Address::LineNo(y) if *y == 0 => Some(Match {
+                range: Range::from_points(m.range.front().clone(), m.range.front().clone()),
+                captures: None,
+            }),
+            Address::LineNo(y_offset) => {
+                let y = m.range.front().y + y_offset;
+                if y > buffer.num_lines() {
+                    None
+                } else {
+                    let end_x = if y - 1 >= buffer.num_lines() {
+                        0
+                    } else {
+                        buffer.line_len(y - 1)
+                    };
+
+                    Some(Match {
+                        range: Range::new(y, 0, y, end_x),
+                        captures: None,
+                    })
+                }
+            }
+            Address::Match(regex) => {
+                regex
+                    .find_first_match(&buffer, &m.range)
+                    .map(|(range, captures)| Match {
+                        range,
+                        captures: Some(captures),
+                    })
+            }
+            Address::EOF => Some(Match {
+                range: Range::from_points(m.range.back().clone(), m.range.back().clone()),
+                captures: None,
+            }),
+            Address::Range { start, end } => {
+                let a = self.evaluate_addr(buffer, m, start)?;
+                let b = self.evaluate_addr(buffer, m, end)?;
+                match (a, b) {
+                    (Some(a), Some(b)) => Some(Match {
+                        range: Range::from_points(*a.range.front(), *b.range.back()),
+                        captures: None,
+                    }),
+                    _ => None,
+                }
+            }
+            Address::Forward { from, addr } => {
+                unimplemented!();
+            }
+            Address::Backward { from, addr } => {
+                unimplemented!();
+            }
+        })
     }
 
-    fn evaluate_op(&self, buffer: &mut Buffer, new_matches: &mut Vec<Match>, m: &Match, op: &Op) -> Result<(), ParseError> {
+    fn evaluate_op(
+        &self,
+        buffer: &mut Buffer,
+        new_matches: &mut Vec<Match>,
+        m: &Match,
+        op: &Op,
+    ) -> Result<(), ParseError> {
         match op {
             Op::Filter(regex) => {}
             Op::FilterOut(regex) => {}

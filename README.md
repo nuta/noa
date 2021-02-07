@@ -117,7 +117,6 @@ j [^|$]            -- Jump To:
 ```
 .                   -- The current selection or cursor.
 $                   -- The end of the text.
-#                   -- The current word.
 (number)            -- The whole line excluding the trailing newline. The number
                        represents the relative line number.
 /regex/             -- A regular expression enclosed by `/` or `#`.

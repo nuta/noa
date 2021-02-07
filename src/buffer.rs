@@ -136,6 +136,10 @@ impl Buffer {
         self.rope.line(line)
     }
 
+    pub fn substr(&self, range: &Range) -> ropey::RopeSlice {
+        self.rope.sub_str(range)
+    }
+
     pub fn line_substr(&self, line: usize, start: usize) -> String {
         let mut s = String::new();
         let mut iter = self.line(line).chunks();
