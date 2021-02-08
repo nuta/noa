@@ -24,3 +24,5 @@ jobs:
         run: cargo build --release
       - name: Unit Test
         run: cargo test
+      - name: Benchmarks
+        run: cargo bench
