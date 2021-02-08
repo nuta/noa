@@ -673,7 +673,15 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_regex(&mut self) -> Result<Regex, ParseError> {
-        build_regex(&self.parse_string()?).map_err(|err| ParseError {
+        let pattern = self.parse_string()?;
+        if pattern.is_empty() {
+            return Err(ParseError {
+                cursor: self.last_consumed_cursor(),
+                kind: ParseErrorKind::EmptyRegex,
+            });
+        }
+
+        build_regex(&pattern).map_err(|err| ParseError {
             cursor: self.last_consumed_cursor(),
             kind: ParseErrorKind::InvalidRegex(err),
         })
@@ -856,6 +864,17 @@ mod tests {
                     op: Op::Append(";".to_owned()),
                 }
             ])
+        );
+    }
+
+    #[test]
+    fn invalid_inputs() {
+        assert_eq!(
+            parse("x/"),
+            Err(ParseError {
+                kind: ParseErrorKind::EmptyRegex,
+                cursor: 1,
+            })
         );
     }
 
