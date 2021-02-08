@@ -51,17 +51,20 @@ impl Regex {
         Ok(Regex(regex::Regex::new(pattern)?))
     }
 
-    pub fn match_all(&self, rope: &Rope, range: &Range, max_matches: &Option<usize>) -> Vec<(Range, Captures)> {
+    pub fn match_all(
+        &self,
+        rope: &Rope,
+        range: &Range,
+        max_matches: &Option<usize>,
+    ) -> Vec<(Range, Captures)> {
         let heystack = rope.sub_str(range).to_string();
         let iter = self.0.captures_iter(&heystack);
         if let Some(max_matches) = max_matches {
-            iter
-                .take(*max_matches)
+            iter.take(*max_matches)
                 .map(|captures| process_captures(rope, range, captures))
                 .collect()
         } else {
-            iter
-                .map(|captures| process_captures(rope, range, captures))
+            iter.map(|captures| process_captures(rope, range, captures))
                 .collect()
         }
     }
@@ -218,7 +221,12 @@ impl Engine {
         })
     }
 
-    pub fn execute(&mut self, rope: &mut Rope, current: &Range, max_matches: Option<usize>) -> Result<Changes, ExecutionError> {
+    pub fn execute(
+        &mut self,
+        rope: &mut Rope,
+        current: &Range,
+        max_matches: Option<usize>,
+    ) -> Result<Changes, ExecutionError> {
         let mut matches = vec![Match {
             range: current.clone(),
             captures: None,
@@ -326,8 +334,8 @@ impl Engine {
                 }
             }
             Op::Extract(regex) => {
-                new_matches.extend(regex.match_all(rope, &m.range, max_matches)
-                    .drain(..).map(|(range, captures)| Match {
+                new_matches.extend(regex.match_all(rope, &m.range, max_matches).drain(..).map(
+                    |(range, captures)| Match {
                         range,
                         captures: Some(captures),
                     },
