@@ -1,76 +1,87 @@
-use crate::buffer::Buffer;
-use crate::diff::{Line, Point};
-use crate::editor::Event;
-use crate::highlight::Style;
-use std::cmp::min;
-use std::rc::Rc;
+use crate::buffer::{Buffer, TopLeft};
+use crate::editor::{Event, Notification, NotificationLevel};
+use crate::editorconfig::EditorConfig;
+use crate::finder::{Finder, FinderItem};
+use crate::line_edit::LineEdit;
+use crate::ned;
+use crate::rope::{Cursor, Point, Range, Rope};
+use crossterm::cursor::{self, MoveTo};
+use crossterm::event::{self, DisableMouseCapture, EnableMouseCapture, Event as TermEvent};
+pub use crossterm::event::{
+    KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent as RawMouseEvent, MouseEventKind,
+};
+use crossterm::style::{
+    Attribute, Color, Print, SetAttribute, SetBackgroundColor, SetForegroundColor,
+};
+use crossterm::terminal::{
+    disable_raw_mode, enable_raw_mode, size, EnterAlternateScreen, LeaveAlternateScreen,
+};
+use crossterm::terminal::{Clear, ClearType};
+use crossterm::{execute, queue};
+use std::cmp::{max, min};
+use std::collections::HashMap;
+use std::io::{stdout, Write};
 use std::sync::mpsc::Sender;
-use termion::event::Event as TermEvent;
-pub use termion::event::Key;
-use termion::input::TermRead;
-use termion::raw::{IntoRawMode, RawTerminal};
-use termion::screen::AlternateScreen;
+use std::thread;
+use std::time::{Duration, Instant};
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-#[repr(transparent)]
-pub struct Rgb(u32);
-impl Rgb {
-    pub const fn new(r: u8, g: u8, b: u8) -> Rgb {
-        Rgb((r as u32) << 16 | (g as u32) << 8 | (b as u32))
-    }
+pub trait DisplayWidth {
+    fn display_width(&self) -> usize;
+}
 
-    pub fn r(self) -> u8 {
-        (self.0 >> 16) as u8
-    }
-
-    pub fn g(self) -> u8 {
-        ((self.0 >> 8) & 0xff) as u8
-    }
-
-    pub fn b(self) -> u8 {
-        (self.0 & 0xff) as u8
-    }
-
-    pub fn as_term_rgb(self) -> termion::color::Rgb {
-        termion::color::Rgb(self.r(), self.g(), self.b())
+impl DisplayWidth for char {
+    fn display_width(&self) -> usize {
+        unicode_width::UnicodeWidthChar::width_cjk(*self).unwrap_or(1)
     }
 }
 
-pub struct PromptItem {
-    pub title: String,
-    pub label: char,
-    pub color: Rgb,
+impl DisplayWidth for str {
+    fn display_width(&self) -> usize {
+        unicode_width::UnicodeWidthStr::width_cjk(self)
+    }
 }
 
-impl PromptItem {
-    pub const PATH_COLOR: Rgb = Rgb::new(0, 100, 100);
-    pub const BUFFER_COLOR: Rgb = Rgb::new(50, 50, 140);
-    pub const UNSAVED_BUFFER_COLOR: Rgb = Rgb::new(200, 50, 50);
-    pub fn new(label: char, color: Rgb, title: String) -> PromptItem {
-        PromptItem {
-            label,
-            title,
-            color,
+pub fn truncate(s: &str, width: usize) -> &str {
+    &s[..min(s.chars().count(), width)]
+}
+
+pub fn with_ellipsis(s: &str, width: usize) -> String {
+    if s.display_width() <= width {
+        return s.to_owned();
+    }
+
+    if width <= 3 {
+        return ".".repeat(width);
+    }
+
+    let left_width = (width - 3) / 2;
+    let mut left_end = 0;
+    for (i, _) in s.char_indices() {
+        if s[..i].display_width() >= left_width {
+            // Don't update left_end to use the previous character.
+            left_end = i;
+            break;
         }
     }
-}
 
-static mut WHITESPACES: String = String::new();
-
-fn whitespaces(n: usize) -> &'static str {
-    // It's safe since this function will be called only in the single-threaded
-    // main loop.
-    unsafe {
-        if WHITESPACES.len() < n {
-            WHITESPACES = " ".repeat(n);
+    let right_width = width - 3 - left_width;
+    let mut right_start = s.len();
+    for (i, _) in s.char_indices().rev() {
+        if s[i..].display_width() >= right_width {
+            right_start = i;
+            break;
         }
-
-        &WHITESPACES[0..n]
     }
+
+    let mut new_s = String::with_capacity(width);
+    new_s.push_str(&s[..left_end]);
+    new_s.push_str("...");
+    new_s.push_str(&s[right_start..]);
+    new_s
 }
 
-fn truncate(s: &str, width: usize) -> &str {
-    &s[..min(s.len(), width)]
+fn whitespaces(n: usize) -> String {
+    " ".repeat(n)
 }
 
 fn num_of_digits(mut n: usize) -> usize {
@@ -79,6 +90,7 @@ fn num_of_digits(mut n: usize) -> usize {
         10..=99 => 2,
         100..=999 => 3,
         1000..=9999 => 4,
+        10000..=99999 => 5,
         _ => {
             let mut num = 1;
             loop {
@@ -93,310 +105,841 @@ fn num_of_digits(mut n: usize) -> usize {
     }
 }
 
-pub struct Terminal {
-    stdout: AlternateScreen<RawTerminal<std::io::Stdout>>,
-    tx: Sender<Event>,
+pub fn handle_term_event(event_queue: Sender<Event>) {
+    fn handle_event(event_queue: &Sender<Event>, ev: TermEvent) {
+        match ev {
+            TermEvent::Key(key) => {
+                event_queue.send(Event::Key(key)).ok();
+            }
+            TermEvent::Mouse(mouse) => {
+                event_queue.send(Event::Mouse(mouse)).ok();
+            }
+            TermEvent::Resize(cols, rows) => {
+                event_queue
+                    .send(Event::Resize {
+                        cols: cols as usize,
+                        rows: rows as usize,
+                    })
+                    .ok();
+            }
+        }
+    }
+
+    fn is_next_available() -> crossterm::Result<bool> {
+        event::poll(Duration::from_secs(0))
+    }
+
+    loop {
+        if let Ok(ev) = event::read() {
+            match ev {
+                TermEvent::Key(KeyEvent {
+                    code: KeyCode::Char(key),
+                    modifiers: KeyModifiers::NONE,
+                }) if is_next_available().unwrap() => {
+                    let mut next_event = None;
+                    let mut buf = key.to_string();
+                    while is_next_available().unwrap() && next_event.is_none() {
+                        match event::read() {
+                            Ok(TermEvent::Key(KeyEvent {
+                                code: KeyCode::Char(ch),
+                                modifiers: KeyModifiers::SHIFT,
+                            })) => {
+                                buf.push(ch);
+                            }
+                            Ok(TermEvent::Key(KeyEvent {
+                                code,
+                                modifiers: KeyModifiers::NONE,
+                            })) => match code {
+                                KeyCode::Char(ch) => {
+                                    buf.push(ch);
+                                }
+                                KeyCode::Enter => {
+                                    buf.push('\n');
+                                }
+                                KeyCode::Tab => {
+                                    buf.push('\t');
+                                }
+                                _ => {
+                                    next_event = Some(ev);
+                                }
+                            },
+                            Ok(ev) => {
+                                next_event = Some(ev);
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    event_queue.send(Event::KeyBatch(buf)).ok();
+                    if let Some(ev) = next_event {
+                        handle_event(&event_queue, ev);
+                    }
+                }
+                _ => {
+                    handle_event(&event_queue, ev);
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum MouseEvent {
+    ClickText {
+        /// The position in the buffer. They could be out of bounds of the text.
+        pos: Point,
+        alt: bool,
+    },
+    DoubleClickText {
+        /// The position in the buffer. They could be out of bounds of the text.
+        pos: Point,
+        alt: bool,
+    },
+    ClickLineNo {
+        y: usize,
+    },
+    DragLineNo {
+        y: usize,
+    },
+    DragText {
+        /// The position in the buffer. They could be out of bounds of the text.
+        pos: Point,
+    },
+    HoverText {
+        /// The position in the buffer. They could be out of bounds of the text.
+        pos: Point,
+    },
+    ScrollUp,
+    ScrollDown,
+}
+
+/// Represents each character cell in the terminal (not RGB pixel).
+#[derive(Debug, PartialEq, Eq, Clone)]
+struct Pixel {
+    y: usize,
+    x: usize,
+}
+
+impl Pixel {
+    pub const fn new(y: usize, x: usize) -> Pixel {
+        Pixel { y, x }
+    }
+}
+
+struct PixelMap {
+    map: Vec<Option<Point>>,
     width: usize,
-    height: usize,
+}
+
+impl PixelMap {
+    pub fn new() -> PixelMap {
+        PixelMap {
+            map: Vec::new(),
+            width: 0,
+        }
+    }
+
+    pub fn clear(&mut self, rows: usize, cols: usize) {
+        self.width = cols;
+        self.map.resize(rows * cols, None);
+        self.map.fill(None);
+    }
+
+    pub fn set_pixel(&mut self, pixel: &Pixel, pos: &Point) {
+        let index = self.pixel_to_index(pixel);
+        self.map[index] = Some(pos.clone());
+    }
+
+    pub fn pixel_to_pos(&self, pixel: &Pixel) -> Option<&Point> {
+        trace!(
+            "pixel: {:?} -> {:?}",
+            pixel,
+            self.map.get(self.pixel_to_index(pixel))
+        );
+        self.map
+            .get(self.pixel_to_index(pixel))
+            .map(|o| o.as_ref())
+            .unwrap_or(None)
+    }
+
+    fn pixel_to_index(&self, pixel: &Pixel) -> usize {
+        pixel.y * self.width + pixel.x
+    }
+}
+
+pub struct Terminal {
+    rows: usize,
+    cols: usize,
+    last_clicked: Option<Instant>,
+    pixel_map: PixelMap,
+
+    // TODO: Remove,
+    text_cols: usize,
+    current_top_left: TopLeft,
+    display_x_text_start: usize,
 }
 
 impl Terminal {
-    pub fn new(tx: Sender<Event>) -> Terminal {
-        let mut stdout = AlternateScreen::from(std::io::stdout().into_raw_mode().unwrap());
+    pub fn new(event_queue: Sender<Event>) -> Terminal {
+        let (cols, rows) = size().expect("failed to get the terminal size");
+        enable_raw_mode().expect("failed to enable the raw mode");
+        queue!(
+            stdout(),
+            EnterAlternateScreen,
+            Clear(ClearType::All),
+            EnableMouseCapture,
+        )
+        .ok();
 
-        // Clear the screen.
-        use std::io::Write;
-        write!(stdout, "{}", termion::clear::All).ok();
-
-        // Read inputs.
-        let tx1 = tx.clone();
-        std::thread::spawn(move || {
-            let mut stdin = std::io::stdin().events();
-            loop {
-                if let Some(ev) = stdin.next() {
-                    match ev {
-                        Ok(ev) => match ev {
-                            TermEvent::Key(key) => {
-                                tx1.send(Event::Key(key)).ok();
-                            }
-                            _ => {}
-                        },
-                        Err(_) => { /* ignore errors */ }
-                    }
-                }
-            }
+        thread::spawn(move || {
+            handle_term_event(event_queue);
         });
 
-        let size = termion::terminal_size().unwrap();
         Terminal {
-            stdout,
-            tx,
-            width: size.0 as usize,
-            height: size.1 as usize,
+            rows: rows as usize,
+            cols: cols as usize,
+            text_cols: 0, // Filled in draw.
+            current_top_left: TopLeft::new(0, 0),
+            last_clicked: None,
+            display_x_text_start: 0,
+            pixel_map: PixelMap::new(),
         }
     }
 
-    pub fn text_height(&self) -> usize {
-        self.height - 2
+    pub fn rows(&self) -> usize {
+        self.rows
     }
 
-    pub fn update_screen_size(&mut self) {
-        let size = termion::terminal_size().unwrap();
-        self.width = size.0 as usize;
-        self.height = size.1 as usize;
+    pub fn text_cols(&self) -> usize {
+        self.text_cols
     }
 
-    pub fn render_editor<'a>(
+    pub fn resize(&mut self, rows: usize, cols: usize) {
+        self.rows = rows;
+        self.cols = cols;
+    }
+
+    pub fn draw_buffer(
         &mut self,
         buffer: &mut Buffer,
-        message: Option<&str>,
-        statuses: impl Iterator<Item = &'a (String, Rgb)>,
+        notification: Option<&Notification>,
+        cursor_hover: Option<&Point>,
     ) {
-        use std::io::Write;
-        use termion::{clear, color, cursor, style};
-
-        let main_cursor = buffer.cursors()[0].clone();
-        let main_cursor_col = main_cursor.start().x + 1;
-
-        if self.width < 10 || self.height < 10 {
-            warn!("screen is too small!");
+        let mut stdout = stdout();
+        if self.cols < 20 || self.rows < 5 {
+            queue!(
+                stdout,
+                Clear(ClearType::All),
+                MoveTo(0, 0),
+                Print("too small!"),
+            )
+            .unwrap();
+            stdout.flush().unwrap();
             return;
         }
 
-        // Hide the cursor to mitigate flickering.
-        write!(self.stdout, "{}", cursor::Hide).ok();
+        let selections = match buffer.cursor() {
+            Cursor::Selection { range, .. } => vec![range.clone()],
+            Cursor::Normal { .. } => vec![],
+        };
 
-        // Adjust y-axis first to compute lineno_width.
-        let mut height = self.height - 2;
-        buffer.adjust_top_left(height, self.width);
+        let lineno_max_width = num_of_digits(buffer.num_lines()) + 1;
+        let display_y_text_start = 1;
+        let display_x_text_start = lineno_max_width;
 
-        // Adjust x-axis.
-        let lineno_width = num_of_digits(buffer.top_left().y + 1 + height);
-        let text_width = self.width - lineno_width - 2;
-        buffer.adjust_top_left(height, text_width);
+        self.display_x_text_start = display_x_text_start;
+        self.text_cols = self.cols - display_x_text_start;
 
-        // Now we have the correct top_left.
-        let top_left = buffer.top_left();
+        // Adjust top left.
+        buffer.relocate_top_left(
+            self.rows - display_y_text_start,
+            self.cols - display_x_text_start,
+        );
+        self.current_top_left = buffer.top_left().clone();
 
-        // Buffer contents.
-        let mut cursor_positions = vec![None; buffer.cursors().len()];
-        for y in top_left.y..min(top_left.y + height, buffer.num_lines()) {
-            let display_y  = y - top_left.y;
-            let lineno = y + 1;
-            write!(
-                self.stdout,
-                "{} {}{} ",
-                cursor::Goto(1, 1 + display_y as u16),
-                whitespaces(lineno_width - num_of_digits(lineno)),
-                lineno
-            ).ok();
-
-            let mut remaining = text_width;
-            let tab_width = buffer.config().tab_width;
-            let mut display_x = 0;
-            let spans = buffer.highlight(y, top_left.x);
-            let mut x = top_left.x;
-            for (style, span) in spans {
-                match style {
-                    Style::Normal => { write!(self.stdout, "{}", style::Reset).ok(); }
-                    Style::Ctrl => { write!(self.stdout, "{}", color::Fg(color::Blue)).ok(); }
-                    Style::Def => { write!(self.stdout, "{}", color::Fg(color::Magenta)).ok(); }
-                    Style::LineComment => { write!(self.stdout, "{}", color::Fg(color::Green)).ok(); }
-                    Style::InString => { write!(self.stdout, "{}", color::Fg(color::Magenta)).ok(); }
-                }
-
-                for ch in span.chars() {
-                    let ch_width = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(1);
-                    if remaining < ch_width {
-                        break;
-                    }
-
-                    let mut invert = false;
-                    for (i, cursor) in buffer.cursors().iter().enumerate() {
-                        if y == cursor.start().y && x == cursor.start().x {
-                            cursor_positions[i] = Some((display_x, display_y));
-                        }
-
-                        if cursor.is_selection()
-                            && cursor.contains(&Point::new(y, x)) {
-                            invert = true;
-                        }
-                    }
-
-                    if invert {
-                        write!(self.stdout, "{}", style::Invert).ok();
-                    }
-
-                    if ch == '\t' {
-                        let mut n = min(remaining, tab_width - (x % tab_width));
-                        if n == 0 {
-                            n = tab_width;
-                        }
-
-                        write!(self.stdout, "{}", whitespaces(n)).ok();
-                        display_x += n;
-                    } else {
-                        write!(self.stdout, "{}", ch).ok();
-                        display_x += ch_width;
-                    }
-
-                    if invert {
-                        write!(self.stdout, "{}", style::NoInvert).ok();
-                    }
-
-                    remaining -= ch_width;
-                    x += 1;
-                }
-            }
-
-            // Handle cursors at the end of the line.
-            for (i, cursor) in buffer.cursors().iter().enumerate() {
-                if cursor_positions[i].is_none()
-                    && y == cursor.start().y && display_x < text_width {
-                    cursor_positions[i] = Some((display_x, display_y));
-                }
-            }
-
-            write!(self.stdout, "{}{}", clear::UntilNewline, style::Reset).ok();
-            height -= 1;
-        }
-
-        // Clear remaining lines.
-        while height > 0 {
-            write!(self.stdout, "{}{}", cursor::Down(1), clear::CurrentLine).ok();
-            height -= 1;
-        }
-
-        // The status bar.
-        let filename = truncate(buffer.display_name(), self.width.saturating_sub(10));
-        write!(
-            self.stdout,
-            "{}{}{} {} | {}{} {}",
-            cursor::Goto(1, 1 + (self.height - 2) as u16),
-            style::Invert,
-            style::Bold,
-            filename,
-            style::NoBold,
-            main_cursor_col,
-            style::Reset,
+        queue!(stdout, cursor::Hide).ok();
+        self.pixel_map.clear(self.rows, self.cols);
+        let cursor_pixel = self.draw_text(
+            &mut stdout,
+            self.rows,
+            display_y_text_start,
+            lineno_max_width,
+            buffer.rope(),
+            buffer.top_left(),
+            buffer.main_cursor_pos(),
+            cursor_hover,
+            buffer.config().tab_width,
+            &selections,
+        );
+        self.draw_status_line(
+            &mut stdout,
+            buffer,
+            &notification,
+            &buffer.main_cursor_pos(),
+        );
+        queue!(
+            stdout,
+            MoveTo(cursor_pixel.x as u16, cursor_pixel.y as u16),
+            cursor::Show
         )
         .ok();
 
-        // Statuses.
-        let mut remaining_width =
-            self.width - unicode_width::UnicodeWidthStr::width(filename)
-            + num_of_digits(main_cursor_col) + 5;
-        for (status, rgb) in statuses {
-            if status.len() + 2 <= remaining_width {
-                write!(self.stdout, "{} {} ", color::Bg(rgb.as_term_rgb()), status).ok();
-                remaining_width -= status.len() + 2;
-            }
-        }
-
-        write!(self.stdout, "{}{}", style::Reset, clear::UntilNewline).ok();
-
-        // The message line.
-        write!(
-            self.stdout,
-            "{}{}{}",
-            cursor::Goto(1, 1 + (self.height - 1) as u16),
-            truncate(message.unwrap_or(""), self.width),
-            clear::UntilNewline,
-        )
-        .ok();
-
-        // Draw the cursors except the main cursor.
-        let before_text_width = (lineno_width + 2) as u16;
-        for pos in cursor_positions.iter().skip(1) {
-            if let Some((display_x, display_y)) = pos {
-                write!(
-                    self.stdout,
-                    "{}{} {}",
-                    cursor::Goto(1 + before_text_width + *display_x as u16,
-                        1 + *display_y as u16),
-                    style::Invert,
-                    style::Reset,
-                ).ok();
-            }
-        }
-
-        // Draw the main cursor.
-        let (x, y) = cursor_positions[0].unwrap_or((0, 0));
-        write!(
-            self.stdout,
-            "{}{}",
-            cursor::Goto(1 + before_text_width + x as u16, 1 + y as u16),
-            cursor::Show,
-        )
-        .ok();
-
-        self.stdout.flush().ok();
+        stdout.flush().ok();
     }
 
-    pub fn render_prompt(
+    fn draw_text(
         &mut self,
-        title: &str,
-        user_input: &Line,
-        cursor: usize,
-        selected: usize,
-        items: &[Rc<PromptItem>],
+        stdout: &mut std::io::Stdout,
+        height: usize,
+        display_y_start: usize,
+        lineno_max_width: usize,
+        rope: &Rope,
+        top_left: &TopLeft,
+        cursor_pos: &Point,
+        cursor_hover: Option<&Point>,
+        tab_width: usize,
+        selections: &[Range],
+    ) -> Pixel {
+        let mut pos = Point::new(top_left.y, top_left.x);
+        let mut wrapped = None;
+        let mut in_selection = false;
+        let mut cursor_pixel = Pixel::new(0, 0);
+        for display_y in display_y_start..height {
+            // Move the cursor at the beginning of the next display row.
+            queue!(
+                stdout,
+                MoveTo(0, display_y as u16),
+                SetAttribute(Attribute::Reset),
+            )
+            .ok();
+
+            // Get the string chunks of the current (or next) buffer line.
+            let is_wrapped = wrapped.is_some();
+            let (mut chunks, mut chunk_start_idx) = match wrapped {
+                Some(inner) => inner,
+                None if pos.y < rope.num_lines() => (rope.line(pos.y).chunks().peekable(), 0),
+                None => {
+                    // Out of bounds of the buffer.
+                    queue!(
+                        stdout,
+                        SetAttribute(Attribute::Reset),
+                        Clear(ClearType::CurrentLine),
+                    )
+                    .ok();
+                    continue;
+                }
+            };
+
+            // The pos.y is in the bufer. Print the line number.
+            self.draw_line_number(
+                stdout,
+                pos.y + 1,
+                lineno_max_width,
+                pos.y == cursor_pos.y,
+                is_wrapped,
+            );
+
+            let mut pixel = Pixel::new(display_y, lineno_max_width);
+
+            // Handle the cursor at the beginning of the line.
+            if pos == *cursor_pos {
+                cursor_pixel = pixel.clone();
+            }
+
+            // Render chunks until the end of the display row.
+            let mut chunk_printed_idx = 0;
+            'outer: loop {
+                let s = match chunks.peek() {
+                    Some(s) => s,
+                    None => break,
+                };
+
+                for c in s.chars().skip(chunk_start_idx) {
+                    let (tab, width) = match c {
+                        '\t' => (true, tab_width - pos.x % tab_width),
+                        _ => (false, c.display_width()),
+                    };
+
+                    if pos == *cursor_pos && is_wrapped {
+                        cursor_pixel = pixel.clone();
+                    }
+
+                    if pixel.x + width > self.cols {
+                        break 'outer;
+                    }
+
+                    for range in selections {
+                        if in_selection && pos >= *range.back() {
+                            in_selection = false;
+                            queue!(stdout, SetAttribute(Attribute::NoReverse)).ok();
+                        } else if (in_selection && chunk_printed_idx == 0)
+                            || (!in_selection && pos == *range.front())
+                        {
+                            in_selection = true;
+                            queue!(stdout, SetAttribute(Attribute::Reverse)).ok();
+                        }
+                    }
+
+                    let on_hover = match cursor_hover {
+                        Some(hover_pos) if pos == *hover_pos => {
+                            queue!(stdout, SetBackgroundColor(Color::DarkGrey)).ok();
+                            true
+                        }
+                        _ => false,
+                    };
+
+                    if tab {
+                        queue!(stdout, Print(whitespaces(width))).ok();
+                    } else {
+                        queue!(stdout, Print(c)).ok();
+                    }
+
+                    if on_hover {
+                        queue!(stdout, SetBackgroundColor(Color::Reset)).ok();
+                    }
+
+                    for i in 0..width {
+                        self.pixel_map
+                            .set_pixel(&Pixel::new(pixel.y, pixel.x + i), &pos);
+                    }
+
+                    pos.x += 1;
+                    chunk_printed_idx += 1;
+                    pixel.x += width;
+
+                    if pos == *cursor_pos {
+                        cursor_pixel = pixel.clone();
+                    }
+                }
+
+                // Printed all characters in the chunk. Visit the next one.
+                chunks.next();
+                chunk_start_idx = 0;
+                chunk_printed_idx = 0;
+            }
+
+            // Clear the previously printed contents.
+            queue!(stdout, Clear(ClearType::UntilNewLine)).ok();
+
+            self.pixel_map.set_pixel(&Pixel::new(pixel.y, 0), &pos);
+
+            match chunks.peek() {
+                Some(_) => {
+                    // There're remaining unprinted chunks in the line, i.e.,
+                    // we need line wrapping.
+                    wrapped = Some((chunks, chunk_start_idx + chunk_printed_idx));
+                }
+                None => {
+                    // Printed all chunks in the line.
+
+                    // Handle the cursor at the end of the line.
+                    if pos == *cursor_pos {
+                        cursor_pixel = pixel.clone();
+                    }
+
+                    // Print ' ' at the end of line if the newline character is selected.
+                    for range in selections {
+                        if in_selection && range.back().y > pos.y {
+                            queue!(stdout, Print(' ')).ok();
+                        }
+                    }
+
+                    // Handle cursor hover at the end of tha line.
+                    if matches!(cursor_hover, Some(cursor_pos) if pos.y == cursor_pos.y && pos.x <= cursor_pos.x)
+                    {
+                        queue!(
+                            stdout,
+                            SetBackgroundColor(Color::DarkGrey),
+                            Print(' '),
+                            SetBackgroundColor(Color::Reset),
+                        )
+                        .ok();
+                    }
+
+                    wrapped = None;
+                    pos.y += 1;
+                    pos.x = 0;
+                }
+            }
+        }
+
+        cursor_pixel
+    }
+
+    pub fn draw_line_number(
+        &self,
+        stdout: &mut std::io::Stdout,
+        lineno: usize,
+        lineno_max_width: usize,
+        active: bool,
+        wrapped: bool,
     ) {
-        use std::io::Write;
-        use termion::{clear, color, cursor::Goto, style};
-        write!(
-            self.stdout,
-            "{}{} {} {}{}{}",
-            Goto(1, 1),
-            style::Bold,
-            title,
-            style::Reset,
-            user_input.substr(0 /* TODO: */, self.width - title.len() - 4),
-            clear::UntilNewline,
+        if wrapped {
+            queue!(
+                stdout,
+                SetForegroundColor(Color::DarkGrey),
+                Print(whitespaces(lineno_max_width - 2)),
+                Print("~"),
+                SetAttribute(Attribute::Reset),
+                Print(' '),
+            )
+            .ok();
+        } else {
+            if active {
+                queue!(stdout, SetAttribute(Attribute::Bold)).ok();
+            } else {
+                queue!(stdout, SetForegroundColor(Color::DarkGrey)).ok();
+            }
+
+            queue!(
+                stdout,
+                Print(whitespaces(lineno_max_width - num_of_digits(lineno) - 1)),
+                Print(lineno),
+                Print(' '),
+                SetAttribute(Attribute::Reset),
+            )
+            .ok();
+        }
+    }
+
+    fn draw_prompt(
+        &self,
+        stdout: &mut std::io::Stdout,
+        title: &str,
+        input: &mut LineEdit,
+    ) -> (u16, u16) {
+        let text_width = self.cols - 8;
+        input.relocate_top_left(text_width);
+
+        let text = &input.text();
+        let text_index = text
+            .char_indices()
+            .nth(input.top_left())
+            .map(|(i, _)| i)
+            .unwrap_or(0);
+
+        queue!(
+            stdout,
+            MoveTo(0, 1),
+            SetAttribute(Attribute::Reverse),
+            Print(format!(" {} ", title)),
+            SetAttribute(Attribute::NoReverse),
+            Print(' '),
+            Print(truncate(&text[text_index..], text_width)),
+            Clear(ClearType::UntilNewLine),
         )
         .ok();
 
-        let title_width = self.width - 4;
-        let mut remaining_height = min(32, self.height.saturating_sub(5));
-        for (i, item) in items.iter().enumerate().take(remaining_height) {
-            if i == selected {
-                write!(
-                    self.stdout,
-                    "\r\n{}{} {} {} {}{}{}{}",
-                    style::Bold,
-                    color::Bg(item.color.as_term_rgb()),
-                    item.label,
-                    color::Bg(color::Reset),
-                    style::Underline,
-                    truncate(&item.title, title_width),
-                    style::Reset,
-                    clear::UntilNewline,
-                )
-                .ok();
-            } else {
-                write!(
-                    self.stdout,
-                    "\r\n{} {} {} {}{}",
-                    color::Bg(item.color.as_term_rgb()),
-                    item.label,
-                    style::Reset,
-                    truncate(&item.title, title_width),
-                    clear::UntilNewline,
+        (1, (7 + input.cursor() - input.top_left()) as u16)
+    }
+
+    fn draw_status_line(
+        &self,
+        stdout: &mut std::io::Stdout,
+        buffer: &Buffer,
+        notification: &Option<&Notification>,
+        cursor_pos: &Point,
+    ) {
+        //           notification
+        //          VVVVVVVVVVVVVVV
+        //     (25) saved {} lines                  main.c [+]
+        //     ^^^^^- column #             name ----^^^^^^ ^^^--- dirty idicator
+        let colno_width = num_of_digits(cursor_pos.x) + 3;
+        let indicator = if buffer.is_dirty() { " [+]" } else { "" };
+        let indicator_width = indicator.display_width();
+        let notification_width = min(
+            notification.map(|n| n.message.display_width()).unwrap_or(0) + 1,
+            self.cols - (colno_width + 1 /* pad */ + 10 /* name width */ + indicator_width),
+        );
+        let buffer_name = buffer.name();
+        let name_width = min(
+            buffer_name.display_width(),
+            self.cols - (colno_width + notification_width + indicator_width),
+        );
+        queue!(
+            stdout,
+            MoveTo(0, 0),
+            SetForegroundColor(Color::DarkGrey),
+            Print('('),
+            Print(cursor_pos.x + 1),
+            Print(") "),
+            SetAttribute(Attribute::Bold),
+            match notification.map(|n| n.level) {
+                Some(NotificationLevel::Info) => SetForegroundColor(Color::Green),
+                Some(NotificationLevel::Warn) => SetForegroundColor(Color::Yellow),
+                Some(NotificationLevel::Error) => SetForegroundColor(Color::Red),
+                None => SetForegroundColor(Color::Reset),
+            },
+            Print(with_ellipsis(
+                notification.map(|n| n.message.as_str()).unwrap_or(""),
+                notification_width
+            )),
+            Clear(ClearType::UntilNewLine),
+            SetAttribute(Attribute::Reset),
+            SetForegroundColor(Color::Cyan),
+            MoveTo((self.cols - (name_width + indicator_width)) as u16, 0),
+            Print(with_ellipsis(buffer_name, name_width)),
+            SetForegroundColor(Color::Yellow),
+            Print(indicator),
+            SetAttribute(Attribute::Reset),
+        )
+        .ok();
+    }
+
+    pub fn draw_finder(&mut self, finder: &Finder, input: &mut LineEdit) {
+        let mut stdout = stdout();
+        queue!(stdout, cursor::Hide).ok();
+        let (cursor_y, cursor_x) = self.draw_prompt(&mut stdout, "FIND", input);
+
+        let mut y = 2;
+        let mut y_remaining = min(self.rows - 1, 15);
+        for (i, item) in finder.items().iter().enumerate() {
+            queue!(stdout, MoveTo(0, y)).ok();
+            if i == finder.selected_item_index() {
+                queue!(
+                    stdout,
+                    SetAttribute(Attribute::Bold),
+                    SetAttribute(Attribute::Underlined)
                 )
                 .ok();
             }
-            remaining_height -= 1;
+
+            let suffix = match &item.data {
+                FinderItem::File { .. } => "file",
+                FinderItem::Buffer { .. } => "buffer",
+            };
+
+            let suffix_width = suffix.display_width();
+            let item_width_max = self.cols - (1 + suffix_width);
+
+            let item_width = match &item.data {
+                FinderItem::File { path, pos: None } => {
+                    let s = truncate(path.to_str().unwrap(), item_width_max);
+                    queue!(stdout, Print(s)).ok();
+                    s.display_width()
+                }
+                FinderItem::File {
+                    path: _,
+                    pos: Some(_pos),
+                } => {
+                    unimplemented!();
+                }
+                FinderItem::Buffer { path } => {
+                    let s = truncate(path.to_str().unwrap(), item_width_max);
+                    queue!(stdout, Print(s)).ok();
+                    s.display_width()
+                }
+            };
+
+            queue!(
+                stdout,
+                Print(whitespaces(item_width_max - item_width)),
+                Print(suffix),
+                SetAttribute(Attribute::Reset),
+            )
+            .ok();
+
+            y += 1;
+            y_remaining -= 1;
+            if y_remaining == 0 {
+                break;
+            }
         }
 
-        for _ in 0..remaining_height {
-            write!(self.stdout, "\r\n{}", clear::UntilNewline).ok();
+        for _ in 0..y_remaining {
+            queue!(stdout, MoveTo(0, y), Clear(ClearType::UntilNewLine)).ok();
+            y += 1;
         }
 
-        write!(
-            self.stdout,
-            "{}",
-            Goto(1 + 2 + (cursor + title.len()) as u16, 1)
-        )
-        .ok();
-        self.stdout.flush().ok();
+        queue!(stdout, MoveTo(cursor_x, cursor_y), cursor::Show).ok();
+        stdout.flush().ok();
+    }
+
+    pub fn draw_ned(
+        &mut self,
+        buffer: &Buffer,
+        preview_rope: &Rope,
+        changes: Option<&ned::Changes>,
+        input: &mut LineEdit,
+        notification: Option<&Notification>,
+    ) {
+        let text_width = self.cols - 8;
+        input.relocate_top_left(text_width);
+
+        let text = &input.text();
+        let text_index = text
+            .char_indices()
+            .nth(input.top_left())
+            .map(|(i, _)| i)
+            .unwrap_or(0);
+
+        let y = changes
+            .and_then(|c| c.last_matches.get(0))
+            .map(|m| m.range.front().y)
+            .unwrap_or(0);
+
+        let selections = changes
+            .map(|changes| {
+                changes
+                    .last_matches
+                    .iter()
+                    .map(|m| m.range.clone())
+                    .collect()
+            })
+            .unwrap_or_else(|| Vec::new());
+
+        let mut stdout = stdout();
+        queue!(stdout, cursor::Hide).ok();
+        self.draw_text(
+            &mut stdout,
+            self.rows,
+            2,
+            num_of_digits(y + self.rows - 2) + 1,
+            preview_rope,
+            &TopLeft::new(y, 0),
+            &Point::new(y, 0),
+            None,
+            buffer.config().tab_width,
+            &selections,
+        );
+        self.draw_status_line(&mut stdout, buffer, &notification, buffer.main_cursor_pos());
+        let (cursor_y, cursor_x) = self.draw_prompt(&mut stdout, "EDIT", input);
+
+        queue!(stdout, MoveTo(cursor_x, cursor_y), cursor::Show).ok();
+        stdout.flush().ok();
+    }
+
+    fn in_text_area(&self, y: u16, x: u16) -> Option<Point> {
+        let in_text_area = (y as usize) >= 1 && self.display_x_text_start <= (x as usize);
+        if !in_text_area {
+            return None;
+        }
+
+        self.pixel_map
+            .pixel_to_pos(&Pixel::new(y as usize, x as usize))
+            .or_else(|| self.pixel_map.pixel_to_pos(&Pixel::new(y as usize, 0)))
+            .cloned()
+    }
+
+    pub fn convert_raw_mouse_event(&mut self, ev: RawMouseEvent) -> Option<MouseEvent> {
+        const LEFT: MouseButton = MouseButton::Left;
+        const ALT: KeyModifiers = KeyModifiers::ALT;
+        match (ev, self.last_clicked) {
+            (
+                RawMouseEvent {
+                    kind: MouseEventKind::Down(LEFT),
+                    column,
+                    row,
+                    ..
+                },
+                _,
+            ) if (column as usize) < self.display_x_text_start => Some(MouseEvent::ClickLineNo {
+                y: self.current_top_left.y + row as usize - 1,
+            }),
+            (
+                RawMouseEvent {
+                    kind: MouseEventKind::Down(LEFT),
+                    column,
+                    row,
+                    modifiers,
+                },
+                Some(last_clicked),
+            ) if last_clicked.elapsed() < Duration::from_millis(200) => {
+                self.last_clicked = None;
+                self.in_text_area(row, column)
+                    .map(|pos| MouseEvent::DoubleClickText {
+                        pos,
+                        alt: modifiers == ALT,
+                    })
+            }
+            (
+                RawMouseEvent {
+                    kind: MouseEventKind::Down(LEFT),
+                    column,
+                    row,
+                    modifiers,
+                },
+                _,
+            ) => {
+                self.last_clicked = Some(Instant::now());
+                self.in_text_area(row, column)
+                    .map(|pos| MouseEvent::ClickText {
+                        pos,
+                        alt: modifiers == ALT,
+                    })
+            }
+            (
+                RawMouseEvent {
+                    kind: MouseEventKind::Drag(LEFT),
+                    row,
+                    column,
+                    ..
+                },
+                _,
+            ) if (column as usize) < self.display_x_text_start => {
+                Some(MouseEvent::DragLineNo { y: row as usize })
+            }
+            (
+                RawMouseEvent {
+                    kind: MouseEventKind::Drag(LEFT),
+                    row,
+                    column,
+                    ..
+                },
+                _,
+            ) => self
+                .in_text_area(row, column)
+                .map(|pos| MouseEvent::DragText { pos }),
+            (
+                RawMouseEvent {
+                    kind: MouseEventKind::ScrollDown,
+                    ..
+                },
+                _,
+            ) => Some(MouseEvent::ScrollDown),
+            (
+                RawMouseEvent {
+                    kind: MouseEventKind::ScrollUp,
+                    ..
+                },
+                _,
+            ) => Some(MouseEvent::ScrollUp),
+            (
+                RawMouseEvent {
+                    kind: MouseEventKind::Moved,
+                    row,
+                    column,
+                    ..
+                },
+                _,
+            ) => self
+                .in_text_area(row, column)
+                .map(|pos| MouseEvent::HoverText { pos }),
+            _ => None,
+        }
+    }
+}
+
+impl Drop for Terminal {
+    fn drop(&mut self) {
+        execute!(stdout(), LeaveAlternateScreen).ok();
+        execute!(stdout(), DisableMouseCapture).ok();
+        disable_raw_mode().ok();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_with_ellipsis() {
+        assert_eq!(with_ellipsis("123456789", 0), "");
+        assert_eq!(with_ellipsis("123456789", 1), ".");
+        assert_eq!(with_ellipsis("123456789", 3), "...");
+        assert_eq!(with_ellipsis("123456789", 9), "123456789");
+        assert_eq!(with_ellipsis("123456789", 5), "1...9");
+        assert_eq!(with_ellipsis("123456789", 6), "1...89");
+        assert_eq!(with_ellipsis("123456789abcdefg", 10), "123...defg");
     }
 }

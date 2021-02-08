@@ -1,297 +1,127 @@
-use crate::editorconfig::{EditorConfig, EndOfLine, IndentStyle};
-use std::cmp::min;
+use crate::editorconfig::{EditorConfig, IndentStyle};
+use crate::language::{guess_language, Language};
+use crate::rope::*;
+use crate::terminal::DisplayWidth;
+use std::cmp::{max, min};
+
+use std::fs;
+
 use std::path::{Path, PathBuf};
-use std::collections::HashSet;
-use crate::diff::*;
-use crate::highlight::{Highlight, Style};
-use crate::language::{Language, LANGS};
 
-/// Normalizes a relative path. Unlike std::fs::cannonicalize, it does not
-/// follow symbolic links and does not return an error even if the file does not
-/// exists.
-fn abspath(path: &Path) -> PathBuf {
-    use std::path::Component;
+#[derive(Clone, Debug, PartialEq)]
+pub struct TopLeft {
+    pub y: usize,
+    pub x: usize,
+}
 
-    let mut segments: Vec<String> = if path.starts_with("/") {
-        vec!["".to_owned()]
-    } else {
-        std::env::current_dir().unwrap()
-          .to_str().unwrap()
-          .split("/").map(|s| s.to_owned()).collect()
-    };
-
-    for c in path.components() {
-        match c {
-            Component::ParentDir => {
-                segments.pop();
-                if segments.is_empty() {
-                    segments.push("".to_owned());
-                }
-            }
-            Component::RootDir | Component::CurDir => { /* Nothing to do. */ }
-            Component::Normal(s) => {
-                segments.push(s.to_str().unwrap().to_owned());
-            }
-            _ => { unimplemented!(); }
-        }
+impl TopLeft {
+    pub fn new(y: usize, x: usize) -> TopLeft {
+        TopLeft { y, x }
     }
-
-    Path::new(&segments.join("/")).to_path_buf()
-}
-
-#[derive(Debug)]
-enum Command {
-    Insert(char),
-    Backspace,
-    Delete,
-    Truncate,
-    Tab(bool),
-    MoveTo {
-        y: usize,
-        x: usize,
-    },
-    MoveBy {
-        y_diff: isize,
-        x_diff: isize,
-    },
-    ScrollUp(usize),
-    ScrollDown(usize),
-    MoveToBegin,
-    MoveToEnd,
-}
-
-#[derive(Debug)]
-enum Selection {
-    Left,
-    Right,
 }
 
 pub struct Buffer {
-    display_name: String,
-    lang: &'static Language,
-    cursors: Vec<Cursor>,
-    top_left: Point,
+    rope: Rope,
+    last_saved_rope: Rope,
+    name: String,
     file: Option<PathBuf>,
-    backup_file: Option<PathBuf>,
-    original_hash: u64,
-    modified: bool,
-    lines: Vec<Line>,
+    cursor: Cursor,
+    top_left: TopLeft,
+    undo_stack: Vec<Rope>,
+    redo_stack: Vec<Rope>,
+    language: &'static Language,
     config: EditorConfig,
-    selection: Option<Selection>,
-    undo_stack: Vec<Diff>,
-    redo_stack: Vec<Diff>,
-    version: usize,
 }
 
 impl Buffer {
     pub fn new() -> Buffer {
+        let language = &crate::language::PLAIN;
+        let rope = Rope::new();
         Buffer {
-            display_name: "".to_owned(),
-            lang: &crate::language::PLAIN,
-            cursors: vec![Cursor::new(Point::new(0, 0))],
-            top_left: Point { x: 0, y: 0 },
+            rope: rope.clone(),
+            last_saved_rope: rope.clone(),
+            name: String::new(),
             file: None,
-            backup_file: None,
-            original_hash: 0,
-            modified: false,
-            lines: vec![Line::new()],
-            config: EditorConfig::default(),
-            selection: None,
-            undo_stack: Vec::new(),
+            cursor: Cursor::new(0, 0),
+            top_left: TopLeft::new(0, 0),
+            undo_stack: vec![rope],
             redo_stack: Vec::new(),
-            version: 1,
+            language,
+            config: EditorConfig::default(),
         }
     }
 
-    pub fn from_str(s: &str) -> Buffer {
-        let mut buffer = Buffer::new();
-        buffer.insert_str(s);
-        buffer
+    #[cfg(test)]
+    pub fn from_str(text: &str) -> Buffer {
+        let mut buf = Buffer::new();
+        buf.insert(text);
+        buf
     }
 
-    pub fn open_file(path: &Path) -> Result<Buffer, std::io::Error> {
-        use std::hash::Hasher;
-        use std::io::BufRead;
+    pub fn open_file(path: &Path) -> std::io::Result<Buffer> {
+        let language = guess_language(path);
+        let file = std::fs::File::open(path)?;
+        let rope = Rope::from_reader(file)?;
 
-        let mut buffer = Buffer::new();
-        let mut hasher = fxhash::FxHasher32::default();
-        if path.exists() {
-            let file = std::fs::File::open(path)?;
-            let reader = std::io::BufReader::new(file);
-            buffer.lines.clear();
-            for line_string in reader.lines() {
-                let line = Line::from_string(line_string?);
-                hasher.write(line.as_bytes());
-                hasher.write(b"\n");
-                buffer.lines.push(line);
-            }
-        }
-
-        let last_line = Line::new();
-        hasher.write(last_line.as_bytes());
-        hasher.write(b"\n");
-        buffer.lines.push(last_line);
-
-        let backup_dir = dirs::home_dir()
-            .unwrap().join(".noa").join("backup");
-        if !backup_dir.exists() {
-            std::fs::create_dir_all(&backup_dir)?;
-        }
-
-        // "/Users/seiya/foo.txt" -> "Users.seiya.foo.txt"
-        let normalized_path = abspath(path);
-        let filename = normalized_path
-            .strip_prefix("/")
-            .unwrap_or(path)
-            .to_str()
-            .unwrap()
-            .replace('/', ".");
-
-        buffer.config = EditorConfig::resolve(&normalized_path);
-        buffer.display_name = normalized_path
-            .file_name()
-            .map(|s| s.to_str().unwrap())
-            .unwrap_or("invalid filename")
-            .to_owned();
-        buffer.file = Some(normalized_path);
-        buffer.backup_file = Some(backup_dir.join(filename).to_path_buf());
-        buffer.original_hash = hasher.finish();
-
-        // Look for and set the language definition.
-        let mut matched = None;
-        'outer: for lang in LANGS {
-            for filename in lang.filenames {
-                if path.ends_with(filename) {
-                    matched = Some(lang);
-                    break 'outer;
-                }
-            }
-
-            for ext in lang.extensions {
-                match path.extension() {
-                    Some(ext2) if ext2 == std::ffi::OsStr::new(ext) => {
-                        matched = Some(lang);
-                        break 'outer;
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        if let Some(lang) = matched {
-            buffer.lang = lang;
-        }
-
-        Ok(buffer)
+        Ok(Buffer {
+            rope: rope.clone(),
+            last_saved_rope: rope.clone(),
+            name: String::new(),
+            file: Some(path.canonicalize()?),
+            cursor: Cursor::new(0, 0),
+            top_left: TopLeft::new(0, 0),
+            undo_stack: vec![rope],
+            redo_stack: Vec::new(),
+            language,
+            config: EditorConfig::resolve(path),
+        })
     }
 
-    fn write_into_file(&self, path: &Path) -> Result<(), std::io::Error> {
-        let mut file = std::fs::File::create(path)?;
-        let newline = match self.config.end_of_line {
-            EndOfLine::Cr => "\r",
-            EndOfLine::Lf => "\n",
-            EndOfLine::CrLf => "\r\n",
+    #[cfg(test)]
+    pub fn set_text(&mut self, text: &str) {
+        self.rope.clear();
+        self.rope.insert(&Point::new(0, 0), text);
+
+        let mut pos = match self.cursor {
+            Cursor::Normal { pos, .. } => pos,
+            Cursor::Selection {
+                range: Range { end, .. },
+                ..
+            } => end,
         };
 
-        let mut iter = self.lines.iter().peekable();
-        while let Some(line) = iter.next() {
-            if iter.peek().is_none() && line.is_empty() {
-                // Ignore the last line if it's empty.
-                break;
-            }
-
-            use std::io::Write;
-            file.write(line.as_bytes()).ok();
-            file.write(newline.as_bytes()).ok();
-        }
-
-        Ok(())
+        pos.y = min(pos.y, self.rope.num_lines().saturating_sub(1));
+        pos.x = min(pos.x, self.rope.line_len(pos.y));
+        self.cursor = Cursor::from_point(&pos);
     }
 
-    pub fn version(&self) -> usize {
-        self.version
+    #[cfg(test)]
+    pub fn len(&self) -> usize {
+        self.rope.len()
     }
 
-    pub fn language(&self) -> &'static Language {
-        self.lang
+    pub fn num_lines(&self) -> usize {
+        self.rope.num_lines()
     }
 
-    pub fn path(&self) -> Option<&PathBuf> {
-        self.file.as_ref()
+    pub fn line_len(&self, y: usize) -> usize {
+        self.rope.line_len(y)
     }
 
-    pub fn backup_path(&self) -> Option<&PathBuf> {
-        self.backup_file.as_ref()
+    pub fn is_dirty(&self) -> bool {
+        self.rope != self.last_saved_rope
     }
 
-    pub fn backup(&self) -> Result<(), std::io::Error> {
-        if let Some(backup_file) = &self.backup_file {
-            self.write_into_file(backup_file)?;
-        }
-
-        Ok(())
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
-    pub fn save(&mut self) -> Result<(), std::io::Error> {
-        if let Some(path) = &self.file {
-            trace!("saving...");
-            self.write_into_file(path)?;
-            self.modified = false;
-            self.original_hash = self.hash();
-
-            // We no longer need the backup file. Remove it.
-            let backup = self.backup_path().unwrap();
-            if backup.exists() {
-                std::fs::remove_file(backup).ok();
-            }
-        }
-
-        Ok(())
+    pub fn set_name<T: Into<String>>(&mut self, name: T) {
+        self.name = name.into();
     }
 
-    pub fn file(&self) -> Option<&PathBuf> {
-        self.file.as_ref()
-    }
-
-    pub fn hash(&self) -> u64 {
-        use std::hash::Hasher;
-
-        let mut hasher = fxhash::FxHasher32::default();
-        for line in &self.lines {
-            hasher.write(line.as_bytes());
-            hasher.write(b"\n");
-        }
-
-        hasher.finish()
-    }
-
-    pub fn modified(&mut self) -> bool {
-        if !self.modified || self.file.is_none() {
-            return false;
-        }
-
-        if self.hash() == self.original_hash {
-            self.modified = false;
-            false
-        } else {
-            true
-        }
-    }
-
-    pub fn set_display_name(&mut self, name: String) {
-        self.display_name = name;
-    }
-
-    pub fn display_name(&self) -> &str {
-        &self.display_name
-    }
-
-    pub fn cursors(&self) -> &[Cursor] {
-        &self.cursors
-    }
-
-    pub fn top_left(&self) -> &Point {
-        &self.top_left
+    pub fn path(&self) -> Option<&Path> {
+        self.file.as_deref()
     }
 
     pub fn config(&self) -> &EditorConfig {
@@ -299,732 +129,1854 @@ impl Buffer {
     }
 
     pub fn text(&self) -> String {
+        self.rope.text()
+    }
+
+    pub fn rope(&self) -> &Rope {
+        &self.rope
+    }
+
+    pub fn rope_mut(&mut self) -> &mut Rope {
+        &mut self.rope
+    }
+
+    pub fn line(&self, line: usize) -> ropey::RopeSlice {
+        self.rope.line(line)
+    }
+
+    pub fn substr(&self, range: &Range) -> ropey::RopeSlice {
+        self.rope.sub_str(range)
+    }
+
+    pub fn line_substr(&self, line: usize, start: usize) -> String {
         let mut s = String::new();
-        for line in &self.lines {
-            s += line.as_str();
-            s.push('\n');
+        let mut iter = self.line(line).chunks();
+        if start > 0 {
+            let mut skip = start;
+            'outer: while let Some(chunk) = iter.next() {
+                for (i, _) in chunk.char_indices() {
+                    if skip == 0 {
+                        s += &chunk[i..];
+                        break 'outer;
+                    }
+                    skip -= 1;
+                }
+            }
         }
+
+        for chunk in iter {
+            s += chunk;
+        }
+
         s
     }
 
-    pub fn highlight(&self, lineno: usize, from: usize) -> Vec<(Style, &str)> {
-        assert!(lineno < self.num_lines());
-        // TODO: Cache highlight states to improve the highlighting performance.
-        let mut h = Highlight::new(self.lang);
-        for (y, line) in self.lines.iter().enumerate() {
-            let mut spans = h.highlight_line(line.as_str());
-            if y == lineno {
-                let mut i = 0;
-                loop {
-                    let (_, span) = match spans.first_mut() {
-                        Some(span) => span,
-                        None => break,
-                    };
+    #[cfg(test)]
+    pub fn set_language(&mut self, language: &'static Language) {
+        self.language = language;
+    }
 
-                    if i + span.len() >= from {
-                        *span = &span[from - i..];
-                        break;
-                    }
+    pub fn is_virtual_file(&self) -> bool {
+        self.file.is_none()
+    }
 
-                    i += span.len();
-                    spans.remove(0);
-                }
-                return spans;
+    pub fn save(&mut self, backup_dir: &Path) -> std::io::Result<()> {
+        if let Some(path) = &self.file {
+            if path.exists() {
+                let filename = path.to_str().unwrap().replace('/', ".");
+                fs::create_dir_all(backup_dir)?;
+                fs::copy(path, backup_dir.join(&filename)).ok();
             }
+            self.rope.save_into_file(path)?;
+            self.last_saved_rope = self.rope.clone();
         }
 
-        unreachable!();
+        Ok(())
     }
 
-    pub fn line_at(&self, lineno: usize) -> &Line {
-        &self.lines[lineno]
+    pub fn cursor(&self) -> &Cursor {
+        &self.cursor
     }
 
-    pub fn num_lines(&self) -> usize {
-        self.lines.len()
-    }
-
-    fn process_command(&mut self, cmd: Command) {
-        let mut end_selection = true;
-        let mut removed_cursors = HashSet::new();
-        for cursor_i in 0..self.cursors.len() {
-            if removed_cursors.contains(&cursor_i) {
-                continue;
-            }
-
-            let mut cursor = self.cursors[cursor_i].clone();
-            let prev_num_lines = self.num_lines();
-            match cmd {
-                Command::Insert(ch) => {
-                    self.remove_selection(&mut cursor);
-                    self.do_insert(cursor.position_mut(), ch);
-                }
-                Command::Tab(after_newline) => {
-                    self.remove_selection(&mut cursor);
-                    self.do_tab(cursor.start_mut(), after_newline);
-                }
-                Command::Backspace => {
-                    if cursor.is_selection() {
-                        self.remove_selection(&mut cursor);
-                    } else {
-                        self.do_backspace(cursor.start_mut());
-                    }
-                },
-                Command::Delete => {
-                    if cursor.is_selection() {
-                        self.remove_selection(&mut cursor);
-                    } else {
-                        self.do_delete(cursor.start_mut());
-                    }
-                }
-                Command::Truncate => {
-                    if cursor.is_selection() {
-                        self.remove_selection(&mut cursor);
-                    } else {
-                        self.do_truncate(cursor.start_mut());
-                    }
-                }
-                Command::MoveTo { y, x } => {
-                    cursor.move_to(y, x);
-                }
-                Command::MoveBy { y_diff, x_diff } => {
-                    if self.selection.is_some() && cursor.start() == cursor.end() {
-                        if x_diff < 0 || y_diff < 0 {
-                            self.selection = Some(Selection::Left);
-                        } else {
-                            self.selection = Some(Selection::Right);
-                        }
-                    }
-
-                    match &mut self.selection {
-                        Some(direction) => {
-                            let pos = match direction {
-                                Selection::Left => cursor.start_mut(),
-                                Selection::Right => cursor.end_mut(),
-                            };
-
-                            self.do_move_by(pos, y_diff, x_diff);
-                            end_selection = false;
-                            cursor.swap_start_and_end();
-                        }
-                        None => {
-                            cursor.clear_selection();
-                            self.do_move_by(cursor.position_mut(), y_diff, x_diff);
-                        }
-                    }
-                }
-                Command::ScrollUp(height) => {
-                    cursor.clear_selection();
-                    self.do_scroll_up(cursor.start_mut(), height);
-                }
-                Command::ScrollDown(height) => {
-                    cursor.clear_selection();
-                    self.do_scroll_down(cursor.start_mut(), height);
-                }
-                Command::MoveToBegin => {
-                    cursor.clear_selection();
-                    self.do_move_to_begin(cursor.start_mut());
-                }
-                Command::MoveToEnd => {
-                    cursor.clear_selection();
-                    self.do_move_to_end(cursor.start_mut());
-                }
-            }
-
-            if end_selection {
-                cursor.clear_selection();
-            }
-            self.cursors[cursor_i] = cursor.clone();
-
-            // Look for duplicated or out-of-range cursors.
-            let num_cursors = self.cursors.len();
-            for i in 0..num_cursors {
-                let c = self.cursors[i].clone();
-                let duplicated =
-                    self.cursors.iter().enumerate().any(|(j, other)|
-                        i != j
-                        && !removed_cursors.contains(&j)
-                        && c.intersects_with(other)
-                    );
-                let out_of_range =
-                    c.end().y >= self.num_lines()
-                    || c.end().x > self.lines[c.end().y].len();
-                if duplicated || out_of_range {
-                    removed_cursors.insert(i);
-                }
-            }
-        }
-
-        // Remove cursors.
-        let mut i = 0;
-        self.cursors.retain(|_| (!removed_cursors.contains(&i), i += 1).0);
-        debug_assert!(self.cursors.len() > 0);
-    }
-
-    pub fn start_selection(&mut self) {
-        self.selection = Some(Selection::Right);
-    }
-
-    pub fn end_selection(&mut self) {
-        self.selection = None;
-        for cursor in &mut self.cursors {
-            cursor.clear_selection();
+    pub fn cursor_as_range(&self) -> Range {
+        match &self.cursor {
+            Cursor::Normal { pos, .. } => Range::from_points(*pos, *pos),
+            Cursor::Selection { range, .. } => range.clone(),
         }
     }
 
-    pub fn remove_selection(&mut self, cursor: &mut Cursor) -> String {
-        if !cursor.is_selection() {
-            return String::new();
-        }
-
-        let removed = self.copy_selection(cursor);
-        warn!("not removed = '{}'", removed);
-        self.apply_diff(
-            Diff::Remove(*cursor.start(), *cursor.end(), removed.clone()));
-        self.modified = true;
-        cursor.clear_selection();
-        removed
-    }
-
-    pub fn copy_selection(&self, cursor: &Cursor) -> String {
-        // A example text:
-        //
-        //    start
-        //    V
-        // ...123
-        // abcdef
-        // ghi...
-        //    ^
-        //    end
-        let mut pos = cursor.start().clone();
-        let mut copied = String::new();
-        // Copy "123" and "abcdef".
-        while pos.y < cursor.end().y {
-            copied += self.lines[pos.y].substr_from(pos.x);
-            pos.x = 0;
-            pos.y += 1;
-            copied.push('\n');
-        }
-
-        // Copy "ghi"
-        copied += self.lines[pos.y].substr(pos.x, cursor.end().x);
-        copied
-    }
-
-    pub fn insert(&mut self, ch: char) {
-        self.process_command(Command::Insert(ch));
-    }
-
-    pub fn insert_str(&mut self, s: &str) {
-        for ch in s.chars() {
-            self.insert(ch);
+    pub fn main_cursor_pos(&self) -> &Point {
+        match &self.cursor {
+            Cursor::Normal { pos, .. } => pos,
+            Cursor::Selection { range, .. } => &range.end,
         }
     }
 
-    pub fn backspace(&mut self) {
-        self.process_command(Command::Backspace);
+    pub fn set_cursor(&mut self, cursor: Cursor) {
+        self.cursor = cursor;
     }
 
-    pub fn delete(&mut self) {
-        self.process_command(Command::Delete);
+    pub fn top_left(&self) -> &TopLeft {
+        &self.top_left
     }
 
-    pub fn truncate(&mut self) {
-        self.process_command(Command::Truncate);
-    }
-
-    pub fn tab(&mut self, after_newline: bool) {
-        self.process_command(Command::Tab(after_newline));
-    }
-
-    pub fn move_to(&mut self, y: usize, x: usize) {
-        self.process_command(Command::MoveTo { y, x });
-    }
-
-    pub fn move_by(&mut self, y_diff: isize, x_diff: isize) {
-        self.process_command(Command::MoveBy { y_diff, x_diff });
-    }
-
-    pub fn scroll_up(&mut self, height: usize) {
-        self.process_command(Command::ScrollUp(height));
-    }
-
-    pub fn scroll_down(&mut self, height: usize) {
-        self.process_command(Command::ScrollDown(height));
-    }
-
-    pub fn move_to_begin(&mut self) {
-        self.process_command(Command::MoveToBegin);
-    }
-
-    pub fn move_to_end(&mut self) {
-        self.process_command(Command::MoveToEnd);
-    }
-
-    fn apply_diff(&mut self, diff: Diff) -> Point {
-        match diff {
-            Diff::Move(_) => { /* Move does not modify the buffer. */ }
-            _ => { self.version += 1; }
+    pub fn relocate_top_left(&mut self, height: usize, width: usize) {
+        let pos = match &self.cursor {
+            Cursor::Normal { pos, .. } => pos,
+            Cursor::Selection {
+                range: Range { end, .. },
+                ..
+            } => end,
         }
+        .clone();
 
-        let new_pos = diff.apply(&mut self.lines);
-        self.undo_stack.push(Diff::Move(self.cursors.clone()));
-        self.undo_stack.push(diff);
-        self.redo_stack.clear();
-        new_pos
-    }
-
-    fn do_insert(&mut self, pos: &mut Point, ch: char) {
-        *pos = self.apply_diff(Diff::InsertChar(*pos, ch));
-        self.modified = true;
-
-        // Auto indentation.
-        if ch == '\n' {
-            self.do_tab(pos, true);
-        }
-    }
-
-    fn do_backspace(&mut self, pos: &mut Point) {
-        if pos.y == 0 && pos.x == 0 {
-            return;
-        }
-
-        let indent_len = self.lines[pos.y].indent().len();
-        if 0 < pos.x && pos.x <= indent_len {
-            // Decrease the indentation level.
-            let mut num_remove = pos.x % self.config.indent_size;
-            if num_remove == 0 {
-                num_remove = self.config.indent_size;
-            }
-
-            for _ in 0..num_remove {
-                let ch = self.lines[pos.y].at(pos.x - 1);
-                *pos = self.apply_diff(Diff::BackspaceChar(*pos, ch));
-            }
-        } else {
-            let removed_char =
-            if pos.x == 0 { '\n' } else { self.lines[pos.y].at(pos.x - 1) };
-            *pos = self.apply_diff(Diff::BackspaceChar(*pos, removed_char));
-        }
-
-        self.modified = true;
-    }
-
-    fn do_delete(&mut self, pos: &mut Point) {
-        let eol = pos.x == self.lines[pos.y].len();
-        if pos.y == self.num_lines() - 1 && eol {
-            return;
-        }
-
-        let (removed_char, end) =
-            if eol {
-                ('\n', Point::new(pos.y + 1, 0))
-            } else {
-                (self.lines[pos.y].at(pos.x), Point::new(pos.y, pos.x + 1))
-            };
-        self.apply_diff(Diff::Remove(*pos, end, removed_char.to_string()));
-        self.modified = true;
-    }
-
-    fn do_truncate(&mut self, pos: &mut Point) {
-        if pos.y == self.num_lines() - 1 && pos.x == self.lines[pos.y].len() {
-            return;
-        }
-
-        self.modified = true;
-        if pos.x == self.lines[pos.y].len() {
-            let end = Point::new(pos.y + 1, 0);
-            self.apply_diff(Diff::Remove(*pos, end, '\n'.to_string()));
-        } else {
-            let mut end = *pos;
-            end.x = self.lines[pos.y].len();
-            let removed = self.lines[pos.y].substr_from(pos.x).to_owned();
-            self.apply_diff(Diff::Remove(*pos, end, removed));
-        }
-    }
-
-    fn do_tab(&mut self, pos: &mut Point, after_newline: bool) {
-        self.modified = true;
-        match self.config.indent_style {
-            IndentStyle::Tab => self.do_insert(pos, '\t'),
-            IndentStyle::Space => {
-                let indent_size = self.config.indent_size;
-                let indent_len = if after_newline || self.lines[pos.y].is_empty() {
-                    if after_newline && pos.y > 0 {
-                        // Inherit the previous indent.
-                        self.lines[pos.y - 1].indent().len()
-                    } else if !after_newline {
-                        indent_size
-                    } else {
-                        0
-                    }
-                } else {
-                    // Increase the indentation level.
-                    indent_size
-                };
-
-                if indent_len > 0 {
-                    for _ in 0..(indent_len - (pos.x % indent_len)) {
-                        self.do_insert(pos, ' ');
-                    }
-                }
-            }
-        }
-    }
-
-    fn do_move_by(&mut self, pos: &mut Point, y_diff: isize, x_diff: isize) {
-        debug_assert!(y_diff.abs() <= 1 && x_diff.abs() <= 1);
-        if x_diff < 0 {
-            if (pos.x as isize) < x_diff.abs() && pos.y > 0 {
-                // Move to the previous line.
-                pos.y -= 1;
-                pos.x = self.lines[pos.y].len();
-            } else if pos.x >= x_diff.abs() as usize {
-                pos.x -= x_diff.abs() as usize;
-            }
-        } else if x_diff > 0 {
-            if pos.x == self.lines[pos.y].len() {
-                if pos.y < self.num_lines() - 1 {
-                    // Move to the next line.
-                    pos.y += 1;
-                    pos.x = 0;
-                }
-            } else {
-                pos.x += x_diff.abs() as usize;
-            }
-        }
-
-        if y_diff < 0 {
-            pos.y = pos.y.saturating_sub(y_diff.abs() as usize);
-        } else {
-            pos.y += y_diff.abs() as usize;
-        }
-
-        pos.y = min(pos.y, self.num_lines() - 1);
-        pos.x = min(pos.x, self.lines[pos.y].len());
-    }
-
-    fn do_scroll_up(&mut self, pos: &mut Point, height: usize) {
-        if pos.y < height {
-            pos.y = 0;
-        } else {
-            let relative_y = pos.y - self.top_left.y;
-            self.top_left.y = self.top_left.y.saturating_sub(height);
-            pos.y = self.top_left.y + relative_y;
-        }
-
-        pos.x = min(pos.x, self.lines[pos.y].len());
-    }
-
-    fn do_scroll_down(&mut self, pos: &mut Point, height: usize) {
-        if self.num_lines() < self.top_left.y + height {
-            pos.y = self.num_lines() - 1;
-        } else {
-            let relative_y = pos.y - self.top_left.y;
-            self.top_left.y = min(self.num_lines() - 1, self.top_left.y + height);
-            pos.y = min(self.num_lines() - 1, self.top_left.y + relative_y);
-        }
-
-        pos.x = min(pos.x, self.lines[pos.y].len());
-    }
-
-    fn do_move_to_begin(&mut self, pos: &mut Point) {
-        let old = pos.x;
-        pos.x = 0;
-        while pos.x < self.lines[pos.y].len() {
-            if !self.lines[pos.y].at(pos.x).is_whitespace() {
-                break;
-            }
-
-            pos.x += 1;
-        }
-
-        if pos.x == old {
-            pos.x = 0;
-        }
-    }
-
-    fn do_move_to_end(&mut self, pos: &mut Point) {
-        pos.x = self.lines[pos.y].len();
-    }
-
-    pub fn add_cursor(&mut self, position: Point) {
-        self.cursors.push(Cursor::new(position));
-    }
-
-    pub fn clear_cursors(&mut self) {
-        self.cursors.truncate(1);
-        self.cursors[0].clear_selection();
-    }
-
-    pub fn adjust_top_left(&mut self, height: usize, width: usize) {
-        let pos = &mut self.cursors[0].selection_mut().end;
-        // Scroll Up.
+        // Scroll up.
         if pos.y < self.top_left.y {
             self.top_left.y = pos.y;
         }
 
-        // Scroll Down.
-        if pos.y >= self.top_left.y + height {
-            self.top_left.y = pos.y - height + 1;
-        }
-
-        // Scroll Right.
-        if pos.x >= self.top_left.x + width {
-            self.top_left.x = pos.x - width + 1;
-        }
-
-        // Scroll Left.
-        if pos.x < self.top_left.x {
-            self.top_left.x = pos.x;
-        }
-
-    }
-
-    pub fn cut(&mut self) -> String {
-        let mut clipboard = String::new();
-        let cursors = self.cursors.clone();
-        let mut new_cursors = Vec::with_capacity(self.cursors.len());
-        for mut cursor in cursors {
-            clipboard.push_str(&self.remove_selection(&mut cursor));
-            cursor.clear_selection();
-            new_cursors.push(cursor);
-        }
-
-        if self.cursors.len() == 1 {
-            self.selection = None;
-        }
-
-        self.cursors = new_cursors;
-        clipboard
-    }
-
-    pub fn copy(&mut self) -> String {
-        let mut clipboard = String::new();
-        for cursor in &self.cursors {
-            clipboard.push_str(&self.copy_selection(cursor));
-        }
-        for cursor in &mut self.cursors {
-            cursor.clear_selection();
-        }
-        clipboard
-    }
-
-    pub fn paste(&mut self, clipboard: &str) {
-        let mut cursors = self.cursors.clone();
-        let lines: Vec<&str> = clipboard.lines().collect();
-        if cursors.len() == lines.len() {
-            for (i, line) in lines.iter().enumerate() {
-                self.remove_selection(&mut cursors[i]);
-                for ch in line.chars() {
-                    self.do_insert(cursors[i].position_mut(), ch);
-                    cursors[i].clear_selection();
+        let mut last_y = 0;
+        for _ in 0..2 {
+            let mut remaining = height;
+            for y in self.top_left.y..=min(self.num_lines(), self.top_left.y + height) {
+                let w = self.width_in_display(y, 0, self.line_len(y));
+                let h = w / width + 1;
+                last_y = y;
+                if h >= remaining {
+                    break;
                 }
+
+                remaining -= h;
             }
+
+            // Scroll down.
+            if pos.y > last_y {
+                self.top_left.y += 1;
+            }
+        }
+
+        // The cursor is still out of bounds.
+        if pos.y > last_y {
+            self.top_left.y = pos.y;
+        }
+    }
+
+    pub fn goto(&mut self, y: usize, x: usize) {
+        let clamped_y = min(y, self.num_lines());
+        let clamped_x = min(x, self.line_len(clamped_y));
+        self.set_cursor(Cursor::new(clamped_y, clamped_x));
+    }
+
+    pub fn scroll_up(&mut self, y_diff: usize) {
+        self.move_cursor(y_diff, 0, 0, 0);
+        self.top_left.y = self.top_left.y.saturating_sub(y_diff);
+    }
+
+    pub fn scroll_down(&mut self, y_diff: usize) {
+        self.move_cursor(0, y_diff, 0, 0);
+        self.top_left.y = min(self.num_lines(), self.top_left.y + y_diff);
+    }
+
+    pub fn centering(&mut self, rows: usize) {
+        if let Cursor::Normal { pos, .. } = self.cursor() {
+            self.top_left.y = pos.y.saturating_sub(rows / 2);
+        }
+    }
+
+    fn cancel_selection(&mut self) {
+        match &mut self.cursor {
+            Cursor::Normal { .. } => {}
+            Cursor::Selection { range, .. } => {
+                self.cursor = Cursor::from_point(&range.end);
+            }
+        }
+    }
+
+    pub fn move_cursor(&mut self, up: usize, down: usize, left: usize, right: usize) {
+        self.cancel_selection();
+        match &mut self.cursor {
+            Cursor::Normal { pos, logical_x } => {
+                pos.move_by(&self.rope, up, down, left, right);
+                *logical_x = pos.x;
+            }
+            Cursor::Selection { .. } => unreachable!(),
+        }
+    }
+
+    fn width_in_display(&self, y: usize, x_start: usize, x_end: usize) -> usize {
+        assert!(x_start <= x_end);
+        assert!(x_end <= self.line_len(y));
+        if y == self.num_lines() {
+            return 0;
+        }
+
+        let rest = self.line_substr(y, x_start);
+        let end_i = rest
+            .char_indices()
+            .nth(x_end - x_start)
+            .map(|(i, _)| i)
+            .unwrap_or_else(|| rest.len());
+        rest[..end_i].display_width()
+    }
+
+    pub fn move_cursor_with_line_wrap(&mut self, cols: usize, up: usize, down: usize) {
+        self.cancel_selection();
+
+        let (mut pos, logical_x) = match &self.cursor {
+            Cursor::Normal { pos, logical_x } => (*pos, *logical_x),
+            Cursor::Selection { range, logical_x } => (range.end, *logical_x),
+        };
+
+        for _ in 0..down {
+            let prev_x = pos.x;
+            let prefix_width = self.width_in_display(pos.y, 0, pos.x);
+            let from_left = prefix_width % (cols + 1);
+            // Move at the same display column in the next line in the display.
+            'outer1: loop {
+                if pos.x >= self.line_len(pos.y) {
+                    if pos.y == self.num_lines() || pos.x - prev_x > cols - from_left {
+                        break;
+                    }
+
+                    // Move at the same display column in the next line in the buffer.
+                    pos.y += 1;
+                    pos.x = 0;
+                    let prefix_width =
+                        self.width_in_display(pos.y, 0, min(self.line_len(pos.y), logical_x));
+                    let from_left = prefix_width % (cols + 1);
+                    loop {
+                        if pos.x >= self.line_len(pos.y)
+                            || self.width_in_display(pos.y, 0, pos.x) >= from_left
+                        {
+                            break 'outer1;
+                        }
+
+                        pos.x += 1;
+                    }
+                }
+
+                if self.width_in_display(pos.y, prev_x, pos.x) >= cols {
+                    break;
+                }
+
+                pos.x += 1;
+            }
+        }
+
+        for _ in 0..up {
+            let prev_x = pos.x;
+            let prefix_width = self.width_in_display(pos.y, 0, pos.x);
+            let from_left = prefix_width % (cols + 1);
+            // Move at the same display column in the previous line in the display.
+            'outer2: loop {
+                if self.width_in_display(pos.y, pos.x, prev_x) >= cols {
+                    break;
+                }
+
+                if pos.x == 0 {
+                    if pos.y == 0 {
+                        pos.x = prev_x;
+                        break;
+                    }
+
+                    // Move at the same display column in the previous line in the buffer.
+                    let prev_line_len = self.line_len(pos.y - 1);
+                    pos.y -= 1;
+                    pos.x = prev_line_len;
+                    let prev_line_width = {
+                        let w = self.width_in_display(pos.y, 0, prev_line_len);
+                        if w % cols == 0 && w > 0 {
+                            cols
+                        } else {
+                            w % cols
+                        }
+                    };
+                    if prev_line_width <= from_left {
+                        break;
+                    }
+                    loop {
+                        if pos.x == 0
+                            || pos.x == logical_x
+                            || self.width_in_display(pos.y, pos.x, prev_line_len)
+                                >= prev_line_width - from_left
+                        {
+                            break 'outer2;
+                        }
+
+                        pos.x -= 1;
+                    }
+                }
+
+                pos.x -= 1;
+            }
+        }
+
+        match &mut self.cursor {
+            Cursor::Normal {
+                pos: current_pos, ..
+            } => *current_pos = pos,
+            Cursor::Selection { range, .. } => range.end = pos,
+        };
+    }
+
+    pub fn move_to_end_of_line(&mut self) {
+        let y = match self.cursor() {
+            Cursor::Normal { pos, .. } => pos.y,
+            Cursor::Selection {
+                range: Range { end, .. },
+                ..
+            } => end.y,
+        };
+
+        self.set_cursor(Cursor::new(y, self.rope.line_len(y)));
+    }
+
+    pub fn move_to_beginning_of_line(&mut self) {
+        let y = match self.cursor() {
+            Cursor::Normal { pos, .. } => pos.y,
+            Cursor::Selection {
+                range: Range { end, .. },
+                ..
+            } => end.y,
+        };
+
+        self.set_cursor(Cursor::new(y, 0));
+    }
+
+    pub fn move_to_prev_word(&mut self) {
+        let pos = match self.cursor() {
+            Cursor::Normal { pos, .. } => pos,
+            Cursor::Selection {
+                range: Range { start, .. },
+                ..
+            } => start,
+        };
+
+        let new_pos = self.rope.prev_word_end(&pos);
+        self.set_cursor(Cursor::new(new_pos.y, new_pos.x));
+    }
+
+    pub fn move_to_next_word(&mut self) {
+        let pos = match &mut self.cursor {
+            Cursor::Normal { pos, .. } => pos,
+            Cursor::Selection {
+                range: Range { start, .. },
+                ..
+            } => start,
+        };
+
+        let new_pos = self.rope.next_word_end(&pos);
+        self.set_cursor(Cursor::new(new_pos.y, new_pos.x));
+    }
+
+    pub fn move_to_prev_block(&mut self) {
+        let y_start = self.main_cursor_pos().y;
+        for y in (1..y_start).rev() {
+            if self.indent_size(y - 1) == self.line_len(y - 1) {
+                self.set_cursor(Cursor::new(y, 0));
+                return;
+            }
+        }
+
+        // Reached the beginning of the file.
+        self.set_cursor(Cursor::new(0, 0));
+    }
+
+    pub fn move_to_next_block(&mut self) {
+        let y_start = self.main_cursor_pos().y;
+        for y in y_start..self.num_lines() {
+            if self.indent_size(y) == self.line_len(y) {
+                self.set_cursor(Cursor::new(min(y + 1, self.num_lines()), 0));
+                return;
+            }
+        }
+
+        // Reached the EOF.
+        self.set_cursor(Cursor::new(self.num_lines(), 0));
+    }
+
+    pub fn select(&mut self, up: usize, down: usize, left: usize, right: usize) {
+        let (start, mut end) = match &mut self.cursor {
+            Cursor::Normal { pos, .. } => (*pos, *pos),
+            Cursor::Selection {
+                range: Range { start, end },
+                ..
+            } => (*start, *end),
+        };
+
+        end.move_by(&self.rope, up, down, left, right);
+        self.set_cursor(Cursor::from_range(&Range::from_points(start, end)));
+    }
+
+    pub fn select_by_range(&mut self, selection: &Range) {
+        if selection.start == selection.end {
+            self.cursor = Cursor::from_point(&selection.start);
         } else {
-            // Use lines as a single string.
-            for cursor in &mut cursors {
-                self.remove_selection(cursor);
-                let mut iter = lines.iter().enumerate().peekable();
-                while let Some((i, line)) = iter.next() {
-                    if i > 0 {
-                        self.do_insert(cursor.position_mut(), '\n');
-                        cursor.clear_selection();
-                    }
+            self.cursor = Cursor::from_range(selection);
+        }
+    }
 
-                    for ch in line.chars() {
-                        self.do_insert(cursor.position_mut(), ch);
-                        cursor.clear_selection();
-                    }
-                }
+    pub fn select_until_beginning_of_line(&mut self) {
+        let (mut start, mut end) = match self.cursor() {
+            Cursor::Normal { pos, .. } => (*pos, *pos),
+            Cursor::Selection {
+                range: Range { start, end },
+                ..
+            } => (*start, *end),
+        };
+
+        if end == start && end.x == 0 && start.y > 0 {
+            start.y -= 1;
+            start.x = self.line_len(start.y);
+        } else {
+            end.x = 0;
+        }
+
+        self.set_cursor(Cursor::from_range(&Range::from_points(start, end)));
+    }
+
+    pub fn select_until_end_of_line(&mut self) {
+        let (start, mut end) = match self.cursor() {
+            Cursor::Normal { pos, .. } => (*pos, *pos),
+            Cursor::Selection {
+                range: Range { start, end },
+                ..
+            } => (*start, *end),
+        };
+
+        end.x = self.rope.line_len(end.y);
+        if start == end && end.y < self.num_lines() {
+            end.y += 1;
+            end.x = 0;
+        }
+
+        self.set_cursor(Cursor::from_range(&Range::from_points(start, end)));
+    }
+
+    pub fn select_line(&mut self, y: usize) {
+        self.set_cursor(Cursor::new(y, 0));
+        self.select_until_end_of_line();
+    }
+
+    pub fn insert_char(&mut self, ch: char) {
+        self.insert(&ch.to_string())
+    }
+
+    pub fn insert(&mut self, string: &str) {
+        let string_count = string.chars().count();
+        let (remove, insert_at, _end) = match &self.cursor {
+            Cursor::Normal { pos, .. } => (None, pos, pos),
+            Cursor::Selection { range, .. } => (Some(range), range.front(), range.back()),
+        };
+
+        if let Some(remove) = remove {
+            self.rope.remove(&remove);
+        }
+
+        // Handle insertion at the end of file.
+        if insert_at.y == self.num_lines() && string != "\n" {
+            debug_assert!(insert_at.x == 0);
+            self.rope.insert(insert_at, "\n");
+        }
+
+        self.rope.insert(insert_at, string);
+
+        let num_newlines_added = string.matches('\n').count();
+        let num_newlines_deleted = remove.map(|r| r.back().y - r.front().y).unwrap_or(0);
+        let y_diff = num_newlines_added.saturating_sub(num_newlines_deleted);
+
+        let mut last_newline_idx = None;
+        for (i, ch) in string.chars().enumerate() {
+            if ch == '\n' {
+                last_newline_idx = Some(i);
             }
         }
 
-        self.cursors = cursors;
+        let x_diff = last_newline_idx
+            .map(|x| string_count - x - 1)
+            .unwrap_or(string_count);
+
+        let y = insert_at.y + y_diff;
+        let x = if string.ends_with('\n') {
+            0
+        } else if string.contains('\n') {
+            x_diff
+        } else {
+            insert_at.x + x_diff
+        };
+
+        self.set_cursor(Cursor::new(y, x));
     }
 
-    pub fn add_undo_stop(&mut self) {
-        match self.undo_stack.last() {
-            Some(Diff::Stop) => {}
-            _ => { self.undo_stack.push(Diff::Stop); }
+    pub fn indent_size(&self, y: usize) -> usize {
+        let mut n = 0;
+        let line = self.rope.line(y);
+        'outer: for c in line.chunks() {
+            for ch in c.chars() {
+                if !ch.is_ascii_whitespace() {
+                    break 'outer;
+                }
+
+                n += 1;
+            }
+        }
+
+        n
+    }
+
+    pub fn insert_with_smart_indent(&mut self, ch: char) {
+        match ch {
+            '\n' => {
+                self.insert_char('\n');
+                self.inherit_indent(self.main_cursor_pos().y);
+            }
+            '}' => {
+                if matches!(self.cursor, Cursor::Normal { pos, .. } if self.indent_size(pos.y) == self.line_len(pos.y))
+                {
+                    self.back_tab();
+                }
+
+                self.insert_char('}');
+            }
+            _ => {
+                self.insert_char(ch);
+            }
         }
     }
 
-    pub fn undo(&mut self) {
+    fn inherit_indent(&mut self, y: usize) {
+        let prev_indent_size = if y > 0 { self.indent_size(y - 1) } else { 0 };
+
+        let increase_depth = self
+            .line_substr(
+                y.saturating_sub(1),
+                self.line_len(y.saturating_sub(1)).saturating_sub(1),
+            )
+            .ends_with('{');
+
+        let n = if increase_depth {
+            prev_indent_size + self.config.indent_size
+        } else {
+            prev_indent_size
+        };
+
+        for x in 0..n {
+            self.rope.insert_char(
+                &Point::new(y, x),
+                match self.config.indent_style {
+                    IndentStyle::Space => ' ',
+                    IndentStyle::Tab => '\t',
+                },
+            );
+        }
+
+        self.cursor = Cursor::new(y, n);
+    }
+
+    fn do_indent(&mut self, pos: &Point) {
+        // Should we do auto-indent?
+        let prev_indent_size = if pos.y > 0 {
+            self.indent_size(pos.y - 1)
+        } else {
+            0
+        };
+
+        let new_x = if pos.x == 0 && prev_indent_size > 0 {
+            self.inherit_indent(pos.y);
+        } else {
+            let new_x = match self.config.indent_style {
+                IndentStyle::Space => {
+                    // Insert spaces until the next indentation level.
+                    let n = self.config.indent_size - (pos.x % self.config.indent_size);
+                    for _ in 0..n {
+                        self.rope.insert_char(pos, ' ');
+                    }
+                    pos.x + n
+                }
+                IndentStyle::Tab => {
+                    self.rope.insert_char(pos, '\t');
+                    pos.x + 1
+                }
+            };
+            self.cursor = Cursor::new(pos.y, new_x);
+        };
+    }
+
+    pub fn do_deindent(&mut self, pos: &Point) {
+        let n = min(
+            self.indent_size(pos.y),
+            if pos.x % self.config.indent_size == 0 {
+                self.config.indent_size
+            } else {
+                pos.x % self.config.indent_size
+            },
+        );
+        if n > 0 {
+            let start = Point::new(pos.y, 0);
+            let end = Point::new(pos.y, n);
+            self.rope.remove(&Range::from_points(start, end));
+            self.cursor = Cursor::new(pos.y, pos.x.saturating_sub(n));
+        } else {
+            self.cursor = Cursor::new(pos.y, pos.x);
+        }
+    }
+
+    pub fn tab(&mut self) {
+        match self.cursor.clone() {
+            Cursor::Normal { pos, .. } => {
+                self.do_indent(&pos);
+            }
+            Cursor::Selection { range, .. } => {
+                let end_y = if range.back().x == 0 {
+                    max(range.front().y, range.back().y.saturating_sub(1))
+                } else {
+                    range.back().y
+                };
+                for y in (range.front().y..=end_y).rev() {
+                    self.do_indent(&Point::new(y, self.indent_size(y)));
+                }
+
+                self.cursor = Cursor::from_range(&Range::new(
+                    range.front().y,
+                    0,
+                    end_y,
+                    self.line_len(end_y),
+                ));
+            }
+        }
+    }
+
+    pub fn back_tab(&mut self) {
+        match self.cursor.clone() {
+            Cursor::Normal { pos, .. } => {
+                self.do_deindent(&pos);
+            }
+            Cursor::Selection { range, .. } => {
+                let end_y = if range.back().x == 0 {
+                    max(range.front().y, range.back().y.saturating_sub(1))
+                } else {
+                    range.back().y
+                };
+                for y in (range.front().y..=end_y).rev() {
+                    self.do_deindent(&Point::new(y, self.indent_size(y)));
+                }
+                self.cursor = Cursor::from_range(&Range::new(
+                    range.front().y,
+                    0,
+                    end_y,
+                    self.line_len(end_y),
+                ));
+            }
+        }
+    }
+
+    pub fn backspace(&mut self) {
+        // Move the cursor at the end of previous line if it is at EOF.
+        if let Cursor::Normal { pos, .. } = &self.cursor {
+            if pos.y > 0 && pos.y == self.num_lines() {
+                self.cursor = Cursor::new(pos.y - 1, self.line_len(pos.y - 1));
+            }
+        }
+
+        // Decrease the indentation level if the cursor is in an indent.
+        if let Cursor::Normal { pos, .. } = &self.cursor {
+            if pos.x > 0 && pos.x <= self.indent_size(pos.y) {
+                self.back_tab();
+                return;
+            }
+        }
+
+        // Determine the range to be deleted.
+        let range = match self.cursor() {
+            Cursor::Normal { pos, .. } => {
+                let start = if pos.y == 0 && pos.x == 0 {
+                    return;
+                } else if pos.x == 0 {
+                    Point::new(pos.y - 1, self.rope.line_len(pos.y - 1))
+                } else {
+                    Point::new(pos.y, pos.x - 1)
+                };
+
+                Range::from_points(start, *pos)
+            }
+            Cursor::Selection { range, .. } => range.clone(),
+        };
+
+        self.rope.remove(&range);
+        self.cursor = Cursor::from_point(range.front());
+    }
+
+    pub fn delete(&mut self) {
+        // Determine the range to be deleted.
+        let range = match self.cursor() {
+            Cursor::Normal { pos, .. } => {
+                let max_y = self.rope.num_lines();
+                let max_x = self.rope.line_len(pos.y);
+                let end = if pos.y == max_y && pos.x == max_x {
+                    // At EOF.
+                    return;
+                } else if pos.x == max_x {
+                    Point::new(pos.y + 1, 0)
+                } else {
+                    Point::new(pos.y, pos.x + 1)
+                };
+
+                Range::from_points(*pos, end)
+            }
+            Cursor::Selection { range, .. } => range.clone(),
+        };
+
+        self.rope.remove(&range);
+        self.cursor = Cursor::from_point(range.front());
+    }
+
+    pub fn truncate(&mut self) {
+        self.select_until_end_of_line();
+        self.delete();
+    }
+
+    pub fn truncate_reverse(&mut self) {
+        self.select_until_beginning_of_line();
+        self.delete();
+    }
+
+    pub fn toggle_comment_out(&mut self) {
+        let prefix = match self.language.comment_out {
+            Some(prefix) => prefix,
+            None => return,
+        };
+
+        let (old_x, y_start, y_end) = match self.cursor() {
+            Cursor::Normal { pos, .. } => (pos.x, pos.y, pos.y),
+            Cursor::Selection { range, .. } => {
+                let end_y = if range.back().x == 0 {
+                    max(range.front().y, range.back().y.saturating_sub(1))
+                } else {
+                    range.back().y
+                };
+
+                (0, range.front().y, end_y)
+            }
+        };
+
+        let prefix_len = prefix.chars().count();
+        let mut new_x = 0;
+        for y in y_start..=y_end {
+            let indent_size = self.indent_size(y);
+            if self.line_substr(y, indent_size).starts_with(prefix) {
+                new_x = old_x.saturating_sub(prefix_len);
+                self.rope
+                    .remove(&Range::new(y, indent_size, y, indent_size + prefix_len));
+            } else {
+                new_x = old_x + prefix_len;
+                self.rope.insert(&Point::new(y, indent_size), prefix);
+            }
+        }
+
+        if y_start == y_end {
+            self.cursor = Cursor::new(y_start, new_x);
+        } else {
+            self.cursor = Cursor::from_range(&Range::new(y_start, 0, y_end, self.line_len(y_end)));
+        }
+    }
+
+    pub fn mark_undo_point(&mut self) {
         match self.undo_stack.last() {
-            Some(Diff::Stop) => { self.undo_stack.pop(); }
+            Some(rope) if *rope == self.rope => {
+                // The buffer is not modified.
+                return;
+            }
             _ => {}
         }
 
-        trace!("undo: {:?}", self.undo_stack.last());
-        while let Some(diff) = self.undo_stack.pop() {
-            match &diff {
-                Diff::Stop => break,
-                Diff::Move(cursors) => self.cursors = cursors.to_owned(),
-                _ => diff.revert(&mut self.lines),
+        self.undo_stack.push(self.rope.clone());
+    }
+
+    pub fn undo(&mut self) {
+        if self.undo_stack.len() == 1 && self.rope.is_empty() {
+            return;
+        }
+
+        if let Some(top) = self.undo_stack.last() {
+            if *top == self.rope {
+                self.undo_stack.pop();
             }
-            self.redo_stack.push(diff);
+        }
+
+        if let Some(rope) = self.undo_stack.pop() {
+            self.redo_stack.push(self.rope.clone());
+            self.rope = rope;
         }
     }
 
     pub fn redo(&mut self) {
-        match self.redo_stack.last() {
-            Some(Diff::Stop) => { self.redo_stack.pop(); }
-            _ => {}
+        if let Some(buf) = self.redo_stack.pop() {
+            self.undo_stack.push(self.rope.clone());
+            self.rope = buf;
+        }
+    }
+
+    pub fn cut_selection(&mut self) -> String {
+        let text = self.copy_selection();
+        self.backspace();
+        text
+    }
+
+    pub fn copy_selection(&mut self) -> String {
+        let mut text = String::new();
+        if let Cursor::Selection { range, .. } = &self.cursor {
+            for chunk in self.rope.sub_str(range).chunks() {
+                text += chunk;
+            }
         }
 
-        trace!("redo: {:?}", self.redo_stack.last());
-        while let Some(diff) = self.redo_stack.pop() {
-            match &diff {
-                Diff::Stop => break,
-                Diff::Move(cursors) => self.cursors = cursors.to_owned(),
-                _ => { diff.apply(&mut self.lines); }
-            }
-            self.undo_stack.push(diff);
-        }
+        text
+    }
+
+    pub fn paste(&mut self, text: &str) {
+        self.insert(text);
+    }
+
+    pub fn current_word(&self) -> Option<String> {
+        let pos = match &self.cursor {
+            Cursor::Normal { pos, .. } => pos,
+            Cursor::Selection {
+                range: Range { start, .. },
+                ..
+            } => start,
+        };
+
+        self.rope.word_at(pos).map(|(_, word)| word)
+    }
+
+    pub fn current_word_range(&self) -> Option<Range> {
+        let pos = match &self.cursor {
+            Cursor::Normal { pos, .. } => pos,
+            Cursor::Selection {
+                range: Range { start, .. },
+                ..
+            } => start,
+        };
+
+        self.rope.word_at(pos).map(|(range, _)| range)
+    }
+
+    pub fn prev_word_range(&self) -> Option<Range> {
+        let pos = match &self.cursor {
+            Cursor::Normal { pos, .. } => pos,
+            Cursor::Selection {
+                range: Range { start, .. },
+                ..
+            } => start,
+        };
+
+        self.rope.prev_word_at(pos)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use test::Bencher;
 
     #[test]
-    fn test_basic_editing() {
-        let mut b = Buffer::from_str("ab\nc");
-        assert_eq!(b.text(), "ab\nc\n");
+    fn insertion_and_deletion() {
+        let mut b = Buffer::new();
         b.backspace();
-        assert_eq!(b.text(), "ab\n\n");
+        b.insert("Hello");
+        b.insert(" World?");
+        assert_eq!(b.text(), "Hello World?");
         b.backspace();
-        assert_eq!(b.text(), "ab\n");
-        b.move_by(0, -1);
-        b.backspace();
-        assert_eq!(b.text(), "b\n");
+        assert_eq!(b.text(), "Hello World");
+        b.insert_char('!');
+        assert_eq!(b.text(), "Hello World!");
+        b.move_cursor(0, 0, 1, 0); // Move left
         b.delete();
-        assert_eq!(b.text(), "\n");
-
-        // Nothing to be deleted. It should not panic.
-        b.backspace();
+        assert_eq!(b.text(), "Hello World");
         b.delete();
-        assert_eq!(b.text(), "\n");
+        assert_eq!(b.text(), "Hello World");
     }
 
     #[test]
-    fn test_truncate() {
-        let mut b = Buffer::from_str("abcd\n123");
-        b.move_by(0, -1);
-        b.truncate();
-        assert_eq!(b.text(), "abcd\n12\n");
-        b.truncate();
-        assert_eq!(b.text(), "abcd\n12\n");
-        b.move_to_begin();
-        b.truncate();
-        assert_eq!(b.text(), "abcd\n\n");
-        b.move_by(0, -1);
-        b.truncate();
-        assert_eq!(b.text(), "abcd\n");
-        b.truncate();
-        assert_eq!(b.text(), "abcd\n");
-        b.move_to_begin();
-        b.truncate();
-        assert_eq!(b.text(), "\n");
-        b.truncate();
-        assert_eq!(b.text(), "\n");
+    fn insertion_with_newlines() {
+        let mut b = Buffer::new();
+        b.insert("abc\n");
+        assert_eq!(b.text(), "abc\n");
+        assert_eq!(b.cursor(), &Cursor::new(1, 0));
+
+        let mut b = Buffer::new();
+        b.insert("abc\nx\ny");
+        assert_eq!(b.text(), "abc\nx\ny");
+        assert_eq!(b.cursor(), &Cursor::new(2, 1));
     }
 
     #[test]
-    fn test_cursor_movements() {
-        let mut b = Buffer::from_str("abcd\n123");
-        assert_eq!(*b.cursors()[0].position(), Point::new(1, 3));
-        b.move_by(0, -1);
-        assert_eq!(*b.cursors()[0].position(), Point::new(1, 2));
-        b.move_by(-1, 0);
-        assert_eq!(*b.cursors()[0].position(), Point::new(0, 2));
-        b.move_to_end();
-        assert_eq!(*b.cursors()[0].position(), Point::new(0, 4));
-        b.move_by(1, 0);
-        assert_eq!(*b.cursors()[0].position(), Point::new(1, 3));
-        b.move_to_begin();
-        b.move_by(0, -1);
-        assert_eq!(*b.cursors()[0].position(), Point::new(0, 4));
+    fn insert_at_eof() {
+        let mut b = Buffer::new();
+        b.insert("abc");
+        b.move_cursor(0, 1, 0, 0);
+        assert_eq!(b.cursor(), &Cursor::new(1, 0));
+        b.insert_char('x');
+        assert_eq!(b.text(), "abc\nx");
+        assert_eq!(b.cursor(), &Cursor::new(1, 1));
+        b.insert_char('y');
+        assert_eq!(b.text(), "abc\nxy");
+        assert_eq!(b.cursor(), &Cursor::new(1, 2));
     }
 
     #[test]
-    fn test_multiple_cursors() {
-        let mut b = Buffer::from_str("abcd\n123\nXY");
-        b.move_to(0, 0);
-        b.add_cursor(Point::new(1, 0));
-        b.add_cursor(Point::new(2, 0));
-        b.insert_str("._");
-        assert_eq!(b.cursors().len(), 3);
-        assert_eq!(b.text(), "._abcd\n._123\n._XY\n");
-
-        b.move_by(0, -1);
+    fn backspace_at_eof() {
+        let mut b = Buffer::new();
+        b.insert("abc");
+        b.set_cursor(Cursor::new(1, 0));
         b.backspace();
-        assert_eq!(b.cursors().len(), 3);
-        assert_eq!(b.text(), "_abcd\n_123\n_XY\n");
+        assert_eq!(b.text(), "ab");
+        assert_eq!(b.cursor(), &Cursor::new(0, 2));
 
-        b.move_to_end();
-        b.insert_str("_");
-        assert_eq!(b.cursors().len(), 3);
-        assert_eq!(b.text(), "_abcd_\n_123_\n_XY_\n");
+        let mut b = Buffer::new();
+        b.insert("abc\n");
+        b.set_cursor(Cursor::new(1, 0));
+        b.backspace();
+        assert_eq!(b.text(), "abc");
+        assert_eq!(b.cursor(), &Cursor::new(0, 3));
 
-        for _ in 0..4 {
-            b.backspace();
+        let mut b = Buffer::new();
+        b.backspace();
+        assert_eq!(b.text(), "");
+        assert_eq!(b.cursor(), &Cursor::new(0, 0));
+    }
+
+    #[test]
+    fn move_cursor() {
+        let mut b = Buffer::new();
+        b.move_cursor(1, 0, 0, 0); // Do nothing
+        b.insert("A\nDEF\n12345");
+        assert_eq!(b.cursor(), &Cursor::new(2, 5));
+        b.move_cursor(0, 0, 1, 0); // Move right
+        assert_eq!(b.cursor(), &Cursor::new(2, 4));
+        b.move_cursor(1, 0, 0, 0);
+        assert_eq!(b.cursor(), &Cursor::new(1, 3));
+        b.move_cursor(0, 3, 0, 0);
+        assert_eq!(b.cursor(), &Cursor::new(3, 0));
+        b.move_cursor(0, 0, 1, 0); // Move left
+        assert_eq!(b.cursor(), &Cursor::new(2, 5));
+        b.move_cursor(0, 0, 0, 1); // Move right
+        assert_eq!(b.cursor(), &Cursor::new(3, 0));
+    }
+
+    #[test]
+    fn multibyte_characters() {
+        let mut b = Buffer::new();
+        b.insert("Hello 世界!");
+        b.set_cursor(Cursor::new(0, 7));
+        assert_eq!(b.len(), 9);
+
+        // Hello 世|界! => Hello |界!
+        b.backspace();
+        assert_eq!(b.text(), "Hello 界!");
+        // Hello 世|界! => Hell|界!
+        b.backspace();
+        b.backspace();
+        assert_eq!(b.text(), "Hell界!");
+        // Hello 世|界! => Hell|界!
+        b.insert("o こんにちは 世");
+        assert_eq!(b.text(), "Hello こんにちは 世界!");
+    }
+
+    #[test]
+    fn multibyte_characters_regression1() {
+        let mut b = Buffer::new();
+        b.set_cursor(Cursor::new(0, 0));
+        b.insert_char('a');
+        b.insert_char('あ');
+        b.insert_char('!');
+        assert_eq!(b.text(), "aあ!");
+    }
+
+    #[test]
+    fn move_down_cursor_in_wrapped_line() {
+        // aあ|b   =>   aあb   =>   aあb
+        // い12         い1|2       い12
+        //                         |
+        // (both are wrapped)
+        let mut b = Buffer::new();
+        b.insert("aあbい12");
+        b.set_cursor(Cursor::new(0, 2));
+        b.move_cursor_with_line_wrap(4, 0, 1);
+        assert_eq!(b.cursor(), &Cursor::new(0, 5));
+        b.move_cursor_with_line_wrap(4, 0, 1);
+        assert_eq!(b.cursor(), &Cursor::new(1, 0));
+
+        // wxyz          wxyz
+        // aあ|b   =>   aあb
+        // い12         い1|2
+        //
+        // (both are wrapped)
+        let mut b = Buffer::new();
+        b.insert("wxyzaあbい12");
+        b.set_cursor(Cursor::new(0, 6));
+        b.move_cursor_with_line_wrap(4, 0, 1);
+        assert_eq!(b.cursor(), &Cursor::new(0, 9));
+
+        // aあbc|   =>   aあbc
+        // い            い|
+        //
+        // (both are wrapped)
+        let mut b = Buffer::new();
+        b.insert("aあbcい");
+        b.set_cursor(Cursor::new(0, 4));
+        b.move_cursor_with_line_wrap(5, 0, 1);
+        assert_eq!(b.cursor(), &Cursor::new(0, 5));
+
+        // 1行|目   =>   1行目
+        // 2行目         2行|目
+        //
+        //   (two lines)
+        let mut b = Buffer::new();
+        b.insert("1行目\n2行目");
+        b.set_cursor(Cursor::new(0, 2));
+        b.move_cursor_with_line_wrap(5, 0, 1);
+        assert_eq!(b.cursor(), &Cursor::new(1, 2));
+
+        // aあbc| => aあbc
+        //          |
+        let mut b = Buffer::new();
+        b.insert("aあbc");
+        b.set_cursor(Cursor::new(0, 4));
+        b.move_cursor_with_line_wrap(5, 0, 1);
+        assert_eq!(b.cursor(), &Cursor::new(1, 0));
+
+        // | =>
+        //      |
+        let mut b = Buffer::new();
+        b.set_cursor(Cursor::new(0, 0));
+        b.move_cursor_with_line_wrap(5, 0, 1);
+        assert_eq!(b.cursor(), &Cursor::new(1, 0));
+        b.move_cursor_with_line_wrap(5, 0, 10);
+        assert_eq!(b.cursor(), &Cursor::new(1, 0));
+    }
+
+    #[test]
+    fn move_up_cursor_in_wrapped_line() {
+        // aあb     =>   aあ|b
+        // い1|2         い12
+        //
+        // (both are wrapped)
+        let mut b = Buffer::new();
+        b.insert("aあbい12");
+        b.set_cursor(Cursor::new(0, 5));
+        b.move_cursor_with_line_wrap(4, 1, 0);
+        assert_eq!(b.cursor(), &Cursor::new(0, 2));
+
+        // wxyz         wxy|z
+        // aあ|b   =>   aあb
+        // い12         い12
+        //
+        // (both are wrapped)
+        let mut b = Buffer::new();
+        b.insert("wxyzaあbい12");
+        b.set_cursor(Cursor::new(0, 6));
+        b.move_cursor_with_line_wrap(4, 1, 0);
+        assert_eq!(b.cursor(), &Cursor::new(0, 3));
+
+        // 1行目   =>   1行|目
+        // 2行|目       2行目
+        //
+        //   (two lines)
+        let mut b = Buffer::new();
+        b.insert("1行目\n2行目");
+        b.set_cursor(Cursor::new(1, 2));
+        b.move_cursor_with_line_wrap(5, 1, 0);
+        assert_eq!(b.cursor(), &Cursor::new(0, 2));
+
+        // abcd     =>   abc|d
+        // 123|4         1234
+        //
+        //   (two lines)
+        let mut b = Buffer::new();
+        b.insert("abcd\n1234");
+        b.set_cursor(Cursor::new(1, 3));
+        b.move_cursor_with_line_wrap(10, 1, 0);
+        assert_eq!(b.cursor(), &Cursor::new(0, 3));
+
+        // ab       =>   ab|
+        // 12345|        12345
+        //
+        //   (two lines)
+        let mut b = Buffer::new();
+        b.insert("ab\n12345");
+        b.set_cursor(Cursor::new(1, 5));
+        b.move_cursor_with_line_wrap(10, 1, 0);
+        assert_eq!(b.cursor(), &Cursor::new(0, 2));
+
+        // abcde   =>    a|bcde
+        // fg            fg
+        // x|            x
+        let mut b = Buffer::new();
+        b.insert("abcdefg\nx");
+        b.set_cursor(Cursor::Normal {
+            pos: Point::new(1, 1),
+            logical_x: 4,
+        });
+        b.move_cursor_with_line_wrap(5, 1, 0);
+        assert_eq!(b.cursor(), &Cursor::new(0, 6));
+        b.move_cursor_with_line_wrap(5, 1, 0);
+        assert_eq!(b.cursor(), &Cursor::new(0, 1));
+
+        // aあbc| => aあbc|
+        let mut b = Buffer::new();
+        b.insert("aあbc");
+        b.set_cursor(Cursor::new(0, 4));
+        b.move_cursor_with_line_wrap(5, 1, 0);
+        assert_eq!(b.cursor(), &Cursor::new(0, 0));
+
+        // | => |
+        let mut b = Buffer::new();
+        b.set_cursor(Cursor::new(0, 0));
+        b.move_cursor_with_line_wrap(5, 1, 0);
+        assert_eq!(b.cursor(), &Cursor::new(0, 0));
+    }
+
+    #[test]
+    fn logical_cursor_x_when_moving_down() {
+        // abc|d   =>   abcd
+        //
+        // 1234         123|4
+        let mut b = Buffer::new();
+        b.insert("abcd\n\n1234");
+        b.set_cursor(Cursor::new(0, 3));
+        b.move_cursor_with_line_wrap(30, 0, 2);
+        assert_eq!(b.cursor(), &Cursor::new(2, 3));
+
+        // abc|d   =>   abcd    =>   abcd    =>   abcd
+        // xy           xy|          x|y          xy
+        // 1234         1234         1234         1|234
+        let mut b = Buffer::new();
+        b.insert("abcd\nxy\n1234");
+        b.set_cursor(Cursor::new(0, 3));
+        b.move_cursor_with_line_wrap(30, 0, 1);
+        assert_eq!(b.cursor(), &Cursor::new(1, 2));
+        b.move_cursor(0, 0, 1, 0);
+        assert_eq!(b.cursor(), &Cursor::new(1, 1));
+        b.move_cursor_with_line_wrap(30, 0, 1);
+        assert_eq!(b.cursor(), &Cursor::new(2, 1));
+    }
+
+    #[test]
+    fn logical_cursor_x_when_moving_up() {
+        // abcd    =>   abc|d
+        //
+        // 123|4        1234
+        let mut b = Buffer::new();
+        b.insert("abcd\n\n1234");
+        b.set_cursor(Cursor::new(2, 3));
+        b.move_cursor_with_line_wrap(30, 2, 0);
+        assert_eq!(b.cursor(), &Cursor::new(0, 3));
+
+        // abcd    =>   abcd    =>   abcd    =>   a|bcd
+        // xy           xy|          x|y          xy
+        // 123|4        1234         1234         1234
+        let mut b = Buffer::new();
+        b.insert("abcd\nxy\n1234");
+        b.set_cursor(Cursor::new(2, 3));
+        b.move_cursor_with_line_wrap(30, 1, 0);
+        assert_eq!(b.cursor(), &Cursor::new(1, 2));
+        b.move_cursor(0, 0, 1, 0);
+        assert_eq!(b.cursor(), &Cursor::new(1, 1));
+        b.move_cursor_with_line_wrap(30, 1, 0);
+        assert_eq!(b.cursor(), &Cursor::new(0, 1));
+    }
+
+    #[test]
+    fn relocate_top_left() {
+        // line #1!!!
+        // abc          <--- wrapped
+        // line #2!!!
+        // V---------------------- top_left
+        // line #3!!!
+        // x|yz         <--- wrapped
+        let mut b = Buffer::from_str("line #1!!!abc\nline #2!!!\nline #3!!!xyz");
+        b.top_left = TopLeft::new(2, 0);
+
+        // x|yz   =>   a|bc
+        b.set_cursor(Cursor::new(0, 11));
+        b.relocate_top_left(2, 10);
+        assert_eq!(b.top_left(), &TopLeft::new(0, 0));
+
+        // a|bc   =>   l|ine #2!!!
+        b.set_cursor(Cursor::new(1, 1));
+        b.relocate_top_left(2, 10);
+        assert_eq!(b.top_left(), &TopLeft::new(1, 0));
+
+        // a|bc   =>   x|yz
+        b.set_cursor(Cursor::new(2, 10));
+        b.relocate_top_left(2, 10);
+        assert_eq!(b.top_left(), &TopLeft::new(2, 0));
+    }
+
+    #[test]
+    fn single_selection() {
+        let mut b = Buffer::new();
+        b.insert("abXYZcd");
+        b.set_cursor(Cursor::new(0, 2));
+
+        // ab|XYZ|cd
+        b.select(0, 0, 0, 3);
+        assert_eq!(b.cursor(), &Cursor::from_range(&Range::new(0, 2, 0, 5)));
+
+        // a|b|XYZcd  =>  a|XYZcd
+        b.select(0, 0, 4, 0);
+        b.backspace();
+        assert_eq!(b.text(), "aXYZcd");
+        assert_eq!(b.cursor(), &Cursor::new(0, 1));
+
+        // a|XYZ|cd  =>  a|cd
+        b.select(0, 0, 0, 3);
+        b.backspace();
+        assert_eq!(b.text(), "acd");
+        assert_eq!(b.cursor(), &Cursor::new(0, 1));
+
+        // ab|  =>  ab|
+        // c        |c
+        let mut b = Buffer::new();
+        b.insert("ab\nc");
+        b.set_cursor(Cursor::new(0, 2));
+        b.select(0, 0, 0, 1);
+        assert_eq!(b.cursor(), &Cursor::from_range(&Range::new(0, 2, 1, 0)));
+    }
+
+    #[test]
+    fn single_selection_including_newlines() {
+        // xy|A     xy|z
+        // BCD  =>
+        // E|z
+        let mut b = Buffer::new();
+        b.insert("xyA\nBCD\nEz");
+        b.set_cursor(Cursor::from_range(&Range::new(0, 2, 2, 1)));
+        b.backspace();
+        assert_eq!(b.text(), "xyz");
+        assert_eq!(b.cursor(), &Cursor::new(0, 2));
+
+        // ab|      abX|c
+        // |c   =>
+        //
+        let mut b = Buffer::new();
+        b.insert("ab\nc");
+        b.set_cursor(Cursor::from_range(&Range::new(0, 2, 1, 0)));
+        b.insert("X");
+        assert_eq!(b.text(), "abXc");
+        assert_eq!(b.cursor(), &Cursor::new(0, 3));
+    }
+
+    #[test]
+    fn move_to_beginning_of_line() {
+        // abc
+        // de
+        let mut b = Buffer::new();
+        b.insert("abc\nde");
+        b.set_cursor(Cursor::new(0, 0));
+        b.move_to_beginning_of_line();
+        assert_eq!(b.cursor(), &Cursor::new(0, 0));
+
+        b.set_cursor(Cursor::new(1, 1));
+        b.move_to_beginning_of_line();
+        assert_eq!(b.cursor(), &Cursor::new(1, 0));
+    }
+
+    #[test]
+    fn move_to_end_of_line() {
+        // abc
+        // de
+        let mut b = Buffer::new();
+        b.insert("abc\nde");
+        b.set_cursor(Cursor::new(0, 1));
+        b.move_to_end_of_line();
+        assert_eq!(b.cursor(), &Cursor::new(0, 3));
+    }
+
+    #[test]
+    fn select_until_end_of_line() {
+        let mut b = Buffer::new();
+        b.insert("abc");
+        b.set_cursor(Cursor::new(0, 1));
+        b.select_until_end_of_line();
+        assert_eq!(b.cursor(), &Cursor::from_range(&Range::new(0, 1, 0, 3)),);
+    }
+
+    #[test]
+    fn set_text() {
+        let mut b = Buffer::from_str("");
+        b.set_text("abc");
+        assert_eq!(b.text(), "abc");
+        assert_eq!(b.cursor(), &Cursor::new(0, 0));
+
+        let mut b = Buffer::from_str("123\n456");
+        b.set_text("x");
+        assert_eq!(b.text(), "x");
+        assert_eq!(b.cursor(), &Cursor::new(0, 1));
+    }
+
+    #[test]
+    fn truncate() {
+        // abc|XYZ  =>  abc|
+        let mut b = Buffer::new();
+        b.insert("abcXYZ");
+        b.set_cursor(Cursor::new(0, 3));
+        b.truncate();
+        assert_eq!(b.text(), "abc");
+        assert_eq!(b.cursor(), &Cursor::new(0, 3));
+
+        // abc|      abc|xyz
+        // xyz  =>
+        let mut b = Buffer::new();
+        b.insert("abc\nxyz");
+        b.set_cursor(Cursor::new(0, 3));
+        b.truncate();
+        assert_eq!(b.text(), "abcxyz");
+        assert_eq!(b.cursor(), &Cursor::new(0, 3));
+    }
+
+    #[test]
+    fn truncate_reverse() {
+        // abc|XYZ  =>  abc|
+        let mut b = Buffer::new();
+        b.insert("abcXYZ");
+        b.set_cursor(Cursor::new(0, 3));
+        b.truncate_reverse();
+        assert_eq!(b.text(), "XYZ");
+        assert_eq!(b.cursor(), &Cursor::new(0, 0));
+
+        // abc       abc|xyz
+        // |xyz  =>
+        let mut b = Buffer::new();
+        b.insert("abc\nxyz");
+        b.set_cursor(Cursor::new(1, 0));
+        b.truncate_reverse();
+        assert_eq!(b.text(), "abcxyz");
+        assert_eq!(b.cursor(), &Cursor::new(0, 3));
+    }
+
+    #[test]
+    fn undo() {
+        let mut b = Buffer::new();
+        b.redo();
+        b.undo();
+        assert_eq!(b.text(), "");
+        b.insert("abc");
+        b.mark_undo_point();
+        assert_eq!(b.text(), "abc");
+        b.redo(); // Do nothing.
+        assert_eq!(b.text(), "abc");
+        b.undo();
+        assert_eq!(b.text(), "");
+        b.redo();
+        assert_eq!(b.text(), "abc");
+        b.undo();
+        assert_eq!(b.text(), "");
+        b.undo();
+        assert_eq!(b.text(), "");
+        b.redo();
+        assert_eq!(b.text(), "abc");
+        b.redo();
+        assert_eq!(b.text(), "abc");
+
+        let mut b = Buffer::new();
+        b.insert("abc");
+        b.mark_undo_point();
+        b.insert("123");
+        b.mark_undo_point();
+        b.insert("xyz");
+        b.mark_undo_point();
+        assert_eq!(b.text(), "abc123xyz");
+        b.undo();
+        assert_eq!(b.text(), "abc123");
+        b.undo();
+        assert_eq!(b.text(), "abc");
+        b.redo();
+        assert_eq!(b.text(), "abc123");
+        b.redo();
+        assert_eq!(b.text(), "abc123xyz");
+        b.undo();
+        assert_eq!(b.text(), "abc123");
+        b.undo();
+        assert_eq!(b.text(), "abc");
+        b.undo();
+        assert_eq!(b.text(), "");
+        b.undo();
+        assert_eq!(b.text(), "");
+    }
+
+    #[test]
+    fn current_word() {
+        // hello wor|ld from rust
+        let mut b = Buffer::from_str("hello world from rust");
+        b.set_cursor(Cursor::new(0, 9));
+        assert_eq!(b.current_word(), Some("world".to_owned()));
+        assert_eq!(b.current_word_range(), Some(Range::new(0, 6, 0, 11)));
+
+        // hello |world from rust
+        b.set_cursor(Cursor::new(0, 6));
+        assert_eq!(b.current_word(), Some("world".to_owned()));
+        assert_eq!(b.current_word_range(), Some(Range::new(0, 6, 0, 11)));
+
+        // hello world| from rust
+        b.set_cursor(Cursor::new(0, 11));
+        assert_eq!(b.current_word(), Some("world".to_owned()));
+        assert_eq!(b.current_word_range(), Some(Range::new(0, 6, 0, 11)));
+
+        // a b| c
+        let mut b = Buffer::from_str("a b c");
+        b.set_cursor(Cursor::new(0, 3));
+        assert_eq!(b.current_word(), Some("b".to_owned()));
+        assert_eq!(b.current_word_range(), Some(Range::new(0, 2, 0, 3)));
+
+        // |a b c
+        let mut b = Buffer::from_str("a b c");
+        b.set_cursor(Cursor::new(0, 0));
+        assert_eq!(b.current_word(), Some("a".to_owned()));
+        assert_eq!(b.current_word_range(), Some(Range::new(0, 0, 0, 1)));
+
+        // a | b
+        let mut b = Buffer::from_str("a  b");
+        b.set_cursor(Cursor::new(0, 2));
+        assert_eq!(b.current_word(), None);
+        assert_eq!(b.current_word_range(), None);
+
+        // |
+        let mut b = Buffer::from_str("");
+        b.set_cursor(Cursor::new(0, 0));
+        assert_eq!(b.current_word(), None);
+        assert_eq!(b.current_word_range(), None);
+    }
+
+    #[test]
+    fn move_to_prev_word() {
+        // abc 123|  =>  abc |123
+        let mut b = Buffer::from_str("abc 123");
+        b.set_cursor(Cursor::new(0, 7));
+        b.move_to_prev_word();
+        assert_eq!(b.cursor(), &Cursor::new(0, 4));
+
+        // abc |123  =>  |abc 123
+        b.move_to_prev_word();
+        assert_eq!(b.cursor(), &Cursor::new(0, 0));
+        b.move_to_prev_word();
+        assert_eq!(b.cursor(), &Cursor::new(0, 0));
+
+        // abc 123  xy|z  =>  abc 123  |xyz  =>  abc |123  xyz  => |abc 123  xyz
+        let mut b = Buffer::from_str("abc 123  xyz");
+        b.set_cursor(Cursor::new(0, 11));
+        b.move_to_prev_word();
+        assert_eq!(b.cursor(), &Cursor::new(0, 9));
+        b.move_to_prev_word();
+        assert_eq!(b.cursor(), &Cursor::new(0, 4));
+        b.move_to_prev_word();
+        assert_eq!(b.cursor(), &Cursor::new(0, 0));
+
+        // a  =>  a
+        // |b     |b
+        let mut b = Buffer::from_str("a\nb");
+        b.set_cursor(Cursor::new(1, 0));
+        b.move_to_prev_word();
+        assert_eq!(b.cursor(), &Cursor::new(1, 0));
+
+        // (empty)
+        let mut b = Buffer::from_str("");
+        b.set_cursor(Cursor::new(0, 0));
+        b.move_to_prev_word();
+        assert_eq!(b.cursor(), &Cursor::new(0, 0));
+    }
+
+    #[test]
+    fn move_to_next_word() {
+        // |abc 123  =>  abc| 123
+        let mut b = Buffer::from_str("abc 123");
+        b.set_cursor(Cursor::new(0, 0));
+        b.move_to_next_word();
+        assert_eq!(b.cursor(), &Cursor::new(0, 3));
+
+        // abc| 123  =>  abc 123|
+        b.move_to_next_word();
+        assert_eq!(b.cursor(), &Cursor::new(0, 7));
+        b.move_to_next_word();
+        assert_eq!(b.cursor(), &Cursor::new(0, 7));
+
+        // a|bc 123  xyz  =>  abc| 123  xyz  =>  abc 123|  xyz  => abc 123  xyz|
+        let mut b = Buffer::from_str("abc 123  xyz");
+        b.set_cursor(Cursor::new(0, 1));
+        b.move_to_next_word();
+        assert_eq!(b.cursor(), &Cursor::new(0, 3));
+        b.move_to_next_word();
+        assert_eq!(b.cursor(), &Cursor::new(0, 7));
+        b.move_to_next_word();
+        assert_eq!(b.cursor(), &Cursor::new(0, 12));
+
+        // |  =>  |
+        //
+        let mut b = Buffer::from_str("\n");
+        b.set_cursor(Cursor::new(0, 0));
+        b.move_to_next_word();
+        assert_eq!(b.cursor(), &Cursor::new(0, 0));
+
+        // (empty)
+        let mut b = Buffer::from_str("");
+        b.set_cursor(Cursor::new(0, 0));
+        b.move_to_next_word();
+        assert_eq!(b.cursor(), &Cursor::new(0, 0));
+
+        // |a  =>  a|
+        // b       b
+        let mut b = Buffer::from_str("a\nb");
+        b.set_cursor(Cursor::new(0, 0));
+        b.move_to_next_word();
+        assert_eq!(b.cursor(), &Cursor::new(0, 1));
+        b.move_to_next_word();
+        assert_eq!(b.cursor(), &Cursor::new(0, 1));
+    }
+
+    #[test]
+    fn prev_word_range() {
+        // abc|
+        let mut b = Buffer::from_str("abc");
+        b.set_cursor(Cursor::new(0, 3));
+        assert_eq!(b.prev_word_range(), Some(Range::new(0, 0, 0, 3)));
+
+        // abc xyz|
+        let mut b = Buffer::from_str("abc xyz");
+        b.set_cursor(Cursor::new(0, 7));
+        assert_eq!(b.prev_word_range(), Some(Range::new(0, 4, 0, 7)));
+
+        // abc|xyz
+        let mut b = Buffer::from_str("abcxyz");
+        b.set_cursor(Cursor::new(0, 3));
+        assert_eq!(b.prev_word_range(), Some(Range::new(0, 0, 0, 3)));
+
+        // abc xyz;|
+        let mut b = Buffer::from_str("abc xyz;");
+        b.set_cursor(Cursor::new(0, 8));
+        assert_eq!(b.prev_word_range(), Some(Range::new(0, 7, 0, 8)));
+
+        // abc !@#|
+        let mut b = Buffer::from_str("abc !@#");
+        b.set_cursor(Cursor::new(0, 7));
+        assert_eq!(b.prev_word_range(), Some(Range::new(0, 3, 0, 7)));
+
+        // ____abc
+        let mut b = Buffer::from_str("    abc");
+        b.set_cursor(Cursor::new(0, 4));
+        assert_eq!(b.prev_word_range(), Some(Range::new(0, 0, 0, 4)));
+
+        // (empty)
+        let mut b = Buffer::from_str("");
+        b.set_cursor(Cursor::new(0, 0));
+        assert_eq!(b.prev_word_range(), None);
+
+        // abc
+        // |
+        let mut b = Buffer::from_str("abc\n");
+        b.set_cursor(Cursor::new(1, 0));
+        assert_eq!(b.prev_word_range(), Some(Range::new(0, 3, 1, 0)));
+    }
+
+    #[test]
+    fn move_between_blocks() {
+        // abc|         abc           abc          abc
+        //
+        // xyz    =>    |xyz    =>    xyz    =>    xyz
+        //
+        // 123          123           |123         123
+        //                                         |
+        let mut b = Buffer::from_str("abc\n\nxyz\n\n123");
+        b.set_cursor(Cursor::new(0, 3));
+        b.move_to_next_block();
+        assert_eq!(b.cursor(), &Cursor::new(2, 0));
+        b.move_to_next_block();
+        assert_eq!(b.cursor(), &Cursor::new(4, 0));
+        b.move_to_next_block();
+        assert_eq!(b.cursor(), &Cursor::new(5, 0));
+        b.move_to_next_block();
+        assert_eq!(b.cursor(), &Cursor::new(5, 0));
+
+        // abc          abc           abc           |abc
+        //
+        // xyz    =>    xyz    =>     |xyz    =>    xyz
+        //
+        // 123          |123          123           123
+        // |
+        b.move_to_prev_block();
+        assert_eq!(b.cursor(), &Cursor::new(4, 0));
+        b.move_to_prev_block();
+        assert_eq!(b.cursor(), &Cursor::new(2, 0));
+        b.move_to_prev_block();
+        assert_eq!(b.cursor(), &Cursor::new(0, 0));
+        b.move_to_prev_block();
+        assert_eq!(b.cursor(), &Cursor::new(0, 0));
+
+        let mut b = Buffer::new();
+        b.move_to_prev_block();
+        assert_eq!(b.cursor(), &Cursor::new(0, 0));
+        b.move_to_next_block();
+        assert_eq!(b.cursor(), &Cursor::new(1, 0));
+    }
+
+    #[test]
+    fn indent_by_tab() {
+        let mut b = Buffer::new();
+        b.set_cursor(Cursor::new(0, 0));
+        b.tab();
+        assert_eq!(&b.text(), "    ");
+        assert_eq!(b.cursor(), &Cursor::new(0, 4));
+        b.tab();
+        assert_eq!(&b.text(), "        ");
+        assert_eq!(b.cursor(), &Cursor::new(0, 8));
+
+        let mut b = Buffer::from_str("abc");
+        b.set_cursor(Cursor::new(0, 0));
+        b.tab();
+        assert_eq!(&b.text(), "    abc");
+        assert_eq!(b.cursor(), &Cursor::new(0, 4));
+        b.tab();
+        assert_eq!(&b.text(), "        abc");
+        assert_eq!(b.cursor(), &Cursor::new(0, 8));
+
+        let mut b = Buffer::from_str("  abc");
+        b.set_cursor(Cursor::new(0, 2));
+        b.tab();
+        assert_eq!(&b.text(), "    abc");
+        assert_eq!(b.cursor(), &Cursor::new(0, 4));
+    }
+
+    #[test]
+    fn indent_size() {
+        let b = Buffer::from_str("");
+        assert_eq!(b.indent_size(0), 0);
+
+        let b = Buffer::from_str("  X  ");
+        assert_eq!(b.indent_size(0), 2);
+
+        let b = Buffer::from_str("         X");
+        assert_eq!(b.indent_size(0), 9);
+    }
+
+    #[test]
+    fn indent_inheriting_prev_line() {
+        // Inherit 8 spaces.
+        let mut b = Buffer::from_str("        foo();\n");
+        b.set_cursor(Cursor::new(1, 0));
+        b.tab();
+        assert_eq!(&b.text(), "        foo();\n        ");
+        assert_eq!(b.cursor(), &Cursor::new(1, 8));
+    }
+
+    #[test]
+    fn indent_by_enter() {
+        // Inherit 8 spaces.
+        let mut b = Buffer::from_str("        foo();");
+        b.set_cursor(Cursor::new(0, 14));
+        b.insert_with_smart_indent('\n');
+        assert_eq!(&b.text(), "        foo();\n        ");
+        assert_eq!(b.cursor(), &Cursor::new(1, 8));
+    }
+
+    #[test]
+    fn smart_indent() {
+        let mut b = Buffer::new();
+        b.insert("    if (expr) ");
+        b.insert_with_smart_indent('{');
+        b.insert_with_smart_indent('\n');
+        assert_eq!(&b.text(), "    if (expr) {\n        ");
+        assert_eq!(b.cursor(), &Cursor::new(1, 8));
+
+        b.insert_with_smart_indent('}');
+        assert_eq!(&b.text(), "    if (expr) {\n    }");
+        assert_eq!(b.cursor(), &Cursor::new(1, 5));
+    }
+
+    #[test]
+    fn indent_with_selection() {
+        let mut b = Buffer::from_str("xyz");
+        b.set_cursor(Cursor::from_range(&Range::new(0, 1, 0, 3)));
+        b.tab();
+        assert_eq!(&b.text(), "    xyz");
+        assert_eq!(b.cursor(), &Cursor::from_range(&Range::new(0, 0, 0, 7)));
+
+        let mut b = Buffer::from_str("    a\n    b");
+        b.set_cursor(Cursor::from_range(&Range::new(0, 0, 1, 1)));
+        b.tab();
+        assert_eq!(&b.text(), "        a\n        b");
+        assert_eq!(b.cursor(), &Cursor::from_range(&Range::new(0, 0, 1, 9)));
+
+        let mut b = Buffer::from_str("    a\n   b\n  c\n d\nxyz");
+        b.set_cursor(Cursor::from_range(&Range::new(0, 0, 4, 0)));
+        b.tab();
+        assert_eq!(&b.text(), "        a\n    b\n    c\n    d\nxyz");
+        assert_eq!(b.cursor(), &Cursor::from_range(&Range::new(0, 0, 3, 5)));
+    }
+
+    #[test]
+    fn indent_with_selection_multiple_times() {
+        let mut b = Buffer::from_str("a\nb\nc");
+        b.set_cursor(Cursor::from_range(&Range::new(0, 0, 3, 0)));
+
+        b.tab();
+        assert_eq!(&b.text(), "    a\n    b\n    c");
+        assert_eq!(b.cursor(), &Cursor::from_range(&Range::new(0, 0, 2, 5)));
+
+        b.tab();
+        assert_eq!(&b.text(), "        a\n        b\n        c");
+        assert_eq!(b.cursor(), &Cursor::from_range(&Range::new(0, 0, 2, 9)));
+
+        b.tab();
+        assert_eq!(&b.text(), "            a\n            b\n            c");
+        assert_eq!(b.cursor(), &Cursor::from_range(&Range::new(0, 0, 2, 13)));
+    }
+
+    #[test]
+    fn deindent() {
+        let mut b = Buffer::from_str("");
+        b.set_cursor(Cursor::new(0, 0));
+        b.back_tab();
+        assert_eq!(&b.text(), "");
+        assert_eq!(b.cursor(), &Cursor::new(0, 0));
+
+        let mut b = Buffer::from_str("    ");
+        b.set_cursor(Cursor::new(0, 0));
+        b.back_tab();
+        assert_eq!(&b.text(), "");
+        assert_eq!(b.cursor(), &Cursor::new(0, 0));
+
+        // len < config.indent_size
+        let mut b = Buffer::from_str("  ");
+        b.set_cursor(Cursor::new(0, 0));
+        b.back_tab();
+        assert_eq!(&b.text(), "");
+        assert_eq!(b.cursor(), &Cursor::new(0, 0));
+
+        let mut b = Buffer::from_str("     ");
+        b.set_cursor(Cursor::new(0, 5));
+        b.back_tab();
+        assert_eq!(&b.text(), "    ");
+        assert_eq!(b.cursor(), &Cursor::new(0, 4));
+
+        let mut b = Buffer::from_str("        abc");
+        b.set_cursor(Cursor::new(0, 8));
+        b.back_tab();
+        assert_eq!(&b.text(), "    abc");
+        assert_eq!(b.cursor(), &Cursor::new(0, 4));
+        b.back_tab();
+        assert_eq!(&b.text(), "abc");
+        assert_eq!(b.cursor(), &Cursor::new(0, 0));
+    }
+
+    #[test]
+    fn comment_out() {
+        let mut b = Buffer::from_str("abc");
+        b.set_language(&crate::language::CXX);
+        b.set_cursor(Cursor::new(0, 1));
+        b.toggle_comment_out();
+        assert_eq!(&b.text(), "// abc");
+        assert_eq!(b.cursor(), &Cursor::new(0, 4));
+
+        b.set_text("");
+        b.set_cursor(Cursor::new(0, 0));
+        b.toggle_comment_out();
+        assert_eq!(&b.text(), "// ");
+        assert_eq!(b.cursor(), &Cursor::new(0, 3));
+
+        b.set_text("    x\n    y\n    z");
+        b.set_cursor(Cursor::from_range(&Range::new(0, 0, 3, 0)));
+        b.toggle_comment_out();
+        assert_eq!(&b.text(), "    // x\n    // y\n    // z");
+        assert_eq!(b.cursor(), &Cursor::from_range(&Range::new(0, 0, 2, 8)));
+    }
+
+    #[test]
+    fn decomment_out() {
+        let mut b = Buffer::from_str("// abc");
+        b.set_language(&crate::language::CXX);
+        b.set_cursor(Cursor::new(0, 0));
+        b.toggle_comment_out();
+        assert_eq!(&b.text(), "abc");
+        assert_eq!(b.cursor(), &Cursor::new(0, 0));
+
+        let mut b = Buffer::from_str("// ");
+        b.set_language(&crate::language::CXX);
+        b.set_cursor(Cursor::new(0, 0));
+        b.toggle_comment_out();
+        assert_eq!(&b.text(), "");
+        assert_eq!(b.cursor(), &Cursor::new(0, 0));
+
+        b.set_text("// \n\n// z");
+        b.set_cursor(Cursor::from_range(&Range::new(0, 0, 2, 4)));
+        b.toggle_comment_out();
+        assert_eq!(&b.text(), "\n// \nz");
+        assert_eq!(b.cursor(), &Cursor::from_range(&Range::new(0, 0, 2, 1)));
+    }
+
+    #[test]
+    fn copy_and_paste() {
+        let mut b = Buffer::from_str("aXYZb");
+        b.set_cursor(Cursor::from_range(&Range::new(0, 1, 0, 4)));
+        assert_eq!(b.copy_selection(), "XYZ");
+        assert_eq!(b.text(), "aXYZb");
+        assert_eq!(b.cut_selection(), "XYZ");
+        assert_eq!(b.text(), "ab");
+        b.paste("123");
+        assert_eq!(b.text(), "a123b");
+    }
+
+    #[test]
+    fn line_substr() {
+        let mut b = Buffer::from_str("abc\nxyz");
+        assert_eq!(b.line_substr(0, 0), "abc");
+
+        let mut b = Buffer::from_str("abc\nxyz");
+        assert_eq!(b.line_substr(0, 1), "bc");
+
+        let mut b = Buffer::from_str("");
+        assert_eq!(b.line_substr(0, 0), "");
+    }
+
+    #[test]
+    fn width_in_display() {
+        let mut b = Buffer::from_str("aあ");
+        assert_eq!(b.width_in_display(0, 0, 2), 3);
+        let mut b = Buffer::from_str("12345\nあbc");
+        assert_eq!(b.width_in_display(1, 0, 3), 4);
+
+        let mut b = Buffer::from_str("");
+        assert_eq!(b.width_in_display(1, 0, 0), 0);
+        let mut b = Buffer::from_str("");
+        assert_eq!(b.width_in_display(0, 0, 0), 0);
+    }
+
+    #[bench]
+    fn bench_width_in_display_200chars(b: &mut Bencher) {
+        let mut buffer = Buffer::new();
+        for _ in 0..20 {
+            buffer.insert("0123456789");
         }
-        assert_eq!(b.cursors().len(), 3);
-        dbg!(b.cursors());
-        assert_eq!(b.text(), "_a\n_\n\n");
 
-        b.backspace();
-        dbg!(b.cursors());
-        assert_eq!(b.cursors().len(), 2);
-        assert_eq!(b.text(), "_\n\n");
-
-        b.backspace();
-        assert_eq!(b.cursors().len(), 1);
-        assert_eq!(b.text(), "\n");
-
-        let mut b = Buffer::from_str("a\n\n");
-        b.move_to(0, 0);
-        b.add_cursor(Point::new(1, 0));
-        b.add_cursor(Point::new(2, 0));
-        b.delete();
-        assert_eq!(b.cursors().len(), 2);
-        assert_eq!(b.text(), "\n\n");
+        b.iter(|| buffer.width_in_display(0, 0, buffer.len()));
     }
 
-    #[test]
-    fn test_selection() {
-        let mut b = Buffer::from_str("abcd\n123");
-        // select "bc" and replace it with "X".
-        b.move_to(0, 1);
-        b.start_selection();
-        b.move_by(0, 1);
-        b.move_by(0, 1);
-        b.insert('X');
-        assert_eq!(b.text(), "aXd\n123\n");
-        b.end_selection();
+    #[bench]
+    fn bench_width_in_display_10000chars(b: &mut Bencher) {
+        let mut buffer = Buffer::new();
+        for _ in 0..1000 {
+            buffer.insert("0123456789");
+        }
 
-        // select "d\n1" and replace it with "Y".
-        b.start_selection();
-        b.move_by(0, 1);
-        b.move_by(0, 1);
-        b.move_by(0, 1);
-        b.insert('Y');
-        assert_eq!(b.text(), "aXY23\n");
-        b.end_selection();
+        b.iter(|| buffer.width_in_display(0, 0, buffer.len()));
     }
 
-    #[test]
-    fn test_clipboard() {
-        // let mut b = Buffer::from_str("abcd\n123");
-        // TODO:
-    }
+    #[bench]
+    fn bench_line_substr(b: &mut Bencher) {
+        let mut buffer = Buffer::new();
+        for _ in 0..10000 {
+            buffer.insert("0123456789");
+        }
 
-    #[test]
-    fn test_undo() {
-        // let mut b = Buffer::from_str("abcd\n123");
-        // TODO:
+        b.iter(|| buffer.line_substr(0, 3000));
     }
 }

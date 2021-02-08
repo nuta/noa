@@ -1,48 +1,91 @@
-#![allow(dead_code)]
+#![allow(unused)]
+#![feature(test)]
 
+extern crate test;
+
+#[cfg(test)]
+#[macro_use]
+extern crate pretty_assertions;
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate lazy_static;
 
 mod buffer;
-mod diff;
 mod editor;
 mod editorconfig;
 mod finder;
-mod logger;
-mod terminal;
-mod highlight;
 mod language;
-mod helpers;
-mod clipboard;
-mod lsp;
+mod line_edit;
+mod ned;
+mod rope;
+mod terminal;
 
+use simplelog::{CombinedLogger, LevelFilter, WriteLogger};
+use std::fs::OpenOptions;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
-#[derive(Debug, StructOpt)]
-#[structopt(name = "noa", about = "A simple terminal text editor.")]
+#[derive(StructOpt)]
 struct Opt {
-    /// The file to edit.
-    #[structopt(parse(from_os_str))]
+    #[structopt(name = "FILE", parse(from_os_str))]
     files: Vec<PathBuf>,
-    /// Disable terminal rendering (for testing).
-    #[structopt(long)]
-    headless: bool,
 }
 
 fn main() {
-    logger::init();
+    better_panic::install();
+
+    let log_file = OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(dirs::home_dir().unwrap().join(".noa.log"))
+        .expect("failed to open ~/.noa.log");
+    let log_level = if cfg!(debug_assertions) {
+        LevelFilter::Trace
+    } else {
+        LevelFilter::Info
+    };
+
+    let log_config = simplelog::Config::default();
+    CombinedLogger::init(vec![WriteLogger::new(log_level, log_config, log_file)]).unwrap();
+
     std::panic::set_hook(Box::new(|info| {
+        use crossterm::{
+            cursor,
+            event::DisableMouseCapture,
+            execute,
+            terminal::{disable_raw_mode, LeaveAlternateScreen},
+        };
+        use std::io::{self, Write};
+
+        let mut stdout = io::stdout();
+        execute!(stdout, LeaveAlternateScreen).unwrap();
+        execute!(stdout, DisableMouseCapture).ok();
+        execute!(stdout, cursor::Show).unwrap();
+        disable_raw_mode().ok();
         error!("{}", info);
-        error!("{:#?}", backtrace::Backtrace::new());
+
+        let panic_handler = better_panic::Settings::auto()
+            .most_recent_first(false)
+            .create_panic_handler();
+        panic_handler(info);
+        std::process::exit(1);
     }));
 
-    let opt = Opt::from_args();
-
     trace!("starting noa...");
-    let mut editor = editor::Editor::new(opt.headless);
-    for file in opt.files {
-        editor.open_file(&file);
+    let opt = Opt::from_args();
+    let mut editor = editor::Editor::new();
+    for path in opt.files.iter().rev() {
+        editor.open_file(path);
     }
-    editor.run();
+
+    match editor.run() {
+        editor::ExitStatus::Gracefully => {}
+        editor::ExitStatus::ForceExit { unsaved_files } => {
+            println!("Unsaved files:");
+            for path in unsaved_files {
+                println!("{}", path.display());
+            }
+        }
+    }
 }

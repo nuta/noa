@@ -1,75 +1,42 @@
 use std::hash::{Hash, Hasher};
-
-pub struct Keywords {
-    pub ctrls: &'static [&'static str],
-    pub defs: &'static [&'static str],
-}
-
-pub struct Lsp {
-    pub language_id: &'static str,
-    pub command: &'static [&'static str],
-}
+use std::path::Path;
 
 pub struct Language {
-    pub id: &'static str,
-    pub filenames: &'static [&'static str],
-    pub extensions: &'static [&'static str],
-    pub lsp: Option<Lsp>,
-    pub line_comments: &'static [&'static str],
-    pub keywords: Keywords,
-    pub strings: &'static [(
-            &'static str /* start */,
-            &'static str /* end */,
-            Option<&'static str> /* escape */,
-        )],
+    pub name: &'static str,
+    pub comment_out: Option<&'static str>,
 }
 
-impl Hash for Language {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
+lazy_static! {
+    pub static ref PLAIN: Language = {
+        Language {
+            name: "plain",
+            comment_out: None,
+        }
+    };
+}
+
+lazy_static! {
+    pub static ref CXX: Language = {
+        Language {
+            name: "cxx",
+            comment_out: Some("// "),
+        }
+    };
+}
+
+lazy_static! {
+    pub static ref RUST: Language = {
+        Language {
+            name: "rust",
+            comment_out: Some("// "),
+        }
+    };
+}
+
+pub fn guess_language(path: &Path) -> &'static Language {
+    match path.extension().map(|s| s.to_str().unwrap()) {
+        Some("rs") => &RUST,
+        Some("c") | Some("cpp") | Some("cxx") | Some("h") | Some("hpp") | Some("hxx") => &CXX,
+        _ => &PLAIN,
     }
 }
-
-impl PartialEq for Language {
-    fn eq(&self, other: &Language) -> bool {
-        self.id == other.id
-    }
-}
-
-impl Eq for Language {}
-
-pub const LANGS: &'static [Language] = &[PLAIN, C];
-
-pub const PLAIN: Language = Language {
-    id: "plain",
-    filenames: &[],
-    extensions: &[],
-    lsp: None,
-    line_comments: &[],
-    strings: &[],
-    keywords: Keywords {
-        ctrls: &[],
-        defs: &[],
-    },
-};
-
-pub const C: Language = Language {
-    id: "c",
-    filenames: &[],
-    extensions: &["c", "h"],
-    line_comments: &["//"],
-    lsp: Some(Lsp {
-        language_id: "c",
-        command: &["clangd", "-j=8", "--log=verbose", "--pretty"]
-    }),
-    strings: &[("\"", "\"", Some("\\\""))],
-    keywords: Keywords {
-        ctrls: &[
-            "if", "for", "while", "do", "goto", "break", "continue", "case",
-            "default", "return", "switch"
-        ],
-        defs: &[
-            "typedef", "enum", "struct", "union",
-        ],
-    },
-};
