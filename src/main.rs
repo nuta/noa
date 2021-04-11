@@ -18,6 +18,7 @@ mod eventloop;
 mod range_tree;
 mod rope;
 mod terminal;
+mod view;
 
 #[derive(StructOpt)]
 struct Opt {

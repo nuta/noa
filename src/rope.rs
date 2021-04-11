@@ -91,6 +91,7 @@ impl PartialOrd for Point {
     }
 }
 
+/// A text (inclusive) range.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Range {
     pub start: Point,
@@ -121,8 +122,15 @@ impl Range {
             || (self.start.y == other.end.y && self.start.x > other.end.x))
     }
 
-    pub fn _contains(&self, pos: Point) -> bool {
-        self.start <= pos && pos <= self.end
+    pub fn contains(&self, pos: &Point) -> bool {
+        self.start <= *pos && *pos <= self.end
+    }
+
+    pub fn canonicalize(&self) -> Range {
+        Range {
+            start: *self.front(),
+            end: *self.back(),
+        }
     }
 }
 

@@ -44,6 +44,12 @@ impl DisplayWidth for str {
     }
 }
 
+impl DisplayWidth for char {
+    fn display_width(&self) -> usize {
+        unicode_width::UnicodeWidthChar::width_cjk(*self).unwrap_or(1)
+    }
+}
+
 impl DisplayWidth for usize {
     fn display_width(&self) -> usize {
         let mut n = *self;
@@ -176,8 +182,7 @@ impl Terminal {
         let lineno_width = ctx.buffer.num_lines().display_width() + 1;
         let text_max_height = self.screen_height - 1;
         let text_max_width = self.screen_width - lineno_width;
-        let top_left = ctx.buffer.top_left();
-        for line_index in top_left.y..min(top_left.y + text_max_height, ctx.buffer.num_lines()) {
+        for line_index in 0..min(text_max_height, ctx.buffer.num_lines()) {
             queue!(stdout, cursor::MoveTo(0, line_index as u16)).ok();
 
             let lineno = line_index + 1;
@@ -215,8 +220,8 @@ impl Terminal {
             Print(' '),
             Print(column),
             MoveTo(
-                (lineno_width + main_cursor.x - top_left.x) as u16,
-                (main_cursor.y - top_left.y) as u16,
+                (lineno_width + main_cursor.x) as u16,
+                (main_cursor.y) as u16,
             ),
             cursor::Show,
         )

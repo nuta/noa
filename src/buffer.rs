@@ -48,17 +48,10 @@ fn backup_path(backup_dir: &Path, base: &str, revision: usize) -> PathBuf {
     backup_dir.join(format!("{}.{}", base, revision))
 }
 
-#[derive(Debug, Clone)]
-pub struct TopLeft {
-    pub y: usize,
-    pub x: usize,
-}
-
 pub struct Buffer {
     buf: Rope,
     is_dirty: bool,
     name: String,
-    top_left: TopLeft,
     file: Option<PathBuf>,
     cursors: Vec<Cursor>,
     undo_stack: Vec<Rope>,
@@ -71,7 +64,6 @@ impl Buffer {
         let mut buffer = Buffer {
             buf: Rope::new(),
             is_dirty: false,
-            top_left: TopLeft { x: 0, y: 0 },
             name: String::new(),
             file: None,
             cursors: vec![Cursor::new(0, 0)],
@@ -96,7 +88,6 @@ impl Buffer {
         let mut buffer = Buffer {
             buf: Rope::from_reader(file)?,
             is_dirty: false,
-            top_left: TopLeft { x: 0, y: 0 },
             name: String::new(),
             file: Some(path.canonicalize()?),
             cursors: vec![Cursor::new(0, 0)],
@@ -151,10 +142,6 @@ impl Buffer {
 
     pub fn config(&self) -> &EditorConfig {
         &self.config
-    }
-
-    pub fn top_left(&self) -> &TopLeft {
-        &self.top_left
     }
 
     pub fn name(&self) -> &str {
