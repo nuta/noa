@@ -7,6 +7,8 @@ edition = "2018"
 [dependencies]
 log = "0"
 simplelog = "0"
+backtrace = "0"
+structopt = "0"
 dirs = "3"
 ropey = "1"
 
