@@ -58,14 +58,13 @@ mod test {
     use super::*;
 
     #[test]
-    fn insert_nodes() {
+    fn insert_nodes_without_overlapping() {
         //  012345678901234567
         //  pub const fn hello
-        //
         let mut tree = RangeTree::new();
-        tree.update_range(&Range::new(0, 0, 0, 2), "pub", |old, new| {});
-        tree.update_range(&Range::new(0, 4, 0, 8), "const", |old, new| {});
         tree.update_range(&Range::new(0, 10, 0, 11), "fn", |old, new| {});
+        tree.update_range(&Range::new(0, 4, 0, 8), "const", |old, new| {});
+        tree.update_range(&Range::new(0, 0, 0, 2), "pub", |old, new| {});
         tree.update_range(&Range::new(0, 13, 0, 17), "hello", |old, new| {});
         assert_eq!(
             tree.iter_overlapping(&Range::new(0, 0, 0, 17))
