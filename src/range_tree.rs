@@ -17,9 +17,13 @@ impl<V> RangeTree<V> {
         RangeTree { nodes: Vec::new() }
     }
 
+    /// Updates or inserts `value` with the `range`. `O(log n + k)` where `k` is
+    /// overlapping exisiting nodes.
+    ///
+    /// `merge` is used to update an existing node.
     pub fn update_range<F>(&mut self, range: &Range, value: V, merge: F)
     where
-        F: FnOnce(&mut V, &V),
+        F: Fn(&mut V, &V),
     {
         let mut overlapping_nodes = self.iter_overlapping(range).peekable();
         if overlapping_nodes.peek().is_none() {
@@ -40,8 +44,12 @@ impl<V> RangeTree<V> {
         }
     }
 
-    pub fn remove_overlapping(&mut self, range: &Range) {}
+    // Removes overlapping nodes. `O(n)`.
+    pub fn remove_overlapping(&mut self, range: &Range) {
+        self.nodes.retain(|node| !node.range.overlaps_with(range));
+    }
 
+    // Returns the iterator of nodes overlapping nodes. `O(log n)`.
     pub fn iter_overlapping(&self, range: &Range) -> slice::Iter<'_, Node<V>> {
         let first = self
             .nodes
