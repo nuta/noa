@@ -42,25 +42,39 @@ impl EventQueue {
     }
 }
 
+const SCRATCH_TEXT: &str = "\
+;; This is the scratch buffer: you can't save it into a file.
+
+fn main() {
+    if 1 == 2 {
+        println!(\"something went wrong!\");
+    }
+}
+";
+
 pub struct EventLoop {
     exited: bool,
     workspace_dir: PathBuf,
     terminal: Terminal,
     current_buffer: Arc<RwLock<Buffer>>,
-    buffers: HashMap<PathBuf, Arc<RwLock<Buffer>>>,
+    buffers: Vec<Arc<RwLock<Buffer>>>,
     event_queue: Receiver<Event>,
 }
 
 impl EventLoop {
     pub fn new(workspace_dir: PathBuf) -> EventLoop {
         let (tx, event_queue) = mpsc::channel();
+
+        let scratch_buffer = Arc::new(RwLock::new(Buffer::from_str(SCRATCH_TEXT)));
+        let buffers = vec![scratch_buffer.clone()];
+
         EventLoop {
             exited: false,
             workspace_dir,
             terminal: Terminal::new(EventQueue::new(tx.clone())),
             event_queue,
             current_buffer: scratch_buffer,
-            buffers: HashMap::new(),
+            buffers,
         }
     }
 
@@ -89,7 +103,7 @@ impl EventLoop {
             }
         };
 
-        self.buffers.insert(abspath, buffer.clone());
+        self.buffers.push(buffer.clone());
         self.current_buffer = buffer;
     }
 

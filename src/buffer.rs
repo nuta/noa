@@ -85,7 +85,6 @@ impl Buffer {
         buffer
     }
 
-    #[cfg(test)]
     pub fn from_str(text: &str) -> Buffer {
         let mut buf = Buffer::new();
         buf.insert(text);

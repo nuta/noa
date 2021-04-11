@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::io::Write;
 use std::{io::stdout, time::Duration};
 
@@ -128,7 +129,7 @@ impl Terminal {
         let text_max_height = self.screen_height;
         let text_max_width = self.screen_width;
         let top_left = ctx.buffer.top_left();
-        for line_index in top_left.y..top_left.y + text_max_height {
+        for line_index in top_left.y..min(top_left.y + text_max_height, ctx.buffer.num_lines()) {
             let line = ctx.buffer.line(line_index);
         }
 
