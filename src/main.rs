@@ -21,4 +21,6 @@ pub fn main() {
             .unwrap(),
     )
     .unwrap();
+
+    trace!("starting");
 }
