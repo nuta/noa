@@ -9,6 +9,9 @@ pub struct Node<V> {
     pub value: V,
 }
 
+/// An internval tree to efficiently store buffer text decoration ranges like
+/// syntax highlighting. Currently, the internal data structure is not a tree
+/// (instead a sorted vector).
 pub struct RangeTree<V> {
     nodes: Vec<Node<V>>,
 }
@@ -18,8 +21,9 @@ impl<V> RangeTree<V> {
         RangeTree { nodes: Vec::new() }
     }
 
-    /// Updates or inserts `value` with the `range`. `O(log n + k)` where `k` is
-    /// overlapping exisiting nodes.
+    /// Updates or inserts `value` with the `range`. `O(max(log n + m, l))`
+    /// where `m` is overlapping exisiting nodes and `l` is the number of nodes
+    /// after `range`.
     ///
     /// `merge` is used to update an existing node.
     pub fn update_range<F>(&mut self, range: &Range, value: V, merge: F)
@@ -48,23 +52,24 @@ impl<V> RangeTree<V> {
         }
     }
 
-    // Removes overlapping nodes. `O(n)`.
+    /// Removes overlapping nodes. `O(n)`.
     pub fn remove_overlapping(&mut self, range: &Range) {
         self.nodes.retain(|node| !node.range.overlaps_with(range));
     }
 
-    // Returns the iterator of nodes overlapping nodes. `O(log n)`.
+    /// Returns the iterator of nodes overlapping nodes. `O(log n)`.
     pub fn iter_overlapping(&self, range: &Range) -> slice::Iter<'_, Node<V>> {
         self.nodes[self.overlapping_slice_range(range)].iter()
     }
 
-    // Returns the iterator of nodes overlapping nodes. `O(log n)`.
-    pub fn iter_overlapping_mut(&mut self, range: &Range) -> slice::IterMut<'_, Node<V>> {
+    /// Returns the iterator of nodes overlapping nodes. `O(log n)`. It's private
+    /// since we can't guaranteed that nodes remain sorted (and don't want to
+    /// do the whole vector).
+    fn iter_overlapping_mut(&mut self, range: &Range) -> slice::IterMut<'_, Node<V>> {
         let slice_range = self.overlapping_slice_range(range);
         self.nodes[slice_range].iter_mut()
     }
 
-    #[inline]
     fn overlapping_slice_range(&self, range: &Range) -> ops::Range<usize> {
         let first = self
             .nodes
