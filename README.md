@@ -13,6 +13,7 @@ $ cargo install noa
 - [x] Multi cursors support
 - [ ] Finder
 - [ ] Command Bar
+- [ ] Find a string
 - [ ] LSP support
 - [ ] Jump List
 - [ ] Click a path in the terminal to open the file (iTerm2)
@@ -43,6 +44,7 @@ $ cargo install noa
 | <kbd>Ctrl</kbd> + <kbd>Up / Down</kbd>          | Add a cursor in the previous/next line.    |
 | <kbd>Alt</kbd> + <kbd></kbd>                    | Swap lines.                                |
 | <kbd>Alt</kbd> + <kbd></kbd>                    | Duplicate the current line.                |
+| <kbd>Ctrl</kbd> + <kbd></kbd>                   | Rename a symbol (LSP).                     |
 
 ## Building
 
