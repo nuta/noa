@@ -4,13 +4,14 @@ use crate::terminal::{KeyCode, KeyEvent, KeyModifiers};
 use dirs::home_dir;
 use log::LevelFilter;
 use mpsc::Receiver;
+use parking_lot::RwLock;
 use simplelog::{Config, WriteLogger};
 use std::{
     collections::HashMap,
     env::current_dir,
     fs::OpenOptions,
     path::{Path, PathBuf},
-    sync::mpsc::Sender,
+    sync::{mpsc::Sender, Arc},
 };
 use std::{sync::mpsc, time::Instant};
 use structopt::StructOpt;
@@ -20,7 +21,10 @@ pub enum Event {
     Key(KeyEvent),
     KeyBatch(String),
     NoCompletion,
-    Resize { rows: usize, cols: usize },
+    Resize {
+        screen_height: usize,
+        screen_width: usize,
+    },
 }
 
 #[derive(Clone)]
@@ -42,7 +46,8 @@ pub struct EventLoop {
     exited: bool,
     workspace_dir: PathBuf,
     terminal: Terminal,
-    buffers: HashMap<PathBuf, Buffer>,
+    current_buffer: Arc<RwLock<Buffer>>,
+    buffers: HashMap<PathBuf, Arc<RwLock<Buffer>>>,
     event_queue: Receiver<Event>,
 }
 
@@ -54,6 +59,7 @@ impl EventLoop {
             workspace_dir,
             terminal: Terminal::new(EventQueue::new(tx.clone())),
             event_queue,
+            current_buffer: scratch_buffer,
             buffers: HashMap::new(),
         }
     }
@@ -72,7 +78,7 @@ impl EventLoop {
         };
 
         let buffer = match Buffer::open_file(&abspath) {
-            Ok(buffer) => buffer,
+            Ok(buffer) => Arc::new(RwLock::new(buffer)),
             Err(err) => {
                 self.error(format!(
                     "failed to open file: {} ({})",
@@ -83,7 +89,8 @@ impl EventLoop {
             }
         };
 
-        self.buffers.insert(abspath, buffer);
+        self.buffers.insert(abspath, buffer.clone());
+        self.current_buffer = buffer;
     }
 
     pub fn run(&mut self) {
@@ -142,7 +149,9 @@ impl EventLoop {
     }
 
     pub fn draw(&mut self) {
-        self.terminal.draw(DrawContext {});
+        self.terminal.draw(DrawContext {
+            buffer: &*self.current_buffer.read(),
+        });
     }
 
     fn error<T: Into<String>>(&self, message: T) {}

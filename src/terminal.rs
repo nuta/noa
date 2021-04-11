@@ -9,13 +9,18 @@ use crossterm::terminal::*;
 use crossterm::terminal::{Clear, ClearType};
 use crossterm::{execute, queue};
 
-use crate::eventloop::{Event, EventQueue};
+use crate::{
+    buffer::Buffer,
+    eventloop::{Event, EventQueue},
+};
 
-pub struct DrawContext {}
+pub struct DrawContext<'a> {
+    pub buffer: &'a Buffer,
+}
 
 pub struct Terminal {
-    rows: usize,
-    cols: usize,
+    screen_height: usize,
+    screen_width: usize,
 }
 
 impl Terminal {
@@ -35,8 +40,8 @@ impl Terminal {
                     }
                     TermEvent::Resize(cols, rows) => {
                         event_queue.enqueue(Event::Resize {
-                            cols: cols as usize,
-                            rows: rows as usize,
+                            screen_width: cols as usize,
+                            screen_height: rows as usize,
                         });
                     }
                 }
@@ -101,14 +106,14 @@ impl Terminal {
         });
 
         Terminal {
-            rows: rows as usize,
-            cols: cols as usize,
+            screen_height: rows as usize,
+            screen_width: cols as usize,
         }
     }
 
     pub fn draw(&mut self, ctx: DrawContext) {
         let mut stdout = stdout();
-        if self.cols < 10 || self.rows < 5 {
+        if self.screen_width < 10 || self.screen_height < 5 {
             queue!(
                 stdout,
                 Clear(ClearType::All),
@@ -118,6 +123,13 @@ impl Terminal {
             .unwrap();
             stdout.flush().unwrap();
             return;
+        }
+
+        let text_max_height = self.screen_height;
+        let text_max_width = self.screen_width;
+        let top_left = ctx.buffer.top_left();
+        for line_index in top_left.y..top_left.y + text_max_height {
+            let line = ctx.buffer.line(line_index);
         }
 
         // Hide the cursor to prevent flickering.

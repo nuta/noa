@@ -48,50 +48,17 @@ fn backup_path(backup_dir: &Path, base: &str, revision: usize) -> PathBuf {
     backup_dir.join(format!("{}.{}", base, revision))
 }
 
-static NEXT_BUFFER_ID: AtomicUsize = AtomicUsize::new(0);
-static NEXT_SNAPSHOT_ID: AtomicUsize = AtomicUsize::new(0);
-
-#[derive(Clone)]
-pub struct Snapshot {
-    pub id: usize,
-    pub buffer_id: BufferId,
-    pub buf: Rope,
-    pub main_cursor: Option<Point>,
-    pub modified_line: usize,
-}
-
-impl Snapshot {
-    pub fn new(
-        buffer_id: BufferId,
-        buf: Rope,
-        main_cursor: Option<Point>,
-        modified_line: usize,
-    ) -> Snapshot {
-        Snapshot {
-            id: NEXT_SNAPSHOT_ID.fetch_add(1, Ordering::SeqCst),
-            buffer_id,
-            buf,
-            main_cursor,
-            modified_line,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct BufferId(usize);
-
-impl BufferId {
-    pub fn alloc() -> BufferId {
-        BufferId(NEXT_BUFFER_ID.fetch_add(1, Ordering::SeqCst))
-    }
+#[derive(Debug, Clone)]
+pub struct TopLeft {
+    pub y: usize,
+    pub x: usize,
 }
 
 pub struct Buffer {
-    id: BufferId,
     buf: Rope,
     is_dirty: bool,
     name: String,
-    version: usize,
+    top_left: TopLeft,
     file: Option<PathBuf>,
     cursors: Vec<Cursor>,
     undo_stack: Vec<Rope>,
@@ -102,10 +69,9 @@ pub struct Buffer {
 impl Buffer {
     pub fn new() -> Buffer {
         let mut buffer = Buffer {
-            id: BufferId::alloc(),
             buf: Rope::new(),
             is_dirty: false,
-            version: 1,
+            top_left: TopLeft { x: 0, y: 0 },
             name: String::new(),
             file: None,
             cursors: vec![Cursor::new(0, 0)],
@@ -129,10 +95,9 @@ impl Buffer {
     pub fn open_file(path: &Path) -> std::io::Result<Buffer> {
         let file = std::fs::File::open(path)?;
         let mut buffer = Buffer {
-            id: BufferId::alloc(),
             buf: Rope::from_reader(file)?,
             is_dirty: false,
-            version: 1,
+            top_left: TopLeft { x: 0, y: 0 },
             name: String::new(),
             file: Some(path.canonicalize()?),
             cursors: vec![Cursor::new(0, 0)],
@@ -164,10 +129,6 @@ impl Buffer {
         self.is_dirty = false;
     }
 
-    pub fn id(&self) -> BufferId {
-        self.id
-    }
-
     #[cfg(test)]
     pub fn len(&self) -> usize {
         self.buf.len()
@@ -191,6 +152,10 @@ impl Buffer {
 
     pub fn config(&self) -> &EditorConfig {
         &self.config
+    }
+
+    pub fn top_left(&self) -> &TopLeft {
+        &self.top_left
     }
 
     pub fn name(&self) -> &str {
@@ -219,16 +184,6 @@ impl Buffer {
 
     pub fn modified_line(&self) -> &Option<usize> {
         &self.buf.modified_line()
-    }
-
-    pub fn snapshot(&self) -> Snapshot {
-        let main_cursor = match self.cursors[0] {
-            Cursor::Normal { pos, .. } => Some(pos),
-            _ => None,
-        };
-
-        let modified_line = self.modified_line().unwrap_or(0);
-        Snapshot::new(self.id, self.buf.clone(), main_cursor, modified_line)
     }
 
     pub fn is_virtual_file(&self) -> bool {
@@ -673,7 +628,6 @@ impl Buffer {
         }
 
         self.undo_stack.push(self.buf.clone());
-        self.version += 1;
         self.is_dirty = true;
     }
 
@@ -884,12 +838,6 @@ impl Buffer {
         }
 
         self.sort_and_merge_cursors();
-    }
-}
-
-impl PartialEq for Buffer {
-    fn eq(&self, other: &Buffer) -> bool {
-        self.id == other.id
     }
 }
 
