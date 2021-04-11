@@ -27,6 +27,7 @@ impl<V> RangeTree<V> {
             let pos = self
                 .nodes
                 .partition_point(|node| node.range < *range && !node.range.overlaps_with(range));
+            dbg!(pos);
             self.nodes.insert(
                 pos,
                 Node {
@@ -45,8 +46,9 @@ impl<V> RangeTree<V> {
         let first = self
             .nodes
             .partition_point(|node| node.range < *range && !node.range.overlaps_with(range));
-        let end = self.nodes[min(first, self.nodes.len())..]
-            .partition_point(|node| node.range.overlaps_with(range));
+        let search_from = min(first, self.nodes.len());
+        let end = search_from
+            + self.nodes[search_from..].partition_point(|node| node.range.overlaps_with(range));
         self.nodes[first..end].iter()
     }
 }
@@ -57,6 +59,31 @@ mod test {
 
     #[test]
     fn insert_nodes() {
-        // let mut tree = RangeTree::new();
+        //  012345678901234567
+        //  pub const fn hello
+        //
+        let mut tree = RangeTree::new();
+        tree.update_range(&Range::new(0, 0, 0, 2), "pub", |old, new| {});
+        tree.update_range(&Range::new(0, 4, 0, 8), "const", |old, new| {});
+        tree.update_range(&Range::new(0, 10, 0, 11), "fn", |old, new| {});
+        tree.update_range(&Range::new(0, 13, 0, 17), "hello", |old, new| {});
+        assert_eq!(
+            tree.iter_overlapping(&Range::new(0, 0, 0, 17))
+                .map(|node| node.value)
+                .collect::<Vec<&'static str>>(),
+            vec!["pub", "const", "fn", "hello"],
+        );
+        assert_eq!(
+            tree.iter_overlapping(&Range::new(0, 1, 0, 17))
+                .map(|node| node.value)
+                .collect::<Vec<&'static str>>(),
+            vec!["pub", "const", "fn", "hello"],
+        );
+        assert_eq!(
+            tree.iter_overlapping(&Range::new(0, 8, 0, 12))
+                .map(|node| node.value)
+                .collect::<Vec<&'static str>>(),
+            vec!["const", "fn"],
+        );
     }
 }
