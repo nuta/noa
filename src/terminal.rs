@@ -214,6 +214,11 @@ impl Terminal {
             Print(buffer_name),
             Print(' '),
             Print(column),
+            MoveTo(
+                (lineno_width + main_cursor.x - top_left.x) as u16,
+                (main_cursor.y - top_left.y) as u16,
+            ),
+            cursor::Show,
         )
         .ok();
 
