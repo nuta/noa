@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 use crate::editorconfig::*;
 use crate::rope::*;
 use std::cmp::{max, min};
