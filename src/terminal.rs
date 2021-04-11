@@ -24,6 +24,31 @@ pub struct Terminal {
     screen_width: usize,
 }
 
+fn whitespaces(n: usize) -> String {
+    " ".repeat(n)
+}
+
+fn num_of_digits(mut n: usize) -> usize {
+    match n {
+        0..=9 => 1,
+        10..=99 => 2,
+        100..=999 => 3,
+        1000..=9999 => 4,
+        10000..=99999 => 5,
+        _ => {
+            let mut num = 1;
+            loop {
+                n /= 10;
+                if n == 0 {
+                    break;
+                }
+                num += 1;
+            }
+            num
+        }
+    }
+}
+
 impl Terminal {
     pub fn new(event_queue: EventQueue) -> Terminal {
         let (cols, rows) = size().expect("failed to get the terminal size");
@@ -126,15 +151,31 @@ impl Terminal {
             return;
         }
 
-        let text_max_height = self.screen_height;
-        let text_max_width = self.screen_width;
-        let top_left = ctx.buffer.top_left();
-        for line_index in top_left.y..min(top_left.y + text_max_height, ctx.buffer.num_lines()) {
-            let line = ctx.buffer.line(line_index);
-        }
-
         // Hide the cursor to prevent flickering.
         queue!(stdout, cursor::Hide).ok();
+
+        let lineno_width = num_of_digits(ctx.buffer.num_lines()) + 1;
+        let text_max_height = self.screen_height;
+        let text_max_width = self.screen_width - lineno_width;
+        let top_left = ctx.buffer.top_left();
+        for line_index in top_left.y..min(top_left.y + text_max_height, ctx.buffer.num_lines()) {
+            queue!(stdout, cursor::MoveTo(0, line_index as u16)).ok();
+
+            let lineno = line_index + 1;
+            queue!(
+                stdout,
+                Print(whitespaces(lineno_width - num_of_digits(lineno) - 1)),
+                Print(lineno),
+                Print('\u{2502}' /* "Box Drawing Light Veritical" */),
+                SetAttribute(Attribute::Reset),
+            )
+            .ok();
+
+            let line = ctx.buffer.line(line_index);
+            for chunk in line.chunks() {
+                queue!(stdout, Print(chunk)).ok();
+            }
+        }
 
         stdout.flush().ok();
     }
