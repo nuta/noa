@@ -132,6 +132,12 @@ impl fmt::Display for Range {
     }
 }
 
+impl PartialOrd for Range {
+    fn partial_cmp(&self, other: &Range) -> Option<Ordering> {
+        self.front().partial_cmp(other.front())
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Cursor {
     Normal { pos: Point },
