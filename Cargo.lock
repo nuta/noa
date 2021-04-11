@@ -329,6 +329,7 @@ dependencies = [
  "ropey",
  "simplelog",
  "structopt",
+ "unicode-width",
 ]
 
 [[package]]

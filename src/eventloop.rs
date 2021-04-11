@@ -65,7 +65,9 @@ impl EventLoop {
     pub fn new(workspace_dir: PathBuf) -> EventLoop {
         let (tx, event_queue) = mpsc::channel();
 
-        let scratch_buffer = Arc::new(RwLock::new(Buffer::from_str(SCRATCH_TEXT)));
+        let mut scratch = Buffer::from_str(SCRATCH_TEXT);
+        scratch.set_name("*scratch*");
+        let scratch_buffer = Arc::new(RwLock::new(scratch));
         let buffers = vec![scratch_buffer.clone()];
 
         EventLoop {

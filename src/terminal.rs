@@ -5,7 +5,9 @@ use std::{io::stdout, time::Duration};
 use crossterm::cursor::{self, MoveTo};
 use crossterm::event::{self, Event as TermEvent};
 pub use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use crossterm::style::{Attribute, Print, SetAttribute};
+use crossterm::style::{
+    Attribute, Color, Print, SetAttribute, SetBackgroundColor, SetForegroundColor,
+};
 use crossterm::terminal::*;
 use crossterm::terminal::{Clear, ClearType};
 use crossterm::{execute, queue};
@@ -28,23 +30,40 @@ fn whitespaces(n: usize) -> String {
     " ".repeat(n)
 }
 
-fn num_of_digits(mut n: usize) -> usize {
-    match n {
-        0..=9 => 1,
-        10..=99 => 2,
-        100..=999 => 3,
-        1000..=9999 => 4,
-        10000..=99999 => 5,
-        _ => {
-            let mut num = 1;
-            loop {
-                n /= 10;
-                if n == 0 {
-                    break;
+pub fn truncate(s: &str, width: usize) -> &str {
+    &s[..min(s.chars().count(), width)]
+}
+
+pub trait DisplayWidth {
+    fn display_width(&self) -> usize;
+}
+
+impl DisplayWidth for str {
+    fn display_width(&self) -> usize {
+        unicode_width::UnicodeWidthStr::width_cjk(self)
+    }
+}
+
+impl DisplayWidth for usize {
+    fn display_width(&self) -> usize {
+        let mut n = *self;
+        match n {
+            0..=9 => 1,
+            10..=99 => 2,
+            100..=999 => 3,
+            1000..=9999 => 4,
+            10000..=99999 => 5,
+            _ => {
+                let mut num = 1;
+                loop {
+                    n /= 10;
+                    if n == 0 {
+                        break;
+                    }
+                    num += 1;
                 }
-                num += 1;
+                num
             }
-            num
         }
     }
 }
@@ -154,8 +173,8 @@ impl Terminal {
         // Hide the cursor to prevent flickering.
         queue!(stdout, cursor::Hide).ok();
 
-        let lineno_width = num_of_digits(ctx.buffer.num_lines()) + 1;
-        let text_max_height = self.screen_height;
+        let lineno_width = ctx.buffer.num_lines().display_width() + 1;
+        let text_max_height = self.screen_height - 1;
         let text_max_width = self.screen_width - lineno_width;
         let top_left = ctx.buffer.top_left();
         for line_index in top_left.y..min(top_left.y + text_max_height, ctx.buffer.num_lines()) {
@@ -164,7 +183,7 @@ impl Terminal {
             let lineno = line_index + 1;
             queue!(
                 stdout,
-                Print(whitespaces(lineno_width - num_of_digits(lineno) - 1)),
+                Print(whitespaces(lineno_width - lineno.display_width() - 1)),
                 Print(lineno),
                 Print('\u{2502}' /* "Box Drawing Light Veritical" */),
                 SetAttribute(Attribute::Reset),
@@ -176,6 +195,27 @@ impl Terminal {
                 queue!(stdout, Print(chunk)).ok();
             }
         }
+
+        let main_cursor = ctx.buffer.main_cursor_pos();
+        let column = main_cursor.x + 1;
+        let buffer_name = truncate(ctx.buffer.name(), self.screen_width.saturating_sub(16));
+        let status_line_width = buffer_name.display_width() + 1 + column.display_width();
+        queue!(
+            stdout,
+            MoveTo(
+                (self.screen_width - status_line_width) as u16,
+                text_max_height as u16
+            ),
+            SetForegroundColor(if ctx.buffer.is_dirty() {
+                Color::Yellow
+            } else {
+                Color::Reset
+            }),
+            Print(buffer_name),
+            Print(' '),
+            Print(column),
+        )
+        .ok();
 
         stdout.flush().ok();
     }
