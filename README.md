@@ -11,15 +11,19 @@ $ cargo install noa
 
 ## Features
 - [x] Multi cursors support
+- [ ] Soft wrapping
+- [ ] Syntax highlighting
 - [ ] Finder
 - [ ] Command Bar
 - [ ] Find a string
+- [ ] Multi process syncing
 - [ ] LSP support
 - [ ] Jump List
-- [ ] Click a path in the terminal to open the file (iTerm2)
+- [ ] Git Line statuses
+- [ ] Mouse cursor
 - [ ] Clipboard
-- [ ] Multi process syncing
 - [ ] Tmux integration
+- [ ] Click a path in the terminal to open the file (iTerm2)
 
 ## Key Bindings
 
