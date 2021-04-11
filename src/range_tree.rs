@@ -1,4 +1,5 @@
 use std::cmp::min;
+use std::ops;
 use std::slice;
 
 use crate::rope::Range;
@@ -25,7 +26,7 @@ impl<V> RangeTree<V> {
     where
         F: Fn(&mut V, &V),
     {
-        let mut overlapping_nodes = self.iter_overlapping(range).peekable();
+        let mut overlapping_nodes = self.iter_overlapping_mut(range).peekable();
         if overlapping_nodes.peek().is_none() {
             // No nodes in the range.
             let pos = self
@@ -41,6 +42,9 @@ impl<V> RangeTree<V> {
             );
         } else {
             // Needs to overwrite or split the existing nodes.
+            while let Some(node) = overlapping_nodes.next() {
+                // node.range
+            }
         }
     }
 
@@ -51,13 +55,24 @@ impl<V> RangeTree<V> {
 
     // Returns the iterator of nodes overlapping nodes. `O(log n)`.
     pub fn iter_overlapping(&self, range: &Range) -> slice::Iter<'_, Node<V>> {
+        self.nodes[self.overlapping_slice_range(range)].iter()
+    }
+
+    // Returns the iterator of nodes overlapping nodes. `O(log n)`.
+    pub fn iter_overlapping_mut(&mut self, range: &Range) -> slice::IterMut<'_, Node<V>> {
+        let slice_range = self.overlapping_slice_range(range);
+        self.nodes[slice_range].iter_mut()
+    }
+
+    #[inline]
+    fn overlapping_slice_range(&self, range: &Range) -> ops::Range<usize> {
         let first = self
             .nodes
             .partition_point(|node| node.range < *range && !node.range.overlaps_with(range));
         let search_from = min(first, self.nodes.len());
         let end = search_from
             + self.nodes[search_from..].partition_point(|node| node.range.overlaps_with(range));
-        self.nodes[first..end].iter()
+        first..end
     }
 }
 
