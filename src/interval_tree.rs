@@ -3,7 +3,6 @@ use std::ops;
 use std::slice;
 
 pub trait Interval: Ord + Clone {
-    fn is_empty(&self) -> bool;
     fn includes(&self, other: &Self) -> bool;
     fn overlaps_with(&self, other: &Self) -> bool;
     /// ```text
@@ -13,6 +12,12 @@ pub trait Interval: Ord + Clone {
     //  xor_first: xxx........   <- What this method returns.
     /// ```
     fn xor_first(&self, other: &Self) -> Self;
+    /// ```text
+    /// self:      ...xxxxx...
+    //  other:     xxxxx......
+    //  and:       .....xxx...   <- What this method returns.
+    /// ```
+    fn sub(&self, other: &Self) -> Self;
     /// ```text
     /// self:      ...xxxxx...
     //  other:     xxxxx......
@@ -40,14 +45,12 @@ pub struct IntervalTree<I: Interval, V: PartialEq + Clone> {
     nodes: Vec<Node<I, V>>,
 }
 
-impl<I: Interval, V: PartialEq + Clone> IntervalTree<I, V> {
+impl<I: Interval + std::fmt::Debug, V: PartialEq + Clone> IntervalTree<I, V> {
     pub fn new() -> IntervalTree<I, V> {
         IntervalTree { nodes: Vec::new() }
     }
 
-    /// Updates or inserts `value` with the `range`. `O(max(log n + m, l))`
-    /// where `m` is overlapping exisiting nodes and `l` is the number of nodes
-    /// after `range`.
+    /// Updates or inserts `value` with the `range`.
     ///
     /// ```text
     /// prev:  ...111..22222..          
@@ -94,8 +97,11 @@ impl<I: Interval, V: PartialEq + Clone> IntervalTree<I, V> {
             let pos = self.nodes.partition_point(|node| {
                 node.interval < interval && !node.interval.overlaps_with(&interval)
             });
+            dbg!(pos, &interval);
             self.nodes.insert(pos, Node { interval, value });
         }
+
+        /*
 
         // Merge adjacent nodes with the same value.
         let new_overlapping_nodes = self.overlapping_slice_range(interval);
@@ -126,6 +132,7 @@ impl<I: Interval, V: PartialEq + Clone> IntervalTree<I, V> {
         for i in removed.iter().rev() {
             self.nodes.remove(*i);
         }
+        */
     }
 
     /// Removes overlapping nodes. `O(n)`.
@@ -164,13 +171,13 @@ mod test {
     use super::*;
     use crate::rope::{Point, Range};
 
+    /*
     #[test]
     fn insert_nodes_without_overlapping() {
         //  012345678901234567
         //  pub const fn hello
         let mut tree = IntervalTree::new();
         let update_existing = |old: &mut String, new: &String| {};
-        let next_pos = |pos: &Point| Point::new(pos.y, pos.x + 1);
         tree.update(&Range::new(0, 10, 0, 11), "fn".to_owned(), update_existing);
         tree.update(&Range::new(0, 4, 0, 8), "const".to_owned(), update_existing);
         tree.update(&Range::new(0, 0, 0, 2), "pub".to_owned(), update_existing);
@@ -197,5 +204,62 @@ mod test {
                 .collect::<Vec<String>>(),
             vec!["const", "fn"],
         );
+    }
+    */
+
+    #[test]
+    fn update_existing_nodes() {
+        /*
+        let mut tree = IntervalTree::new();
+        let update_existing = |old: &mut i32, new: &i32| {
+            *old |= *new;
+        };
+        tree.update(&Range::new(0, 10, 0, 12), 0b01, update_existing);
+        tree.update(&Range::new(0, 15, 0, 16), 0b01, update_existing);
+        tree.update(&Range::new(0, 11, 0, 17), 0b10, update_existing);
+
+        assert_eq!(
+            tree.iter(&Range::new(0, 10, 0, 17))
+                .map(|node| (node.value, node.interval.clone()))
+                .collect::<Vec<(i32, Range)>>(),
+            vec![
+                (
+                    0b01,
+                    Range {
+                        start: Point::new(0, 10),
+                        end: Point::new(0, 10),
+                    }
+                ),
+                (
+                    0b11,
+                    Range {
+                        start: Point::new(0, 11),
+                        end: Point::new(0, 12),
+                    }
+                ),
+                (
+                    0b10,
+                    Range {
+                        start: Point::new(0, 13),
+                        end: Point::new(0, 14),
+                    }
+                ),
+                (
+                    0b11,
+                    Range {
+                        start: Point::new(0, 15),
+                        end: Point::new(0, 16),
+                    }
+                ),
+                (
+                    0b10,
+                    Range {
+                        start: Point::new(0, 17),
+                        end: Point::new(0, 17),
+                    }
+                ),
+            ],
+        );
+        */
     }
 }

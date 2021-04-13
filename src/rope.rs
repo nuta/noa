@@ -76,13 +76,7 @@ impl Ord for Point {
             match a.y.cmp(&b.y) {
                 Ordering::Less => Ordering::Less,
                 Ordering::Greater => Ordering::Greater,
-                Ordering::Equal => {
-                    if a.x < b.x {
-                        Ordering::Less
-                    } else {
-                        Ordering::Greater
-                    }
-                }
+                Ordering::Equal => a.x.cmp(&b.x),
             }
         }
     }
@@ -129,13 +123,6 @@ impl Range {
     pub fn contains(&self, pos: &Point) -> bool {
         self.start <= *pos && *pos <= self.end
     }
-
-    pub fn canonicalize(&self) -> Range {
-        Range {
-            start: *self.front(),
-            end: *self.back(),
-        }
-    }
 }
 
 impl fmt::Display for Range {
@@ -157,10 +144,6 @@ impl Ord for Range {
 }
 
 impl Interval for Range {
-    fn is_empty(&self) -> bool {
-        self.front() == self.back()
-    }
-
     fn includes(&self, other: &Range) -> bool {
         self.front() <= other.front() && other.back() <= self.back()
     }
