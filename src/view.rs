@@ -118,9 +118,8 @@ impl View {
             .ok()
     }
 
-    pub fn layout(&mut self, buffer: &Buffer, y_from: usize, width: usize, height: usize) {
-        self.lines.truncate(y_from);
-        for text_y in y_from..buffer.num_lines() {
+    pub fn layout(&mut self, buffer: &Buffer, width: usize, height: usize) {
+        for text_y in 0..buffer.num_lines() {
             let mut line_rope = buffer.line(text_y);
             let mut spans = Vec::new();
             let mut width_remaining = width;
@@ -196,7 +195,7 @@ mod test {
     fn layout_without_softwrap() {
         let mut view = View::new();
         let buffer = Buffer::from_str("123\nabc\n\nxyz");
-        view.layout(&buffer, 0, 5, 3);
+        view.layout(&buffer, 5, 3);
         assert_eq!(view.lines.len(), 4);
         assert_eq!(view.lines[0].range, Range::new(0, 0, 0, 3));
         assert_eq!(view.lines[1].range, Range::new(1, 0, 1, 3));
@@ -205,10 +204,22 @@ mod test {
     }
 
     #[test]
+    fn layout_newlines() {
+        let mut view = View::new();
+        let buffer = Buffer::from_str("\n\n\n");
+        view.layout(&buffer, 5, 3);
+        assert_eq!(view.lines.len(), 4);
+        assert_eq!(view.lines[0].range, Range::new(0, 0, 0, 0));
+        assert_eq!(view.lines[1].range, Range::new(1, 0, 1, 0));
+        assert_eq!(view.lines[2].range, Range::new(2, 0, 2, 0));
+        assert_eq!(view.lines[3].range, Range::new(3, 0, 3, 0));
+    }
+
+    #[test]
     fn layout_with_softwrap1() {
         let mut view = View::new();
         let buffer = Buffer::from_str("12345abc\nxyz");
-        view.layout(&buffer, 0, 5, 3);
+        view.layout(&buffer, 5, 3);
         assert_eq!(view.lines.len(), 3);
         assert_eq!(view.lines[0].range, Range::new(0, 0, 0, 5));
         assert_eq!(view.lines[1].range, Range::new(0, 5, 0, 8));
@@ -219,7 +230,7 @@ mod test {
     fn layout_with_softwrap2() {
         let mut view = View::new();
         let buffer = Buffer::from_str("12345abcde!@#$%\nxyz");
-        view.layout(&buffer, 0, 5, 3);
+        view.layout(&buffer, 5, 3);
         assert_eq!(view.lines.len(), 4);
         assert_eq!(view.lines[0].range, Range::new(0, 0, 0, 5));
         assert_eq!(view.lines[1].range, Range::new(0, 5, 0, 10));
