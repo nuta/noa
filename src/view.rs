@@ -126,48 +126,104 @@ impl View {
             let mut width_remaining = width;
             let mut text_x = 0;
             let mut front = Point::new(text_y, text_x);
-            for mut chunk in line_rope.chunks() {
-                let chunk_width = chunk.display_width();
-                if chunk_width <= width_remaining {
-                    spans.push(Span::Text {
-                        char_range: text_x..(text_x + chunk_width),
-                    });
-                    text_x += chunk_width;
-                    width_remaining -= chunk_width;
-                } else {
-                    // Needs a soft wrap.
-                    while !chunk.is_empty() {
-                        let mut wrap_at = 0;
-                        for ch in chunk.chars() {
-                            if ch.display_width() > width_remaining {
-                                break;
+
+            if line_rope.len_chars() == 0 {
+                self.lines.push(DisplayLine {
+                    spans: vec![],
+                    range: Range::from_points(Point::new(text_y, 0), Point::new(text_y, 0)),
+                });
+            } else {
+                for mut chunk in line_rope.chunks() {
+                    let chunk_width = chunk.display_width();
+                    if chunk_width <= width_remaining {
+                        spans.push(Span::Text {
+                            char_range: text_x..(text_x + chunk_width),
+                        });
+                        text_x += chunk_width;
+                        width_remaining -= chunk_width;
+                    } else {
+                        // Needs a soft wrap.
+                        let mut i = 0;
+                        while !chunk.is_empty() {
+                            let mut wrap_byte_at = 0;
+                            let mut wrap_char_at = 0;
+                            for (i, ch) in chunk.char_indices() {
+                                if ch.display_width() > width_remaining {
+                                    break;
+                                }
+
+                                wrap_byte_at = i + ch.len_utf8();
+                                wrap_char_at += 1;
+                                width_remaining -= ch.display_width();
                             }
 
-                            wrap_at += 1;
+                            dbg!(&chunk[..wrap_byte_at]);
+                            spans.push(Span::Text {
+                                char_range: text_x..(text_x + wrap_byte_at),
+                            });
+
+                            text_x += wrap_char_at;
+                            self.lines.push(DisplayLine {
+                                spans,
+                                range: Range::from_points(front, Point::new(text_y, text_x)),
+                            });
+
+                            spans = Vec::new();
+                            chunk = &chunk[wrap_byte_at..];
+                            front = Point::new(text_y, text_x);
+                            width_remaining = width;
                         }
-
-                        spans.push(Span::Text {
-                            char_range: text_x..(text_x + wrap_at),
-                        });
-
-                        self.lines.push(DisplayLine {
-                            spans,
-                            range: Range::from_points(front, Point::new(text_y, text_x)),
-                        });
-
-                        spans = Vec::new();
-                        chunk = &chunk[text_x + wrap_at..];
-                        text_x += wrap_at;
-                        front = Point::new(text_y, text_x);
-                        width_remaining = width;
                     }
                 }
-            }
 
-            self.lines.push(DisplayLine {
-                spans,
-                range: Range::from_points(front, Point::new(text_y, text_x)),
-            });
+                if front.x != text_x {
+                    dbg!(&line_rope.as_str().unwrap()[front.x..text_x], &text_x);
+                    self.lines.push(DisplayLine {
+                        spans,
+                        range: Range::from_points(front, Point::new(text_y, text_x)),
+                    });
+                }
+            }
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn layout_without_softwrap() {
+        let mut view = View::new();
+        let buffer = Buffer::from_str("123\nabc\n\nxyz");
+        view.layout(&buffer, 0, 5, 3);
+        assert_eq!(view.lines.len(), 4);
+        assert_eq!(view.lines[0].range, Range::new(0, 0, 0, 3));
+        assert_eq!(view.lines[1].range, Range::new(1, 0, 1, 3));
+        assert_eq!(view.lines[2].range, Range::new(2, 0, 2, 0));
+        assert_eq!(view.lines[3].range, Range::new(3, 0, 3, 3));
+    }
+
+    #[test]
+    fn layout_with_softwrap1() {
+        let mut view = View::new();
+        let buffer = Buffer::from_str("12345abc\nxyz");
+        view.layout(&buffer, 0, 5, 3);
+        assert_eq!(view.lines.len(), 3);
+        assert_eq!(view.lines[0].range, Range::new(0, 0, 0, 4));
+        assert_eq!(view.lines[1].range, Range::new(0, 5, 0, 7));
+        assert_eq!(view.lines[2].range, Range::new(0, 8, 0, 10));
+    }
+
+    #[test]
+    fn layout_with_softwrap2() {
+        let mut view = View::new();
+        let buffer = Buffer::from_str("12345abcde!@#$%\nxyz");
+        view.layout(&buffer, 0, 5, 3);
+        assert_eq!(view.lines.len(), 4);
+        assert_eq!(view.lines[0].range, Range::new(0, 0, 0, 4));
+        assert_eq!(view.lines[1].range, Range::new(0, 5, 0, 9));
+        assert_eq!(view.lines[2].range, Range::new(0, 10, 0, 14));
+        assert_eq!(view.lines[3].range, Range::new(1, 0, 0, 3));
     }
 }

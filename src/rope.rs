@@ -88,8 +88,7 @@ impl PartialOrd for Point {
     }
 }
 
-/// A text (inclusive) range. Note that `start > end` is valid: use `front()` and
-/// `back()`.
+/// A text range where `front < back` and `[front, end)`.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Range {
     pub start: Point,
@@ -121,7 +120,7 @@ impl Range {
     }
 
     pub fn contains(&self, pos: &Point) -> bool {
-        self.start <= *pos && *pos <= self.end
+        self.start <= *pos && *pos < self.end
     }
 }
 
