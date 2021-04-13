@@ -210,9 +210,9 @@ mod test {
         let buffer = Buffer::from_str("12345abc\nxyz");
         view.layout(&buffer, 0, 5, 3);
         assert_eq!(view.lines.len(), 3);
-        assert_eq!(view.lines[0].range, Range::new(0, 0, 0, 4));
-        assert_eq!(view.lines[1].range, Range::new(0, 5, 0, 7));
-        assert_eq!(view.lines[2].range, Range::new(0, 8, 0, 10));
+        assert_eq!(view.lines[0].range, Range::new(0, 0, 0, 5));
+        assert_eq!(view.lines[1].range, Range::new(0, 5, 0, 8));
+        assert_eq!(view.lines[2].range, Range::new(1, 0, 1, 3));
     }
 
     #[test]
@@ -221,9 +221,9 @@ mod test {
         let buffer = Buffer::from_str("12345abcde!@#$%\nxyz");
         view.layout(&buffer, 0, 5, 3);
         assert_eq!(view.lines.len(), 4);
-        assert_eq!(view.lines[0].range, Range::new(0, 0, 0, 4));
-        assert_eq!(view.lines[1].range, Range::new(0, 5, 0, 9));
-        assert_eq!(view.lines[2].range, Range::new(0, 10, 0, 14));
-        assert_eq!(view.lines[3].range, Range::new(1, 0, 0, 3));
+        assert_eq!(view.lines[0].range, Range::new(0, 0, 0, 5));
+        assert_eq!(view.lines[1].range, Range::new(0, 5, 0, 10));
+        assert_eq!(view.lines[2].range, Range::new(0, 10, 0, 15));
+        assert_eq!(view.lines[3].range, Range::new(1, 0, 1, 3));
     }
 }
