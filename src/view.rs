@@ -38,48 +38,50 @@ impl View {
         }
     }
 
-    pub fn compute_new_cursor_pos(&mut self, pos: &Point, y_diff: isize, x_diff: isize) -> Point {
+    pub fn move_cursor_vertically(&mut self, pos: &Point, y_diff: isize) -> Point {
         let prev_y = self.point_to_display_line(pos).unwrap();
         let prev_line = &self.lines[prev_y];
 
-        let (current_line, mut new_pos) = if y_diff.abs() > 0 {
-            let new_y = if y_diff < 0 {
-                prev_y.saturating_sub(y_diff.abs() as usize)
-            } else {
-                prev_y + y_diff.abs() as usize
-            };
-
-            let &new_line = &self
-                .lines
-                .get(new_y)
-                .unwrap_or_else(|| &self.lines[self.lines.len() - 1]);
-
-            let char_x = pos.x - prev_line.range.front().x;
-
-            (
-                new_line,
-                Point::new(
-                    new_line.range.front().y,
-                    min(new_line.range.front().x + char_x, new_line.range.back().x),
-                ),
-            )
+        let new_y = if y_diff < 0 {
+            prev_y.saturating_sub(y_diff.abs() as usize)
         } else {
-            (prev_line, *pos)
+            prev_y + y_diff.abs() as usize
         };
 
-        if x_diff.abs() > 0 {
+        let &new_line = &self
+            .lines
+            .get(new_y)
+            .unwrap_or_else(|| &self.lines[self.lines.len() - 1]);
+
+        let char_x = pos.x - prev_line.range.front().x;
+
+        Point::new(
+            new_line.range.front().y,
+            min(new_line.range.front().x + char_x, new_line.range.back().x),
+        )
+    }
+
+    pub fn move_cursor_horizontally(&mut self, pos: &Point, x_diff: isize) -> Point {
+        let current_y = self.point_to_display_line(pos).unwrap();
+        let current_line = &self.lines[current_y];
+        let mut new_pos = *pos;
+        let new_x = pos.x + x_diff.abs() as usize;
+
+        if x_diff > 0 {
             assert!(x_diff == 1);
-            let new_x = new_pos.x + x_diff.abs() as usize;
-            if x_diff > 0 {
-                if new_x <= current_line.range.back().x {
-                    new_pos.x = new_x;
-                } else {
-                    new_pos.y += 1;
-                    new_pos.x = 0;
-                }
+            if new_x < current_line.range.back().x {
+                new_pos.x = new_x;
             } else {
-                new_pos.y = new_pos.y.saturating_sub(1);
-                new_pos.x = self.lines[new_pos.y].range.back().x;
+                if let Some(next_line) = self.lines.get(current_y + 1) {
+                    new_pos = *next_line.range.front();
+                }
+            }
+        } else {
+            assert!(x_diff == -1);
+            if current_y > 0 {
+                if let Some(prev_line) = self.lines.get(current_y - 1) {
+                    new_pos = *prev_line.range.back();
+                }
             }
         }
 
@@ -255,52 +257,76 @@ mod test {
         view.layout(&buffer, 5, 3);
         assert_eq!(
             // 1|2345
-            view.compute_new_cursor_pos(&Point::new(0, 1), 1, 0),
+            view.move_cursor_horizontally(&Point::new(0, 1), 1),
+            // 12|345
+            Point::new(0, 2)
+        );
+        assert_eq!(
+            // 1234|5
+            view.move_cursor_horizontally(&Point::new(0, 4), 1),
+            // both 12345| and |abcde
+            Point::new(0, 5)
+        );
+        assert_eq!(
+            // both 12345| and |abcde
+            view.move_cursor_horizontally(&Point::new(0, 5), 1),
+            // a|bcde
+            Point::new(0, 6)
+        );
+
+        assert_eq!(
+            // !@#|
+            view.move_cursor_horizontally(&Point::new(0, 13), 1),
+            // |xyz
+            Point::new(1, 0)
+        );
+    }
+
+    #[test]
+    fn move_cursor_vertically() {
+        // 12345
+        // abcde
+        // !@#
+        // xyz
+        let mut view = View::new();
+        let buffer = Buffer::from_str("12345abcde!@#$\nxyz");
+        view.layout(&buffer, 5, 3);
+        assert_eq!(
+            // 1|2345
+            view.move_cursor_vertically(&Point::new(0, 1), 1),
             // a|bcde
             Point::new(0, 6)
         );
         assert_eq!(
             // a|bcde
-            view.compute_new_cursor_pos(&Point::new(0, 6), 1, 0),
+            view.move_cursor_vertically(&Point::new(0, 6), 1),
             // !|@#
             Point::new(0, 11)
         );
         assert_eq!(
             // !|@#
-            view.compute_new_cursor_pos(&Point::new(0, 11), 1, 0),
+            view.move_cursor_vertically(&Point::new(0, 11), 1),
             // x|yz
             Point::new(1, 1)
         );
 
         assert_eq!(
             // x|yz
-            view.compute_new_cursor_pos(&Point::new(1, 1), -1, 0),
+            view.move_cursor_vertically(&Point::new(1, 1), -1),
             // !|@#
             Point::new(0, 11)
         );
         assert_eq!(
             // !|@#
-            view.compute_new_cursor_pos(&Point::new(0, 11), -1, 0),
+            view.move_cursor_vertically(&Point::new(0, 11), -1),
             // a|bcde
             Point::new(0, 6)
         );
         assert_eq!(
             // !|@#
-            view.compute_new_cursor_pos(&Point::new(0, 6), -1, 0),
+            view.move_cursor_vertically(&Point::new(0, 6), -1),
             // a|bcde
             Point::new(0, 1)
         );
-    }
-
-    #[test]
-    fn move_cursor_vertically() {
-        // let mut view = View::new();
-        // let buffer = Buffer::from_str("12345abcde!@#$%\nxyz");
-        // view.layout(&buffer, 5, 3);
-        // assert_eq!(view.lines.len(), 4);
-        // assert_eq!(view.lines[0].range, Range::new(0, 0, 0, 5));
-        // assert_eq!(view.lines[1].range, Range::new(0, 5, 0, 10));
-        // assert_eq!(view.lines[2].range, Range::new(0, 10, 0, 15));
-        // assert_eq!(view.lines[3].range, Range::new(1, 0, 1, 3));
     }
 }
