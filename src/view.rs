@@ -65,10 +65,10 @@ impl View {
         let current_y = self.point_to_display_line(pos).unwrap();
         let current_line = &self.lines[current_y];
         let mut new_pos = *pos;
-        let new_x = pos.x + x_diff.abs() as usize;
 
         if x_diff > 0 {
             assert!(x_diff == 1);
+            let new_x = pos.x + 1;
             if new_x < current_line.range.back().x {
                 new_pos.x = new_x;
             } else {
@@ -78,9 +78,13 @@ impl View {
             }
         } else {
             assert!(x_diff == -1);
-            if current_y > 0 {
-                if let Some(prev_line) = self.lines.get(current_y - 1) {
-                    new_pos = *prev_line.range.back();
+            if pos.x > 0 && pos.x - 1 >= current_line.range.front().x {
+                new_pos.x = pos.x - 1;
+            } else {
+                if current_y > 0 {
+                    if let Some(prev_line) = self.lines.get(current_y - 1) {
+                        new_pos = *prev_line.range.back();
+                    }
                 }
             }
         }
@@ -102,7 +106,7 @@ impl View {
     fn point_to_display_line(&self, pos: &Point) -> Option<usize> {
         self.lines
             .binary_search_by(|line| {
-                if line.range.contains(pos) {
+                if line.range.contains(pos) || line.range.back() == pos {
                     cmp::Ordering::Equal
                 } else if pos < line.range.front() {
                     cmp::Ordering::Greater
@@ -241,9 +245,11 @@ mod test {
         assert_eq!(view.point_to_display_line(&Point::new(0, 0)), Some(0));
         assert_eq!(view.point_to_display_line(&Point::new(0, 5)), Some(1));
         assert_eq!(view.point_to_display_line(&Point::new(0, 14)), Some(2));
+        assert_eq!(view.point_to_display_line(&Point::new(0, 15)), Some(2));
+        assert_eq!(view.point_to_display_line(&Point::new(1, 16)), None);
         assert_eq!(view.point_to_display_line(&Point::new(1, 2)), Some(3));
-        assert_eq!(view.point_to_display_line(&Point::new(0, 16)), None);
-        assert_eq!(view.point_to_display_line(&Point::new(1, 3)), None);
+        assert_eq!(view.point_to_display_line(&Point::new(1, 3)), Some(3));
+        assert_eq!(view.point_to_display_line(&Point::new(1, 4)), None);
     }
 
     #[test]
@@ -253,7 +259,7 @@ mod test {
         // !@#
         // xyz
         let mut view = View::new();
-        let buffer = Buffer::from_str("12345abcde!@#$\nxyz");
+        let buffer = Buffer::from_str("12345abcde!@#\nxyz");
         view.layout(&buffer, 5, 3);
         assert_eq!(
             // 1|2345
@@ -273,12 +279,37 @@ mod test {
             // a|bcde
             Point::new(0, 6)
         );
-
         assert_eq!(
             // !@#|
             view.move_cursor_horizontally(&Point::new(0, 13), 1),
             // |xyz
             Point::new(1, 0)
+        );
+
+        assert_eq!(
+            // 12|345
+            view.move_cursor_horizontally(&Point::new(0, 2), -1),
+            // 1|2345
+            Point::new(0, 1)
+        );
+        assert_eq!(
+            // |xyz
+            view.move_cursor_horizontally(&Point::new(1, 0), -1),
+            // !@#|
+            Point::new(0, 13)
+        );
+
+        assert_eq!(
+            // |12345
+            view.move_cursor_horizontally(&Point::new(0, 0), -1),
+            // |12345
+            Point::new(0, 0)
+        );
+        assert_eq!(
+            // xyz|
+            view.move_cursor_horizontally(&Point::new(1, 3), 1),
+            // xyz|
+            Point::new(1, 3)
         );
     }
 
@@ -327,6 +358,19 @@ mod test {
             view.move_cursor_vertically(&Point::new(0, 6), -1),
             // a|bcde
             Point::new(0, 1)
+        );
+
+        assert_eq!(
+            // 1|2345
+            view.move_cursor_vertically(&Point::new(0, 1), -1),
+            // 1|2345
+            Point::new(0, 1)
+        );
+        assert_eq!(
+            // x|yz
+            view.move_cursor_vertically(&Point::new(1, 1), 1),
+            // x|yz
+            Point::new(1, 1)
         );
     }
 }
