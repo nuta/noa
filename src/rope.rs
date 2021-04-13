@@ -1,12 +1,15 @@
+use crate::interval_tree::Interval;
 use std::cmp::Ordering;
 use std::cmp::{max, min};
 use std::fmt;
 use std::fs::OpenOptions;
 use std::path::Path;
 
+/// The position in the text buffer (0-origin).
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Point {
     pub y: usize,
+    /// If it's `std::usize::MAX`, it points to the end of a line.
     pub x: usize,
 }
 
@@ -91,7 +94,8 @@ impl PartialOrd for Point {
     }
 }
 
-/// A text (inclusive) range.
+/// A text (inclusive) range. Note that `start > end` is valid: use `front()` and
+/// `back()`.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Range {
     pub start: Point,
@@ -143,6 +147,72 @@ impl fmt::Display for Range {
 impl PartialOrd for Range {
     fn partial_cmp(&self, other: &Range) -> Option<Ordering> {
         self.front().partial_cmp(other.front())
+    }
+}
+
+impl Ord for Range {
+    fn cmp(&self, other: &Range) -> Ordering {
+        self.front().cmp(other.front())
+    }
+}
+
+impl Interval for Range {
+    fn is_empty(&self) -> bool {
+        self.front() == self.back()
+    }
+
+    fn includes(&self, other: &Range) -> bool {
+        self.front() <= other.front() && other.back() <= self.back()
+    }
+
+    fn overlaps_with(&self, other: &Range) -> bool {
+        !(self.end.y < other.start.y
+            || self.start.y > other.end.y
+            || (self.end.y == other.start.y && self.end.x < other.start.x)
+            || (self.start.y == other.end.y && self.start.x > other.end.x))
+    }
+
+    fn xor_first(&self, other: &Range) -> Range {
+        let front = min(*self.front(), *other.front());
+        let back = max(*self.front(), *other.front());
+        if front == back {
+            Range::from_points(front, back)
+        } else if back.x > 0 {
+            Range::from_points(
+                front,
+                Point {
+                    x: back.x - 1,
+                    y: back.y,
+                },
+            )
+        } else {
+            assert!(back.y > 0);
+            Range::from_points(
+                front,
+                Point {
+                    x: std::usize::MAX,
+                    y: back.y - 1,
+                },
+            )
+        }
+    }
+
+    fn and(&self, other: &Range) -> Range {
+        Range::from_points(
+            max(*self.front(), *other.front()),
+            min(*self.back(), *other.back()),
+        )
+    }
+
+    fn merge_adjacent(&self, other: &Self) -> Option<Self> {
+        if min(*self.back(), *other.back()) == max(*self.front(), *other.front()) {
+            Some(Range::from_points(
+                min(*self.front(), *other.front()),
+                max(*self.back(), *other.back()),
+            ))
+        } else {
+            None
+        }
     }
 }
 
@@ -399,7 +469,13 @@ impl Rope {
     }
 
     fn index_in_rope(&self, pos: &Point) -> usize {
-        self.inner.line_to_char(pos.y) + pos.x
+        let x = if pos.x == std::usize::MAX {
+            self.line_len(pos.y)
+        } else {
+            pos.x
+        };
+
+        self.inner.line_to_char(pos.y) + x
     }
 }
 
