@@ -38,14 +38,7 @@ impl View {
         }
     }
 
-    pub fn compute_new_cursor_pos(
-        &mut self,
-        pos: &Point,
-        y_diff: isize,
-        x_diff: isize,
-        adjust_top_left: bool,
-        height: usize,
-    ) -> Point {
+    pub fn compute_new_cursor_pos(&mut self, pos: &Point, y_diff: isize, x_diff: isize) -> Point {
         let prev_y = self.point_to_display_line(pos).unwrap();
         let prev_line = &self.lines[prev_y];
 
@@ -61,7 +54,7 @@ impl View {
                 .get(new_y)
                 .unwrap_or_else(|| &self.lines[self.lines.len() - 1]);
 
-            let char_x = pos.x - prev_line.range.back().x;
+            let char_x = pos.x - prev_line.range.front().x;
 
             (
                 new_line,
@@ -90,18 +83,18 @@ impl View {
             }
         }
 
-        if adjust_top_left {
-            let index = self.point_to_display_line(pos).unwrap();
-            if index < self.top_left {
-                self.top_left = index;
-            }
+        new_pos
+    }
 
-            if index >= self.top_left + height {
-                self.top_left = index - height + 1;
-            }
+    pub fn adjust_top_left(&mut self, main_cursor_pos: &Point, height: usize) {
+        let index = self.point_to_display_line(main_cursor_pos).unwrap();
+        if index < self.top_left {
+            self.top_left = index;
         }
 
-        new_pos
+        if index >= self.top_left + height {
+            self.top_left = index - height + 1;
+        }
     }
 
     fn point_to_display_line(&self, pos: &Point) -> Option<usize> {
@@ -110,9 +103,9 @@ impl View {
                 if line.range.contains(pos) {
                     cmp::Ordering::Equal
                 } else if pos < line.range.front() {
-                    cmp::Ordering::Less
-                } else {
                     cmp::Ordering::Greater
+                } else {
+                    cmp::Ordering::Less
                 }
             })
             .ok()
@@ -236,5 +229,78 @@ mod test {
         assert_eq!(view.lines[1].range, Range::new(0, 5, 0, 10));
         assert_eq!(view.lines[2].range, Range::new(0, 10, 0, 15));
         assert_eq!(view.lines[3].range, Range::new(1, 0, 1, 3));
+    }
+
+    #[test]
+    fn point_to_display_line() {
+        let mut view = View::new();
+        let buffer = Buffer::from_str("12345abcde!@#$%\nxyz");
+        view.layout(&buffer, 5, 3);
+        assert_eq!(view.point_to_display_line(&Point::new(0, 0)), Some(0));
+        assert_eq!(view.point_to_display_line(&Point::new(0, 5)), Some(1));
+        assert_eq!(view.point_to_display_line(&Point::new(0, 14)), Some(2));
+        assert_eq!(view.point_to_display_line(&Point::new(1, 2)), Some(3));
+        assert_eq!(view.point_to_display_line(&Point::new(0, 16)), None);
+        assert_eq!(view.point_to_display_line(&Point::new(1, 3)), None);
+    }
+
+    #[test]
+    fn move_cursor_horizontally() {
+        // 12345
+        // abcde
+        // !@#
+        // xyz
+        let mut view = View::new();
+        let buffer = Buffer::from_str("12345abcde!@#$\nxyz");
+        view.layout(&buffer, 5, 3);
+        assert_eq!(
+            // 1|2345
+            view.compute_new_cursor_pos(&Point::new(0, 1), 1, 0),
+            // a|bcde
+            Point::new(0, 6)
+        );
+        assert_eq!(
+            // a|bcde
+            view.compute_new_cursor_pos(&Point::new(0, 6), 1, 0),
+            // !|@#
+            Point::new(0, 11)
+        );
+        assert_eq!(
+            // !|@#
+            view.compute_new_cursor_pos(&Point::new(0, 11), 1, 0),
+            // x|yz
+            Point::new(1, 1)
+        );
+
+        assert_eq!(
+            // x|yz
+            view.compute_new_cursor_pos(&Point::new(1, 1), -1, 0),
+            // !|@#
+            Point::new(0, 11)
+        );
+        assert_eq!(
+            // !|@#
+            view.compute_new_cursor_pos(&Point::new(0, 11), -1, 0),
+            // a|bcde
+            Point::new(0, 6)
+        );
+        assert_eq!(
+            // !|@#
+            view.compute_new_cursor_pos(&Point::new(0, 6), -1, 0),
+            // a|bcde
+            Point::new(0, 1)
+        );
+    }
+
+    #[test]
+    fn move_cursor_vertically() {
+        // let mut view = View::new();
+        // let buffer = Buffer::from_str("12345abcde!@#$%\nxyz");
+        // view.layout(&buffer, 5, 3);
+        // assert_eq!(view.lines.len(), 4);
+        // assert_eq!(view.lines[0].range, Range::new(0, 0, 0, 5));
+        // assert_eq!(view.lines[1].range, Range::new(0, 5, 0, 10));
+        // assert_eq!(view.lines[2].range, Range::new(0, 10, 0, 15));
+        // assert_eq!(view.lines[3].range, Range::new(1, 0, 1, 3));
     }
 }
