@@ -119,9 +119,16 @@ impl View {
             .ok()
     }
 
-    pub fn layout(&mut self, buffer: &Buffer, width: usize, height: usize) {
+    pub fn layout(&mut self, buffer: &Buffer, y_from: usize, width: usize, height: usize) {
         self.height = height;
-        for text_y in 0..buffer.num_lines() {
+        if y_from == 0 {
+            self.lines.clear();
+        } else {
+            self.lines
+                .truncate(self.point_to_display_line(&Point::new(y_from, 0)).unwrap());
+        }
+
+        for text_y in y_from..buffer.num_lines() {
             let mut line_rope = buffer.line(text_y);
             let mut spans = Vec::new();
             let mut width_remaining = width;
@@ -197,7 +204,7 @@ mod test {
     fn layout_without_softwrap() {
         let mut view = View::new();
         let buffer = Buffer::from_str("123\nabc\n\nxyz");
-        view.layout(&buffer, 5, 3);
+        view.layout(&buffer, 0, 5, 3);
         assert_eq!(view.lines.len(), 4);
         assert_eq!(view.lines[0].range, Range::new(0, 0, 0, 3));
         assert_eq!(view.lines[1].range, Range::new(1, 0, 1, 3));
@@ -209,7 +216,7 @@ mod test {
     fn layout_newlines() {
         let mut view = View::new();
         let buffer = Buffer::from_str("\n\n\n");
-        view.layout(&buffer, 5, 3);
+        view.layout(&buffer, 0, 5, 3);
         assert_eq!(view.lines.len(), 4);
         assert_eq!(view.lines[0].range, Range::new(0, 0, 0, 0));
         assert_eq!(view.lines[1].range, Range::new(1, 0, 1, 0));
@@ -221,7 +228,7 @@ mod test {
     fn layout_with_softwrap1() {
         let mut view = View::new();
         let buffer = Buffer::from_str("12345abc\nxyz");
-        view.layout(&buffer, 5, 3);
+        view.layout(&buffer, 0, 5, 3);
         assert_eq!(view.lines.len(), 3);
         assert_eq!(view.lines[0].range, Range::new(0, 0, 0, 5));
         assert_eq!(view.lines[1].range, Range::new(0, 5, 0, 8));
@@ -231,20 +238,29 @@ mod test {
     #[test]
     fn layout_with_softwrap2() {
         let mut view = View::new();
-        let buffer = Buffer::from_str("12345abcde!@#$%\nxyz");
-        view.layout(&buffer, 5, 3);
-        assert_eq!(view.lines.len(), 4);
+        let buffer = Buffer::from_str("12345abcde!@#$%\nxyz\nLMNO");
+        view.layout(&buffer, 0, 5, 3);
+        assert_eq!(view.lines.len(), 5);
         assert_eq!(view.lines[0].range, Range::new(0, 0, 0, 5));
         assert_eq!(view.lines[1].range, Range::new(0, 5, 0, 10));
         assert_eq!(view.lines[2].range, Range::new(0, 10, 0, 15));
         assert_eq!(view.lines[3].range, Range::new(1, 0, 1, 3));
+        assert_eq!(view.lines[4].range, Range::new(2, 0, 2, 4));
+
+        view.layout(&buffer, 1, 5, 3);
+        assert_eq!(view.lines.len(), 5);
+        assert_eq!(view.lines[0].range, Range::new(0, 0, 0, 5));
+        assert_eq!(view.lines[1].range, Range::new(0, 5, 0, 10));
+        assert_eq!(view.lines[2].range, Range::new(0, 10, 0, 15));
+        assert_eq!(view.lines[3].range, Range::new(1, 0, 1, 3));
+        assert_eq!(view.lines[4].range, Range::new(2, 0, 2, 4));
     }
 
     #[test]
     fn point_to_display_line() {
         let mut view = View::new();
         let buffer = Buffer::from_str("12345abcde!@#$%\nxyz");
-        view.layout(&buffer, 5, 3);
+        view.layout(&buffer, 0, 5, 3);
         assert_eq!(view.point_to_display_line(&Point::new(0, 0)), Some(0));
         assert_eq!(view.point_to_display_line(&Point::new(0, 5)), Some(1));
         assert_eq!(view.point_to_display_line(&Point::new(0, 14)), Some(2));
@@ -263,7 +279,7 @@ mod test {
         // xyz
         let mut view = View::new();
         let buffer = Buffer::from_str("12345abcde!@#\nxyz");
-        view.layout(&buffer, 5, 3);
+        view.layout(&buffer, 0, 5, 3);
         assert_eq!(
             // 1|2345
             view.move_cursor_horizontally(&Point::new(0, 1), 1),
@@ -324,7 +340,7 @@ mod test {
         // xyz
         let mut view = View::new();
         let buffer = Buffer::from_str("12345abcde!@#$\nxyz");
-        view.layout(&buffer, 5, 3);
+        view.layout(&buffer, 0, 5, 3);
         assert_eq!(
             // 1|2345
             view.move_cursor_vertically(&Point::new(0, 1), 1),
@@ -386,7 +402,7 @@ mod test {
         // xyz
         let mut view = View::new();
         let buffer = Buffer::from_str("12345abcde!@#$\nxyz");
-        view.layout(&buffer, 5, 2);
+        view.layout(&buffer, 0, 5, 2);
         view.adjust_top_left(&Point::new(0, 6));
         assert_eq!(view.top_left, 0);
 

@@ -18,7 +18,8 @@ use crate::{
 };
 
 pub struct DrawContext<'a> {
-    pub buffer: &'a Buffer,
+    pub view: &'a View,
+    pub main_cursor_pos: Point,
 }
 
 pub struct Terminal {
