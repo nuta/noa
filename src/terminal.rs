@@ -15,11 +15,13 @@ use crossterm::{execute, queue};
 use crate::{
     buffer::Buffer,
     eventloop::{Event, EventQueue},
+    rope::Point,
+    view::{Span, View},
 };
 
 pub struct DrawContext<'a> {
-    pub view: &'a View,
-    pub main_cursor_pos: Point,
+    pub buffer: &'a Buffer,
+    pub view: &'a mut View,
 }
 
 pub struct Terminal {
@@ -183,10 +185,15 @@ impl Terminal {
         let lineno_width = ctx.buffer.num_lines().display_width() + 1;
         let text_max_height = self.screen_height - 1;
         let text_max_width = self.screen_width - lineno_width;
-        for line_index in 0..min(text_max_height, ctx.buffer.num_lines()) {
-            queue!(stdout, cursor::MoveTo(0, line_index as u16)).ok();
 
-            let lineno = line_index + 1;
+        ctx.view
+            .layout(&ctx.buffer, 0, text_max_width, text_max_height);
+
+        for (i, display_line) in ctx.view.visible_display_lines().iter().enumerate() {
+            queue!(stdout, cursor::MoveTo(0, i as u16)).ok();
+
+            // Draw the line number.
+            let lineno = display_line.range.front().y + 1;
             queue!(
                 stdout,
                 Print(whitespaces(lineno_width - lineno.display_width() - 1)),
@@ -196,10 +203,20 @@ impl Terminal {
             )
             .ok();
 
-            let line = ctx.buffer.line(line_index);
-            for chunk in line.chunks() {
-                queue!(stdout, Print(chunk)).ok();
+            // Draw buffer contents.
+            let rope_line = ctx.buffer.line(lineno - 1);
+            for span in &display_line.spans {
+                match span {
+                    Span::Text { char_range } => {
+                        queue!(stdout, Print(rope_line.slice(char_range.clone()))).ok();
+                    }
+                    Span::Style(style) => {
+                        // TODO:
+                    }
+                }
             }
+
+            queue!(stdout, Clear(ClearType::UntilNewLine));
         }
 
         let main_cursor = ctx.buffer.main_cursor_pos();

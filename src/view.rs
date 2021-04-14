@@ -20,8 +20,8 @@ pub enum Span {
 
 #[derive(Debug, Clone)]
 pub struct DisplayLine {
-    spans: Vec<Span>,
-    range: Range,
+    pub spans: Vec<Span>,
+    pub range: Range,
 }
 
 pub struct View {
@@ -119,6 +119,10 @@ impl View {
             .ok()
     }
 
+    pub fn visible_display_lines(&self) -> &[DisplayLine] {
+        &self.lines[self.top_left..min(self.lines.len(), self.top_left + self.height)]
+    }
+
     pub fn layout(&mut self, buffer: &Buffer, y_from: usize, width: usize, height: usize) {
         self.height = height;
         if y_from == 0 {
@@ -165,7 +169,6 @@ impl View {
                                 width_remaining -= ch.display_width();
                             }
 
-                            dbg!(&chunk[..wrap_byte_at]);
                             spans.push(Span::Text {
                                 char_range: text_x..(text_x + wrap_byte_at),
                             });
@@ -185,7 +188,6 @@ impl View {
                 }
 
                 if front.x != text_x {
-                    dbg!(&line_rope.as_str().unwrap()[front.x..text_x], &text_x);
                     self.lines.push(DisplayLine {
                         spans,
                         range: Range::from_points(front, Point::new(text_y, text_x)),

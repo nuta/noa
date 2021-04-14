@@ -3,6 +3,7 @@ use crate::rope::*;
 use std::cmp::{max, min};
 use std::collections::HashSet;
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -48,7 +49,18 @@ fn backup_path(backup_dir: &Path, base: &str, revision: usize) -> PathBuf {
     backup_dir.join(format!("{}.{}", base, revision))
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BufferId(usize);
+
+impl BufferId {
+    fn alloc() -> BufferId {
+        static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
+        BufferId(NEXT_ID.fetch_add(1, Ordering::SeqCst))
+    }
+}
+
 pub struct Buffer {
+    id: BufferId,
     buf: Rope,
     is_dirty: bool,
     name: String,
@@ -62,6 +74,7 @@ pub struct Buffer {
 impl Buffer {
     pub fn new() -> Buffer {
         let mut buffer = Buffer {
+            id: BufferId::alloc(),
             buf: Rope::new(),
             is_dirty: false,
             name: String::new(),
@@ -86,6 +99,7 @@ impl Buffer {
     pub fn open_file(path: &Path) -> std::io::Result<Buffer> {
         let file = std::fs::File::open(path)?;
         let mut buffer = Buffer {
+            id: BufferId::alloc(),
             buf: Rope::from_reader(file)?,
             is_dirty: false,
             name: String::new(),
@@ -122,6 +136,10 @@ impl Buffer {
     #[cfg(test)]
     pub fn len(&self) -> usize {
         self.buf.len()
+    }
+
+    pub fn id(&self) -> BufferId {
+        self.id
     }
 
     pub fn num_lines(&self) -> usize {

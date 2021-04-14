@@ -1,6 +1,9 @@
-use crate::buffer::Buffer;
-use crate::terminal::{DrawContext, Terminal};
 use crate::terminal::{KeyCode, KeyEvent, KeyModifiers};
+use crate::{buffer::Buffer, view::View};
+use crate::{
+    buffer::BufferId,
+    terminal::{DrawContext, Terminal},
+};
 use dirs::home_dir;
 use log::LevelFilter;
 use mpsc::Receiver;
@@ -58,6 +61,7 @@ pub struct EventLoop {
     terminal: Terminal,
     current_buffer: Arc<RwLock<Buffer>>,
     buffers: Vec<Arc<RwLock<Buffer>>>,
+    views: RwLock<HashMap<BufferId, View>>,
     event_queue: Receiver<Event>,
 }
 
@@ -67,6 +71,8 @@ impl EventLoop {
 
         let mut scratch = Buffer::from_str(SCRATCH_TEXT);
         scratch.set_name("*scratch*");
+        let mut views = HashMap::new();
+        views.insert(scratch.id(), View::new());
         let scratch_buffer = Arc::new(RwLock::new(scratch));
         let buffers = vec![scratch_buffer.clone()];
 
@@ -77,6 +83,7 @@ impl EventLoop {
             event_queue,
             current_buffer: scratch_buffer,
             buffers,
+            views: RwLock::new(views),
         }
     }
 
@@ -165,8 +172,12 @@ impl EventLoop {
     }
 
     pub fn draw(&mut self) {
+        let buffer = self.current_buffer.read();
+        let mut views = self.views.write();
+        let view = views.get_mut(&buffer.id()).unwrap();
         self.terminal.draw(DrawContext {
             buffer: &*self.current_buffer.read(),
+            view,
         });
     }
 
