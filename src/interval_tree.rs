@@ -3,15 +3,15 @@ use std::ops;
 use std::slice;
 
 pub trait Interval: Ord + Clone {
+    fn is_empty(&self) -> bool;
     fn includes(&self, other: &Self) -> bool;
     fn overlaps_with(&self, other: &Self) -> bool;
     /// ```text
     /// self:      ...xxxx....
     //  other:     xxxxxxxxxxx
     //  xor:       xxx....xxxx
-    //  xor_first: xxx........   <- What this method returns.
     /// ```
-    fn xor_first(&self, other: &Self) -> Self;
+    fn xor(&self, other: &Self) -> (Self, Self);
     /// ```text
     /// self:      ...xxxxx...
     //  other:     xxxxx......
@@ -57,15 +57,19 @@ impl<I: Interval + std::fmt::Debug, V: PartialEq + Clone> IntervalTree<I, V> {
     {
         let mut new_intervals = Vec::new();
         let mut overlapping_nodes = self.iter_mut(interval).peekable();
+        let mut intervals_between_nodes = Vec::new();
         if overlapping_nodes.peek().is_none() {
             // No overlapping existing nodes.
-            new_intervals.push((interval.clone(), value));
+            new_intervals.push((interval.clone(), value.clone()));
         } else {
             for existing_node in overlapping_nodes {
-                // Case (a): Insert new nodes between exisiting nodes.
-                let xor_first = interval.xor_first(&existing_node.interval);
-                if interval.includes(&xor_first) {
-                    new_intervals.push((xor_first, value.clone()));
+                let xor_intervals = interval.xor(&existing_node.interval);
+                if !xor_intervals.0.is_empty() {
+                    intervals_between_nodes.push(xor_intervals.0);
+                }
+
+                if !xor_intervals.1.is_empty() {
+                    intervals_between_nodes.push(xor_intervals.1);
                 }
 
                 if interval.includes(&existing_node.interval) {
@@ -76,7 +80,7 @@ impl<I: Interval + std::fmt::Debug, V: PartialEq + Clone> IntervalTree<I, V> {
 
                     // Case (d): Insert a new node with existing node's value.
                     new_intervals.push((
-                        overlapping.xor_first(&existing_node.interval),
+                        overlapping.xor(&existing_node.interval).0,
                         existing_node.value.clone(),
                     ));
 
@@ -87,11 +91,36 @@ impl<I: Interval + std::fmt::Debug, V: PartialEq + Clone> IntervalTree<I, V> {
             }
         }
 
+        // Case (a): Insert new nodes between exisiting nodes.
+        if !intervals_between_nodes.is_empty() {
+            let mut new_intervals2 = Vec::new();
+            for (a, _) in new_intervals {
+                for b in &intervals_between_nodes {
+                    let x = a.and(b);
+                    if !x.is_empty() {
+                        new_intervals2.push((x, value.clone()));
+                    }
+                }
+            }
+
+            for Node { interval: a, .. } in &self.nodes {
+                for b in &intervals_between_nodes {
+                    let x = a.and(b);
+                    dbg!(&a);
+                    dbg!(&b);
+                    dbg!(&x);
+                    if !x.is_empty() {
+                        new_intervals2.push((x, value.clone()));
+                    }
+                }
+            }
+            new_intervals = new_intervals2;
+        }
+
         for (interval, value) in new_intervals {
             let pos = self.nodes.partition_point(|node| {
                 node.interval < interval && !node.interval.overlaps_with(&interval)
             });
-            dbg!(pos, &interval);
             self.nodes.insert(pos, Node { interval, value });
         }
 
@@ -165,7 +194,6 @@ mod test {
     use super::*;
     use crate::rope::{Point, Range};
 
-    /*
     #[test]
     fn insert_nodes_without_overlapping() {
         //  012345678901234567
@@ -199,61 +227,107 @@ mod test {
             vec!["const", "fn"],
         );
     }
-    */
 
     #[test]
-    fn update_existing_nodes() {
-        /*
+    fn update_existing_nodes21() {
         let mut tree = IntervalTree::new();
         let update_existing = |old: &mut i32, new: &i32| {
             *old |= *new;
         };
-        tree.update(&Range::new(0, 10, 0, 12), 0b01, update_existing);
-        tree.update(&Range::new(0, 15, 0, 16), 0b01, update_existing);
-        tree.update(&Range::new(0, 11, 0, 17), 0b10, update_existing);
+
+        tree.update(&Range::new(0, 2, 0, 5), 0b01, update_existing);
+        // current:  ..111..
+        // interval: xxxxxxx
+        // updated:  2233322
+        tree.update(&Range::new(0, 0, 0, 7), 0b10, update_existing);
 
         assert_eq!(
-            tree.iter(&Range::new(0, 10, 0, 17))
+            tree.iter(&Range::new(0, 0, 0, 7))
                 .map(|node| (node.value, node.interval.clone()))
                 .collect::<Vec<(i32, Range)>>(),
             vec![
                 (
-                    0b01,
+                    0b10,
                     Range {
-                        start: Point::new(0, 10),
-                        end: Point::new(0, 10),
+                        start: Point::new(0, 0),
+                        end: Point::new(0, 2),
                     }
                 ),
                 (
                     0b11,
                     Range {
-                        start: Point::new(0, 11),
+                        start: Point::new(0, 2),
+                        end: Point::new(0, 5),
+                    }
+                ),
+                (
+                    0b0,
+                    Range {
+                        start: Point::new(0, 5),
+                        end: Point::new(0, 7),
+                    }
+                ),
+            ]
+        );
+    }
+
+    /*
+    #[test]
+    fn update_existing_nodes2() {
+        let mut tree = IntervalTree::new();
+        let update_existing = |old: &mut i32, new: &i32| {
+            *old |= *new;
+        };
+        tree.update(&Range::new(0, 2, 0, 5), 0b01, update_existing);
+        tree.update(&Range::new(0, 7, 0, 12), 0b01, update_existing);
+
+        // current:  ..111..11111
+        // interval: xxxxxxxxx...
+        // updated:  223332233111
+        tree.update(&Range::new(0, 0, 0, 9), 0b10, update_existing);
+
+        assert_eq!(
+            tree.iter(&Range::new(0, 0, 0, 15))
+                .map(|node| (node.value, node.interval.clone()))
+                .collect::<Vec<(i32, Range)>>(),
+            vec![
+                (
+                    0b10,
+                    Range {
+                        start: Point::new(0, 0),
+                        end: Point::new(0, 2),
+                    }
+                ),
+                (
+                    0b11,
+                    Range {
+                        start: Point::new(0, 2),
+                        end: Point::new(0, 5),
+                    }
+                ),
+                (
+                    0b10,
+                    Range {
+                        start: Point::new(0, 5),
+                        end: Point::new(0, 7),
+                    }
+                ),
+                (
+                    0b11,
+                    Range {
+                        start: Point::new(0, 7),
+                        end: Point::new(0, 9),
+                    }
+                ),
+                (
+                    0b10,
+                    Range {
+                        start: Point::new(0, 9),
                         end: Point::new(0, 12),
-                    }
-                ),
-                (
-                    0b10,
-                    Range {
-                        start: Point::new(0, 13),
-                        end: Point::new(0, 14),
-                    }
-                ),
-                (
-                    0b11,
-                    Range {
-                        start: Point::new(0, 15),
-                        end: Point::new(0, 16),
-                    }
-                ),
-                (
-                    0b10,
-                    Range {
-                        start: Point::new(0, 17),
-                        end: Point::new(0, 17),
                     }
                 ),
             ],
         );
-        */
     }
+    */
 }

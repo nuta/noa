@@ -143,6 +143,10 @@ impl Ord for Range {
 }
 
 impl Interval for Range {
+    fn is_empty(&self) -> bool {
+        self.front() == self.back()
+    }
+
     fn includes(&self, other: &Range) -> bool {
         self.front() <= other.front() && other.back() <= self.back()
     }
@@ -154,28 +158,25 @@ impl Interval for Range {
             || (self.start.y == other.end.y && self.start.x > other.end.x))
     }
 
-    fn xor_first(&self, other: &Range) -> Range {
-        let front = min(*self.front(), *other.front());
-        let back = max(*self.front(), *other.front());
-        if front == back {
-            Range::from_points(front, back)
-        } else if back.x > 0 {
-            Range::from_points(
-                front,
-                Point {
-                    x: back.x - 1,
-                    y: back.y,
-                },
-            )
+    fn xor(&self, other: &Range) -> (Range, Range) {
+        if self.overlaps_with(other) {
+            // self:  ..xxxx..
+            // other: ....xxxx
+            // xor:   x.....xx
+            let first = Range::from_points(
+                min(*self.front(), *other.front()),
+                max(*self.front(), *other.front()),
+            );
+            let second = Range::from_points(
+                min(*self.back(), *other.back()),
+                max(*self.back(), *other.back()),
+            );
+            (first, second)
         } else {
-            assert!(back.y > 0);
-            Range::from_points(
-                front,
-                Point {
-                    x: std::usize::MAX,
-                    y: back.y - 1,
-                },
-            )
+            // self:  xxx.....
+            // other: ......xx
+            // xor:   xxx...xx
+            (min(self, other).clone(), max(self, other).clone())
         }
     }
 
