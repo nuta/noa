@@ -28,6 +28,7 @@ pub struct View {
     lines: Vec<DisplayLine>,
     /// The index of display line.
     top_left: usize,
+    height: usize,
 }
 
 impl View {
@@ -35,6 +36,7 @@ impl View {
         View {
             lines: Vec::new(),
             top_left: 0,
+            height: 0,
         }
     }
 
@@ -92,14 +94,14 @@ impl View {
         new_pos
     }
 
-    pub fn adjust_top_left(&mut self, main_cursor_pos: &Point, height: usize) {
+    pub fn adjust_top_left(&mut self, main_cursor_pos: &Point) {
         let index = self.point_to_display_line(main_cursor_pos).unwrap();
         if index < self.top_left {
             self.top_left = index;
         }
 
-        if index >= self.top_left + height {
-            self.top_left = index - height + 1;
+        if index >= self.top_left + self.height {
+            self.top_left = index - self.height + 1;
         }
     }
 
@@ -118,6 +120,7 @@ impl View {
     }
 
     pub fn layout(&mut self, buffer: &Buffer, width: usize, height: usize) {
+        self.height = height;
         for text_y in 0..buffer.num_lines() {
             let mut line_rope = buffer.line(text_y);
             let mut spans = Vec::new();
@@ -372,5 +375,35 @@ mod test {
             // x|yz
             Point::new(1, 1)
         );
+    }
+
+    #[test]
+    fn adjust_top_left() {
+        // 12345|
+        // abcde|
+        // -----+
+        // !@#
+        // xyz
+        let mut view = View::new();
+        let buffer = Buffer::from_str("12345abcde!@#$\nxyz");
+        view.layout(&buffer, 5, 2);
+        view.adjust_top_left(&Point::new(0, 6));
+        assert_eq!(view.top_left, 0);
+
+        // 12345
+        // abcde
+        // -----+
+        // !@#  |
+        // xyz  |
+        view.adjust_top_left(&Point::new(1, 0));
+        assert_eq!(view.top_left, 2);
+
+        // 12345
+        // -----+
+        // abcde|
+        // !@#  |
+        // xyz
+        view.adjust_top_left(&Point::new(0, 6));
+        assert_eq!(view.top_left, 1);
     }
 }
