@@ -26,7 +26,8 @@ struct Opt {
     files: Vec<PathBuf>,
 }
 
-pub fn main() {
+#[tokio::main]
+async fn main() {
     WriteLogger::init(
         LevelFilter::Trace,
         Config::default(),
@@ -51,5 +52,5 @@ pub fn main() {
         eventloop.open_file(file);
     }
 
-    eventloop.run();
+    eventloop.run().await;
 }

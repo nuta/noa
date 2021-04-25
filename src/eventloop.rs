@@ -116,7 +116,7 @@ impl EventLoop {
         self.current_buffer = buffer;
     }
 
-    pub fn run(&mut self) {
+    pub async fn run(&mut self) {
         self.draw();
         loop {
             if self.exited {
