@@ -1,4 +1,5 @@
 use crate::editorconfig::*;
+use crate::interval_tree::Interval;
 use crate::rope::*;
 use std::cmp::{max, min};
 use std::collections::HashSet;
@@ -61,7 +62,7 @@ impl BufferId {
 
 pub struct Buffer {
     id: BufferId,
-    buf: Rope,
+    rope: Rope,
     is_dirty: bool,
     name: String,
     file: Option<PathBuf>,
@@ -75,7 +76,7 @@ impl Buffer {
     pub fn new() -> Buffer {
         let mut buffer = Buffer {
             id: BufferId::alloc(),
-            buf: Rope::new(),
+            rope: Rope::new(),
             is_dirty: false,
             name: String::new(),
             file: None,
@@ -100,7 +101,7 @@ impl Buffer {
         let file = std::fs::File::open(path)?;
         let mut buffer = Buffer {
             id: BufferId::alloc(),
-            buf: Rope::from_reader(file)?,
+            rope: Rope::from_reader(file)?,
             is_dirty: false,
             name: String::new(),
             file: Some(path.canonicalize()?),
@@ -116,16 +117,16 @@ impl Buffer {
     }
 
     pub fn set_text(&mut self, text: &str) {
-        self.buf.clear();
-        self.buf.insert(&Point::new(0, 0), text);
+        self.rope.clear();
+        self.rope.insert(&Point::new(0, 0), text);
 
         let mut pos = match self.cursors[0] {
             Cursor::Normal { pos } => pos,
             Cursor::Selection(Range { end, .. }) => end,
         };
 
-        pos.y = min(pos.y, self.buf.num_lines().saturating_sub(1));
-        pos.x = min(pos.x, self.buf.line_len(pos.y));
+        pos.y = min(pos.y, self.rope.num_lines().saturating_sub(1));
+        pos.x = min(pos.x, self.rope.line_len(pos.y));
         self.cursors = vec![Cursor::Normal { pos }];
     }
 
@@ -135,7 +136,7 @@ impl Buffer {
 
     #[cfg(test)]
     pub fn len(&self) -> usize {
-        self.buf.len()
+        self.rope.len()
     }
 
     pub fn id(&self) -> BufferId {
@@ -143,11 +144,11 @@ impl Buffer {
     }
 
     pub fn num_lines(&self) -> usize {
-        self.buf.num_lines()
+        self.rope.num_lines()
     }
 
     pub fn line_len(&self, y: usize) -> usize {
-        self.buf.line_len(y)
+        self.rope.line_len(y)
     }
 
     pub fn is_dirty(&self) -> bool {
@@ -175,11 +176,11 @@ impl Buffer {
     }
 
     pub fn text(&self) -> String {
-        self.buf.text()
+        self.rope.text()
     }
 
     pub fn line(&self, line: usize) -> ropey::RopeSlice {
-        self.buf.line(line)
+        self.rope.line(line)
     }
 
     pub fn line_substr(&self, line: usize, start: usize) -> String {
@@ -187,7 +188,7 @@ impl Buffer {
     }
 
     pub fn modified_line(&self) -> &Option<usize> {
-        &self.buf.modified_line()
+        &self.rope.modified_line()
     }
 
     pub fn is_virtual_file(&self) -> bool {
@@ -196,7 +197,7 @@ impl Buffer {
 
     pub fn save_without_backup(&self) -> std::io::Result<()> {
         if let Some(path) = &self.file {
-            self.buf.save_into_file(path)
+            self.rope.save_into_file(path)
         } else {
             Ok(())
         }
@@ -217,7 +218,7 @@ impl Buffer {
             )
             .ok();
             fs::copy(path, backup_path(backup_dir, &base, 1)).ok();
-            self.buf.save_into_file(path)?;
+            self.rope.save_into_file(path)?;
             self.is_dirty = false;
         }
 
@@ -259,7 +260,7 @@ impl Buffer {
             // Move the cursor.
             match cursor {
                 Cursor::Normal { pos, .. } => {
-                    pos.move_by(&self.buf, up, down, left, right);
+                    pos.move_by(&self.rope, up, down, left, right);
                 }
                 Cursor::Selection(_) => unreachable!(),
             };
@@ -275,7 +276,7 @@ impl Buffer {
                 Cursor::Selection(Range { end, .. }) => end.y,
             };
 
-            *cursor = Cursor::new(y, self.buf.line_len(y));
+            *cursor = Cursor::new(y, self.rope.line_len(y));
         }
 
         self.sort_and_merge_cursors();
@@ -301,7 +302,7 @@ impl Buffer {
                 Cursor::Selection(Range { start, .. }) => start,
             };
 
-            let new_pos = self.buf.prev_word_end(&pos);
+            let new_pos = self.rope.prev_word_end(&pos);
             *cursor = Cursor::new(new_pos.y, new_pos.x);
         }
 
@@ -315,7 +316,7 @@ impl Buffer {
                 Cursor::Selection(Range { start, .. }) => start,
             };
 
-            let new_pos = self.buf.next_word_end(&pos);
+            let new_pos = self.rope.next_word_end(&pos);
             *cursor = Cursor::new(new_pos.y, new_pos.x);
         }
 
@@ -329,7 +330,7 @@ impl Buffer {
                 Cursor::Selection(Range { start, end }) => (*start, *end),
             };
 
-            end.move_by(&self.buf, up, down, left, right);
+            end.move_by(&self.rope, up, down, left, right);
             *cursor = Cursor::Selection(Range::from_points(start, end));
         }
 
@@ -359,17 +360,16 @@ impl Buffer {
 
     pub fn select_until_end_of_line(&mut self) {
         let mut new_cursors = Vec::new();
-        for cursor in self.cursors.iter().rev() {
+        for cursor in &self.cursors {
             let (start, mut end) = match cursor {
-                Cursor::Normal { pos, .. } => (*pos, *pos),
-                Cursor::Selection(Range { start, end }) => (*start, *end),
+                Cursor::Normal { pos, .. } if pos.x == self.rope.line_len(pos.y) => {
+                    (*pos, Point::new(pos.y + 1, 0))
+                }
+                Cursor::Normal { pos, .. } => (*pos, Point::new(pos.y, self.rope.line_len(pos.y))),
+                Cursor::Selection(Range { start, end }) => {
+                    (*start, Point::new(end.y, self.rope.line_len(end.y)))
+                }
             };
-
-            end.x = self.buf.line_len(end.y);
-            if start == end && end.y < self.num_lines() {
-                end.y += 1;
-                end.x = 0;
-            }
 
             new_cursors.push(Cursor::Selection(Range::from_points(start, end)));
         }
@@ -382,7 +382,7 @@ impl Buffer {
     }
 
     pub fn insert(&mut self, string: &str) {
-        self.buf.reset_modified_line();
+        self.rope.reset_modified_line();
 
         let mut new_cursors = Vec::new();
         let string_count = string.chars().count();
@@ -393,16 +393,16 @@ impl Buffer {
             };
 
             if let Some(remove) = remove {
-                self.buf.remove(&remove);
+                self.rope.remove(&remove);
             }
 
             // Handle insertion at the end of file.
             if insert_at.y == self.num_lines() && string != "\n" {
                 debug_assert!(insert_at.x == 0);
-                self.buf.insert(insert_at, "\n");
+                self.rope.insert(insert_at, "\n");
             }
 
-            self.buf.insert(insert_at, string);
+            self.rope.insert(insert_at, string);
 
             let num_newlines_added = string.matches('\n').count();
             let num_newlines_deleted = remove.map(|r| r.back().y - r.front().y).unwrap_or(0);
@@ -444,13 +444,13 @@ impl Buffer {
     }
 
     pub fn clear(&mut self) {
-        self.buf = Rope::new();
+        self.rope = Rope::new();
         self.cursors = vec![Cursor::new(0, 0)];
     }
 
     pub fn indent_size(&self, y: usize) -> usize {
         let mut n = 0;
-        let line = self.buf.line(y);
+        let line = self.rope.line(y);
         'outer: for c in line.chunks() {
             for ch in c.chars() {
                 if !ch.is_ascii_whitespace() {
@@ -465,7 +465,7 @@ impl Buffer {
     }
 
     pub fn tab(&mut self) {
-        self.buf.reset_modified_line();
+        self.rope.reset_modified_line();
         let mut new_cursors = Vec::new();
         for c in self.cursors.iter().rev() {
             let pos = match c {
@@ -491,11 +491,11 @@ impl Buffer {
                     IndentStyle::Tab => '\t',
                 };
                 for _ in 0..num_chars {
-                    self.buf.insert_char(pos, ch);
+                    self.rope.insert_char(pos, ch);
                 }
             } else {
                 // Not auto indent; the user just wants to input '\t'.
-                self.buf.insert_char(pos, '\t');
+                self.rope.insert_char(pos, '\t');
                 x = pos.x + 1;
             }
 
@@ -507,7 +507,7 @@ impl Buffer {
 
     // Decrease indent levels.
     pub fn back_tab(&mut self) {
-        self.buf.reset_modified_line();
+        self.rope.reset_modified_line();
         let mut new_cursors = Vec::new();
         let mut ys = HashSet::new();
         for c in self.cursors.iter().rev() {
@@ -527,7 +527,7 @@ impl Buffer {
             if n > 0 && !ys.contains(&pos.y) {
                 let start = Point::new(pos.y, 0);
                 let end = Point::new(pos.y, n);
-                self.buf.remove(&Range::from_points(start, end));
+                self.rope.remove(&Range::from_points(start, end));
                 new_cursors.push(Cursor::new(pos.y, pos.x.saturating_sub(n)));
                 ys.insert(pos.y);
             } else {
@@ -539,7 +539,7 @@ impl Buffer {
     }
 
     pub fn backspace(&mut self) {
-        self.buf.reset_modified_line();
+        self.rope.reset_modified_line();
 
         let mut new_cursors = Vec::new();
         let mut iter = self.cursors.iter().rev().peekable();
@@ -551,7 +551,7 @@ impl Buffer {
                         new_cursors.push(c.clone());
                         continue;
                     } else if pos.x == 0 {
-                        Point::new(pos.y - 1, self.buf.line_len(pos.y - 1))
+                        Point::new(pos.y - 1, self.rope.line_len(pos.y - 1))
                     } else {
                         Point::new(pos.y, pos.x - 1)
                     };
@@ -562,7 +562,7 @@ impl Buffer {
             };
 
             remove_range(
-                &mut self.buf,
+                &mut self.rope,
                 &range,
                 iter.peek().copied(),
                 &mut new_cursors,
@@ -573,7 +573,7 @@ impl Buffer {
     }
 
     pub fn delete(&mut self) {
-        self.buf.reset_modified_line();
+        self.rope.reset_modified_line();
 
         let mut new_cursors = Vec::new();
         let mut iter = self.cursors.iter().rev().peekable();
@@ -581,8 +581,8 @@ impl Buffer {
             // Determine the range to be deleted.
             let range = match c {
                 Cursor::Normal { pos, .. } => {
-                    let max_y = self.buf.num_lines();
-                    let max_x = self.buf.line_len(pos.y);
+                    let max_y = self.rope.num_lines();
+                    let max_x = self.rope.line_len(pos.y);
                     let end = if pos.y == max_y && pos.x == max_x {
                         new_cursors.push(c.clone());
                         continue;
@@ -598,7 +598,7 @@ impl Buffer {
             };
 
             remove_range(
-                &mut self.buf,
+                &mut self.rope,
                 &range,
                 iter.peek().copied(),
                 &mut new_cursors,
@@ -609,14 +609,14 @@ impl Buffer {
     }
 
     pub fn truncate(&mut self) {
-        self.buf.reset_modified_line();
+        self.rope.reset_modified_line();
 
         self.select_until_end_of_line();
         self.delete();
     }
 
     pub fn truncate_reverse(&mut self) {
-        self.buf.reset_modified_line();
+        self.rope.reset_modified_line();
 
         self.select_until_beginning_of_line();
         self.delete();
@@ -624,38 +624,38 @@ impl Buffer {
 
     pub fn mark_undo_point(&mut self) {
         match self.undo_stack.last() {
-            Some(rope) if *rope == self.buf => {
+            Some(rope) if *rope == self.rope => {
                 // The buffer is not modified.
                 return;
             }
             _ => {}
         }
 
-        self.undo_stack.push(self.buf.clone());
+        self.undo_stack.push(self.rope.clone());
         self.is_dirty = true;
     }
 
     pub fn undo(&mut self) {
-        if self.undo_stack.len() == 1 && self.buf.is_empty() {
+        if self.undo_stack.len() == 1 && self.rope.is_empty() {
             return;
         }
 
         if let Some(top) = self.undo_stack.last() {
-            if *top == self.buf {
+            if *top == self.rope {
                 self.undo_stack.pop();
             }
         }
 
         if let Some(buf) = self.undo_stack.pop() {
-            self.redo_stack.push(self.buf.clone());
-            self.buf = buf;
+            self.redo_stack.push(self.rope.clone());
+            self.rope = buf;
         }
     }
 
     pub fn redo(&mut self) {
         if let Some(buf) = self.redo_stack.pop() {
-            self.undo_stack.push(self.buf.clone());
-            self.buf = buf;
+            self.undo_stack.push(self.rope.clone());
+            self.rope = buf;
         }
     }
 
@@ -676,7 +676,7 @@ impl Buffer {
             if i > 0 {
                 text.push('\n');
             }
-            for chunk in self.buf.sub_str(range).chunks() {
+            for chunk in self.rope.sub_str(range).chunks() {
                 text += chunk;
             }
         }
@@ -730,7 +730,7 @@ impl Buffer {
             Cursor::Selection(Range { start, .. }) => start,
         };
 
-        self.buf.word_at(pos).map(|(_, word)| word)
+        self.rope.word_at(pos).map(|(_, word)| word)
     }
 
     pub fn current_word_range(&self) -> Option<Range> {
@@ -739,7 +739,7 @@ impl Buffer {
             Cursor::Selection(Range { start, .. }) => start,
         };
 
-        self.buf.word_at(pos).map(|(range, _)| range)
+        self.rope.word_at(pos).map(|(range, _)| range)
     }
 
     pub fn prev_word_range(&self) -> Option<Range> {
@@ -748,7 +748,7 @@ impl Buffer {
             Cursor::Selection(Range { start, .. }) => start,
         };
 
-        self.buf.prev_word_at(pos)
+        self.rope.prev_word_at(pos)
     }
 
     pub fn find(&mut self, needle: &str) -> Vec<Range> {
@@ -761,7 +761,7 @@ impl Buffer {
         let mut matches = Vec::new();
         let mut y = 0;
         let mut x = 0;
-        for ch in self.buf.chars() {
+        for ch in self.rope.chars() {
             for m in &mut matches {
                 match m {
                     (0, _) => {
@@ -1315,7 +1315,6 @@ mod test {
         b.set_cursors(vec![
             Cursor::new(0, 0),
             Cursor::new(0, 2),
-            Cursor::new(0, 3),
             Cursor::new(1, 1),
         ]);
         b.select_until_end_of_line();

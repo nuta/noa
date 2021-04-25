@@ -112,13 +112,6 @@ impl Range {
         max(&self.start, &self.end)
     }
 
-    pub fn overlaps_with(&self, other: &Range) -> bool {
-        !(self.end.y < other.start.y
-            || self.start.y > other.end.y
-            || (self.end.y == other.start.y && self.end.x < other.start.x)
-            || (self.start.y == other.end.y && self.start.x > other.end.x))
-    }
-
     pub fn contains(&self, pos: &Point) -> bool {
         self.start <= *pos && *pos < self.end
     }
@@ -152,10 +145,10 @@ impl Interval for Range {
     }
 
     fn overlaps_with(&self, other: &Range) -> bool {
-        !(self.end.y < other.start.y
-            || self.start.y > other.end.y
-            || (self.end.y == other.start.y && self.end.x < other.start.x)
-            || (self.start.y == other.end.y && self.start.x > other.end.x))
+        !(self.back().y < other.front().y
+            || self.front().y > other.back().y
+            || (self.back().y == other.front().y && self.back().x <= other.front().x)
+            || (self.front().y == other.back().y && self.front().x >= other.back().x))
     }
 
     fn xor(&self, other: &Range) -> (Range, Range) {
@@ -181,10 +174,17 @@ impl Interval for Range {
     }
 
     fn and(&self, other: &Range) -> Range {
-        Range::from_points(
-            max(*self.front(), *other.front()),
-            min(*self.back(), *other.back()),
-        )
+        if self.overlaps_with(other) {
+            Range::from_points(
+                max(*self.front(), *other.front()),
+                min(*self.back(), *other.back()),
+            )
+        } else {
+            Range::from_points(
+                Point::new(usize::MAX, usize::MAX),
+                Point::new(usize::MAX, usize::MAX),
+            )
+        }
     }
 
     fn merge_adjacent(&self, other: &Self) -> Option<Self> {
@@ -495,5 +495,24 @@ mod test {
                 Cursor::new(2, 1),
             ]
         );
+    }
+
+    #[test]
+    fn range_overlaps_with() {
+        let a = Range::new(0, 0, 0, 2);
+        let b = Range::new(0, 1, 0, 3);
+        assert_eq!(a.overlaps_with(&b), true);
+
+        let a = Range::new(0, 0, 0, 1);
+        let b = Range::new(0, 0, 0, 1);
+        assert_eq!(a.overlaps_with(&b), true);
+
+        let a = Range::new(0, 0, 0, 2);
+        let b = Range::new(0, 2, 0, 3);
+        assert_eq!(a.overlaps_with(&b), false);
+
+        let a = Range::new(0, 0, 0, 2);
+        let b = Range::new(0, 3, 0, 4);
+        assert_eq!(a.overlaps_with(&b), false);
     }
 }

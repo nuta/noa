@@ -64,12 +64,8 @@ impl<I: Interval + std::fmt::Debug, V: PartialEq + Clone> IntervalTree<I, V> {
         } else {
             for existing_node in overlapping_nodes {
                 let xor_intervals = interval.xor(&existing_node.interval);
-                if !xor_intervals.0.is_empty() {
-                    intervals_between_nodes.push(xor_intervals.0);
-                }
-
-                if !xor_intervals.1.is_empty() {
-                    intervals_between_nodes.push(xor_intervals.1);
+                if !xor_intervals.0.is_empty() || !xor_intervals.1.is_empty() {
+                    intervals_between_nodes.push(xor_intervals);
                 }
 
                 if interval.includes(&existing_node.interval) {
@@ -79,10 +75,12 @@ impl<I: Interval + std::fmt::Debug, V: PartialEq + Clone> IntervalTree<I, V> {
                     let overlapping = interval.and(&existing_node.interval);
 
                     // Case (d): Insert a new node with existing node's value.
-                    new_intervals.push((
-                        overlapping.xor(&existing_node.interval).0,
-                        existing_node.value.clone(),
-                    ));
+                    let xs = overlapping.xor(&existing_node.interval);
+                    for x in &[xs.0, xs.1] {
+                        if !x.is_empty() {
+                            new_intervals.push((x.clone(), existing_node.value.clone()));
+                        }
+                    }
 
                     // Case (c): Partially update an exisiting node.
                     existing_node.interval = overlapping;
@@ -93,28 +91,34 @@ impl<I: Interval + std::fmt::Debug, V: PartialEq + Clone> IntervalTree<I, V> {
 
         // Case (a): Insert new nodes between exisiting nodes.
         if !intervals_between_nodes.is_empty() {
-            let mut new_intervals2 = Vec::new();
-            for (a, _) in new_intervals {
-                for b in &intervals_between_nodes {
-                    let x = a.and(b);
-                    if !x.is_empty() {
-                        new_intervals2.push((x, value.clone()));
+            let mut new_intervals2 = vec![
+                intervals_between_nodes[0].0.clone(),
+                intervals_between_nodes[0].1.clone(),
+            ];
+
+            for (b1, b2) in intervals_between_nodes.iter().skip(1) {
+                let mut new_intervals3 = Vec::new();
+                for a in &new_intervals2 {
+                    for &b in &[b1, b2] {
+                        if !b.is_empty() {
+                            let x = a.and(b);
+                            dbg!(&x);
+                            if a != b && !x.is_empty() {
+                                new_intervals3.push(x);
+                            }
+                        }
                     }
                 }
+                dbg!(&new_intervals3);
+                new_intervals2 = new_intervals3;
             }
 
-            for Node { interval: a, .. } in &self.nodes {
-                for b in &intervals_between_nodes {
-                    let x = a.and(b);
+            for a in new_intervals2 {
+                if !a.is_empty() && a.overlaps_with(interval) {
                     dbg!(&a);
-                    dbg!(&b);
-                    dbg!(&x);
-                    if !x.is_empty() {
-                        new_intervals2.push((x, value.clone()));
-                    }
+                    new_intervals.push((a, value.clone()));
                 }
             }
-            new_intervals = new_intervals2;
         }
 
         for (interval, value) in new_intervals {
@@ -124,17 +128,17 @@ impl<I: Interval + std::fmt::Debug, V: PartialEq + Clone> IntervalTree<I, V> {
             self.nodes.insert(pos, Node { interval, value });
         }
 
-        /*
-
         // Merge adjacent nodes with the same value.
         let new_overlapping_nodes = self.overlapping_slice_range(interval);
-        let base = new_overlapping_nodes.start;
-        let mut iter = self.nodes[new_overlapping_nodes]
+        let updated_range = new_overlapping_nodes.start.saturating_sub(1)..min(self.nodes.len(), new_overlapping_nodes.end + 1);
+        let base = updated_range.start;
+        let mut iter = self.nodes[updated_range]
             .iter_mut()
             .enumerate()
             .peekable();
         let mut removed = Vec::new();
-        while let Some((_, node)) = iter.next() {
+        while let Some((i, node)) = iter.next() {
+            dbg!(i, iter.peek().is_some());
             let (next_i, next) = match iter.peek() {
                 Some((next_i, next)) => (next_i, next),
                 None => break,
@@ -155,13 +159,18 @@ impl<I: Interval + std::fmt::Debug, V: PartialEq + Clone> IntervalTree<I, V> {
         for i in removed.iter().rev() {
             self.nodes.remove(*i);
         }
-        */
     }
 
     /// Removes overlapping nodes. `O(n)`.
     pub fn remove(&mut self, interval: &I) {
         self.nodes
             .retain(|node| !node.interval.overlaps_with(interval));
+    }
+
+    /// Returns the iterator of all nodes.
+    #[cfg(test)]
+    pub fn iter_all(&self) -> slice::Iter<'_, Node<I, V>> {
+        self.nodes.iter()
     }
 
     /// Returns the iterator of nodes overlapping nodes. `O(log n)`.
@@ -200,13 +209,19 @@ mod test {
         //  pub const fn hello
         let mut tree = IntervalTree::new();
         let update_existing = |old: &mut String, new: &String| {};
-        tree.update(&Range::new(0, 10, 0, 11), "fn".to_owned(), update_existing);
-        tree.update(&Range::new(0, 4, 0, 8), "const".to_owned(), update_existing);
-        tree.update(&Range::new(0, 0, 0, 2), "pub".to_owned(), update_existing);
+        tree.update(&Range::new(0, 10, 0, 12), "fn".to_owned(), update_existing);
+        tree.update(&Range::new(0, 4, 0, 9), "const".to_owned(), update_existing);
+        tree.update(&Range::new(0, 0, 0, 3), "pub".to_owned(), update_existing);
         tree.update(
             &Range::new(0, 13, 0, 17),
             "hello".to_owned(),
             update_existing,
+        );
+        assert_eq!(
+            tree.iter_all()
+                .map(|node| node.value.to_owned())
+                .collect::<Vec<String>>(),
+            vec!["pub", "const", "fn", "hello"],
         );
         assert_eq!(
             tree.iter(&Range::new(0, 0, 0, 17))
@@ -229,7 +244,7 @@ mod test {
     }
 
     #[test]
-    fn update_existing_nodes21() {
+    fn update_existing_nodes1() {
         let mut tree = IntervalTree::new();
         let update_existing = |old: &mut i32, new: &i32| {
             *old |= *new;
@@ -242,7 +257,7 @@ mod test {
         tree.update(&Range::new(0, 0, 0, 7), 0b10, update_existing);
 
         assert_eq!(
-            tree.iter(&Range::new(0, 0, 0, 7))
+            tree.iter_all()
                 .map(|node| (node.value, node.interval.clone()))
                 .collect::<Vec<(i32, Range)>>(),
             vec![
@@ -261,7 +276,7 @@ mod test {
                     }
                 ),
                 (
-                    0b0,
+                    0b10,
                     Range {
                         start: Point::new(0, 5),
                         end: Point::new(0, 7),
@@ -271,9 +286,131 @@ mod test {
         );
     }
 
-    /*
     #[test]
     fn update_existing_nodes2() {
+        let mut tree = IntervalTree::new();
+        let update_existing = |old: &mut i32, new: &i32| {
+            *old |= *new;
+        };
+
+        tree.update(&Range::new(0, 2, 0, 5), 0b01, update_existing);
+        tree.update(&Range::new(0, 0, 0, 1), 0b01, update_existing);
+        // current:  1.111..
+        // interval: xxxxxxx
+        // updated:  3233322
+        tree.update(&Range::new(0, 0, 0, 7), 0b10, update_existing);
+
+        assert_eq!(
+            tree.iter_all()
+                .map(|node| (node.value, node.interval.clone()))
+                .collect::<Vec<(i32, Range)>>(),
+            vec![
+                (
+                    0b11,
+                    Range {
+                        start: Point::new(0, 0),
+                        end: Point::new(0, 1),
+                    }
+                ),
+                (
+                    0b10,
+                    Range {
+                        start: Point::new(0, 1),
+                        end: Point::new(0, 2),
+                    }
+                ),
+                (
+                    0b11,
+                    Range {
+                        start: Point::new(0, 2),
+                        end: Point::new(0, 5),
+                    }
+                ),
+                (
+                    0b10,
+                    Range {
+                        start: Point::new(0, 5),
+                        end: Point::new(0, 7),
+                    }
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn update_existing_nodes3() {
+        let mut tree = IntervalTree::new();
+        let update_existing = |old: &mut i32, new: &i32| {
+            *old |= *new;
+        };
+
+        tree.update(&Range::new(0, 0, 0, 4), 0b01, update_existing);
+        // current:  1111
+        // interval: ..xx
+        // updated:  1133
+        tree.update(&Range::new(0, 2, 0, 4), 0b10, update_existing);
+
+        assert_eq!(
+            tree.iter_all()
+                .map(|node| (node.value, node.interval.clone()))
+                .collect::<Vec<(i32, Range)>>(),
+            vec![
+                (
+                    0b01,
+                    Range {
+                        start: Point::new(0, 0),
+                        end: Point::new(0, 2),
+                    }
+                ),
+                (
+                    0b11,
+                    Range {
+                        start: Point::new(0, 2),
+                        end: Point::new(0, 4),
+                    }
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn update_existing_nodes4() {
+        let mut tree = IntervalTree::new();
+        let update_existing = |old: &mut i32, new: &i32| {
+            *old |= *new;
+        };
+
+        tree.update(&Range::new(0, 0, 0, 4), 0b01, update_existing);
+        // current:  1111
+        // interval: xx..
+        // updated:  3311
+        tree.update(&Range::new(0, 0, 0, 2), 0b10, update_existing);
+
+        assert_eq!(
+            tree.iter_all()
+                .map(|node| (node.value, node.interval.clone()))
+                .collect::<Vec<(i32, Range)>>(),
+            vec![
+                (
+                    0b11,
+                    Range {
+                        start: Point::new(0, 0),
+                        end: Point::new(0, 2),
+                    }
+                ),
+                (
+                    0b01,
+                    Range {
+                        start: Point::new(0, 2),
+                        end: Point::new(0, 4),
+                    }
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn update_existing_nodes5() {
         let mut tree = IntervalTree::new();
         let update_existing = |old: &mut i32, new: &i32| {
             *old |= *new;
@@ -320,7 +457,7 @@ mod test {
                     }
                 ),
                 (
-                    0b10,
+                    0b01,
                     Range {
                         start: Point::new(0, 9),
                         end: Point::new(0, 12),
@@ -329,5 +466,62 @@ mod test {
             ],
         );
     }
-    */
+
+
+    #[test]
+    fn merge_nodes_with_same_value() {
+        let mut tree = IntervalTree::new();
+        let update_existing = |old: &mut i32, new: &i32| {
+            *old |= *new;
+        };
+
+        tree.update(&Range::new(0, 1, 0, 2), 0b01, update_existing);
+        tree.update(&Range::new(0, 2, 0, 3), 0b11, update_existing);
+        tree.update(&Range::new(0, 3, 0, 4), 0b01, update_existing);
+
+        // current:  .131
+        // interval: .x..
+        // updated:  .331
+        tree.update(&Range::new(0, 1, 0, 2), 0b10, update_existing);
+        assert_eq!(
+            tree.iter_all()
+                .map(|node| (node.value, node.interval.clone()))
+                .collect::<Vec<(i32, Range)>>(),
+            vec![
+                (
+                    0b11,
+                    Range {
+                        start: Point::new(0, 1),
+                        end: Point::new(0, 3),
+                    }
+                ),
+                (
+                    0b01,
+                    Range {
+                        start: Point::new(0, 3),
+                        end: Point::new(0, 4),
+                    }
+                ),
+            ]
+        );
+
+        // current:  .331
+        // interval: ...x
+        // updated:  .333
+        tree.update(&Range::new(0, 3, 0, 4), 0b10, update_existing);
+        assert_eq!(
+            tree.iter_all()
+                .map(|node| (node.value, node.interval.clone()))
+                .collect::<Vec<(i32, Range)>>(),
+            vec![
+                (
+                    0b11,
+                    Range {
+                        start: Point::new(0, 1),
+                        end: Point::new(0, 4),
+                    }
+                ),
+            ]
+        );
+    }
 }
