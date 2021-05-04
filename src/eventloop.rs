@@ -6,7 +6,6 @@ use crate::{
 };
 use dirs::home_dir;
 use log::LevelFilter;
-use mpsc::Receiver;
 use parking_lot::RwLock;
 use simplelog::{Config, WriteLogger};
 use std::{
@@ -14,10 +13,16 @@ use std::{
     env::current_dir,
     fs::OpenOptions,
     path::{Path, PathBuf},
-    sync::{mpsc::Sender, Arc},
+    sync::Arc,
+    task::Poll,
+    time::Duration,
 };
-use std::{sync::mpsc, time::Instant};
+use std::{sync, time::Instant};
 use structopt::StructOpt;
+use tokio::{
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
+    time::timeout,
+};
 
 #[derive(Debug)]
 pub enum Event {
@@ -32,16 +37,16 @@ pub enum Event {
 
 #[derive(Clone)]
 pub struct EventQueue {
-    tx: Sender<Event>,
+    tx: UnboundedSender<Event>,
 }
 
 impl EventQueue {
-    pub fn new(tx: Sender<Event>) -> EventQueue {
+    pub fn new(tx: UnboundedSender<Event>) -> EventQueue {
         EventQueue { tx }
     }
 
     pub fn enqueue(&self, ev: Event) {
-        self.tx.send(ev).unwrap();
+        self.tx.send(ev).ok();
     }
 }
 
@@ -62,12 +67,12 @@ pub struct EventLoop {
     current_buffer: Arc<RwLock<Buffer>>,
     buffers: Vec<Arc<RwLock<Buffer>>>,
     views: RwLock<HashMap<BufferId, View>>,
-    event_queue: Receiver<Event>,
+    event_queue: UnboundedReceiver<Event>,
 }
 
 impl EventLoop {
     pub fn new(workspace_dir: PathBuf) -> EventLoop {
-        let (tx, event_queue) = mpsc::channel();
+        let (tx, event_queue) = mpsc::unbounded_channel();
 
         let mut scratch = Buffer::from_str(SCRATCH_TEXT);
         scratch.set_name("*scratch*");
@@ -123,24 +128,21 @@ impl EventLoop {
                 return;
             }
 
-            match self.event_queue.recv() {
-                Ok(ev) => {
-                    let started_at = Instant::now();
+            if let Some(ev) = self.event_queue.recv().await {
+                let started_at = Instant::now();
 
+                self.handle_event(ev);
+                while let Ok(Some(ev)) =
+                    timeout(Duration::from_micros(400), self.event_queue.recv()).await
+                {
                     self.handle_event(ev);
-                    while let Ok(ev) = self.event_queue.try_recv() {
-                        self.handle_event(ev);
-                    }
+                }
 
-                    trace!(
-                        "event handling took {} us",
-                        started_at.elapsed().as_micros()
-                    );
-                    self.draw();
-                }
-                Err(err) => {
-                    warn!("failed recv from the event queue: {:?}", err);
-                }
+                trace!(
+                    "event handling took {} us",
+                    started_at.elapsed().as_micros()
+                );
+                self.draw();
             }
         }
     }
