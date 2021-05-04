@@ -4,23 +4,11 @@ use std::ops;
 
 use crate::{buffer::Buffer, rope::Point, rope::Range, terminal::DisplayWidth};
 
-#[derive(Debug, Copy, Clone)]
-pub enum Style {
-    Cursor,
-}
-
-#[derive(Debug, Clone)]
-pub enum Span {
-    Text {
-        /// The char indices in a line rope.
-        char_range: ops::Range<usize>,
-    },
-    Style(Style),
-}
-
 #[derive(Debug, Clone)]
 pub struct DisplayLine {
-    pub spans: Vec<Span>,
+    /// The char indices in a line rope.
+    pub spans: Vec<ops::Range<usize>>,
+    /// The char indices in the whole buffer rope.
     pub range: Range,
 }
 
@@ -148,9 +136,7 @@ impl View {
                 for mut chunk in line_rope.chunks() {
                     let chunk_width = chunk.display_width();
                     if chunk_width <= width_remaining {
-                        spans.push(Span::Text {
-                            char_range: text_x..(text_x + chunk_width),
-                        });
+                        spans.push(text_x..(text_x + chunk_width));
                         text_x += chunk_width;
                         width_remaining -= chunk_width;
                     } else {
@@ -169,9 +155,7 @@ impl View {
                                 width_remaining -= ch.display_width();
                             }
 
-                            spans.push(Span::Text {
-                                char_range: text_x..(text_x + wrap_byte_at),
-                            });
+                            spans.push(text_x..(text_x + wrap_byte_at));
 
                             text_x += wrap_char_at;
                             self.lines.push(DisplayLine {

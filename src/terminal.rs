@@ -20,7 +20,7 @@ use crate::{
     buffer::Buffer,
     eventloop::{Event, EventQueue},
     rope::Point,
-    view::{Span, View},
+    view::View,
 };
 
 pub struct DrawContext<'a> {
@@ -213,16 +213,9 @@ impl Terminal {
 
             // Draw buffer contents.
             let rope_line = ctx.buffer.line(lineno - 1);
-            for span in &display_line.spans {
-                match span {
-                    Span::Text { char_range } => {
-                        queue!(stdout, Print(rope_line.slice(char_range.clone()))).ok();
-                    }
-                    Span::Style(style) => {
-                        // TODO:
-                        trace!("style={:?}", style);
-                    }
-                }
+            // let cursor_spans = ctx.buffer.cursors().
+            for char_range in &display_line.spans {
+                queue!(stdout, Print(rope_line.slice(char_range.clone()))).ok();
             }
 
             queue!(stdout, Clear(ClearType::UntilNewLine));
