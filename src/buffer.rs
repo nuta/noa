@@ -1,5 +1,4 @@
 use crate::editorconfig::*;
-use crate::interval_tree::Interval;
 use crate::rope::*;
 use std::cmp::{max, min};
 use std::collections::HashSet;

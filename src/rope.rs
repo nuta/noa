@@ -1,4 +1,3 @@
-use crate::interval_tree::Interval;
 use std::cmp::Ordering;
 use std::cmp::{max, min};
 use std::fmt;
@@ -115,6 +114,17 @@ impl Range {
     pub fn contains(&self, pos: &Point) -> bool {
         self.start <= *pos && *pos < self.end
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.front() == self.back()
+    }
+
+    pub fn overlaps_with(&self, other: &Range) -> bool {
+        !(self.back().y < other.front().y
+            || self.front().y > other.back().y
+            || (self.back().y == other.front().y && self.back().x <= other.front().x)
+            || (self.front().y == other.back().y && self.front().x >= other.back().x))
+    }
 }
 
 impl fmt::Display for Range {
@@ -132,70 +142,6 @@ impl PartialOrd for Range {
 impl Ord for Range {
     fn cmp(&self, other: &Range) -> Ordering {
         self.front().cmp(other.front())
-    }
-}
-
-impl Interval for Range {
-    fn is_empty(&self) -> bool {
-        self.front() == self.back()
-    }
-
-    fn includes(&self, other: &Range) -> bool {
-        self.front() <= other.front() && other.back() <= self.back()
-    }
-
-    fn overlaps_with(&self, other: &Range) -> bool {
-        !(self.back().y < other.front().y
-            || self.front().y > other.back().y
-            || (self.back().y == other.front().y && self.back().x <= other.front().x)
-            || (self.front().y == other.back().y && self.front().x >= other.back().x))
-    }
-
-    fn xor(&self, other: &Range) -> (Range, Range) {
-        if self.overlaps_with(other) {
-            // self:  ..xxxx..
-            // other: ....xxxx
-            // xor:   x.....xx
-            let first = Range::from_points(
-                min(*self.front(), *other.front()),
-                max(*self.front(), *other.front()),
-            );
-            let second = Range::from_points(
-                min(*self.back(), *other.back()),
-                max(*self.back(), *other.back()),
-            );
-            (first, second)
-        } else {
-            // self:  xxx.....
-            // other: ......xx
-            // xor:   xxx...xx
-            (min(self, other).clone(), max(self, other).clone())
-        }
-    }
-
-    fn and(&self, other: &Range) -> Range {
-        if self.overlaps_with(other) {
-            Range::from_points(
-                max(*self.front(), *other.front()),
-                min(*self.back(), *other.back()),
-            )
-        } else {
-            Range::from_points(
-                Point::new(usize::MAX, usize::MAX),
-                Point::new(usize::MAX, usize::MAX),
-            )
-        }
-    }
-
-    fn merge_adjacent(&self, other: &Self) -> Option<Self> {
-        if min(*self.back(), *other.back()) == max(*self.front(), *other.front()) {
-            Some(Range::from_points(
-                min(*self.front(), *other.front()),
-                max(*self.back(), *other.back()),
-            ))
-        } else {
-            None
-        }
     }
 }
 

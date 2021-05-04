@@ -15,7 +15,6 @@ extern crate pretty_assertions;
 mod buffer;
 mod editorconfig;
 mod eventloop;
-mod interval_tree;
 mod rope;
 mod terminal;
 mod view;

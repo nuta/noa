@@ -220,6 +220,7 @@ impl Terminal {
                     }
                     Span::Style(style) => {
                         // TODO:
+                        trace!("style={:?}", style);
                     }
                 }
             }
