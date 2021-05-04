@@ -66,6 +66,7 @@ pub struct EventLoop {
     terminal: Terminal,
     current_buffer: Arc<RwLock<Buffer>>,
     buffers: Vec<Arc<RwLock<Buffer>>>,
+    path2id: HashMap<PathBuf, BufferId>,
     views: RwLock<HashMap<BufferId, View>>,
     event_queue: UnboundedReceiver<Event>,
 }
@@ -88,6 +89,7 @@ impl EventLoop {
             event_queue,
             current_buffer: scratch_buffer,
             buffers,
+            path2id: HashMap::new(),
             views: RwLock::new(views),
         }
     }
@@ -105,8 +107,11 @@ impl EventLoop {
             }
         };
 
-        let buffer = match Buffer::open_file(&abspath) {
-            Ok(buffer) => Arc::new(RwLock::new(buffer)),
+        let (buffer, buffer_id) = match Buffer::open_file(&abspath) {
+            Ok(buffer) => {
+                let id = buffer.id();
+                (Arc::new(RwLock::new(buffer)), id)
+            }
             Err(err) => {
                 self.error(format!(
                     "failed to open file: {} ({})",
@@ -118,6 +123,7 @@ impl EventLoop {
         };
 
         self.buffers.push(buffer.clone());
+        self.path2id.insert(abspath, buffer_id);
         self.current_buffer = buffer;
     }
 
@@ -150,6 +156,9 @@ impl EventLoop {
     pub fn handle_event(&mut self, ev: Event) {
         match ev {
             Event::Key(key) => self.handle_key_event(key),
+            Event::KeyBatch(str) => {
+                self.current_buffer.write().insert(&str);
+            }
             _ => {
                 trace!("unhandled event = {:?}", ev);
             }
@@ -166,6 +175,9 @@ impl EventLoop {
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), CTRL) => {
                 self.exited = true;
+            }
+            (KeyCode::Char(ch), NONE) => {
+                self.current_buffer.write().insert_char(ch);
             }
             _ => {
                 trace!("unhandled key = {:?}", key);
