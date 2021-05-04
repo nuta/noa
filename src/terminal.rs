@@ -2,15 +2,19 @@ use std::cmp::min;
 use std::io::Write;
 use std::{io::stdout, time::Duration};
 
-use crossterm::cursor::{self, MoveTo};
-use crossterm::event::{self, Event as TermEvent};
 pub use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use crossterm::style::{
     Attribute, Color, Print, SetAttribute, SetBackgroundColor, SetForegroundColor,
 };
 use crossterm::terminal::*;
 use crossterm::terminal::{Clear, ClearType};
+use crossterm::{
+    cursor::{self, MoveTo},
+    event::EventStream,
+};
+use crossterm::{event::Event as TermEvent, terminal};
 use crossterm::{execute, queue};
+use futures::{Stream, StreamExt, TryStreamExt};
 
 use crate::{
     buffer::Buffer,
@@ -83,7 +87,9 @@ impl Terminal {
         enable_raw_mode().expect("failed to enable the raw mode");
         execute!(stdout(), EnterAlternateScreen).expect("failed to enter the alternative screen");
 
-        std::thread::spawn(move || {
+        tokio::spawn(async move {
+            let mut stream = EventStream::new().fuse();
+
             fn handle_event(event_queue: &EventQueue, ev: TermEvent) {
                 match ev {
                     TermEvent::Key(key) => {
@@ -102,11 +108,11 @@ impl Terminal {
             }
 
             fn is_next_available() -> crossterm::Result<bool> {
-                event::poll(Duration::from_secs(0))
+                crossterm::event::poll(Duration::from_secs(0))
             }
 
             loop {
-                if let Ok(ev) = event::read() {
+                if let Some(Ok(ev)) = stream.next().await {
                     match ev {
                         TermEvent::Key(KeyEvent {
                             code: KeyCode::Char(key),
@@ -115,34 +121,36 @@ impl Terminal {
                             let mut next_event = None;
                             let mut buf = key.to_string();
                             while is_next_available().unwrap() && next_event.is_none() {
-                                match event::read() {
-                                    Ok(TermEvent::Key(KeyEvent {
-                                        code: KeyCode::Char(ch),
-                                        modifiers: KeyModifiers::SHIFT,
-                                    })) => {
-                                        buf.push(ch);
-                                    }
-                                    Ok(TermEvent::Key(KeyEvent {
-                                        code,
-                                        modifiers: KeyModifiers::NONE,
-                                    })) => match code {
-                                        KeyCode::Char(ch) => {
+                                if let Some(Ok(ev)) = stream.next().await {
+                                    match ev {
+                                        TermEvent::Key(KeyEvent {
+                                            code: KeyCode::Char(ch),
+                                            modifiers: KeyModifiers::SHIFT,
+                                        }) => {
                                             buf.push(ch);
                                         }
-                                        KeyCode::Enter => {
-                                            buf.push('\n');
-                                        }
-                                        KeyCode::Tab => {
-                                            buf.push('\t');
-                                        }
-                                        _ => {
+                                        TermEvent::Key(KeyEvent {
+                                            code,
+                                            modifiers: KeyModifiers::NONE,
+                                        }) => match code {
+                                            KeyCode::Char(ch) => {
+                                                buf.push(ch);
+                                            }
+                                            KeyCode::Enter => {
+                                                buf.push('\n');
+                                            }
+                                            KeyCode::Tab => {
+                                                buf.push('\t');
+                                            }
+                                            _ => {
+                                                next_event = Some(ev);
+                                            }
+                                        },
+                                        ev => {
                                             next_event = Some(ev);
                                         }
-                                    },
-                                    Ok(ev) => {
-                                        next_event = Some(ev);
+                                        _ => {}
                                     }
-                                    _ => {}
                                 }
                             }
 

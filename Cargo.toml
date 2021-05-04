@@ -10,10 +10,11 @@ simplelog = "0"
 backtrace = "0"
 structopt = "0"
 tokio = { version = "1", features = ["full"] }
+futures = "0"
 parking_lot = "0"
 dirs = "3"
 ropey = "1"
-crossterm = "0"
+crossterm = { version = "0", features = ["event-stream"] }
 unicode-width = "0"
 
 [dev-dependencies]
