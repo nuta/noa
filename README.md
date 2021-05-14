@@ -32,4 +32,4 @@ $ ./target/release/noa
 
 License
 -------
-CC0 or MIT. Choose whichever you prefer.
+See [LICENSE.md](https://github.com/nuta/noa/blob/main/LICENSE.md).

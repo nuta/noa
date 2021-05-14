@@ -7,7 +7,7 @@ description = "A batteries-included terminal-based text editor."
 keywords = []
 categories = ["text-editors"]
 readme = "README.md"
-license = "CC0-1.0 OR MIT"
+license = "MIT OR Apache-2.0"
 repository = "https://github.com/nuta/noa"
 
 [dependencies]
