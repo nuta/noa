@@ -52,16 +52,17 @@ async fn main() {
     trace!("starting");
 
     let opt = Opt::from_args();
-    let (sock_path, daemon) = match opt.daemon_type.as_str() {
+    match opt.daemon_type.as_str() {
         "lsp" => {
+            let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<lsp::Notification>();
             let sock_path = lsp_sock_path(&opt.workspace_dir, &opt.lang);
-            let daemon =
-                LspDaemon::new(&opt.workspace_dir, opt.lang).expect("failed to start the LSP mode");
-            (sock_path, daemon)
+            let daemon = LspDaemon::spawn(tx, &opt.workspace_dir, opt.lang)
+                .await
+                .expect("failed to start the LSP mode");
+            eventloop(&sock_path, daemon, rx).await.unwrap();
         }
         _ => panic!("unknown daemon type: {}", opt.daemon_type),
     };
 
-    eventloop(&sock_path, daemon).await.unwrap();
     trace!("exiting");
 }
