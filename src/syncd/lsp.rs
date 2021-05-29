@@ -215,3 +215,7 @@ impl Daemon for LspDaemon {
         Ok(())
     }
 }
+
+unsafe impl Send for LspDaemon {}
+unsafe impl Send for Request {}
+unsafe impl Send for Notification {}
