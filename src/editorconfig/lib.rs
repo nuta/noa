@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate log;
+
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

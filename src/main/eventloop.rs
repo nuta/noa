@@ -1,9 +1,6 @@
+use crate::terminal::{DrawContext, Terminal};
 use crate::terminal::{KeyCode, KeyEvent, KeyModifiers};
-use crate::{buffer::Buffer, view::View};
-use crate::{
-    buffer::BufferId,
-    terminal::{DrawContext, Terminal},
-};
+use crate::view::View;
 use dirs::home_dir;
 use log::LevelFilter;
 use parking_lot::RwLock;
@@ -23,6 +20,8 @@ use tokio::{
     sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
     time::timeout,
 };
+
+use noa_buffer::{Buffer, BufferId};
 
 #[derive(Debug)]
 pub enum Event {

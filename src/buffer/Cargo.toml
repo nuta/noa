@@ -1,0 +1,13 @@
+[package]
+name = "noa_buffer"
+version = "0.1.0"
+authors = ["Seiya Nuta <nuta@seiya.me>"]
+edition = "2018"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+log = "0"
+ropey = "1"
+noa_editorconfig = { path = "../editorconfig" }

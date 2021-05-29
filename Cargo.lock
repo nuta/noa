@@ -430,8 +430,44 @@ dependencies = [
  "dirs",
  "futures",
  "log",
+ "noa_buffer",
+ "noa_editorconfig",
  "parking_lot",
  "pretty_assertions",
+ "simplelog",
+ "structopt",
+ "tokio",
+ "unicode-width",
+]
+
+[[package]]
+name = "noa_buffer"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "noa_editorconfig",
+ "ropey",
+]
+
+[[package]]
+name = "noa_editorconfig"
+version = "0.1.0"
+dependencies = [
+ "log",
+]
+
+[[package]]
+name = "noa_main"
+version = "0.0.0"
+dependencies = [
+ "backtrace",
+ "crossterm",
+ "dirs",
+ "futures",
+ "log",
+ "noa_buffer",
+ "noa_editorconfig",
+ "parking_lot",
  "ropey",
  "simplelog",
  "structopt",

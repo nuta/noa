@@ -18,11 +18,11 @@ use crossterm::{execute, queue};
 use futures::{Stream, StreamExt, TryStreamExt};
 
 use crate::{
-    buffer::Buffer,
     eventloop::{Event, EventQueue},
-    rope::{Cursor, Point},
     view::View,
 };
+
+use noa_buffer::{Buffer, Cursor, Point};
 
 pub struct DrawContext<'a> {
     pub buffer: &'a Buffer,

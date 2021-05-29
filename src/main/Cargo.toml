@@ -1,0 +1,24 @@
+[package]
+name = "noa_main"
+version = "0.0.0"
+authors = ["Seiya Nuta <nuta@seiya.me>"]
+edition = "2018"
+
+[[bin]]
+name = "noa"
+path = "main.rs"
+
+[dependencies]
+log = "0"
+simplelog = "0"
+backtrace = "0"
+structopt = "0"
+tokio = { version = "1", features = ["full"] }
+futures = "0"
+parking_lot = "0"
+dirs = "3"
+ropey = "1"
+crossterm = { version = "0", features = ["event-stream"] }
+unicode-width = "0"
+noa_buffer = { path = "../buffer" }
+noa_editorconfig = { path = "../editorconfig" }

@@ -8,14 +8,12 @@ use structopt::StructOpt;
 
 #[macro_use]
 extern crate log;
+
 #[cfg(test)]
 #[macro_use]
 extern crate pretty_assertions;
 
-mod buffer;
-mod editorconfig;
 mod eventloop;
-mod rope;
 mod terminal;
 mod view;
 

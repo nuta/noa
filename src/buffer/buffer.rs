@@ -1,9 +1,9 @@
-use crate::editorconfig::*;
 use crate::rope::*;
+use noa_editorconfig::*;
 use std::cmp::{max, min};
 use std::collections::HashSet;
 use std::fs;
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -360,7 +360,7 @@ impl Buffer {
     pub fn select_until_end_of_line(&mut self) {
         let mut new_cursors = Vec::new();
         for cursor in &self.cursors {
-            let (start, mut end) = match cursor {
+            let (start, end) = match cursor {
                 Cursor::Normal { pos, .. } if pos.x == self.rope.line_len(pos.y) => {
                     (*pos, Point::new(pos.y + 1, 0))
                 }
