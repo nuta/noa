@@ -75,7 +75,7 @@ async fn send_requests(stdin: &mut ChildStdin, body: &str) -> Result<()> {
     Ok(())
 }
 
-async fn receive_responses(clients: UnboundedSender<Notification>, stdout: ChildStdout) {
+async fn receive_responses(_clients: UnboundedSender<Notification>, stdout: ChildStdout) {
     use tokio::io::{AsyncBufReadExt, AsyncReadExt};
 
     let mut reader = BufReader::new(stdout);

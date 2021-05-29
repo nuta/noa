@@ -20,7 +20,7 @@ pub trait Daemon: Send {
 
 pub async fn eventloop<D: Daemon + 'static>(
     sock_path: &Path,
-    mut daemon: D,
+    daemon: D,
     mut noti_rx: UnboundedReceiver<D::Notification>,
 ) -> Result<()> {
     let listener = match UnixListener::bind(sock_path) {
@@ -65,7 +65,7 @@ pub async fn eventloop<D: Daemon + 'static>(
                     buf.clear();
                     match reader.read_line(&mut buf).await {
                         Ok(0) => break,
-                        Ok(len) => {
+                        Ok(_len) => {
                             let request: D::Request =
                                 serde_json::from_str(&buf).expect("invalid request");
                             warn_on_error!(
