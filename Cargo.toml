@@ -1,34 +1,7 @@
-[package]
-name = "noa"
-version = "0.0.0"
-authors = ["Seiya Nuta <nuta@seiya.me>"]
-edition = "2018"
-
-[[bin]]
-name = "noa"
-path = "src/main/main.rs"
-
 [workspace]
 members = [
   "src/*",
 ]
-
-[dependencies]
-log = "0"
-simplelog = "0"
-backtrace = "0"
-structopt = "0"
-tokio = { version = "1", features = ["full"] }
-futures = "0"
-parking_lot = "0"
-dirs = "3"
-crossterm = { version = "0", features = ["event-stream"] }
-unicode-width = "0"
-noa_buffer = { path = "src/buffer" }
-noa_editorconfig = { path = "src/editorconfig" }
-
-[dev-dependencies]
-pretty_assertions = "0"
 
 [profile.release]
 opt-level = 3

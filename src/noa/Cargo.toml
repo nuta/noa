@@ -1,5 +1,5 @@
 [package]
-name = "noa_main"
+name = "noa"
 version = "0.0.0"
 authors = ["Seiya Nuta <nuta@seiya.me>"]
 edition = "2018"
@@ -7,6 +7,9 @@ edition = "2018"
 [[bin]]
 name = "noa"
 path = "main.rs"
+
+[dev-dependencies]
+pretty_assertions = "0"
 
 [dependencies]
 log = "0"
