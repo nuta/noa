@@ -451,6 +451,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "noa-lspd"
+version = "0.0.0"
+dependencies = [
+ "backtrace",
+ "dirs",
+ "futures",
+ "log",
+ "parking_lot",
+ "pretty_assertions",
+ "simplelog",
+ "structopt",
+ "tokio",
+]
+
+[[package]]
 name = "noa_buffer"
 version = "0.0.0"
 dependencies = [
