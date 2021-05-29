@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{io::ErrorKind, path::Path};
 
 use anyhow::Result;
 use noa_common::warn_on_error;
@@ -16,7 +16,17 @@ pub trait Daemon {
 }
 
 pub async fn eventloop<D: Daemon>(sock_path: &Path, mut daemon: D) -> Result<()> {
-    let mut unix_sock = UnixStream::connect(sock_path).await?;
+    let mut unix_sock = match UnixStream::connect(sock_path).await {
+        Ok(sock) => sock,
+        Err(err) if err.kind() == ErrorKind::AlreadyExists => {
+            warn!("{} already exists", sock_path.display());
+            return Err(err.into());
+        }
+        Err(err) => {
+            return Err(err.into());
+        }
+    };
+
     let (read_end, mut write_end) = unix_sock.split();
     let mut reader = BufReader::new(read_end);
     let mut buf = String::with_capacity(16 * 1024);
