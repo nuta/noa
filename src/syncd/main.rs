@@ -2,6 +2,7 @@
 extern crate log;
 
 mod eventloop;
+mod lsp;
 
 use dirs::home_dir;
 use log::LevelFilter;
@@ -9,8 +10,17 @@ use simplelog::{CombinedLogger, Config, TermLogger, TerminalMode, WriteLogger};
 use std::fs::OpenOptions;
 use structopt::StructOpt;
 
+use crate::{eventloop::eventloop, lsp::LspDaemon};
+
 #[derive(StructOpt)]
-struct Opt {}
+struct Opt {
+    #[structopt(long)]
+    workspace_dir: String,
+    #[structopt(long, name = "type")]
+    daemon_type: String,
+    #[structopt(long)]
+    lang: String,
+}
 
 #[tokio::main]
 async fn main() {
@@ -27,7 +37,7 @@ async fn main() {
             OpenOptions::new()
                 .append(true)
                 .create(true)
-                .open(home_dir().unwrap().join(".noa-lspd.log"))
+                .open(home_dir().unwrap().join(".noa-syncd.log"))
                 .unwrap(),
         ),
     ])
@@ -39,8 +49,14 @@ async fn main() {
     }));
 
     trace!("starting");
-    let _opt = Opt::from_args();
-    let mut ev = eventloop::EventLoop::new();
-    ev.run().await;
+
+    let opt = Opt::from_args();
+    let daemon = match opt.daemon_type.as_str() {
+        "lsp" => eventloop(LspDaemon::new()),
+        _ => panic!("unknown daemon type: {}", opt.daemon_type),
+    }
+    .await
+    .unwrap();
+
     trace!("exiting");
 }
