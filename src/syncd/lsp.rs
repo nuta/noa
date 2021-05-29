@@ -5,9 +5,9 @@ use async_trait::async_trait;
 use lsp_types::{
     notification::{DidChangeTextDocument, DidOpenTextDocument},
     request::Completion,
-    CompletionParams, DidChangeTextDocumentParams, DidOpenTextDocumentParams, PartialResultParams,
-    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams,
-    VersionedTextDocumentIdentifier, WorkDoneProgressParams,
+    CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
+    PartialResultParams, TextDocumentContentChangeEvent, TextDocumentIdentifier,
+    TextDocumentPositionParams, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 use noa_buffer::Point;
 use noa_common::syncd_protocol::{LspNotification, LspRequest, LspResponse};
@@ -70,8 +70,20 @@ async fn send_requests(stdin: &mut ChildStdin, body: &str) -> Result<()> {
     Ok(())
 }
 
+type ReqIdTxMap = Arc<
+    Mutex<
+        HashMap<
+            jsonrpc_core::Id,
+            (
+                &'static str, /* request method */
+                oneshot::Sender<LspResponse>,
+            ),
+        >,
+    >,
+>;
+
 async fn receive_responses(
-    req_id_tx_map: Arc<Mutex<HashMap<jsonrpc_core::Id, oneshot::Sender<LspResponse>>>>,
+    req_id_tx_map: ReqIdTxMap,
     _clients: UnboundedSender<LspNotification>,
     stdout: ChildStdout,
 ) {
@@ -133,13 +145,31 @@ async fn receive_responses(
         // Parse the JSON.
         trace!("body = '{}'", body);
         match serde_json::from_str::<jsonrpc_core::Output>(&body) {
-            Ok(jsonrpc_core::Output::Success(json)) => {
+            Ok(jsonrpc_core::Output::Success(mut json)) => {
                 // Received a response to a request.
-                req_id_tx_map
+                let (request_method, tx) = req_id_tx_map
                     .lock()
                     .await
                     .remove(&json.id)
                     .expect("dangling response id from the LSP server");
+
+                let params = json
+                    .result
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("params")
+                    .expect("missing parmas");
+
+                let resp = match request_method {
+                    "textDocument/completion" => {
+                        let params: CompletionResponse = serde_json::from_value(params).unwrap();
+                        // TODO:
+                        LspResponse::NoContent
+                    }
+                    _ => unreachable!(),
+                };
+
+                tx.send(resp).unwrap();
             }
             Ok(jsonrpc_core::Output::Failure(failure)) => {
                 warn!("LSP: {:?}", failure);
@@ -183,7 +213,7 @@ pub struct LspDaemon {
     lsp_stdin: ChildStdin,
     lang: String,
     next_req_id: usize,
-    req_id_tx_map: Arc<Mutex<HashMap<jsonrpc_core::Id, oneshot::Sender<LspResponse>>>>,
+    req_id_tx_map: ReqIdTxMap,
 }
 
 impl LspDaemon {
@@ -218,12 +248,18 @@ impl LspDaemon {
         })
     }
 
-    async fn alloc_req_id(&mut self) -> (jsonrpc_core::Id, oneshot::Receiver<LspResponse>) {
+    async fn alloc_req_id(
+        &mut self,
+        method_name: &'static str,
+    ) -> (jsonrpc_core::Id, oneshot::Receiver<LspResponse>) {
         let req_id = jsonrpc_core::Id::Num(self.next_req_id as u64);
         self.next_req_id += 1;
 
         let (tx, rx) = oneshot::channel();
-        self.req_id_tx_map.lock().await.insert(req_id.clone(), tx);
+        self.req_id_tx_map
+            .lock()
+            .await
+            .insert(req_id.clone(), (method_name, tx));
         (req_id, rx)
     }
 }
@@ -276,7 +312,7 @@ impl Daemon for LspDaemon {
             }
             LspRequest::Completion { path, position } => {
                 info!("Completion(path={}, position={})", path.display(), position);
-                let (id, rx) = self.alloc_req_id().await;
+                let (id, rx) = self.alloc_req_id("textDocument/completion").await;
                 let body = serialize_lsp_request::<Completion>(
                     id,
                     CompletionParams {
