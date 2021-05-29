@@ -1,6 +1,8 @@
 #[macro_use]
 extern crate log;
 
+mod eventloop;
+
 use dirs::home_dir;
 use log::LevelFilter;
 use simplelog::{CombinedLogger, Config, TermLogger, TerminalMode, WriteLogger};
@@ -38,5 +40,7 @@ async fn main() {
 
     trace!("starting");
 
-    let opt = Opt::from_args();
+    let _opt = Opt::from_args();
+    let mut ev = eventloop::EventLoop::new();
+    ev.run().await;
 }
