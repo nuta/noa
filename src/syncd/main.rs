@@ -6,7 +6,7 @@ mod lsp;
 
 use dirs::home_dir;
 use log::LevelFilter;
-use noa_common::dirs::lsp_sock_path;
+use noa_common::{dirs::lsp_sock_path, syncd_protocol::LspNotification};
 use simplelog::{CombinedLogger, Config, TermLogger, TerminalMode, WriteLogger};
 use std::{fs::OpenOptions, path::PathBuf};
 use structopt::StructOpt;
@@ -54,7 +54,7 @@ async fn main() {
     let opt = Opt::from_args();
     match opt.daemon_type.as_str() {
         "lsp" => {
-            let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<lsp::Notification>();
+            let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<LspNotification>();
             let sock_path = lsp_sock_path(&opt.workspace_dir, &opt.lang);
             let daemon = LspDaemon::spawn(tx, &opt.workspace_dir, opt.lang)
                 .await

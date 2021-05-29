@@ -1,13 +1,9 @@
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-    process::Stdio,
-};
+use std::{collections::HashMap, path::Path, process::Stdio};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use lsp_types::{notification::DidOpenTextDocument, DidOpenTextDocumentParams};
-use serde::{Deserialize, Serialize};
+use noa_common::syncd_protocol::{LspNotification, LspRequest, LspResponse};
 use tokio::{
     io::BufReader,
     process::{ChildStdin, ChildStdout, Command},
@@ -15,24 +11,6 @@ use tokio::{
 };
 
 use crate::eventloop::Daemon;
-
-#[derive(Deserialize, Debug)]
-pub enum Request {
-    OpenFile { path: PathBuf, text: String },
-    // UpdateFile {
-    //     path: PathBuf,
-    //     text: String,
-    //     version: usize,
-    // },
-}
-
-#[derive(Serialize, Debug)]
-pub enum Response {
-    NoContent,
-}
-
-#[derive(Serialize, Debug)]
-pub enum Notification {}
 
 fn parse_path_as_uri(path: &Path) -> lsp_types::Url {
     let uri = &format!("file://{}", path.to_str().unwrap());
@@ -82,7 +60,7 @@ async fn send_requests(stdin: &mut ChildStdin, body: &str) -> Result<()> {
     Ok(())
 }
 
-async fn receive_responses(_clients: UnboundedSender<Notification>, stdout: ChildStdout) {
+async fn receive_responses(_clients: UnboundedSender<LspNotification>, stdout: ChildStdout) {
     use tokio::io::{AsyncBufReadExt, AsyncReadExt};
 
     let mut reader = BufReader::new(stdout);
@@ -176,7 +154,7 @@ pub struct LspDaemon {
 
 impl LspDaemon {
     pub async fn spawn(
-        clients: UnboundedSender<Notification>,
+        clients: UnboundedSender<LspNotification>,
         workspace_dir: &Path,
         lang: String,
     ) -> Result<LspDaemon> {
@@ -198,13 +176,13 @@ impl LspDaemon {
 
 #[async_trait]
 impl Daemon for LspDaemon {
-    type Request = Request;
-    type Response = Response;
-    type Notification = Notification;
+    type Request = LspRequest;
+    type Response = LspResponse;
+    type Notification = LspNotification;
 
     async fn process_request(&mut self, request: Self::Request) -> Result<Self::Response> {
         match request {
-            Request::OpenFile { path, text } => {
+            LspRequest::OpenFile { path, text } => {
                 info!("DidOpenTextDocument(path={})", path.display());
                 let body =
                     serialize_lsp_notification::<DidOpenTextDocument>(DidOpenTextDocumentParams {
@@ -217,13 +195,10 @@ impl Daemon for LspDaemon {
                     });
 
                 send_requests(&mut self.lsp_stdin, &body).await?;
-                Ok(Response::NoContent)
+                Ok(LspResponse::NoContent)
             }
         }
     }
 }
 
 unsafe impl Send for LspDaemon {}
-unsafe impl Send for Request {}
-unsafe impl Send for Response {}
-unsafe impl Send for Notification {}

@@ -2,7 +2,10 @@ use std::{io::ErrorKind, path::Path, sync::Arc};
 
 use anyhow::Result;
 use async_trait::async_trait;
-use noa_common::warn_on_error;
+use noa_common::{
+    syncd_protocol::{Notification, Request, Response, ToClient, ToServer},
+    warn_on_error,
+};
 use serde::{de::DeserializeOwned, Serialize};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
@@ -36,18 +39,22 @@ pub async fn eventloop<D: Daemon + 'static>(
     };
 
     let daemon_lock = Arc::new(Mutex::new(daemon));
-    let clients = Arc::new(Mutex::new(Vec::<OwnedWriteHalf>::new()));
+    let clients = Arc::new(Mutex::new(Vec::<Arc<Mutex<OwnedWriteHalf>>>::new()));
 
     // Broadcast notifications from the LSP server.
     {
         let clients = clients.clone();
         spawn(async move {
-            while let Some(noti) = noti_rx.recv().await {
+            while let Some(body) = noti_rx.recv().await {
+                let json = serde_json::to_string(
+                    &ToClient::<D::Response, D::Notification>::Notification(Notification { body }),
+                )
+                .unwrap();
+
                 for client in clients.lock().await.iter_mut() {
-                    let json = serde_json::to_string(&noti).unwrap();
                     warn_on_error!(
-                        client.write_all(json.as_bytes()).await,
-                        "failed to write the response"
+                        client.lock().await.write_all(json.as_bytes()).await,
+                        "failed to write the notification"
                     );
                 }
             }
@@ -58,23 +65,47 @@ pub async fn eventloop<D: Daemon + 'static>(
     loop {
         if let Ok((new_client, _)) = listener.accept().await {
             let (read_end, write_end) = new_client.into_split();
+            let write_end = Arc::new(Mutex::new(write_end));
             let daemon_lock = daemon_lock.clone();
             let clients = clients.clone();
             spawn(async move {
-                clients.lock().await.push(write_end);
+                clients.lock().await.push(write_end.clone());
                 let mut reader = BufReader::new(read_end);
-                let mut buf = String::with_capacity(16 * 1024);
+                let mut buf = String::with_capacity(128 * 1024);
                 loop {
                     buf.clear();
                     match reader.read_line(&mut buf).await {
                         Ok(0) => break,
-                        Ok(_len) => {
-                            let request: D::Request =
+                        Ok(_) => {
+                            let packet: ToServer<D::Request> =
                                 serde_json::from_str(&buf).expect("invalid request");
-                            warn_on_error!(
-                                daemon_lock.lock().await.process_request(request).await,
-                                "error in process_request"
-                            );
+                            match packet {
+                                ToServer::Request(Request { id, body: params }) => {
+                                    match daemon_lock.lock().await.process_request(params).await {
+                                        Ok(body) => {
+                                            let json = serde_json::to_string(&ToClient::<
+                                                D::Response,
+                                                D::Notification,
+                                            >::Response(
+                                                Response { id, body },
+                                            ))
+                                            .unwrap();
+
+                                            warn_on_error!(
+                                                write_end
+                                                    .lock()
+                                                    .await
+                                                    .write_all(json.as_bytes())
+                                                    .await,
+                                                "failed to write the response"
+                                            );
+                                        }
+                                        Err(err) => {
+                                            trace!("error in process_request: {}", err);
+                                        }
+                                    }
+                                }
+                            }
                         }
                         Err(err) => {
                             warn!("failed to read from a client: {}", err);
