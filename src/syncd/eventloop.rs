@@ -1,6 +1,7 @@
 use std::{io::ErrorKind, path::Path};
 
 use anyhow::Result;
+use async_trait::async_trait;
 use noa_common::warn_on_error;
 use serde::{de::DeserializeOwned, Serialize};
 use tokio::{
@@ -8,11 +9,10 @@ use tokio::{
     net::UnixStream,
 };
 
+#[async_trait]
 pub trait Daemon {
     type Request: DeserializeOwned;
-    type Response: Serialize;
-
-    fn process(&mut self, request: Self::Request) -> Result<Self::Response>;
+    async fn process(&mut self, request: Self::Request) -> Result<()>;
 }
 
 pub async fn eventloop<D: Daemon>(sock_path: &Path, mut daemon: D) -> Result<()> {
@@ -36,12 +36,12 @@ pub async fn eventloop<D: Daemon>(sock_path: &Path, mut daemon: D) -> Result<()>
         reader.read_line(&mut buf).await?;
         let request: D::Request = serde_json::from_str(&buf).expect("invalid request");
 
-        let response = daemon.process(request)?;
-        warn_on_error!(
-            write_end
-                .write_all(serde_json::to_string(&response)?.as_bytes())
-                .await,
-            "failed to write the response"
-        );
+        daemon.process(request).await?;
+        // warn_on_error!(
+        //     write_end
+        //         .write_all(serde_json::to_string(&response)?.as_bytes())
+        //         .await,
+        //     "failed to write the response"
+        // );
     }
 }

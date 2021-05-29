@@ -55,7 +55,9 @@ async fn main() {
     let (sock_path, daemon) = match opt.daemon_type.as_str() {
         "lsp" => {
             let sock_path = lsp_sock_path(&opt.workspace_dir, &opt.lang);
-            (sock_path, LspDaemon::new())
+            let daemon =
+                LspDaemon::new(&opt.workspace_dir, opt.lang).expect("failed to start the LSP mode");
+            (sock_path, daemon)
         }
         _ => panic!("unknown daemon type: {}", opt.daemon_type),
     };
