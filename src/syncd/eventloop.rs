@@ -14,8 +14,9 @@ use tokio::{
 #[async_trait]
 pub trait Daemon: Send {
     type Request: DeserializeOwned + Send;
+    type Response: Serialize + Send;
     type Notification: Serialize + Send;
-    async fn process_request(&mut self, request: Self::Request) -> Result<()>;
+    async fn process_request(&mut self, request: Self::Request) -> Result<Self::Response>;
 }
 
 pub async fn eventloop<D: Daemon + 'static>(

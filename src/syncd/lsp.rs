@@ -27,6 +27,11 @@ pub enum Request {
 }
 
 #[derive(Serialize, Debug)]
+pub enum Response {
+    NoContent,
+}
+
+#[derive(Serialize, Debug)]
 pub enum Notification {}
 
 fn parse_path_as_uri(path: &Path) -> lsp_types::Url {
@@ -81,7 +86,7 @@ async fn receive_responses(_clients: UnboundedSender<Notification>, stdout: Chil
     use tokio::io::{AsyncBufReadExt, AsyncReadExt};
 
     let mut reader = BufReader::new(stdout);
-    'thread_loop: loop {
+    loop {
         // Read headers.
         let mut headers = HashMap::new();
         loop {
@@ -119,7 +124,7 @@ async fn receive_responses(_clients: UnboundedSender<Notification>, stdout: Chil
             Some(len) => len,
             None => {
                 warn!("missing valid LSP Content-Length header");
-                continue 'thread_loop;
+                continue;
             }
         };
 
@@ -129,7 +134,7 @@ async fn receive_responses(_clients: UnboundedSender<Notification>, stdout: Chil
             Ok(_) => String::from_utf8(buf).unwrap(),
             Err(err) => {
                 warn!("failed to read from the LSP server: {}", err);
-                continue 'thread_loop;
+                continue;
             }
         };
 
@@ -139,22 +144,22 @@ async fn receive_responses(_clients: UnboundedSender<Notification>, stdout: Chil
             Ok(jsonrpc_core::Output::Success(json)) => json,
             Ok(jsonrpc_core::Output::Failure(failure)) => {
                 warn!("LSP: {:?}", failure);
-                continue 'thread_loop;
+                continue;
             }
             Err(_) => {
                 // Perhaps it is a notification from the server.
                 match serde_json::from_str::<jsonrpc_core::Request>(&body) {
                     Ok(jsonrpc_core::Request::Single(req)) => {
                         trace!("request from server = {:?}", req);
-                        continue 'thread_loop;
+                        continue;
                     }
                     Ok(jsonrpc_core::Request::Batch(reqs)) => {
                         trace!("request from server = {:?}", reqs);
-                        continue 'thread_loop;
+                        continue;
                     }
                     Err(err) => {
                         warn!("failed to parse the body from the LSP server: {}", err);
-                        continue 'thread_loop;
+                        continue;
                     }
                 }
             }
@@ -194,9 +199,10 @@ impl LspDaemon {
 #[async_trait]
 impl Daemon for LspDaemon {
     type Request = Request;
+    type Response = Response;
     type Notification = Notification;
 
-    async fn process_request(&mut self, request: Self::Request) -> Result<()> {
+    async fn process_request(&mut self, request: Self::Request) -> Result<Self::Response> {
         match request {
             Request::OpenFile { path, text } => {
                 info!("DidOpenTextDocument(path={})", path.display());
@@ -211,13 +217,13 @@ impl Daemon for LspDaemon {
                     });
 
                 send_requests(&mut self.lsp_stdin, &body).await?;
+                Ok(Response::NoContent)
             }
         }
-
-        Ok(())
     }
 }
 
 unsafe impl Send for LspDaemon {}
 unsafe impl Send for Request {}
+unsafe impl Send for Response {}
 unsafe impl Send for Notification {}
