@@ -7,7 +7,7 @@ use crate::{buffer::Buffer, rope::Point, rope::Range, terminal::DisplayWidth};
 #[derive(Debug, Clone)]
 pub struct DisplayLine {
     /// The char indices in a line rope.
-    pub spans: Vec<ops::Range<usize>>,
+    pub chunks: Vec<ops::Range<usize>>,
     /// The char indices in the whole buffer rope.
     pub range: Range,
 }
@@ -129,7 +129,7 @@ impl View {
 
             if line_rope.len_chars() == 0 {
                 self.lines.push(DisplayLine {
-                    spans: vec![],
+                    chunks: vec![],
                     range: Range::from_points(Point::new(text_y, 0), Point::new(text_y, 0)),
                 });
             } else {
@@ -159,7 +159,7 @@ impl View {
 
                             text_x += wrap_char_at;
                             self.lines.push(DisplayLine {
-                                spans,
+                                chunks: spans,
                                 range: Range::from_points(front, Point::new(text_y, text_x)),
                             });
 
@@ -173,7 +173,7 @@ impl View {
 
                 if front.x != text_x {
                     self.lines.push(DisplayLine {
-                        spans,
+                        chunks: spans,
                         range: Range::from_points(front, Point::new(text_y, text_x)),
                     });
                 }

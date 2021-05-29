@@ -1,5 +1,6 @@
 use std::cmp::min;
 use std::io::Write;
+use std::ops;
 use std::{io::stdout, time::Duration};
 
 pub use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -19,7 +20,7 @@ use futures::{Stream, StreamExt, TryStreamExt};
 use crate::{
     buffer::Buffer,
     eventloop::{Event, EventQueue},
-    rope::Point,
+    rope::{Cursor, Point},
     view::View,
 };
 
@@ -78,6 +79,41 @@ impl DisplayWidth for usize {
                 num
             }
         }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum Span {
+    Text(ops::Range<usize>),
+    Reset,
+    CursorStart,
+    CursorEnd,
+}
+
+struct SpanMixer<'a> {
+    pos: Point,
+    chunks: std::iter::Peekable<std::slice::Iter<'a, std::ops::Range<usize>>>,
+    cursors: std::iter::Peekable<std::slice::Iter<'a, Cursor>>,
+}
+
+impl<'a> SpanMixer<'a> {
+    pub fn new(chunks: &'a [ops::Range<usize>], cursors: &'a [Cursor]) -> SpanMixer<'a> {
+        SpanMixer {
+            pos: Point::new(0, 0),
+            chunks: chunks.iter().peekable(),
+            cursors: cursors.iter().peekable(),
+        }
+    }
+}
+
+impl<'a> Iterator for SpanMixer<'a> {
+    type Item = Span;
+    fn next(&mut self) -> Option<Span> {
+        // let cursor = match self.cursors.peek() {
+        //     Some(Cursor::Normal { pos }) if self.pos == *pos => pos,
+        // };
+
+        None
     }
 }
 
@@ -213,9 +249,8 @@ impl Terminal {
 
             // Draw buffer contents.
             let rope_line = ctx.buffer.line(lineno - 1);
-            // let cursor_spans = ctx.buffer.cursors().
-            for char_range in &display_line.spans {
-                queue!(stdout, Print(rope_line.slice(char_range.clone()))).ok();
+            for chunk in &display_line.chunks {
+                queue!(stdout, Print(rope_line.slice(chunk.clone()))).ok();
             }
 
             queue!(stdout, Clear(ClearType::UntilNewLine));
@@ -256,5 +291,21 @@ impl Drop for Terminal {
         execute!(stdout(), LeaveAlternateScreen).ok();
         execute!(stdout(), cursor::Show).ok();
         disable_raw_mode().ok();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn span_mixer() {
+        let chunks = &[0..3];
+        let cursors = &[Cursor::Normal {
+            pos: Point::new(0, 1),
+        }];
+
+        let mut mixer = SpanMixer::new(chunks, cursors);
+        assert_eq!(mixer.next(), None);
     }
 }

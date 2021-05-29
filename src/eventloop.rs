@@ -176,6 +176,24 @@ impl EventLoop {
             (KeyCode::Char('q'), CTRL) => {
                 self.exited = true;
             }
+            (KeyCode::Backspace, NONE) => {
+                self.current_buffer.write().backspace();
+            }
+            (KeyCode::Up, NONE) => {
+                self.current_buffer.write().move_cursors(1, 0, 0, 0);
+            }
+            (KeyCode::Down, NONE) => {
+                self.current_buffer.write().move_cursors(0, 1, 0, 0);
+            }
+            (KeyCode::Left, NONE) => {
+                self.current_buffer.write().move_cursors(0, 0, 1, 0);
+            }
+            (KeyCode::Right, NONE) => {
+                self.current_buffer.write().move_cursors(0, 0, 0, 1);
+            }
+            (KeyCode::Enter, NONE) => {
+                self.current_buffer.write().insert_char('\n');
+            }
             (KeyCode::Char(ch), NONE) => {
                 self.current_buffer.write().insert_char(ch);
             }
