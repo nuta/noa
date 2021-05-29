@@ -23,7 +23,7 @@ pub async fn eventloop<D: Daemon + 'static>(
     mut daemon: D,
     mut noti_rx: UnboundedReceiver<D::Notification>,
 ) -> Result<()> {
-    let mut listener = match UnixListener::bind(sock_path) {
+    let listener = match UnixListener::bind(sock_path) {
         Ok(sock) => sock,
         Err(err) if err.kind() == ErrorKind::AlreadyExists => {
             warn!("{} already exists", sock_path.display());
@@ -35,7 +35,7 @@ pub async fn eventloop<D: Daemon + 'static>(
     };
 
     let daemon_lock = Arc::new(Mutex::new(daemon));
-    let mut clients = Arc::new(Mutex::new(Vec::<OwnedWriteHalf>::new()));
+    let clients = Arc::new(Mutex::new(Vec::<OwnedWriteHalf>::new()));
 
     {
         let clients = clients.clone();
@@ -53,7 +53,7 @@ pub async fn eventloop<D: Daemon + 'static>(
     }
 
     loop {
-        if let Ok((mut new_client, _)) = listener.accept().await {
+        if let Ok((new_client, _)) = listener.accept().await {
             let (read_end, write_end) = new_client.into_split();
             let daemon_lock = daemon_lock.clone();
             let clients = clients.clone();
