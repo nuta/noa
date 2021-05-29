@@ -134,6 +134,7 @@ async fn receive_responses(
         trace!("body = '{}'", body);
         match serde_json::from_str::<jsonrpc_core::Output>(&body) {
             Ok(jsonrpc_core::Output::Success(json)) => {
+                // Received a response to a request.
                 req_id_tx_map
                     .lock()
                     .await
