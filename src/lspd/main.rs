@@ -39,8 +39,8 @@ async fn main() {
     }));
 
     trace!("starting");
-
     let _opt = Opt::from_args();
     let mut ev = eventloop::EventLoop::new();
     ev.run().await;
+    trace!("exiting");
 }
