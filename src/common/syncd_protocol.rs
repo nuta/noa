@@ -2,6 +2,8 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use noa_buffer::Point;
+
 #[derive(Deserialize, Serialize, Debug)]
 pub enum ToServer<R> {
     Request(Request<R>),
@@ -38,8 +40,12 @@ pub enum LspRequest {
     },
     UpdateFile {
         path: PathBuf,
-        text: String,
         version: usize,
+        text: String,
+    },
+    Completion {
+        path: PathBuf,
+        position: Point,
     },
 }
 

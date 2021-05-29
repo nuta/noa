@@ -4,9 +4,12 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use lsp_types::{
     notification::{DidChangeTextDocument, DidOpenTextDocument},
-    DidChangeTextDocumentParams, DidOpenTextDocumentParams, TextDocumentContentChangeEvent,
-    VersionedTextDocumentIdentifier,
+    request::Completion,
+    CompletionParams, DidChangeTextDocumentParams, DidOpenTextDocumentParams, PartialResultParams,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams,
+    VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
+use noa_buffer::Point;
 use noa_common::syncd_protocol::{LspNotification, LspRequest, LspResponse};
 use tokio::{
     io::BufReader,
@@ -151,6 +154,19 @@ async fn receive_responses(_clients: UnboundedSender<LspNotification>, stdout: C
     }
 }
 
+trait IntoPosition {
+    fn into_position(self) -> lsp_types::Position;
+}
+
+impl IntoPosition for Point {
+    fn into_position(self) -> lsp_types::Position {
+        lsp_types::Position {
+            line: self.y as u32,
+            character: self.x as u32,
+        }
+    }
+}
+
 pub struct LspDaemon {
     lsp_stdin: ChildStdin,
     lang: String,
@@ -218,6 +234,31 @@ impl Daemon for LspDaemon {
                             range_length: None,
                             text,
                         }],
+                    },
+                );
+
+                send_requests(&mut self.lsp_stdin, &body).await?;
+                Ok(LspResponse::NoContent)
+            }
+            LspRequest::Completion { path, position } => {
+                info!("Completion(path={}, position={})", path.display(), position);
+                let id = 0;
+                let body = serialize_lsp_request::<Completion>(
+                    id,
+                    CompletionParams {
+                        text_document_position: TextDocumentPositionParams {
+                            position: position.into_position(),
+                            text_document: TextDocumentIdentifier {
+                                uri: parse_path_as_uri(&path),
+                            },
+                        },
+                        context: None,
+                        partial_result_params: PartialResultParams {
+                            partial_result_token: None,
+                        },
+                        work_done_progress_params: WorkDoneProgressParams {
+                            work_done_token: None,
+                        },
                     },
                 );
 

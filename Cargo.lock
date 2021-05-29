@@ -495,6 +495,7 @@ dependencies = [
  "jsonrpc-core",
  "log",
  "lsp-types",
+ "noa_buffer",
  "noa_common",
  "parking_lot",
  "pretty_assertions",
@@ -512,6 +513,7 @@ dependencies = [
  "log",
  "noa_editorconfig",
  "ropey",
+ "serde",
 ]
 
 [[package]]
@@ -519,6 +521,7 @@ name = "noa_common"
 version = "0.0.0"
 dependencies = [
  "log",
+ "noa_buffer",
  "serde",
 ]
 

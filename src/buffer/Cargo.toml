@@ -10,4 +10,6 @@ path = "lib.rs"
 [dependencies]
 log = "0"
 ropey = "1"
+serde = { version = "1", features = ["derive"] }
+
 noa_editorconfig = { path = "../editorconfig" }

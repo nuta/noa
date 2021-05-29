@@ -4,8 +4,10 @@ use std::fmt;
 use std::fs::OpenOptions;
 use std::path::Path;
 
+use serde::{Deserialize, Serialize};
+
 /// The position in the text buffer (0-origin).
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub struct Point {
     pub y: usize,
     /// If it's `std::usize::MAX`, it points to the end of a line.
