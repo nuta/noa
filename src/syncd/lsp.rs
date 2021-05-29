@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path, process::Stdio};
+use std::{collections::HashMap, path::Path, process::Stdio, sync::Arc};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -14,7 +14,7 @@ use noa_common::syncd_protocol::{LspNotification, LspRequest, LspResponse};
 use tokio::{
     io::BufReader,
     process::{ChildStdin, ChildStdout, Command},
-    sync::mpsc::UnboundedSender,
+    sync::{mpsc::UnboundedSender, oneshot, Mutex},
 };
 
 use crate::eventloop::Daemon;
@@ -24,14 +24,17 @@ fn parse_path_as_uri(path: &Path) -> lsp_types::Url {
     lsp_types::Url::parse(uri).unwrap()
 }
 
-fn serialize_lsp_request<T: lsp_types::request::Request>(id: usize, params: T::Params) -> String {
+fn serialize_lsp_request<T: lsp_types::request::Request>(
+    id: jsonrpc_core::Id,
+    params: T::Params,
+) -> String {
     let obj = match serde_json::to_value(params) {
         Ok(serde_json::value::Value::Object(obj)) => obj,
         _ => unreachable!(),
     };
 
     let msg = &jsonrpc_core::types::request::MethodCall {
-        id: jsonrpc_core::Id::Num(id as u64),
+        id,
         jsonrpc: Some(jsonrpc_core::Version::V2),
         method: T::METHOD.to_string(),
         params: jsonrpc_core::Params::Map(obj),
@@ -67,7 +70,11 @@ async fn send_requests(stdin: &mut ChildStdin, body: &str) -> Result<()> {
     Ok(())
 }
 
-async fn receive_responses(_clients: UnboundedSender<LspNotification>, stdout: ChildStdout) {
+async fn receive_responses(
+    req_id_tx_map: Arc<Mutex<HashMap<jsonrpc_core::Id, oneshot::Sender<LspResponse>>>>,
+    _clients: UnboundedSender<LspNotification>,
+    stdout: ChildStdout,
+) {
     use tokio::io::{AsyncBufReadExt, AsyncReadExt};
 
     let mut reader = BufReader::new(stdout);
@@ -125,8 +132,14 @@ async fn receive_responses(_clients: UnboundedSender<LspNotification>, stdout: C
 
         // Parse the JSON.
         trace!("body = '{}'", body);
-        let resp = match serde_json::from_str::<jsonrpc_core::Output>(&body) {
-            Ok(jsonrpc_core::Output::Success(json)) => json,
+        match serde_json::from_str::<jsonrpc_core::Output>(&body) {
+            Ok(jsonrpc_core::Output::Success(json)) => {
+                req_id_tx_map
+                    .lock()
+                    .await
+                    .remove(&json.id)
+                    .expect("dangling response id from the LSP server");
+            }
             Ok(jsonrpc_core::Output::Failure(failure)) => {
                 warn!("LSP: {:?}", failure);
                 continue;
@@ -148,9 +161,7 @@ async fn receive_responses(_clients: UnboundedSender<LspNotification>, stdout: C
                     }
                 }
             }
-        };
-
-        trace!("LSP: {:#?}", resp);
+        }
     }
 }
 
@@ -170,6 +181,8 @@ impl IntoPosition for Point {
 pub struct LspDaemon {
     lsp_stdin: ChildStdin,
     lang: String,
+    next_req_id: usize,
+    req_id_tx_map: Arc<Mutex<HashMap<jsonrpc_core::Id, oneshot::Sender<LspResponse>>>>,
 }
 
 impl LspDaemon {
@@ -188,9 +201,29 @@ impl LspDaemon {
 
         let lsp_stdin = lsp_server.stdin.take().unwrap();
         let lsp_stdout = lsp_server.stdout.take().unwrap();
-        tokio::spawn(async move { receive_responses(clients, lsp_stdout).await });
+        let req_id_tx_map = Arc::new(Mutex::new(HashMap::new()));
+        {
+            let req_id_tx_map = req_id_tx_map.clone();
+            tokio::spawn(
+                async move { receive_responses(req_id_tx_map, clients, lsp_stdout).await },
+            );
+        }
 
-        Ok(LspDaemon { lsp_stdin, lang })
+        Ok(LspDaemon {
+            lsp_stdin,
+            lang,
+            next_req_id: 1,
+            req_id_tx_map,
+        })
+    }
+
+    async fn alloc_req_id(&mut self) -> (jsonrpc_core::Id, oneshot::Receiver<LspResponse>) {
+        let req_id = jsonrpc_core::Id::Num(self.next_req_id as u64);
+        self.next_req_id += 1;
+
+        let (tx, rx) = oneshot::channel();
+        self.req_id_tx_map.lock().await.insert(req_id.clone(), tx);
+        (req_id, rx)
     }
 }
 
@@ -242,7 +275,7 @@ impl Daemon for LspDaemon {
             }
             LspRequest::Completion { path, position } => {
                 info!("Completion(path={}, position={})", path.display(), position);
-                let id = 0;
+                let (id, rx) = self.alloc_req_id().await;
                 let body = serialize_lsp_request::<Completion>(
                     id,
                     CompletionParams {
@@ -263,7 +296,7 @@ impl Daemon for LspDaemon {
                 );
 
                 send_requests(&mut self.lsp_stdin, &body).await?;
-                Ok(LspResponse::NoContent)
+                Ok(rx.await?)
             }
         }
     }
