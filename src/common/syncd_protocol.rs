@@ -32,12 +32,15 @@ pub struct Notification<T> {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub enum LspRequest {
-    OpenFile { path: PathBuf, text: String },
-    // UpdateFile {
-    //     path: PathBuf,
-    //     text: String,
-    //     version: usize,
-    // },
+    OpenFile {
+        path: PathBuf,
+        text: String,
+    },
+    UpdateFile {
+        path: PathBuf,
+        text: String,
+        version: usize,
+    },
 }
 
 #[derive(Serialize, Debug)]

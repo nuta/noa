@@ -2,7 +2,11 @@ use std::{collections::HashMap, path::Path, process::Stdio};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use lsp_types::{notification::DidOpenTextDocument, DidOpenTextDocumentParams};
+use lsp_types::{
+    notification::{DidChangeTextDocument, DidOpenTextDocument},
+    DidChangeTextDocumentParams, DidOpenTextDocumentParams, TextDocumentContentChangeEvent,
+    VersionedTextDocumentIdentifier,
+};
 use noa_common::syncd_protocol::{LspNotification, LspRequest, LspResponse};
 use tokio::{
     io::BufReader,
@@ -193,6 +197,29 @@ impl Daemon for LspDaemon {
                             text,
                         },
                     });
+
+                send_requests(&mut self.lsp_stdin, &body).await?;
+                Ok(LspResponse::NoContent)
+            }
+            LspRequest::UpdateFile {
+                path,
+                text,
+                version,
+            } => {
+                info!("DidChangeTextDocument(path={})", path.display());
+                let body = serialize_lsp_notification::<DidChangeTextDocument>(
+                    DidChangeTextDocumentParams {
+                        text_document: VersionedTextDocumentIdentifier {
+                            uri: parse_path_as_uri(&path),
+                            version: version as i32,
+                        },
+                        content_changes: vec![TextDocumentContentChangeEvent {
+                            range: None,
+                            range_length: None,
+                            text,
+                        }],
+                    },
+                );
 
                 send_requests(&mut self.lsp_stdin, &body).await?;
                 Ok(LspResponse::NoContent)
