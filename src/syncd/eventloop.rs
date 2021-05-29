@@ -21,14 +21,16 @@ pub async fn eventloop<D: Daemon>(mut daemon: D) -> Result<()> {
     let mut buf = String::with_capacity(16 * 1024);
     loop {
         buf.clear();
+
         reader.read_line(&mut buf).await?;
         let request: D::Request = serde_json::from_str(&buf).expect("invalid request");
+
         let response = daemon.process(request)?;
         warn_on_error!(
-            "failed to write the response",
             write_end
                 .write_all(serde_json::to_string(&response)?.as_bytes())
-                .await
+                .await,
+            "failed to write the response"
         );
     }
 }
