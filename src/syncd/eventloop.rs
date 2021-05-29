@@ -37,6 +37,7 @@ pub async fn eventloop<D: Daemon + 'static>(
     let daemon_lock = Arc::new(Mutex::new(daemon));
     let clients = Arc::new(Mutex::new(Vec::<OwnedWriteHalf>::new()));
 
+    // Broadcast notifications from the LSP server.
     {
         let clients = clients.clone();
         spawn(async move {
@@ -52,6 +53,7 @@ pub async fn eventloop<D: Daemon + 'static>(
         });
     }
 
+    // Forward requests from noa to the LSP server.
     loop {
         if let Ok((new_client, _)) = listener.accept().await {
             let (read_end, write_end) = new_client.into_split();
@@ -82,6 +84,4 @@ pub async fn eventloop<D: Daemon + 'static>(
             });
         }
     }
-
-    Ok(())
 }

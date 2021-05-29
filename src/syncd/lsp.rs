@@ -34,7 +34,7 @@ fn parse_path_as_uri(path: &Path) -> lsp_types::Url {
     lsp_types::Url::parse(uri).unwrap()
 }
 
-fn serialize_request<T: lsp_types::request::Request>(id: usize, params: T::Params) -> String {
+fn serialize_lsp_request<T: lsp_types::request::Request>(id: usize, params: T::Params) -> String {
     let obj = match serde_json::to_value(params) {
         Ok(serde_json::value::Value::Object(obj)) => obj,
         _ => unreachable!(),
@@ -50,7 +50,9 @@ fn serialize_request<T: lsp_types::request::Request>(id: usize, params: T::Param
     serde_json::to_string(msg).unwrap()
 }
 
-fn serialize_notification<T: lsp_types::notification::Notification>(params: T::Params) -> String {
+fn serialize_lsp_notification<T: lsp_types::notification::Notification>(
+    params: T::Params,
+) -> String {
     let obj = match serde_json::to_value(params) {
         Ok(serde_json::value::Value::Object(obj)) => obj,
         _ => unreachable!(),
@@ -199,7 +201,7 @@ impl Daemon for LspDaemon {
             Request::OpenFile { path, text } => {
                 info!("DidOpenTextDocument(path={})", path.display());
                 let body =
-                    serialize_notification::<DidOpenTextDocument>(DidOpenTextDocumentParams {
+                    serialize_lsp_notification::<DidOpenTextDocument>(DidOpenTextDocumentParams {
                         text_document: lsp_types::TextDocumentItem {
                             uri: parse_path_as_uri(&path),
                             language_id: self.lang.clone(),
