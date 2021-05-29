@@ -100,7 +100,7 @@ async fn receive_responses(clients: UnboundedSender<Notification>, stdout: Child
                 break;
             }
 
-            let words: Vec<&str> = line.split(":").collect();
+            let words: Vec<&str> = line.split(':').collect();
             if words.len() != 2 {
                 warn!("malformed LSP header: '{}'", line);
                 continue;
@@ -183,7 +183,7 @@ impl LspDaemon {
 
         let lsp_stdin = lsp_server.stdin.take().unwrap();
         let lsp_stdout = lsp_server.stdout.take().unwrap();
-        tokio::spawn(async move { receive_responses(clients, lsp_stdout) });
+        tokio::spawn(async move { receive_responses(clients, lsp_stdout).await });
 
         Ok(LspDaemon { lsp_stdin, lang })
     }
