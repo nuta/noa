@@ -6,16 +6,17 @@ mod lsp;
 
 use dirs::home_dir;
 use log::LevelFilter;
+use noa_common::dirs::lsp_sock_path;
 use simplelog::{CombinedLogger, Config, TermLogger, TerminalMode, WriteLogger};
-use std::fs::OpenOptions;
+use std::{fs::OpenOptions, path::PathBuf};
 use structopt::StructOpt;
 
 use crate::{eventloop::eventloop, lsp::LspDaemon};
 
 #[derive(StructOpt)]
 struct Opt {
-    #[structopt(long)]
-    workspace_dir: String,
+    #[structopt(long, parse(from_os_str))]
+    workspace_dir: PathBuf,
     #[structopt(long, name = "type")]
     daemon_type: String,
     #[structopt(long)]
@@ -51,12 +52,14 @@ async fn main() {
     trace!("starting");
 
     let opt = Opt::from_args();
-    let daemon = match opt.daemon_type.as_str() {
-        "lsp" => eventloop(LspDaemon::new()),
+    let (sock_path, daemon) = match opt.daemon_type.as_str() {
+        "lsp" => {
+            let sock_path = lsp_sock_path(&opt.workspace_dir, &opt.lang);
+            (sock_path, LspDaemon::new())
+        }
         _ => panic!("unknown daemon type: {}", opt.daemon_type),
-    }
-    .await
-    .unwrap();
+    };
 
+    eventloop(&sock_path, daemon).await.unwrap();
     trace!("exiting");
 }

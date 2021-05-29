@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use anyhow::Result;
 use noa_common::warn_on_error;
 use serde::{de::DeserializeOwned, Serialize};
@@ -13,8 +15,7 @@ pub trait Daemon {
     fn process(&mut self, request: Self::Request) -> Result<Self::Response>;
 }
 
-pub async fn eventloop<D: Daemon>(mut daemon: D) -> Result<()> {
-    let sock_path = "";
+pub async fn eventloop<D: Daemon>(sock_path: &Path, mut daemon: D) -> Result<()> {
     let mut unix_sock = UnixStream::connect(sock_path).await?;
     let (read_end, mut write_end) = unix_sock.split();
     let mut reader = BufReader::new(read_end);
