@@ -189,7 +189,7 @@ impl EventLoop {
             match asyncd
                 .lock()
                 .await
-                .lsp_request::<LspRequest, LspResponse>(
+                .lsp_request::<LspRequest>(
                     lang,
                     LspRequest::OpenFile {
                         path: abspath,
