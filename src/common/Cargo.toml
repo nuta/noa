@@ -9,6 +9,7 @@ path = "lib.rs"
 
 [dependencies]
 log = "0"
+anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 dirs = "3"
 

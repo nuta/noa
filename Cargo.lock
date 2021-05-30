@@ -537,6 +537,7 @@ dependencies = [
 name = "noa_common"
 version = "0.0.0"
 dependencies = [
+ "anyhow",
  "dirs",
  "log",
  "noa_buffer",

@@ -3,6 +3,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use anyhow::Context;
+
 pub fn path_into_dotted_str(path: &Path) -> String {
     path.to_str()
         .unwrap()
@@ -22,7 +24,9 @@ pub fn noa_dir() -> PathBuf {
 pub fn noa_workdir(workdir: &Path) -> PathBuf {
     let workdir = workdir
         .canonicalize()
-        .expect("failed to canonicalize the workdir");
+        .with_context(|| format!("failed to resolve the workspace dir: {}", workdir.display()))
+        .unwrap();
+
     let dir = noa_dir()
         .join("workdirs")
         .join(Path::new(&path_into_dotted_str(&workdir)));
