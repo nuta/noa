@@ -7,6 +7,18 @@ pub fn path_into_dotted_str(path: &Path) -> String {
         .replace('/', ".")
 }
 
+pub fn noa_dir() -> PathBuf {
+    dirs::home_dir()
+        .expect("where's your home dir?")
+        .join(".noa")
+}
+
 pub fn lsp_sock_path(workdir: &Path, lang: &str) -> PathBuf {
-    Path::new(&path_into_dotted_str(workdir)).join(&format!("{}.sock", lang))
+    noa_dir()
+        .join(Path::new(&path_into_dotted_str(workdir)))
+        .join(&format!("{}.sock", lang))
+}
+
+pub fn log_file_path(name: &str) -> PathBuf {
+    noa_dir().join("log").join(&format!("{}.log", name))
 }

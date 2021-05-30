@@ -162,7 +162,7 @@ async fn receive_responses(
 
                 let resp = match request_method {
                     "textDocument/completion" => {
-                        let params: CompletionResponse = serde_json::from_value(params).unwrap();
+                        let _params: CompletionResponse = serde_json::from_value(params).unwrap();
                         // TODO:
                         LspResponse::NoContent
                     }

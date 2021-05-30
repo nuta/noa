@@ -1,7 +1,7 @@
 #![allow(unused)]
 
-use dirs::home_dir;
 use log::LevelFilter;
+use noa_common::dirs::log_file_path;
 use simplelog::{Config, WriteLogger};
 use std::{env::current_dir, fs::OpenOptions, path::PathBuf};
 use structopt::StructOpt;
@@ -31,7 +31,7 @@ async fn main() {
         OpenOptions::new()
             .append(true)
             .create(true)
-            .open(home_dir().unwrap().join(".noa.log"))
+            .open(log_file_path("noa"))
             .unwrap(),
     )
     .unwrap();

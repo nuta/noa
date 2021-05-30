@@ -1,7 +1,6 @@
 use crate::terminal::{DrawContext, Terminal};
 use crate::terminal::{KeyCode, KeyEvent, KeyModifiers};
 use crate::view::View;
-use dirs::home_dir;
 use log::LevelFilter;
 use parking_lot::RwLock;
 use simplelog::{Config, WriteLogger};
