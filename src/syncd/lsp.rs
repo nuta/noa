@@ -222,7 +222,7 @@ impl LspDaemon {
         workspace_dir: &Path,
         lang: String,
     ) -> Result<LspDaemon> {
-        let mut lsp_server = Command::new("clangd")
+        let mut lsp_server = Command::new("/usr/bin/clangd")
             .args(&["-j=8", "--log=verbose", "--pretty"])
             .current_dir(workspace_dir)
             .stdout(Stdio::piped())

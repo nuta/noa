@@ -66,7 +66,7 @@ async fn main() {
 
     Daemonize::new()
         .pid_file(pid_file)
-        .working_directory("/")
+        .working_directory(std::env::current_dir().unwrap())
         .stdout(File::open("/dev/null").unwrap())
         .stderr(File::open("/dev/null").unwrap())
         .start()
