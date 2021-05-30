@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    io::ErrorKind,
     path::Path,
     sync::{atomic::AtomicUsize, Arc},
 };
@@ -32,16 +31,8 @@ pub async fn eventloop<D: Daemon + 'static>(
     daemon: D,
     mut noti_rx: UnboundedReceiver<D::Notification>,
 ) -> Result<()> {
-    let listener = match UnixListener::bind(sock_path) {
-        Ok(sock) => sock,
-        Err(err) if err.kind() == ErrorKind::AlreadyExists => {
-            warn!("{} already exists", sock_path.display());
-            return Err(err.into());
-        }
-        Err(err) => {
-            return Err(err.into());
-        }
-    };
+    let _ = std::fs::remove_file(&sock_path);
+    let listener = UnixListener::bind(sock_path).expect("failed to bind a unix domain socket");
 
     let daemon_lock = Arc::new(Mutex::new(daemon));
     let clients = Arc::new(Mutex::new(
