@@ -75,7 +75,6 @@ async fn file_updated_handler(
     syncd: Arc<Mutex<SyncdClient>>,
 ) {
     while let Some(buffer_lock) = rx.recv().await {
-        trace!("handling file updated...");
         let (lang, req) = {
             let buffer = buffer_lock.read();
             let (path) = match buffer.path() {
@@ -85,7 +84,7 @@ async fn file_updated_handler(
                 }
             };
 
-            info!("{} {}", path.display(), workspace_dir.display());
+            // Ignore files that're not under the workspace directory.
             if !path.starts_with(&workspace_dir) {
                 continue;
             }
@@ -100,7 +99,6 @@ async fn file_updated_handler(
             (lang, req)
         };
 
-        info!("send updated message...");
         if let Err(err) = syncd.lock().await.send_lsp_message(lang, req).await {
             warn!("failed to send a syncd request: {}", err);
         }
@@ -202,9 +200,7 @@ impl EventLoop {
                 )
                 .await
             {
-                Ok(()) => {
-                    info!("OPENED!!!!!!!!!!!!!!");
-                }
+                Ok(()) => {}
                 Err(err) => {
                     warn!("failed to send a syncd request: {}", err);
                 }
