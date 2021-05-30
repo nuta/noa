@@ -4,11 +4,17 @@ extern crate log;
 mod eventloop;
 mod lsp;
 
-use dirs::home_dir;
+use daemonize::Daemonize;
 use log::LevelFilter;
-use noa_common::{dirs::lsp_sock_path, syncd_protocol::LspNotification};
+use noa_common::{
+    dirs::{log_file_path, lsp_pid_path, lsp_sock_path},
+    syncd_protocol::LspNotification,
+};
 use simplelog::{CombinedLogger, Config, TermLogger, TerminalMode, WriteLogger};
-use std::{fs::OpenOptions, path::PathBuf};
+use std::{
+    fs::{File, OpenOptions},
+    path::PathBuf,
+};
 use structopt::StructOpt;
 
 use crate::{eventloop::eventloop, lsp::LspDaemon};
@@ -38,7 +44,7 @@ async fn main() {
             OpenOptions::new()
                 .append(true)
                 .create(true)
-                .open(home_dir().unwrap().join(".noa-syncd.log"))
+                .open(log_file_path("syncd"))
                 .unwrap(),
         ),
     ])
@@ -52,6 +58,20 @@ async fn main() {
     trace!("starting");
 
     let opt = Opt::from_args();
+
+    let pid_file = match opt.daemon_type.as_str() {
+        "lsp" => lsp_pid_path(&opt.workspace_dir, &opt.lang),
+        _ => panic!("unknown daemon type: {}", opt.daemon_type),
+    };
+
+    Daemonize::new()
+        .pid_file(pid_file)
+        .working_directory("/")
+        .stdout(File::open("/dev/null").unwrap())
+        .stderr(File::open("/dev/null").unwrap())
+        .start()
+        .expect("failed to daemonize the process");
+
     match opt.daemon_type.as_str() {
         "lsp" => {
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<LspNotification>();
@@ -61,7 +81,7 @@ async fn main() {
                 .expect("failed to start the LSP mode");
             eventloop(&sock_path, daemon, rx).await.unwrap();
         }
-        _ => panic!("unknown daemon type: {}", opt.daemon_type),
+        _ => unreachable!(),
     };
 
     trace!("exiting");

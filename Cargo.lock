@@ -507,7 +507,6 @@ dependencies = [
  "async-trait",
  "backtrace",
  "daemonize",
- "dirs",
  "futures",
  "jsonrpc-core",
  "log",

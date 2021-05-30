@@ -19,6 +19,12 @@ pub fn lsp_sock_path(workdir: &Path, lang: &str) -> PathBuf {
         .join(&format!("{}.sock", lang))
 }
 
+pub fn lsp_pid_path(workdir: &Path, lang: &str) -> PathBuf {
+    noa_dir()
+        .join(Path::new(&path_into_dotted_str(workdir)))
+        .join(&format!("{}.pid", lang))
+}
+
 pub fn log_file_path(name: &str) -> PathBuf {
     noa_dir().join("log").join(&format!("{}.log", name))
 }
