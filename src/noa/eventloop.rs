@@ -203,7 +203,7 @@ impl EventLoop {
     }
 
     pub async fn run(&mut self) {
-        // On file update handler.
+        // Register the event handler on file updates.
         let (file_updated_tx, mut file_updated_rx) = unbounded_channel::<Arc<RwLock<Buffer>>>();
         tokio::spawn(file_updated_handler(
             file_updated_rx,
@@ -219,12 +219,19 @@ impl EventLoop {
 
             if let Some(ev) = self.event_queue.recv().await {
                 let started_at = Instant::now();
+                let prev_ver = self.current_buffer.read().id_and_version();
 
                 self.handle_event(ev);
                 while let Ok(Some(ev)) =
                     timeout(Duration::from_micros(400), self.event_queue.recv()).await
                 {
                     self.handle_event(ev);
+                }
+
+                let new_ver = self.current_buffer.read().id_and_version();
+                if prev_ver != new_ver {
+                    // Switched or modified the current buffer.
+                    file_updated_tx.send(self.current_buffer.clone());
                 }
 
                 trace!(

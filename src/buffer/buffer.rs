@@ -215,6 +215,10 @@ impl Buffer {
         self.rope.version()
     }
 
+    pub fn id_and_version(&self) -> (BufferId, usize) {
+        (self.id, self.rope.version())
+    }
+
     pub fn is_virtual_file(&self) -> bool {
         self.path.is_none()
     }
