@@ -51,12 +51,12 @@ impl SyncdClient {
         self.next_request_id += 1;
         self.sent_requests.lock().await.insert(id, tx);
 
-        // Send the request.
-        self.spawn_and_connect_lsp_server(lang).await?;
-
+        // Construct a request.
         let mut body = serde_json::to_string(&ToServer::Request(Request { id, body: request }))?;
         body.push('\n');
 
+        // Send the request.
+        self.ensure_lsp_server_is_spawned(lang).await?;
         self.lsp_daemons
             .get_mut(lang.id)
             .unwrap()
@@ -67,7 +67,7 @@ impl SyncdClient {
         Ok(rx.await?)
     }
 
-    async fn spawn_and_connect_lsp_server(&mut self, lang: &'static Lang) -> Result<()> {
+    async fn ensure_lsp_server_is_spawned(&mut self, lang: &'static Lang) -> Result<()> {
         if self.lsp_daemons.contains_key(lang.id) {
             return Ok(());
         }
