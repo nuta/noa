@@ -1,12 +1,17 @@
-use std::{collections::HashMap, path::Path, process::Stdio, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    process::Stdio,
+    sync::Arc,
+};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use lsp_types::{
     notification::{DidChangeTextDocument, DidOpenTextDocument},
-    request::Completion,
+    request::{Completion, Initialize},
     CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
-    PartialResultParams, TextDocumentContentChangeEvent, TextDocumentIdentifier,
+    InitializeParams, PartialResultParams, TextDocumentContentChangeEvent, TextDocumentIdentifier,
     TextDocumentPositionParams, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 use noa_buffer::Point;
@@ -58,16 +63,6 @@ fn serialize_lsp_notification<T: lsp_types::notification::Notification>(
     };
 
     serde_json::to_string(msg).unwrap()
-}
-
-async fn send_requests(stdin: &mut ChildStdin, body: &str) -> Result<()> {
-    use tokio::io::AsyncWriteExt;
-    stdin
-        .write_all(format!("Content-Length: {}\r\n\r\n", body.len()).as_bytes())
-        .await?;
-    stdin.write_all(body.as_bytes()).await?;
-
-    Ok(())
 }
 
 type ReqIdTxMap = Arc<
@@ -210,6 +205,7 @@ impl IntoPosition for Point {
 }
 
 pub struct LspDaemon {
+    workspace_dir: PathBuf,
     lsp_stdin: ChildStdin,
     lang: String,
     next_req_id: usize,
@@ -247,11 +243,59 @@ impl LspDaemon {
         }
 
         Ok(LspDaemon {
+            workspace_dir: workspace_dir.to_path_buf(),
             lsp_stdin,
             lang,
             next_req_id: 1,
             req_id_tx_map,
         })
+    }
+
+    pub async fn initialize(&mut self) -> Result<()> {
+        self.send_request::<Initialize>(
+            // `root_path` is deprecated. We already use root_uri instead.
+            #[allow(deprecated)]
+            InitializeParams {
+                process_id: None,
+                root_path: None,
+                root_uri: Some(parse_path_as_uri(&self.workspace_dir)),
+                locale: None,
+                initialization_options: None,
+                capabilities: lsp_types::ClientCapabilities {
+                    workspace: None,
+                    text_document: None,
+                    window: None,
+                    experimental: None,
+                    general: None,
+                },
+                trace: None,
+                workspace_folders: None,
+                client_info: None,
+            },
+        )
+        .await?;
+
+        Ok(())
+    }
+
+    async fn send_message(&mut self, body: &str) -> Result<()> {
+        use tokio::io::AsyncWriteExt;
+        self.lsp_stdin
+            .write_all(format!("Content-Length: {}\r\n\r\n", body.len()).as_bytes())
+            .await?;
+        self.lsp_stdin.write_all(body.as_bytes()).await?;
+
+        Ok(())
+    }
+
+    async fn send_request<T: lsp_types::request::Request>(
+        &mut self,
+        params: T::Params,
+    ) -> Result<LspResponse> {
+        let (id, rx) = self.alloc_req_id("textDocument/completion").await;
+        let body = serialize_lsp_request::<T>(id, params);
+        self.send_message(&body).await?;
+        Ok(rx.await?)
     }
 
     async fn alloc_req_id(
@@ -290,7 +334,7 @@ impl Daemon for LspDaemon {
                         },
                     });
 
-                send_requests(&mut self.lsp_stdin, &body).await?;
+                self.send_message(&body).await?;
                 Ok(LspResponse::NoContent)
             }
             LspRequest::UpdateFile {
@@ -313,33 +357,27 @@ impl Daemon for LspDaemon {
                     },
                 );
 
-                send_requests(&mut self.lsp_stdin, &body).await?;
+                self.send_message(&body).await?;
                 Ok(LspResponse::NoContent)
             }
             LspRequest::Completion { path, position } => {
                 info!("Completion(path={}, position={})", path.display(), position);
-                let (id, rx) = self.alloc_req_id("textDocument/completion").await;
-                let body = serialize_lsp_request::<Completion>(
-                    id,
-                    CompletionParams {
-                        text_document_position: TextDocumentPositionParams {
-                            position: position.into_position(),
-                            text_document: TextDocumentIdentifier {
-                                uri: parse_path_as_uri(&path),
-                            },
-                        },
-                        context: None,
-                        partial_result_params: PartialResultParams {
-                            partial_result_token: None,
-                        },
-                        work_done_progress_params: WorkDoneProgressParams {
-                            work_done_token: None,
+                self.send_request::<Completion>(CompletionParams {
+                    text_document_position: TextDocumentPositionParams {
+                        position: position.into_position(),
+                        text_document: TextDocumentIdentifier {
+                            uri: parse_path_as_uri(&path),
                         },
                     },
-                );
-
-                send_requests(&mut self.lsp_stdin, &body).await?;
-                Ok(rx.await?)
+                    context: None,
+                    partial_result_params: PartialResultParams {
+                        partial_result_token: None,
+                    },
+                    work_done_progress_params: WorkDoneProgressParams {
+                        work_done_token: None,
+                    },
+                })
+                .await
             }
         }
     }

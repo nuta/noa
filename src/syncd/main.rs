@@ -94,9 +94,14 @@ async fn main() {
         "lsp" => {
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<LspNotification>();
             let sock_path = lsp_sock_path(&opt.workspace_dir, &opt.lang);
-            let daemon = LspDaemon::spawn(tx, &opt.workspace_dir, opt.lang)
+
+            let mut daemon = LspDaemon::spawn(tx, &opt.workspace_dir, opt.lang)
                 .await
                 .expect("failed to start the LSP mode");
+            daemon
+                .initialize()
+                .await
+                .expect("failed to initialize the LSP server");
             eventloop(&sock_path, daemon, rx).await.unwrap();
         }
         _ => unreachable!(),
