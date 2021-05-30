@@ -45,7 +45,12 @@ async fn main() {
     trace!("starting");
 
     let opt = Opt::from_args();
-    let mut eventloop = eventloop::EventLoop::new(current_dir().unwrap());
+    let workspace_dir = match opt.files.get(0) {
+        Some(file_or_dir) if file_or_dir.is_dir() => file_or_dir.clone(),
+        _ => current_dir().unwrap(),
+    };
+
+    let mut eventloop = eventloop::EventLoop::new(workspace_dir);
     for file in opt.files.iter().rev() {
         eventloop.open_file(file);
     }
