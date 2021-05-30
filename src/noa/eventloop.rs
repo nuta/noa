@@ -74,6 +74,7 @@ async fn file_updated_handler(
     syncd: Arc<Mutex<SyncdClient>>,
 ) {
     while let Some(buffer_lock) = rx.recv().await {
+        trace!("handling file updated...");
         let (lang, req) = {
             let buffer = buffer_lock.read();
             let (path) = match buffer.path() {
@@ -179,27 +180,30 @@ impl EventLoop {
 
         self.buffers.push(buffer.clone());
         self.path2id.insert(abspath.clone(), buffer_id);
+        self.views.write().insert(buffer_id, View::new());
         self.current_buffer = buffer.clone();
 
         // Tell the LSP server about the newly opened file.
-        match self
-            .syncd
-            .lock()
-            .await
-            .lsp_request::<LspRequest, LspResponse>(
-                lang,
-                LspRequest::OpenFile {
-                    path: abspath,
-                    text,
-                },
-            )
-            .await
-        {
-            Ok(_) => {}
-            Err(err) => {
-                warn!("failed to send a syncd request: {}", err);
-            }
-        };
+        let asyncd = self.syncd.clone();
+        tokio::spawn(async move {
+            match asyncd
+                .lock()
+                .await
+                .lsp_request::<LspRequest, LspResponse>(
+                    lang,
+                    LspRequest::OpenFile {
+                        path: abspath,
+                        text,
+                    },
+                )
+                .await
+            {
+                Ok(_) => {}
+                Err(err) => {
+                    warn!("failed to send a syncd request: {}", err);
+                }
+            };
+        });
     }
 
     pub async fn run(&mut self) {
