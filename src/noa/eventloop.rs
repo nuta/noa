@@ -1,8 +1,14 @@
-use crate::terminal::{DrawContext, Terminal};
 use crate::terminal::{KeyCode, KeyEvent, KeyModifiers};
 use crate::view::View;
+use crate::{
+    syncd::SyncdClient,
+    terminal::{DrawContext, Terminal},
+};
 use log::LevelFilter;
-use noa_common::syncd_protocol::LspRequest;
+use noa_common::{
+    syncd_protocol::{LspRequest, LspResponse},
+    warn_on_error,
+};
 use parking_lot::RwLock;
 use simplelog::{Config, WriteLogger};
 use std::{
@@ -68,6 +74,7 @@ pub struct EventLoop {
     path2id: HashMap<PathBuf, BufferId>,
     views: RwLock<HashMap<BufferId, View>>,
     event_queue: UnboundedReceiver<Event>,
+    syncd: SyncdClient,
 }
 
 impl EventLoop {
@@ -81,6 +88,7 @@ impl EventLoop {
         let scratch_buffer = Arc::new(RwLock::new(scratch));
         let buffers = vec![scratch_buffer.clone()];
 
+        let syncd = SyncdClient::new(&workspace_dir, |noti| {});
         EventLoop {
             exited: false,
             workspace_dir,
@@ -90,6 +98,7 @@ impl EventLoop {
             buffers,
             path2id: HashMap::new(),
             views: RwLock::new(views),
+            syncd,
         }
     }
 
@@ -143,7 +152,8 @@ impl EventLoop {
                     continue;
                 }
 
-                self.syncd
+                let _resp: LspResponse = match self
+                    .syncd
                     .lsp_request(
                         buffer.lang(),
                         LspRequest::UpdateFile {
@@ -152,7 +162,14 @@ impl EventLoop {
                             text: buffer.text(),
                         },
                     )
-                    .await;
+                    .await
+                {
+                    Ok(resp) => resp,
+                    Err(err) => {
+                        warn!("failed to send a syncd request: {}", err);
+                        continue;
+                    }
+                };
             }
 
             trace!("exiting file update handler");

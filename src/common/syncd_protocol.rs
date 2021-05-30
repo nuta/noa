@@ -49,12 +49,12 @@ pub enum LspRequest {
     },
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub enum LspResponse {
     NoContent,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub enum LspNotification {}
 
 unsafe impl<T: Send> Send for Request<T> {}
