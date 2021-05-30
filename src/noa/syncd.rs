@@ -68,6 +68,10 @@ impl SyncdClient {
     }
 
     async fn spawn_and_connect_lsp_server(&mut self, lang: &'static Lang) -> Result<()> {
+        if self.lsp_daemons.contains_key(lang.id) {
+            return Ok(());
+        }
+
         let sock_path = lsp_sock_path(&self.workspace_dir, lang.id);
         if !sock_path.exists() {
             // The syncd for the language is not running. Spawn it.
@@ -87,6 +91,7 @@ impl SyncdClient {
                 buf.clear();
                 match reader.read_line(&mut buf).await {
                     Ok(0) => {
+                        // TODO:
                         trace!("EOF returned from syncd");
                         break;
                     }
