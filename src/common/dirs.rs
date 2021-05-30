@@ -20,9 +20,12 @@ pub fn noa_dir() -> PathBuf {
 }
 
 pub fn noa_workdir(workdir: &Path) -> PathBuf {
+    let workdir = workdir
+        .canonicalize()
+        .expect("failed to canonicalize the workdir");
     let dir = noa_dir()
         .join("workdirs")
-        .join(Path::new(&path_into_dotted_str(workdir)));
+        .join(Path::new(&path_into_dotted_str(&workdir)));
     create_dir_all(&dir).expect("failed to create dir");
     dir
 }
