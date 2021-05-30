@@ -147,7 +147,7 @@ impl EventLoop {
         }
     }
 
-    pub fn open_file(&mut self, path: &Path) {
+    pub async fn open_file(&mut self, path: &Path) {
         let abspath = match path.canonicalize() {
             Ok(abspath) => abspath,
             Err(err) => {
@@ -160,10 +160,12 @@ impl EventLoop {
             }
         };
 
-        let (buffer, buffer_id) = match Buffer::open_file(&abspath) {
+        let (buffer, buffer_id, lang, text) = match Buffer::open_file(&abspath) {
             Ok(buffer) => {
                 let id = buffer.id();
-                (Arc::new(RwLock::new(buffer)), id)
+                let lang = buffer.lang();
+                let text = buffer.text();
+                (Arc::new(RwLock::new(buffer)), id, lang, text)
             }
             Err(err) => {
                 self.error(format!(
@@ -176,8 +178,28 @@ impl EventLoop {
         };
 
         self.buffers.push(buffer.clone());
-        self.path2id.insert(abspath, buffer_id);
-        self.current_buffer = buffer;
+        self.path2id.insert(abspath.clone(), buffer_id);
+        self.current_buffer = buffer.clone();
+
+        // Tell the LSP server about the newly opened file.
+        match self
+            .syncd
+            .lock()
+            .await
+            .lsp_request::<LspRequest, LspResponse>(
+                lang,
+                LspRequest::OpenFile {
+                    path: abspath,
+                    text,
+                },
+            )
+            .await
+        {
+            Ok(_) => {}
+            Err(err) => {
+                warn!("failed to send a syncd request: {}", err);
+            }
+        };
     }
 
     pub async fn run(&mut self) {
