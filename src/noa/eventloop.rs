@@ -4,6 +4,7 @@ use crate::{
     syncd::SyncdClient,
     terminal::{DrawContext, Terminal},
 };
+use anyhow::Context;
 use log::LevelFilter;
 use noa_common::{
     syncd_protocol::{LspRequest, LspResponse},
@@ -84,6 +85,7 @@ async fn file_updated_handler(
                 }
             };
 
+            info!("{} {}", path.display(), workspace_dir.display());
             if !path.starts_with(&workspace_dir) {
                 continue;
             }
@@ -98,13 +100,10 @@ async fn file_updated_handler(
             (lang, req)
         };
 
-        let _resp: LspResponse = match syncd.lock().await.lsp_request(lang, req).await {
-            Ok(resp) => resp,
-            Err(err) => {
-                warn!("failed to send a syncd request: {}", err);
-                continue;
-            }
-        };
+        info!("send updated message...");
+        if let Err(err) = syncd.lock().await.send_lsp_message(lang, req).await {
+            warn!("failed to send a syncd request: {}", err);
+        }
     }
 
     trace!("exiting file update handler");
@@ -132,6 +131,11 @@ impl EventLoop {
         views.insert(scratch.id(), View::new());
         let scratch_buffer = Arc::new(RwLock::new(scratch));
         let buffers = vec![scratch_buffer.clone()];
+
+        let workspace_dir = workspace_dir
+            .canonicalize()
+            .with_context(|| format!("failed to resolve workdir: {}", workspace_dir.display()))
+            .unwrap();
 
         let syncd = SyncdClient::new(&workspace_dir, |noti| {});
 
@@ -189,7 +193,7 @@ impl EventLoop {
             match asyncd
                 .lock()
                 .await
-                .lsp_request::<LspRequest>(
+                .send_lsp_message::<LspRequest>(
                     lang,
                     LspRequest::OpenFile {
                         path: abspath,
@@ -198,7 +202,9 @@ impl EventLoop {
                 )
                 .await
             {
-                Ok(_) => {}
+                Ok(()) => {
+                    info!("OPENED!!!!!!!!!!!!!!");
+                }
                 Err(err) => {
                     warn!("failed to send a syncd request: {}", err);
                 }

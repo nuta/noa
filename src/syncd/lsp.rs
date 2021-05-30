@@ -249,7 +249,7 @@ impl LspDaemon {
     }
 
     pub async fn initialize(&mut self) -> Result<()> {
-        self.send_request::<Initialize>(
+        self.call_method::<Initialize>(
             // `root_path` is deprecated. We already use root_uri instead.
             #[allow(deprecated)]
             InitializeParams {
@@ -285,7 +285,7 @@ impl LspDaemon {
         Ok(())
     }
 
-    async fn send_request<T: lsp_types::request::Request>(
+    async fn call_method<T: lsp_types::request::Request>(
         &mut self,
         params: T::Params,
     ) -> Result<LspResponse> {
@@ -359,7 +359,7 @@ impl Daemon for LspDaemon {
             }
             LspRequest::Completion { path, position } => {
                 trace!("Completion(path={}, position={})", path.display(), position);
-                self.send_request::<Completion>(CompletionParams {
+                self.call_method::<Completion>(CompletionParams {
                     text_document_position: TextDocumentPositionParams {
                         position: position.into_position(),
                         text_document: TextDocumentIdentifier {
