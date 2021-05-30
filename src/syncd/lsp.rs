@@ -292,7 +292,6 @@ impl LspDaemon {
         let (id, rx) = self.alloc_req_id(T::METHOD).await;
         let body = serialize_lsp_request::<T>(id, params);
         self.send_message(&body).await?;
-        trace!("Waiting for response....");
         Ok(rx.await?)
     }
 
