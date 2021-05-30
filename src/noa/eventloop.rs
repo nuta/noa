@@ -107,7 +107,7 @@ async fn file_updated_handler(
         if let Err(err) = syncd
             .lock()
             .await
-            .send_lsp_message(lang, file_modified_req)
+            .call_lsp_method(lang, file_modified_req)
             .await
         {
             warn!("failed to send UpdateFile request: {}", err);
@@ -117,7 +117,7 @@ async fn file_updated_handler(
         if let Err(err) = syncd
             .lock()
             .await
-            .send_lsp_message(lang, completion_req)
+            .call_lsp_method(lang, completion_req)
             .await
         {
             warn!("failed to call Completion request: {}", err);
@@ -211,7 +211,7 @@ impl EventLoop {
             match asyncd
                 .lock()
                 .await
-                .send_lsp_message::<LspRequest>(
+                .call_lsp_method::<LspRequest>(
                     lang,
                     LspRequest::OpenFile {
                         path: abspath,
@@ -220,7 +220,7 @@ impl EventLoop {
                 )
                 .await
             {
-                Ok(()) => {}
+                Ok(_) => {}
                 Err(err) => {
                     warn!("failed to send a syncd request: {}", err);
                 }

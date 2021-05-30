@@ -84,12 +84,13 @@ pub async fn eventloop<D: Daemon + 'static>(
                                 ToServer::Request(Request { id, body: params }) => {
                                     match daemon_lock.lock().await.process_request(params).await {
                                         Ok(body) => {
-                                            let mut json = serde_json::to_string(&ToClient::<
-                                                D::Response,
-                                            >::Response(
-                                                Response { id, body },
-                                            ))
-                                            .unwrap();
+                                            info!("respoing to noa: {}", id);
+                                            let resp =
+                                                ToClient::<D::Response>::Response(Response {
+                                                    id,
+                                                    body,
+                                                });
+                                            let mut json = serde_json::to_string(&resp).unwrap();
 
                                             json.push('\n');
 

@@ -153,6 +153,7 @@ async fn receive_responses(
                         // let _params: CompletionResponse =
                         //     serde_json::from_value(json.result).unwrap();
                         // TODO:
+                        info!("received completion");
                         LspResponse::NoContent
                     }
                     _ => {
@@ -171,11 +172,11 @@ async fn receive_responses(
                 // Perhaps it is a notification from the server.
                 match serde_json::from_str::<jsonrpc_core::Request>(&body) {
                     Ok(jsonrpc_core::Request::Single(req)) => {
-                        trace!("request from server = {:?}", req);
+                        trace!("notification from server = {:?}", req);
                         continue;
                     }
                     Ok(jsonrpc_core::Request::Batch(reqs)) => {
-                        trace!("request from server = {:?}", reqs);
+                        trace!("notification from server = {:?}", reqs);
                         continue;
                     }
                     Err(err) => {
@@ -290,9 +291,11 @@ impl LspDaemon {
         params: T::Params,
     ) -> Result<LspResponse> {
         let (id, rx) = self.alloc_req_id(T::METHOD).await;
-        let body = serialize_lsp_request::<T>(id, params);
-        self.send_message(&body).await?;
-        Ok(rx.await?)
+        let req = serialize_lsp_request::<T>(id.clone(), params);
+        self.send_message(&req).await?;
+        let resp = rx.await?;
+        info!("returned resp: {:#?}", id);
+        Ok(resp)
     }
 
     async fn alloc_req_id(

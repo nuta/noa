@@ -35,7 +35,7 @@ impl SyncdClient {
             workspace_dir: workspace_dir.to_owned(),
             lsp_daemons: HashMap::new(),
             sent_requests: Arc::new(Mutex::new(HashMap::new())),
-            next_request_id: 1,
+            next_request_id: 10000,
         }
     }
 
@@ -54,6 +54,7 @@ impl SyncdClient {
         // Send the request.
         self.spawn_and_connect_lsp_server(lang).await?;
 
+        info!("sending {}", id);
         let mut body = serde_json::to_string(&ToServer::Request(Request { id, body: request }))?;
         body.push('\n');
 
@@ -65,32 +66,6 @@ impl SyncdClient {
 
         // Wait for the response.
         Ok(rx.await?)
-    }
-
-    pub async fn send_lsp_message<I: Serialize>(
-        &mut self,
-        lang: &'static Lang,
-        request: I,
-    ) -> Result<()> {
-        use tokio::io::AsyncWriteExt;
-
-        let id = self.next_request_id;
-        self.next_request_id += 1;
-
-        // Send the request.
-        self.spawn_and_connect_lsp_server(lang).await?;
-
-        let mut body = serde_json::to_string(&ToServer::Request(Request { id, body: request }))?;
-        body.push('\n');
-
-        self.lsp_daemons
-            .get_mut(lang.id)
-            .unwrap()
-            .write_all(body.as_bytes())
-            .await?;
-
-        // Wait for the response.
-        Ok(())
     }
 
     async fn spawn_and_connect_lsp_server(&mut self, lang: &'static Lang) -> Result<()> {
