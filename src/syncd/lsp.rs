@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use lsp_types::{
     notification::{DidChangeTextDocument, DidOpenTextDocument},
-    request::{Completion, Initialize},
+    request::{Completion, Initialize, Request},
     CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
     InitializeParams, PartialResultParams, TextDocumentContentChangeEvent, TextDocumentIdentifier,
     TextDocumentPositionParams, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
@@ -140,7 +140,7 @@ async fn receive_responses(
         // Parse the JSON.
         trace!("body = '{}'", body);
         match serde_json::from_str::<jsonrpc_core::Output>(&body) {
-            Ok(jsonrpc_core::Output::Success(mut json)) => {
+            Ok(jsonrpc_core::Output::Success(json)) => {
                 // Received a response to a request.
                 let (request_method, tx) = req_id_tx_map
                     .lock()
@@ -148,20 +148,17 @@ async fn receive_responses(
                     .remove(&json.id)
                     .expect("dangling response id from the LSP server");
 
-                let params = json
-                    .result
-                    .as_object_mut()
-                    .unwrap()
-                    .remove("params")
-                    .expect("missing parmas");
-
                 let resp = match request_method {
-                    "textDocument/completion" => {
-                        let _params: CompletionResponse = serde_json::from_value(params).unwrap();
+                    Completion::METHOD => {
+                        let _params: CompletionResponse =
+                            serde_json::from_value(json.result).unwrap();
                         // TODO:
                         LspResponse::NoContent
                     }
-                    _ => unreachable!(),
+                    _ => {
+                        warn!("ignored unsupported response: {}", body);
+                        LspResponse::NoContent
+                    }
                 };
 
                 tx.send(resp).unwrap();
@@ -292,9 +289,10 @@ impl LspDaemon {
         &mut self,
         params: T::Params,
     ) -> Result<LspResponse> {
-        let (id, rx) = self.alloc_req_id("textDocument/completion").await;
+        let (id, rx) = self.alloc_req_id(T::METHOD).await;
         let body = serialize_lsp_request::<T>(id, params);
         self.send_message(&body).await?;
+        trace!("Waiting for response....");
         Ok(rx.await?)
     }
 
