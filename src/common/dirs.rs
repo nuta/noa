@@ -19,16 +19,22 @@ pub fn noa_dir() -> PathBuf {
     dir
 }
 
+pub fn noa_workdir(workdir: &Path) -> PathBuf {
+    let dir = noa_dir()
+        .join("workdirs")
+        .join(Path::new(&path_into_dotted_str(workdir)));
+    create_dir_all(&dir).expect("failed to create dir");
+    dir
+}
+
 pub fn lsp_sock_path(workdir: &Path, lang: &str) -> PathBuf {
-    let parent_dir = noa_dir().join(Path::new(&path_into_dotted_str(workdir)));
-    create_dir_all(&parent_dir).expect("failed to create dir");
-    parent_dir.join(&format!("{}.sock", lang))
+    let dir = noa_workdir(workdir);
+    dir.join(&format!("{}.sock", lang))
 }
 
 pub fn lsp_pid_path(workdir: &Path, lang: &str) -> PathBuf {
-    let parent_dir = noa_dir().join(Path::new(&path_into_dotted_str(workdir)));
-    create_dir_all(&parent_dir).expect("failed to create dir");
-    parent_dir.join(&format!("{}.pid", lang))
+    let dir = noa_workdir(workdir);
+    dir.join(&format!("{}.pid", lang))
 }
 
 pub fn log_file_path(name: &str) -> PathBuf {

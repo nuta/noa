@@ -228,7 +228,12 @@ impl LspDaemon {
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
             .spawn()
-            .with_context(|| format!("failed to spawn LSP server for {}", lang))?;
+            .with_context(|| {
+                format!(
+                    "failed to spawn LSP server for {} (have you installed required packages?)",
+                    lang
+                )
+            })?;
 
         let lsp_stdin = lsp_server.stdin.take().unwrap();
         let lsp_stdout = lsp_server.stdout.take().unwrap();
