@@ -75,7 +75,7 @@ async fn file_updated_handler(
     syncd: Arc<Mutex<SyncdClient>>,
 ) {
     while let Some(buffer_lock) = rx.recv().await {
-        let (lang, req) = {
+        let (lang, file_modified_req, completion_req) = {
             let buffer = buffer_lock.read();
             let (path) = match buffer.path() {
                 Some(path) => path,
@@ -90,17 +90,37 @@ async fn file_updated_handler(
             }
 
             let lang = buffer.lang();
-            let req = LspRequest::UpdateFile {
+            let file_modified_req = LspRequest::UpdateFile {
                 path: path.to_owned(),
                 version: buffer.version(),
                 text: buffer.text(),
             };
 
-            (lang, req)
+            let completion_req = LspRequest::Completion {
+                path: path.to_owned(),
+                position: *buffer.main_cursor_pos(),
+            };
+
+            (lang, file_modified_req, completion_req)
         };
 
-        if let Err(err) = syncd.lock().await.send_lsp_message(lang, req).await {
-            warn!("failed to send a syncd request: {}", err);
+        if let Err(err) = syncd
+            .lock()
+            .await
+            .send_lsp_message(lang, file_modified_req)
+            .await
+        {
+            warn!("failed to send UpdateFile request: {}", err);
+        }
+
+        trace!("sending completion message...");
+        if let Err(err) = syncd
+            .lock()
+            .await
+            .send_lsp_message(lang, completion_req)
+            .await
+        {
+            warn!("failed to call Completion request: {}", err);
         }
     }
 

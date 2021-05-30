@@ -150,8 +150,8 @@ async fn receive_responses(
 
                 let resp = match request_method {
                     Completion::METHOD => {
-                        let _params: CompletionResponse =
-                            serde_json::from_value(json.result).unwrap();
+                        // let _params: CompletionResponse =
+                        //     serde_json::from_value(json.result).unwrap();
                         // TODO:
                         LspResponse::NoContent
                     }
