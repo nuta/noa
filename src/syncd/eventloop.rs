@@ -1,4 +1,9 @@
-use std::{io::ErrorKind, path::Path, sync::Arc};
+use std::{
+    collections::HashMap,
+    io::ErrorKind,
+    path::Path,
+    sync::{atomic::AtomicUsize, Arc},
+};
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -39,7 +44,9 @@ pub async fn eventloop<D: Daemon + 'static>(
     };
 
     let daemon_lock = Arc::new(Mutex::new(daemon));
-    let clients = Arc::new(Mutex::new(Vec::<Arc<Mutex<OwnedWriteHalf>>>::new()));
+    let clients = Arc::new(Mutex::new(
+        HashMap::<usize, Arc<Mutex<OwnedWriteHalf>>>::new(),
+    ));
 
     // Broadcast notifications from the LSP server.
     {
@@ -51,7 +58,7 @@ pub async fn eventloop<D: Daemon + 'static>(
                 )
                 .unwrap();
 
-                for client in clients.lock().await.iter_mut() {
+                for client in clients.lock().await.values_mut() {
                     warn_on_error!(
                         client.lock().await.write_all(json.as_bytes()).await,
                         "failed to write the notification"
@@ -62,20 +69,22 @@ pub async fn eventloop<D: Daemon + 'static>(
     }
 
     // Forward requests from noa to the LSP server.
+    let next_client_id = AtomicUsize::new(1);
     loop {
         if let Ok((new_client, _)) = listener.accept().await {
+            let client_id = next_client_id.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             let (read_end, write_end) = new_client.into_split();
             let write_end = Arc::new(Mutex::new(write_end));
             let daemon_lock = daemon_lock.clone();
             let clients = clients.clone();
             spawn(async move {
-                clients.lock().await.push(write_end.clone());
+                clients.lock().await.insert(client_id, write_end.clone());
                 let mut reader = BufReader::new(read_end);
                 let mut buf = String::with_capacity(128 * 1024);
                 loop {
                     buf.clear();
                     match reader.read_line(&mut buf).await {
-                        Ok(0) => break,
+                        Ok(0) => break, // EOF
                         Ok(_) => {
                             let packet: ToServer<D::Request> =
                                 serde_json::from_str(&buf).expect("invalid request");
@@ -113,6 +122,9 @@ pub async fn eventloop<D: Daemon + 'static>(
                         }
                     }
                 }
+
+                // The client has exited.
+                clients.lock().await.remove(&client_id);
             });
         }
     }
