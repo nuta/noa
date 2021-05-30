@@ -23,7 +23,10 @@ use std::{
 use std::{sync, time::Instant};
 use structopt::StructOpt;
 use tokio::{
-    sync::mpsc::{self, unbounded_channel, UnboundedReceiver, UnboundedSender},
+    sync::{
+        mpsc::{self, unbounded_channel, UnboundedReceiver, UnboundedSender},
+        Mutex,
+    },
     time::timeout,
 };
 
@@ -65,6 +68,47 @@ fn main() {
 }
 ";
 
+async fn file_updated_handler(
+    mut rx: UnboundedReceiver<Arc<RwLock<Buffer>>>,
+    workspace_dir: PathBuf,
+    syncd: Arc<Mutex<SyncdClient>>,
+) {
+    while let Some(buffer_lock) = rx.recv().await {
+        let (lang, req) = {
+            let buffer = buffer_lock.read();
+            let (path) = match buffer.path() {
+                Some(path) => path,
+                None => {
+                    continue;
+                }
+            };
+
+            if !path.starts_with(&workspace_dir) {
+                continue;
+            }
+
+            let lang = buffer.lang();
+            let req = LspRequest::UpdateFile {
+                path: path.to_owned(),
+                version: buffer.version(),
+                text: buffer.text(),
+            };
+
+            (lang, req)
+        };
+
+        let _resp: LspResponse = match syncd.lock().await.lsp_request(lang, req).await {
+            Ok(resp) => resp,
+            Err(err) => {
+                warn!("failed to send a syncd request: {}", err);
+                continue;
+            }
+        };
+    }
+
+    trace!("exiting file update handler");
+}
+
 pub struct EventLoop {
     exited: bool,
     workspace_dir: PathBuf,
@@ -74,7 +118,7 @@ pub struct EventLoop {
     path2id: HashMap<PathBuf, BufferId>,
     views: RwLock<HashMap<BufferId, View>>,
     event_queue: UnboundedReceiver<Event>,
-    syncd: SyncdClient,
+    syncd: Arc<Mutex<SyncdClient>>,
 }
 
 impl EventLoop {
@@ -89,6 +133,7 @@ impl EventLoop {
         let buffers = vec![scratch_buffer.clone()];
 
         let syncd = SyncdClient::new(&workspace_dir, |noti| {});
+
         EventLoop {
             exited: false,
             workspace_dir,
@@ -98,7 +143,7 @@ impl EventLoop {
             buffers,
             path2id: HashMap::new(),
             views: RwLock::new(views),
-            syncd,
+            syncd: Arc::new(Mutex::new(syncd)),
         }
     }
 
@@ -138,42 +183,11 @@ impl EventLoop {
     pub async fn run(&mut self) {
         // On file update handler.
         let (file_updated_tx, mut file_updated_rx) = unbounded_channel::<Arc<RwLock<Buffer>>>();
-        tokio::spawn(async move {
-            while let Some(buffer) = file_updated_rx.recv().await {
-                let buffer = buffer.read();
-                let (path) = match buffer.path() {
-                    Some(path) => path,
-                    None => {
-                        continue;
-                    }
-                };
-
-                if !path.starts_with(&self.workspace_dir) {
-                    continue;
-                }
-
-                let _resp: LspResponse = match self
-                    .syncd
-                    .lsp_request(
-                        buffer.lang(),
-                        LspRequest::UpdateFile {
-                            path: path.to_owned(),
-                            version: buffer.version(),
-                            text: buffer.text(),
-                        },
-                    )
-                    .await
-                {
-                    Ok(resp) => resp,
-                    Err(err) => {
-                        warn!("failed to send a syncd request: {}", err);
-                        continue;
-                    }
-                };
-            }
-
-            trace!("exiting file update handler");
-        });
+        tokio::spawn(file_updated_handler(
+            file_updated_rx,
+            self.workspace_dir.clone(),
+            self.syncd.clone(),
+        ));
 
         self.draw();
         loop {
