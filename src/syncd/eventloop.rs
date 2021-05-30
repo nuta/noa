@@ -39,7 +39,7 @@ pub async fn eventloop<D: Daemon + 'static>(
         HashMap::<usize, Arc<Mutex<OwnedWriteHalf>>>::new(),
     ));
 
-    // Broadcast notifications from the LSP server.
+    // Broadcast notifications from the LSP server to all clients.
     {
         let clients = clients.clone();
         spawn(async move {
