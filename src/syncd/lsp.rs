@@ -323,7 +323,7 @@ impl Daemon for LspDaemon {
     async fn process_request(&mut self, request: Self::Request) -> Result<Self::Response> {
         match request {
             LspRequest::OpenFile { path, text } => {
-                info!("DidOpenTextDocument(path={})", path.display());
+                trace!("DidOpenTextDocument(path={})", path.display());
                 let body =
                     serialize_lsp_notification::<DidOpenTextDocument>(DidOpenTextDocumentParams {
                         text_document: lsp_types::TextDocumentItem {
@@ -342,7 +342,7 @@ impl Daemon for LspDaemon {
                 text,
                 version,
             } => {
-                info!("DidChangeTextDocument(path={})", path.display());
+                trace!("DidChangeTextDocument(path={})", path.display());
                 let body = serialize_lsp_notification::<DidChangeTextDocument>(
                     DidChangeTextDocumentParams {
                         text_document: VersionedTextDocumentIdentifier {
@@ -361,7 +361,7 @@ impl Daemon for LspDaemon {
                 Ok(LspResponse::NoContent)
             }
             LspRequest::Completion { path, position } => {
-                info!("Completion(path={}, position={})", path.display(), position);
+                trace!("Completion(path={}, position={})", path.display(), position);
                 self.send_request::<Completion>(CompletionParams {
                     text_document_position: TextDocumentPositionParams {
                         position: position.into_position(),
