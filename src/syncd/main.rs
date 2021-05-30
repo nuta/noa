@@ -12,7 +12,7 @@ use noa_common::{
 };
 use simplelog::{CombinedLogger, Config, TermLogger, TerminalMode, WriteLogger};
 use std::{
-    fs::{File, OpenOptions},
+    fs::{read_to_string, File, OpenOptions},
     path::PathBuf,
 };
 use structopt::StructOpt;
@@ -27,6 +27,10 @@ struct Opt {
     daemon_type: String,
     #[structopt(long)]
     lang: String,
+    #[structopt(long)]
+    kill_existing_daemon: bool,
+    #[structopt(long, short)]
+    foreground: bool,
 }
 
 #[tokio::main]
@@ -64,13 +68,27 @@ async fn main() {
         _ => panic!("unknown daemon type: {}", opt.daemon_type),
     };
 
-    Daemonize::new()
-        .pid_file(pid_file)
-        .working_directory(std::env::current_dir().unwrap())
-        .stdout(File::open("/dev/null").unwrap())
-        .stderr(File::open("/dev/null").unwrap())
-        .start()
-        .expect("failed to daemonize the process");
+    if opt.kill_existing_daemon {
+        if let Ok(pid) = read_to_string(&pid_file) {
+            let pid = pid.parse().expect("failed to parse pid file");
+            info!("found an existing daemon process (pid={}), killing...", pid);
+            unsafe {
+                libc::kill(pid, libc::SIGTERM);
+            }
+
+            std::fs::remove_file(&pid_file).ok();
+        }
+    }
+
+    if !opt.foreground {
+        Daemonize::new()
+            .pid_file(pid_file)
+            .working_directory(std::env::current_dir().unwrap())
+            .stdout(File::open("/dev/null").unwrap())
+            .stderr(File::open("/dev/null").unwrap())
+            .start()
+            .expect("failed to daemonize the process");
+    }
 
     match opt.daemon_type.as_str() {
         "lsp" => {

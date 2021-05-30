@@ -225,6 +225,7 @@ impl LspDaemon {
         let mut lsp_server = Command::new("/usr/bin/clangd")
             .args(&["-j=8", "--log=verbose", "--pretty"])
             .current_dir(workspace_dir)
+            .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
             .spawn()

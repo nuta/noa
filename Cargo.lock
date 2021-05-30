@@ -509,6 +509,7 @@ dependencies = [
  "daemonize",
  "futures",
  "jsonrpc-core",
+ "libc",
  "log",
  "lsp-types",
  "noa_buffer",
