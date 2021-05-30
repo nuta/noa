@@ -54,7 +54,6 @@ impl SyncdClient {
         // Send the request.
         self.spawn_and_connect_lsp_server(lang).await?;
 
-        info!("sending {}", id);
         let mut body = serde_json::to_string(&ToServer::Request(Request { id, body: request }))?;
         body.push('\n');
 
