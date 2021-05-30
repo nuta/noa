@@ -294,7 +294,6 @@ impl LspDaemon {
         let req = serialize_lsp_request::<T>(id.clone(), params);
         self.send_message(&req).await?;
         let resp = rx.await?;
-        info!("returned resp: {:#?}", id);
         Ok(resp)
     }
 

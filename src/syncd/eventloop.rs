@@ -64,6 +64,8 @@ pub async fn eventloop<D: Daemon + 'static>(
     loop {
         if let Ok((new_client, _)) = listener.accept().await {
             let client_id = next_client_id.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            info!("new client #{}", client_id);
+
             let (read_end, write_end) = new_client.into_split();
             let write_end = Arc::new(Mutex::new(write_end));
             let daemon_lock = daemon_lock.clone();
@@ -84,7 +86,6 @@ pub async fn eventloop<D: Daemon + 'static>(
                                 ToServer::Request(Request { id, body: params }) => {
                                     match daemon_lock.lock().await.process_request(params).await {
                                         Ok(body) => {
-                                            info!("respoing to noa: {}", id);
                                             let resp =
                                                 ToClient::<D::Response>::Response(Response {
                                                     id,
@@ -119,6 +120,7 @@ pub async fn eventloop<D: Daemon + 'static>(
                 }
 
                 // The client has exited.
+                info!("client #{} is being closed", client_id);
                 clients.lock().await.remove(&client_id);
             });
         }
