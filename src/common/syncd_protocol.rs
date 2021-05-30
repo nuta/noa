@@ -10,9 +10,9 @@ pub enum ToServer<R> {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub enum ToClient<R, N> {
+pub enum ToClient<R> {
     Response(Response<R>),
-    Notification(Notification<N>),
+    Notification(Notification),
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -28,8 +28,8 @@ pub struct Response<T> {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct Notification<T> {
-    pub body: T,
+pub enum Notification {
+    LspNotification,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -59,7 +59,7 @@ pub enum LspNotification {}
 
 unsafe impl<T: Send> Send for Request<T> {}
 unsafe impl<T: Send> Send for Response<T> {}
-unsafe impl<T: Send> Send for Notification<T> {}
+unsafe impl Send for Notification {}
 unsafe impl Send for LspRequest {}
 unsafe impl Send for LspResponse {}
 unsafe impl Send for LspNotification {}

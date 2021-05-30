@@ -1,4 +1,4 @@
-use crate::rope::*;
+use crate::{rope::*, Lang};
 use noa_editorconfig::*;
 use std::cmp::{max, min};
 use std::collections::HashSet;
@@ -49,6 +49,22 @@ fn backup_path(backup_dir: &Path, base: &str, revision: usize) -> PathBuf {
     backup_dir.join(format!("{}.{}", base, revision))
 }
 
+fn guess_lang_from_path(path: &Path) -> &'static Lang {
+    let basename = path.file_name().map(|s| s.to_str().unwrap()).unwrap_or("");
+    let ext = path.extension().map(|s| s.to_str().unwrap());
+    for lang in crate::lang::LANGS {
+        if let Some(ext) = ext.as_ref() {
+            if lang.filenames.iter().any(|&f| f == basename)
+                || lang.extensions.iter().any(|e| e == ext)
+            {
+                return lang;
+            }
+        }
+    }
+
+    return &crate::lang::PLAIN;
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BufferId(usize);
 
@@ -64,10 +80,11 @@ pub struct Buffer {
     rope: Rope,
     is_dirty: bool,
     name: String,
-    file: Option<PathBuf>,
+    path: Option<PathBuf>,
     cursors: Vec<Cursor>,
     undo_stack: Vec<Rope>,
     redo_stack: Vec<Rope>,
+    lang: &'static Lang,
     config: EditorConfig,
 }
 
@@ -78,10 +95,11 @@ impl Buffer {
             rope: Rope::new(),
             is_dirty: false,
             name: String::new(),
-            file: None,
+            path: None,
             cursors: vec![Cursor::new(0, 0)],
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
+            lang: &crate::lang::PLAIN,
             config: EditorConfig::default(),
         };
 
@@ -98,15 +116,17 @@ impl Buffer {
 
     pub fn open_file(path: &Path) -> std::io::Result<Buffer> {
         let file = std::fs::File::open(path)?;
+        let lang = guess_lang_from_path(path);
         let mut buffer = Buffer {
             id: BufferId::alloc(),
             rope: Rope::from_reader(file)?,
             is_dirty: false,
             name: String::new(),
-            file: Some(path.canonicalize()?),
+            path: Some(path.canonicalize()?),
             cursors: vec![Cursor::new(0, 0)],
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
+            lang,
             config: EditorConfig::resolve(path),
         };
 
@@ -154,8 +174,8 @@ impl Buffer {
         self.is_dirty
     }
 
-    pub fn file(&self) -> &Option<PathBuf> {
-        &self.file
+    pub fn lang(&self) -> &'static Lang {
+        self.lang
     }
 
     pub fn config(&self) -> &EditorConfig {
@@ -170,8 +190,9 @@ impl Buffer {
         self.name = name.into();
     }
 
+    /// Returns the absolute (canonicalized) path.
     pub fn path(&self) -> Option<&Path> {
-        self.file.as_deref()
+        self.path.as_deref()
     }
 
     pub fn text(&self) -> String {
@@ -190,12 +211,16 @@ impl Buffer {
         &self.rope.modified_line()
     }
 
+    pub fn version(&self) -> usize {
+        self.rope.version()
+    }
+
     pub fn is_virtual_file(&self) -> bool {
-        self.file.is_none()
+        self.path.is_none()
     }
 
     pub fn save_without_backup(&self) -> std::io::Result<()> {
-        if let Some(path) = &self.file {
+        if let Some(path) = &self.path {
             self.rope.save_into_file(path)
         } else {
             Ok(())
@@ -203,7 +228,7 @@ impl Buffer {
     }
 
     pub fn save(&mut self, backup_dir: &Path) -> std::io::Result<()> {
-        if let Some(path) = &self.file {
+        if let Some(path) = &self.path {
             let base = path.to_str().unwrap().replace('/', ".");
             fs::create_dir_all(backup_dir)?;
             fs::rename(

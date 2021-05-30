@@ -29,7 +29,7 @@ pub trait Daemon: Send {
 pub async fn eventloop<D: Daemon + 'static>(
     sock_path: &Path,
     daemon: D,
-    mut noti_rx: UnboundedReceiver<D::Notification>,
+    mut noti_rx: UnboundedReceiver<Notification>,
 ) -> Result<()> {
     let _ = std::fs::remove_file(&sock_path);
     let listener = UnixListener::bind(sock_path).expect("failed to bind a unix domain socket");
@@ -43,11 +43,9 @@ pub async fn eventloop<D: Daemon + 'static>(
     {
         let clients = clients.clone();
         spawn(async move {
-            while let Some(body) = noti_rx.recv().await {
-                let json = serde_json::to_string(
-                    &ToClient::<D::Response, D::Notification>::Notification(Notification { body }),
-                )
-                .unwrap();
+            while let Some(noti) = noti_rx.recv().await {
+                let json =
+                    serde_json::to_string(&ToClient::<D::Response>::Notification(noti)).unwrap();
 
                 for client in clients.lock().await.values_mut() {
                     warn_on_error!(
@@ -85,7 +83,6 @@ pub async fn eventloop<D: Daemon + 'static>(
                                         Ok(body) => {
                                             let json = serde_json::to_string(&ToClient::<
                                                 D::Response,
-                                                D::Notification,
                                             >::Response(
                                                 Response { id, body },
                                             ))

@@ -15,7 +15,7 @@ use lsp_types::{
     TextDocumentPositionParams, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 use noa_buffer::Point;
-use noa_common::syncd_protocol::{LspNotification, LspRequest, LspResponse};
+use noa_common::syncd_protocol::{LspNotification, LspRequest, LspResponse, Notification};
 use tokio::{
     io::BufReader,
     process::{ChildStdin, ChildStdout, Command},
@@ -79,7 +79,7 @@ type ReqIdTxMap = Arc<
 
 async fn receive_responses(
     req_id_tx_map: ReqIdTxMap,
-    _clients: UnboundedSender<LspNotification>,
+    _clients: UnboundedSender<Notification>,
     stdout: ChildStdout,
 ) {
     use tokio::io::{AsyncBufReadExt, AsyncReadExt};
@@ -214,7 +214,7 @@ pub struct LspDaemon {
 
 impl LspDaemon {
     pub async fn spawn(
-        clients: UnboundedSender<LspNotification>,
+        clients: UnboundedSender<Notification>,
         workspace_dir: &Path,
         lang: String,
     ) -> Result<LspDaemon> {

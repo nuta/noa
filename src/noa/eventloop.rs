@@ -2,6 +2,7 @@ use crate::terminal::{DrawContext, Terminal};
 use crate::terminal::{KeyCode, KeyEvent, KeyModifiers};
 use crate::view::View;
 use log::LevelFilter;
+use noa_common::syncd_protocol::LspRequest;
 use parking_lot::RwLock;
 use simplelog::{Config, WriteLogger};
 use std::{
@@ -16,7 +17,7 @@ use std::{
 use std::{sync, time::Instant};
 use structopt::StructOpt;
 use tokio::{
-    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
+    sync::mpsc::{self, unbounded_channel, UnboundedReceiver, UnboundedSender},
     time::timeout,
 };
 
@@ -126,6 +127,37 @@ impl EventLoop {
     }
 
     pub async fn run(&mut self) {
+        // On file update handler.
+        let (file_updated_tx, mut file_updated_rx) = unbounded_channel::<Arc<RwLock<Buffer>>>();
+        tokio::spawn(async move {
+            while let Some(buffer) = file_updated_rx.recv().await {
+                let buffer = buffer.read();
+                let (path) = match buffer.path() {
+                    Some(path) => path,
+                    None => {
+                        continue;
+                    }
+                };
+
+                if !path.starts_with(&self.workspace_dir) {
+                    continue;
+                }
+
+                self.syncd
+                    .lsp_request(
+                        buffer.lang(),
+                        LspRequest::UpdateFile {
+                            path: path.to_owned(),
+                            version: buffer.version(),
+                            text: buffer.text(),
+                        },
+                    )
+                    .await;
+            }
+
+            trace!("exiting file update handler");
+        });
+
         self.draw();
         loop {
             if self.exited {

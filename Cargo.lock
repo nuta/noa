@@ -483,6 +483,7 @@ dependencies = [
 name = "noa"
 version = "0.0.0"
 dependencies = [
+ "anyhow",
  "backtrace",
  "crossterm",
  "futures",
@@ -493,6 +494,8 @@ dependencies = [
  "parking_lot",
  "pretty_assertions",
  "ropey",
+ "serde",
+ "serde_json",
  "simplelog",
  "structopt",
  "tokio",

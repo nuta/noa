@@ -3,7 +3,9 @@
 extern crate log;
 
 mod buffer;
+mod lang;
 mod rope;
 
 pub use buffer::{Buffer, BufferId};
+pub use lang::Lang;
 pub use rope::{Cursor, Point, Range, Rope};

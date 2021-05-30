@@ -195,6 +195,7 @@ pub struct Rope {
     inner: ropey::Rope,
     modified_line: Option<usize>,
     cached_num_lines: usize,
+    version: usize,
 }
 
 impl Rope {
@@ -203,6 +204,7 @@ impl Rope {
             inner: ropey::Rope::new(),
             modified_line: None,
             cached_num_lines: 1,
+            version: 1,
         }
     }
 
@@ -213,6 +215,7 @@ impl Rope {
             inner,
             modified_line: None,
             cached_num_lines,
+            version: 1,
         })
     }
 
@@ -238,6 +241,10 @@ impl Rope {
         } else {
             self.line(line).len_chars()
         }
+    }
+
+    pub fn version(&self) -> usize {
+        self.version
     }
 
     pub fn modified_line(&self) -> &Option<usize> {
@@ -281,6 +288,7 @@ impl Rope {
     fn on_modified(&mut self, start_y: usize) {
         self.cached_num_lines = self.inner.len_lines();
         self.modified_line = Some(start_y);
+        self.version += 1;
     }
 
     /// Returns a line except new line characters.

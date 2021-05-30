@@ -8,7 +8,7 @@ use daemonize::Daemonize;
 use log::LevelFilter;
 use noa_common::{
     dirs::{log_file_path, lsp_pid_path, lsp_sock_path},
-    syncd_protocol::LspNotification,
+    syncd_protocol::Notification,
 };
 use simplelog::{CombinedLogger, Config, TermLogger, TerminalMode, WriteLogger};
 use std::{
@@ -92,7 +92,7 @@ async fn main() {
 
     match opt.daemon_type.as_str() {
         "lsp" => {
-            let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<LspNotification>();
+            let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Notification>();
             let sock_path = lsp_sock_path(&opt.workspace_dir, &opt.lang);
 
             let mut daemon = LspDaemon::spawn(tx, &opt.workspace_dir, opt.lang)
