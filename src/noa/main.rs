@@ -51,8 +51,13 @@ async fn main() {
     };
 
     let mut eventloop = eventloop::EventLoop::new(workspace_dir);
-    for file in opt.files.iter().rev() {
-        eventloop.open_file(file);
+    for file in opt.files.iter() {
+        if !file.is_file() {
+            continue;
+        }
+
+        trace!("file = {}", file.display());
+        eventloop.open_file(file).await;
     }
 
     eventloop.run().await;

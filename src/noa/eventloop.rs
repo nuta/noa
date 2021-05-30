@@ -63,7 +63,7 @@ const SCRATCH_TEXT: &str = "\
 
 fn main() {
     if 1 == 2 {
-        println!(\"something went wrong!\");
+        println!(\"Hello World!\");
     }
 }
 ";
@@ -303,5 +303,7 @@ impl EventLoop {
         });
     }
 
-    fn error<T: Into<String>>(&self, message: T) {}
+    fn error<T: Into<String>>(&self, message: T) {
+        error!("{}", message.into());
+    }
 }

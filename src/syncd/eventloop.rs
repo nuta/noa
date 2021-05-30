@@ -44,8 +44,10 @@ pub async fn eventloop<D: Daemon + 'static>(
         let clients = clients.clone();
         spawn(async move {
             while let Some(noti) = noti_rx.recv().await {
-                let json =
+                let mut json =
                     serde_json::to_string(&ToClient::<D::Response>::Notification(noti)).unwrap();
+
+                json.push('\n');
 
                 for client in clients.lock().await.values_mut() {
                     warn_on_error!(
@@ -57,7 +59,7 @@ pub async fn eventloop<D: Daemon + 'static>(
         });
     }
 
-    // Forward requests from noa to the LSP server.
+    // Handle requests from noa.
     let next_client_id = AtomicUsize::new(1);
     loop {
         if let Ok((new_client, _)) = listener.accept().await {
@@ -72,6 +74,7 @@ pub async fn eventloop<D: Daemon + 'static>(
                 let mut buf = String::with_capacity(128 * 1024);
                 loop {
                     buf.clear();
+                    // Receive a request from noa.
                     match reader.read_line(&mut buf).await {
                         Ok(0) => break, // EOF
                         Ok(_) => {
@@ -81,13 +84,16 @@ pub async fn eventloop<D: Daemon + 'static>(
                                 ToServer::Request(Request { id, body: params }) => {
                                     match daemon_lock.lock().await.process_request(params).await {
                                         Ok(body) => {
-                                            let json = serde_json::to_string(&ToClient::<
+                                            let mut json = serde_json::to_string(&ToClient::<
                                                 D::Response,
                                             >::Response(
                                                 Response { id, body },
                                             ))
                                             .unwrap();
 
+                                            json.push('\n');
+
+                                            // Reply the response to noa.
                                             warn_on_error!(
                                                 write_end
                                                     .lock()
