@@ -1,7 +1,7 @@
 use crate::terminal::{KeyCode, KeyEvent, KeyModifiers};
 use crate::view::View;
 use crate::{
-    syncd::SyncdClient,
+    syncd_client::SyncdClient,
     terminal::{DrawContext, Terminal},
 };
 use anyhow::Context;
