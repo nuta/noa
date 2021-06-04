@@ -32,11 +32,12 @@ impl Surface for BufferSurface {
     }
 
     fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<()> {
+        let mut view =
+            ctx.buffer_manager
+                .update_current_view_layout(0, canvas.width(), canvas.height());
         let buffer = ctx.buffer_manager.current_buffer().read();
-        let mut view = ctx.buffer_manager.view_mut(buffer.id());
 
         let lineno_width = buffer.num_lines().display_width() + 1;
-        view.layout(&*buffer, 0, canvas.width(), canvas.height());
 
         for (y, display_line) in view.visible_display_lines().iter().enumerate() {
             // Draw the line number.

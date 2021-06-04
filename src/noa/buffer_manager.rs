@@ -11,7 +11,7 @@ use noa_common::{
     syncd_protocol::{LspRequest, LspResponse},
     warn_on_error,
 };
-use parking_lot::{MappedRwLockWriteGuard, RwLock, RwLockWriteGuard};
+use parking_lot::{MappedRwLockWriteGuard, Mutex, MutexGuard, RwLock, RwLockWriteGuard};
 use simplelog::{Config, WriteLogger};
 use std::{
     collections::HashMap,
@@ -25,10 +25,7 @@ use std::{
 use std::{sync, time::Instant};
 use structopt::StructOpt;
 use tokio::{
-    sync::{
-        mpsc::{self, unbounded_channel, UnboundedReceiver, UnboundedSender},
-        Mutex,
-    },
+    sync::mpsc::{self, unbounded_channel, UnboundedReceiver, UnboundedSender},
     time::timeout,
 };
 
@@ -48,7 +45,7 @@ pub struct BufferManager {
     current_buffer: Arc<RwLock<Buffer>>,
     buffers: Vec<Arc<RwLock<Buffer>>>,
     path2id: HashMap<PathBuf, BufferId>,
-    views: RwLock<HashMap<BufferId, View>>,
+    views: HashMap<BufferId, Mutex<View>>,
 }
 
 impl BufferManager {
@@ -56,7 +53,7 @@ impl BufferManager {
         let mut scratch = Buffer::from_str(SCRATCH_TEXT);
         scratch.set_name("*scratch*");
         let mut views = HashMap::new();
-        views.insert(scratch.id(), View::new());
+        views.insert(scratch.id(), Mutex::new(View::new()));
         let scratch_buffer = Arc::new(RwLock::new(scratch));
         let buffers = vec![scratch_buffer.clone()];
 
@@ -64,7 +61,7 @@ impl BufferManager {
             current_buffer: scratch_buffer,
             buffers,
             path2id: HashMap::new(),
-            views: RwLock::new(views),
+            views,
         }
     }
 
@@ -72,8 +69,16 @@ impl BufferManager {
         &self.current_buffer
     }
 
-    pub fn view_mut(&self, buffer_id: BufferId) -> MappedRwLockWriteGuard<'_, View> {
-        RwLockWriteGuard::map(self.views.write(), |map| map.get_mut(&buffer_id).unwrap())
+    pub fn update_current_view_layout(
+        &self,
+        y_from: usize,
+        width: usize,
+        height: usize,
+    ) -> MutexGuard<View> {
+        let buffer = self.current_buffer.read();
+        let mut view = self.views[&buffer.id()].lock();
+        view.layout(&*buffer, 0, width, height);
+        view
     }
 
     pub async fn open_file(&mut self, path: &Path) -> Result<Arc<RwLock<Buffer>>> {
@@ -96,7 +101,7 @@ impl BufferManager {
 
         self.buffers.push(buffer.clone());
         self.path2id.insert(abspath.clone(), buffer_id);
-        self.views.write().insert(buffer_id, View::new());
+        self.views.insert(buffer_id, Mutex::new(View::new()));
         self.current_buffer = buffer.clone();
 
         Ok(buffer)
