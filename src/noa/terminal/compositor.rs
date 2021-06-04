@@ -1,4 +1,5 @@
 use anyhow::Result;
+use arrayvec::ArrayString;
 
 pub trait Surface {
     fn is_invalidated(&self, ctx: super::Context) -> bool;
@@ -7,11 +8,11 @@ pub trait Surface {
 }
 
 /// A character in the terminal screen.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct Grapheme {
     /// The character. It can be larger than 1 if it consists of multiple unicode
     /// characters like A with the acute accent.
-    grapheme: String,
+    grapheme: ArrayString<4>,
     fg: crossterm::style::Color,
     bg: crossterm::style::Color,
     attrs: crossterm::style::Attributes,
@@ -22,7 +23,7 @@ impl Grapheme {
         use crossterm::style::Color;
 
         Grapheme {
-            grapheme: " ".to_owned(),
+            grapheme: ArrayString::from(" ").unwrap(),
             fg: Color::Reset,
             bg: Color::Reset,
             attrs: Default::default(),
@@ -62,7 +63,20 @@ impl Canvas {
         self.height
     }
 
-    pub fn set_grapheme(&self, y: usize, x: usize, graph: Grapheme) -> usize {
-        self.height
+    pub fn set_grapheme(&mut self, y: usize, x: usize, graph: Grapheme) {
+        debug_assert!(y < self.height);
+        debug_assert!(x < self.width);
+
+        self.graphs[y * self.width + x] = graph;
+    }
+
+    pub fn copy_from_other(&mut self, y: usize, x: usize, other: &Canvas) {
+        debug_assert!(y < self.height);
+        debug_assert!(x < self.width);
+        debug_assert!(y + other.height < self.height);
+        debug_assert!(x + other.width < self.width);
+        let start = y * self.width + x;
+        let end = (y + other.height) * self.width + (x + other.width);
+        (&mut self.graphs[start..end]).copy_from_slice(&other.graphs[..]);
     }
 }
