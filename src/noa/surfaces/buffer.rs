@@ -32,11 +32,13 @@ impl Surface for BufferSurface {
     }
 
     fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<()> {
-        let lineno_width = ctx.buffer.num_lines().display_width() + 1;
-        ctx.view
-            .layout(&ctx.buffer, 0, canvas.width(), canvas.height());
+        let buffer = ctx.buffer_manager.current_buffer().read();
+        let mut view = ctx.buffer_manager.view_mut(buffer.id());
 
-        for (y, display_line) in ctx.view.visible_display_lines().iter().enumerate() {
+        let lineno_width = buffer.num_lines().display_width() + 1;
+        view.layout(&*buffer, 0, canvas.width(), canvas.height());
+
+        for (y, display_line) in view.visible_display_lines().iter().enumerate() {
             // Draw the line number.
             let lineno = display_line.range.front().y + 1;
             let pad_len = lineno_width - lineno.display_width() - 1;
@@ -50,7 +52,7 @@ impl Surface for BufferSurface {
 
             // Draw buffer contents.
             let text_start = pad_len + lineno_width + 1;
-            let rope_line = ctx.buffer.line(lineno - 1);
+            let rope_line = buffer.line(lineno - 1);
             for chunk in &display_line.chunks {
                 let chunk_str = rope_line.slice(chunk.clone());
                 let mut x = 0;
@@ -77,30 +79,31 @@ impl Surface for BufferSurface {
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
         let ctrl_alt = KeyModifiers::CONTROL | KeyModifiers::ALT;
 
+        let mut buffer = ctx.buffer_manager.current_buffer().write();
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), CTRL) => {
                 *ctx.exited = true;
             }
             (KeyCode::Backspace, NONE) => {
-                ctx.buffer.backspace();
+                buffer.backspace();
             }
             (KeyCode::Up, NONE) => {
-                ctx.buffer.move_cursors(1, 0, 0, 0);
+                buffer.move_cursors(1, 0, 0, 0);
             }
             (KeyCode::Down, NONE) => {
-                ctx.buffer.move_cursors(0, 1, 0, 0);
+                buffer.move_cursors(0, 1, 0, 0);
             }
             (KeyCode::Left, NONE) => {
-                ctx.buffer.move_cursors(0, 0, 1, 0);
+                buffer.move_cursors(0, 0, 1, 0);
             }
             (KeyCode::Right, NONE) => {
-                ctx.buffer.move_cursors(0, 0, 0, 1);
+                buffer.move_cursors(0, 0, 0, 1);
             }
             (KeyCode::Enter, NONE) => {
-                ctx.buffer.insert_char('\n');
+                buffer.insert_char('\n');
             }
             (KeyCode::Char(ch), NONE) => {
-                ctx.buffer.insert_char(ch);
+                buffer.insert_char(ch);
             }
             _ => {
                 trace!("unhandled key = {:?}", key);
@@ -111,7 +114,7 @@ impl Surface for BufferSurface {
     }
 
     fn handle_key_batch_event(&mut self, ctx: &mut Context, input: &str) -> Result<()> {
-        ctx.buffer.insert(&input);
+        ctx.buffer_manager.current_buffer().write().insert(&input);
         Ok(())
     }
 }

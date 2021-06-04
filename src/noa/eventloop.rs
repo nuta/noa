@@ -1,6 +1,6 @@
-use crate::surfaces;
 use crate::terminal::{KeyCode, KeyEvent, KeyModifiers};
 use crate::view::View;
+use crate::{buffer_manager::BufferManager, surfaces};
 use crate::{
     syncd_client::SyncdClient,
     terminal::{self, Terminal},
@@ -59,16 +59,6 @@ impl EventQueue {
         self.tx.send(ev).ok();
     }
 }
-
-const SCRATCH_TEXT: &str = "\
-;; This is the scratch buffer: you can't save it into a file.
-
-fn main() {
-    if 1 == 2 {
-        println!(\"Hello World!\");
-    }
-}
-";
 
 async fn file_updated_handler(
     mut rx: UnboundedReceiver<Arc<RwLock<Buffer>>>,
@@ -132,10 +122,7 @@ pub struct EventLoop {
     exited: bool,
     workspace_dir: PathBuf,
     terminal: Terminal,
-    current_buffer: Arc<RwLock<Buffer>>,
-    buffers: Vec<Arc<RwLock<Buffer>>>,
-    path2id: HashMap<PathBuf, BufferId>,
-    views: RwLock<HashMap<BufferId, View>>,
+    buffer_manager: BufferManager,
     event_queue: UnboundedReceiver<Event>,
     syncd: Arc<Mutex<SyncdClient>>,
 }
@@ -144,13 +131,7 @@ impl EventLoop {
     pub fn new(workspace_dir: PathBuf) -> EventLoop {
         let (tx, event_queue) = mpsc::unbounded_channel();
 
-        let mut scratch = Buffer::from_str(SCRATCH_TEXT);
-        scratch.set_name("*scratch*");
-        let mut views = HashMap::new();
-        views.insert(scratch.id(), View::new());
-        let scratch_buffer = Arc::new(RwLock::new(scratch));
-        let buffers = vec![scratch_buffer.clone()];
-
+        let buffer_manager = BufferManager::new();
         let workspace_dir = workspace_dir
             .canonicalize()
             .with_context(|| format!("failed to resolve workdir: {}", workspace_dir.display()))
@@ -162,63 +143,32 @@ impl EventLoop {
             exited: false,
             workspace_dir,
             terminal: Terminal::new(EventQueue::new(tx.clone())),
+            buffer_manager,
             event_queue,
-            current_buffer: scratch_buffer,
-            buffers,
-            path2id: HashMap::new(),
-            views: RwLock::new(views),
             syncd: Arc::new(Mutex::new(syncd)),
         }
     }
 
     pub async fn open_file(&mut self, path: &Path) {
-        let abspath = match path.canonicalize() {
-            Ok(abspath) => abspath,
+        let buffer = match self.buffer_manager.open_file(path).await {
+            Ok(buffer) => buffer,
             Err(err) => {
-                self.error(format!(
-                    "failed to resolve path: {} ({})",
-                    path.display(),
-                    err
-                ));
+                self.error(&format!("{}", err));
                 return;
             }
         };
-
-        let (buffer, buffer_id, lang, text) = match Buffer::open_file(&abspath) {
-            Ok(buffer) => {
-                let id = buffer.id();
-                let lang = buffer.lang();
-                let text = buffer.text();
-                (Arc::new(RwLock::new(buffer)), id, lang, text)
-            }
-            Err(err) => {
-                self.error(format!(
-                    "failed to open file: {} ({})",
-                    abspath.display(),
-                    err
-                ));
-                return;
-            }
-        };
-
-        self.buffers.push(buffer.clone());
-        self.path2id.insert(abspath.clone(), buffer_id);
-        self.views.write().insert(buffer_id, View::new());
-        self.current_buffer = buffer.clone();
 
         // Tell the LSP server about the newly opened file.
         let asyncd = self.syncd.clone();
+        let buffer = buffer.read();
+        let path = buffer.path().unwrap().to_path_buf();
+        let text = buffer.text();
+        let lang = buffer.lang();
         tokio::spawn(async move {
             match asyncd
                 .lock()
                 .await
-                .call_lsp_method::<LspRequest>(
-                    lang,
-                    LspRequest::OpenFile {
-                        path: abspath,
-                        text,
-                    },
-                )
+                .call_lsp_method::<LspRequest>(lang, LspRequest::OpenFile { path, text })
                 .await
             {
                 Ok(_) => {}
@@ -246,7 +196,7 @@ impl EventLoop {
 
             if let Some(ev) = self.event_queue.recv().await {
                 let started_at = Instant::now();
-                let prev_ver = self.current_buffer.read().id_and_version();
+                let prev_ver = self.buffer_manager.current_buffer().read().id_and_version();
 
                 self.handle_event(ev);
                 while let Ok(Some(ev)) =
@@ -255,10 +205,10 @@ impl EventLoop {
                     self.handle_event(ev);
                 }
 
-                let new_ver = self.current_buffer.read().id_and_version();
+                let new_ver = self.buffer_manager.current_buffer().read().id_and_version();
                 if prev_ver != new_ver {
                     // Switched or modified the current buffer.
-                    file_updated_tx.send(self.current_buffer.clone());
+                    file_updated_tx.send(self.buffer_manager.current_buffer().clone());
                 }
 
                 trace!(
@@ -281,13 +231,9 @@ impl EventLoop {
     }
 
     pub fn draw(&mut self) {
-        let buffer = self.current_buffer.read();
-        let mut views = self.views.write();
-        let view = views.get_mut(&buffer.id()).unwrap();
         self.terminal.draw(&surfaces::Context {
             exited: &mut self.exited,
-            buffer: &mut *self.current_buffer.write(),
-            view,
+            buffer_manager: &mut self.buffer_manager,
         });
     }
 

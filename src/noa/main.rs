@@ -13,6 +13,7 @@ extern crate log;
 #[macro_use]
 extern crate pretty_assertions;
 
+mod buffer_manager;
 mod eventloop;
 mod surfaces;
 mod syncd_client;
