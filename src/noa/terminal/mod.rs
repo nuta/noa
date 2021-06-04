@@ -24,7 +24,9 @@ use crate::{
 
 use noa_buffer::{Buffer, Cursor, Point};
 
-pub struct DrawContext<'a> {
+mod compositor;
+
+pub struct Context<'a> {
     pub buffer: &'a Buffer,
     pub view: &'a mut View,
 }
@@ -79,41 +81,6 @@ impl DisplayWidth for usize {
                 num
             }
         }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-enum Span {
-    Text(ops::Range<usize>),
-    Reset,
-    CursorStart,
-    CursorEnd,
-}
-
-struct SpanMixer<'a> {
-    pos: Point,
-    chunks: std::iter::Peekable<std::slice::Iter<'a, std::ops::Range<usize>>>,
-    cursors: std::iter::Peekable<std::slice::Iter<'a, Cursor>>,
-}
-
-impl<'a> SpanMixer<'a> {
-    pub fn new(chunks: &'a [ops::Range<usize>], cursors: &'a [Cursor]) -> SpanMixer<'a> {
-        SpanMixer {
-            pos: Point::new(0, 0),
-            chunks: chunks.iter().peekable(),
-            cursors: cursors.iter().peekable(),
-        }
-    }
-}
-
-impl<'a> Iterator for SpanMixer<'a> {
-    type Item = Span;
-    fn next(&mut self) -> Option<Span> {
-        // let cursor = match self.cursors.peek() {
-        //     Some(Cursor::Normal { pos }) if self.pos == *pos => pos,
-        // };
-
-        None
     }
 }
 
@@ -209,7 +176,7 @@ impl Terminal {
         }
     }
 
-    pub fn draw(&mut self, ctx: DrawContext) {
+    pub fn draw(&mut self, ctx: Context) {
         let mut stdout = stdout();
         if self.screen_width < 10 || self.screen_height < 5 {
             queue!(
@@ -291,21 +258,5 @@ impl Drop for Terminal {
         execute!(stdout(), LeaveAlternateScreen).ok();
         execute!(stdout(), cursor::Show).ok();
         disable_raw_mode().ok();
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn span_mixer() {
-        let chunks = &[0..3];
-        let cursors = &[Cursor::Normal {
-            pos: Point::new(0, 1),
-        }];
-
-        let mut mixer = SpanMixer::new(chunks, cursors);
-        assert_eq!(mixer.next(), None);
     }
 }

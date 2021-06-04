@@ -2,7 +2,7 @@ use crate::terminal::{KeyCode, KeyEvent, KeyModifiers};
 use crate::view::View;
 use crate::{
     syncd_client::SyncdClient,
-    terminal::{DrawContext, Terminal},
+    terminal::{self, Terminal},
 };
 use anyhow::Context;
 use log::LevelFilter;
@@ -323,7 +323,7 @@ impl EventLoop {
         let buffer = self.current_buffer.read();
         let mut views = self.views.write();
         let view = views.get_mut(&buffer.id()).unwrap();
-        self.terminal.draw(DrawContext {
+        self.terminal.draw(terminal::Context {
             buffer: &*self.current_buffer.read(),
             view,
         });
