@@ -14,6 +14,7 @@ extern crate log;
 extern crate pretty_assertions;
 
 mod eventloop;
+mod surfaces;
 mod syncd_client;
 mod terminal;
 mod view;

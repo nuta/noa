@@ -19,69 +19,18 @@ use futures::{Stream, StreamExt, TryStreamExt};
 
 use crate::{
     eventloop::{Event, EventQueue},
+    surfaces::Context,
     view::View,
 };
 
 use noa_buffer::{Buffer, Cursor, Point};
 
-mod compositor;
-
-pub struct Context<'a> {
-    pub buffer: &'a Buffer,
-    pub view: &'a mut View,
-}
+pub mod compositor;
+pub mod display_width;
 
 pub struct Terminal {
     screen_height: usize,
     screen_width: usize,
-}
-
-fn whitespaces(n: usize) -> String {
-    " ".repeat(n)
-}
-
-pub fn truncate(s: &str, width: usize) -> &str {
-    &s[..min(s.chars().count(), width)]
-}
-
-pub trait DisplayWidth {
-    fn display_width(&self) -> usize;
-}
-
-impl DisplayWidth for str {
-    fn display_width(&self) -> usize {
-        unicode_width::UnicodeWidthStr::width_cjk(self)
-    }
-}
-
-impl DisplayWidth for char {
-    fn display_width(&self) -> usize {
-        unicode_width::UnicodeWidthChar::width_cjk(*self).unwrap_or(1)
-    }
-}
-
-impl DisplayWidth for usize {
-    fn display_width(&self) -> usize {
-        let mut n = *self;
-        match n {
-            0..=9 => 1,
-            10..=99 => 2,
-            100..=999 => 3,
-            1000..=9999 => 4,
-            10000..=99999 => 5,
-            _ => {
-                let mut num = 1;
-                loop {
-                    n /= 10;
-                    if n == 0 {
-                        break;
-                    }
-                    num += 1;
-                }
-                num
-            }
-        }
-    }
 }
 
 async fn terminal_input_handler(event_queue: EventQueue) {
@@ -176,7 +125,7 @@ impl Terminal {
         }
     }
 
-    pub fn draw(&mut self, ctx: Context) {
+    pub fn draw(&mut self, ctx: &Context) {
         let mut stdout = stdout();
         if self.screen_width < 10 || self.screen_height < 5 {
             queue!(
@@ -192,62 +141,6 @@ impl Terminal {
 
         // Hide the cursor to prevent flickering.
         queue!(stdout, cursor::Hide).ok();
-
-        let lineno_width = ctx.buffer.num_lines().display_width() + 1;
-        let text_max_height = self.screen_height - 1;
-        let text_max_width = self.screen_width - lineno_width;
-
-        ctx.view
-            .layout(&ctx.buffer, 0, text_max_width, text_max_height);
-
-        for (i, display_line) in ctx.view.visible_display_lines().iter().enumerate() {
-            queue!(stdout, cursor::MoveTo(0, i as u16)).ok();
-
-            // Draw the line number.
-            let lineno = display_line.range.front().y + 1;
-            queue!(
-                stdout,
-                Print(whitespaces(lineno_width - lineno.display_width() - 1)),
-                Print(lineno),
-                Print('\u{2502}' /* "Box Drawing Light Veritical" */),
-                SetAttribute(Attribute::Reset),
-            )
-            .ok();
-
-            // Draw buffer contents.
-            let rope_line = ctx.buffer.line(lineno - 1);
-            for chunk in &display_line.chunks {
-                queue!(stdout, Print(rope_line.slice(chunk.clone()))).ok();
-            }
-
-            queue!(stdout, Clear(ClearType::UntilNewLine));
-        }
-
-        let main_cursor = ctx.buffer.main_cursor_pos();
-        let column = main_cursor.x + 1;
-        let buffer_name = truncate(ctx.buffer.name(), self.screen_width.saturating_sub(16));
-        let status_line_width = buffer_name.display_width() + 1 + column.display_width();
-        queue!(
-            stdout,
-            MoveTo(
-                (self.screen_width - status_line_width) as u16,
-                text_max_height as u16
-            ),
-            SetForegroundColor(if ctx.buffer.is_dirty() {
-                Color::Yellow
-            } else {
-                Color::Reset
-            }),
-            Print(buffer_name),
-            Print(' '),
-            Print(column),
-            MoveTo(
-                (lineno_width + main_cursor.x) as u16,
-                (main_cursor.y) as u16,
-            ),
-            cursor::Show,
-        )
-        .ok();
 
         stdout.flush().ok();
     }

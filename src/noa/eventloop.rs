@@ -1,3 +1,4 @@
+use crate::surfaces;
 use crate::terminal::{KeyCode, KeyEvent, KeyModifiers};
 use crate::view::View;
 use crate::{
@@ -271,50 +272,10 @@ impl EventLoop {
 
     pub fn handle_event(&mut self, ev: Event) {
         match ev {
-            Event::Key(key) => self.handle_key_event(key),
-            Event::KeyBatch(str) => {
-                self.current_buffer.write().insert(&str);
-            }
+            Event::Key(key) => {}
+            Event::KeyBatch(str) => {}
             _ => {
                 trace!("unhandled event = {:?}", ev);
-            }
-        }
-    }
-
-    pub fn handle_key_event(&mut self, key: KeyEvent) {
-        const NONE: KeyModifiers = KeyModifiers::NONE;
-        const CTRL: KeyModifiers = KeyModifiers::CONTROL;
-        const ALT: KeyModifiers = KeyModifiers::ALT;
-        const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
-        let ctrl_alt = KeyModifiers::CONTROL | KeyModifiers::ALT;
-
-        match (key.code, key.modifiers) {
-            (KeyCode::Char('q'), CTRL) => {
-                self.exited = true;
-            }
-            (KeyCode::Backspace, NONE) => {
-                self.current_buffer.write().backspace();
-            }
-            (KeyCode::Up, NONE) => {
-                self.current_buffer.write().move_cursors(1, 0, 0, 0);
-            }
-            (KeyCode::Down, NONE) => {
-                self.current_buffer.write().move_cursors(0, 1, 0, 0);
-            }
-            (KeyCode::Left, NONE) => {
-                self.current_buffer.write().move_cursors(0, 0, 1, 0);
-            }
-            (KeyCode::Right, NONE) => {
-                self.current_buffer.write().move_cursors(0, 0, 0, 1);
-            }
-            (KeyCode::Enter, NONE) => {
-                self.current_buffer.write().insert_char('\n');
-            }
-            (KeyCode::Char(ch), NONE) => {
-                self.current_buffer.write().insert_char(ch);
-            }
-            _ => {
-                trace!("unhandled key = {:?}", key);
             }
         }
     }
@@ -323,8 +284,8 @@ impl EventLoop {
         let buffer = self.current_buffer.read();
         let mut views = self.views.write();
         let view = views.get_mut(&buffer.id()).unwrap();
-        self.terminal.draw(terminal::Context {
-            buffer: &*self.current_buffer.read(),
+        self.terminal.draw(&surfaces::Context {
+            buffer: &mut *self.current_buffer.write(),
             view,
         });
     }

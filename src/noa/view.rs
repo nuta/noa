@@ -2,8 +2,9 @@ use std::cmp::{self, min};
 use std::convert::TryInto;
 use std::ops;
 
-use crate::terminal::DisplayWidth;
 use noa_buffer::{Buffer, Cursor, Point, Range};
+
+use crate::terminal::display_width::DisplayWidth;
 
 #[derive(Debug, Clone)]
 pub struct DisplayLine {

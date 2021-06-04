@@ -1,11 +1,6 @@
 use anyhow::Result;
 use arrayvec::ArrayString;
-
-pub trait Surface {
-    fn is_invalidated(&self, ctx: super::Context) -> bool;
-    fn render(&mut self, ctx: super::Context, canvas: &mut Canvas) -> Result<()>;
-    fn handle_terminal_event(&mut self, ctx: super::Context) -> Result<()>;
-}
+use crossterm::style::{Attributes, Color};
 
 /// A character in the terminal screen.
 #[derive(Clone, Copy, Debug)]
@@ -13,15 +8,13 @@ pub struct Grapheme {
     /// The character. It can be larger than 1 if it consists of multiple unicode
     /// characters like A with the acute accent.
     grapheme: ArrayString<4>,
-    fg: crossterm::style::Color,
-    bg: crossterm::style::Color,
-    attrs: crossterm::style::Attributes,
+    fg: Color,
+    bg: Color,
+    attrs: Attributes,
 }
 
 impl Grapheme {
     pub fn blank() -> Grapheme {
-        use crossterm::style::Color;
-
         Grapheme {
             grapheme: ArrayString::from(" ").unwrap(),
             fg: Color::Reset,
@@ -68,6 +61,48 @@ impl Canvas {
         debug_assert!(x < self.width);
 
         self.graphs[y * self.width + x] = graph;
+    }
+
+    pub fn set_char_with_attrs(
+        &mut self,
+        y: usize,
+        x: usize,
+        ch: char,
+        fg: Color,
+        bg: Color,
+        attrs: Attributes,
+    ) {
+        let mut grapheme = ArrayString::new();
+        grapheme.push(ch);
+
+        self.set_grapheme(
+            y,
+            x,
+            Grapheme {
+                grapheme,
+                fg,
+                bg,
+                attrs,
+            },
+        )
+    }
+
+    pub fn set_str_with_attrs(
+        &mut self,
+        y: usize,
+        x: usize,
+        string: &str,
+        fg: Color,
+        bg: Color,
+        attrs: Attributes,
+    ) {
+    }
+
+    pub fn set_char(&mut self, y: usize, x: usize, ch: char) {
+        self.set_char_with_attrs(y, x, ch, Color::Reset, Color::Reset, Default::default());
+    }
+    pub fn set_str(&mut self, y: usize, x: usize, string: &str) {
+        self.set_str_with_attrs(y, x, string, Color::Reset, Color::Reset, Default::default());
     }
 
     pub fn copy_from_other(&mut self, y: usize, x: usize, other: &Canvas) {
