@@ -10,8 +10,8 @@ use async_trait::async_trait;
 use lsp_types::{
     notification::{DidChangeTextDocument, DidOpenTextDocument},
     request::{Completion, Initialize, Request},
-    CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
-    InitializeParams, PartialResultParams, TextDocumentContentChangeEvent, TextDocumentIdentifier,
+    CompletionParams, DidChangeTextDocumentParams, DidOpenTextDocumentParams, InitializeParams,
+    PartialResultParams, TextDocumentContentChangeEvent, TextDocumentIdentifier,
     TextDocumentPositionParams, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 use noa_buffer::Point;

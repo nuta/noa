@@ -16,15 +16,14 @@ use crossterm::{
 use crossterm::{event::Event as TermEvent, terminal};
 use crossterm::{execute, queue};
 use futures::{Stream, StreamExt, TryStreamExt};
+use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{
-    eventloop::{Event, EventQueue},
-    surfaces::Context,
-    view::View,
-};
+use crate::terminal::compositor::Event;
+use crate::{surfaces::Context, view::View};
 
 use noa_buffer::{Buffer, Cursor, Point};
 
+pub mod canvas;
 pub mod compositor;
 pub mod display_width;
 
@@ -33,19 +32,19 @@ pub struct Terminal {
     screen_width: usize,
 }
 
-async fn terminal_input_handler(event_queue: EventQueue) {
+async fn terminal_input_handler(event_queue: UnboundedSender<Event>) {
     let mut stream = EventStream::new().fuse();
 
-    fn handle_event(event_queue: &EventQueue, ev: TermEvent) {
+    fn handle_event(event_queue: &UnboundedSender<Event>, ev: TermEvent) {
         match ev {
             TermEvent::Key(key) => {
-                event_queue.enqueue(Event::Key(key));
+                event_queue.send(Event::Key(key));
             }
             TermEvent::Mouse(_) => {
                 unreachable!();
             }
             TermEvent::Resize(cols, rows) => {
-                event_queue.enqueue(Event::Resize {
+                event_queue.send(Event::Resize {
                     screen_width: cols as usize,
                     screen_height: rows as usize,
                 });
@@ -100,7 +99,7 @@ async fn terminal_input_handler(event_queue: EventQueue) {
                         }
                     }
 
-                    event_queue.enqueue(Event::KeyBatch(buf));
+                    event_queue.send(Event::KeyBatch(buf));
                     if let Some(ev) = next_event {
                         handle_event(&event_queue, ev);
                     }
@@ -114,7 +113,7 @@ async fn terminal_input_handler(event_queue: EventQueue) {
 }
 
 impl Terminal {
-    pub fn new(event_queue: EventQueue) -> Terminal {
+    pub fn new(event_queue: UnboundedSender<Event>) -> Terminal {
         enable_raw_mode().expect("failed to enable the raw mode");
         execute!(stdout(), EnterAlternateScreen).expect("failed to enter the alternative screen");
         tokio::spawn(terminal_input_handler(event_queue));

@@ -1,10 +1,31 @@
 #![allow(unused)]
 
 use log::LevelFilter;
-use noa_common::dirs::log_file_path;
+use noa_buffer::Buffer;
+use noa_common::{dirs::log_file_path, syncd_protocol::LspRequest};
+use parking_lot::RwLock;
 use simplelog::{Config, WriteLogger};
-use std::{env::current_dir, fs::OpenOptions, path::PathBuf};
+use std::{
+    env::current_dir,
+    fs::OpenOptions,
+    path::PathBuf,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use structopt::StructOpt;
+use tokio::{
+    sync::{
+        mpsc::{unbounded_channel, UnboundedReceiver},
+        Mutex,
+    },
+    time::timeout,
+};
+
+use crate::{
+    surfaces::Context,
+    syncd_client::SyncdClient,
+    terminal::{compositor::Compositor, Terminal},
+};
 
 #[macro_use]
 extern crate log;
@@ -13,8 +34,7 @@ extern crate log;
 #[macro_use]
 extern crate pretty_assertions;
 
-mod buffer_manager;
-mod eventloop;
+mod editor;
 mod surfaces;
 mod syncd_client;
 mod terminal;
@@ -52,15 +72,110 @@ async fn main() {
         _ => current_dir().unwrap(),
     };
 
-    let mut eventloop = eventloop::EventLoop::new(workspace_dir);
+    let (event_tx, mut event_rx) = unbounded_channel();
+    let mut compositor = Compositor::new();
+    let mut terminal = Terminal::new(event_tx);
+    let mut editor = editor::Editor::new(workspace_dir);
     for file in opt.files.iter() {
         if !file.is_file() {
             continue;
         }
 
         trace!("file = {}", file.display());
-        eventloop.open_file(file).await;
+        editor.open_file(file).await;
     }
 
-    eventloop.run().await;
+    // Register the event handler on file updates.
+    let (file_updated_tx, mut file_updated_rx) = unbounded_channel::<Arc<RwLock<Buffer>>>();
+    tokio::spawn(on_file_change(
+        file_updated_rx,
+        editor.workspace_dir().to_path_buf(),
+        editor.syncd().clone(),
+    ));
+
+    while !editor.exited() {
+        terminal.draw(&mut surfaces::Context {
+            compositor: &mut compositor,
+            editor: &mut editor,
+        });
+
+        if let Some(ev) = event_rx.recv().await {
+            let started_at = Instant::now();
+            let prev_ver = editor.current_buffer().read().id_and_version();
+
+            compositor.handle_event(ev);
+            while let Ok(Some(ev)) = timeout(Duration::from_micros(400), event_rx.recv()).await {
+                compositor.handle_event(ev);
+            }
+
+            let new_ver = editor.current_buffer().read().id_and_version();
+            if prev_ver != new_ver {
+                // Switched or modified the current buffer.
+                file_updated_tx.send(editor.current_buffer().clone());
+            }
+
+            trace!(
+                "event handling took {} us",
+                started_at.elapsed().as_micros()
+            );
+        }
+    }
+}
+
+async fn on_file_change(
+    mut rx: UnboundedReceiver<Arc<RwLock<Buffer>>>,
+    workspace_dir: PathBuf,
+    syncd: Arc<Mutex<SyncdClient>>,
+) {
+    while let Some(buffer_lock) = rx.recv().await {
+        let (lang, file_modified_req, completion_req) = {
+            let buffer = buffer_lock.read();
+            let (path) = match buffer.path() {
+                Some(path) => path,
+                None => {
+                    continue;
+                }
+            };
+
+            // Ignore files that're not under the workspace directory.
+            if !path.starts_with(&workspace_dir) {
+                continue;
+            }
+
+            let lang = buffer.lang();
+            let file_modified_req = LspRequest::UpdateFile {
+                path: path.to_owned(),
+                version: buffer.version(),
+                text: buffer.text(),
+            };
+
+            let completion_req = LspRequest::Completion {
+                path: path.to_owned(),
+                position: *buffer.main_cursor_pos(),
+            };
+
+            (lang, file_modified_req, completion_req)
+        };
+
+        if let Err(err) = syncd
+            .lock()
+            .await
+            .call_lsp_method(lang, file_modified_req)
+            .await
+        {
+            warn!("failed to send UpdateFile request: {}", err);
+        }
+
+        trace!("sending completion message...");
+        if let Err(err) = syncd
+            .lock()
+            .await
+            .call_lsp_method(lang, completion_req)
+            .await
+        {
+            warn!("failed to call Completion request: {}", err);
+        }
+    }
+
+    trace!("exiting file update handler");
 }

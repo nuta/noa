@@ -2,13 +2,17 @@ use anyhow::Result;
 use crossterm::event::KeyEvent;
 use noa_buffer::Buffer;
 
-use crate::{buffer_manager::BufferManager, terminal::compositor::Canvas, view::View};
+use crate::{
+    editor::Editor,
+    terminal::{canvas::Canvas, compositor::Compositor},
+    view::View,
+};
 
 pub mod buffer;
 
 pub struct Context<'a> {
-    pub exited: &'a mut bool,
-    pub buffer_manager: &'a mut BufferManager,
+    pub editor: &'a mut Editor,
+    pub compositor: &'a mut Compositor,
 }
 
 pub trait Surface {

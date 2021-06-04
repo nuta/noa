@@ -6,7 +6,7 @@ use crossterm::{
     style::Color,
 };
 
-use crate::terminal::{compositor::Canvas, display_width::DisplayWidth};
+use crate::terminal::{canvas::Canvas, display_width::DisplayWidth};
 
 use super::{Context, Surface};
 
@@ -32,11 +32,10 @@ impl Surface for BufferSurface {
     }
 
     fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<()> {
-        let mut view =
-            ctx.buffer_manager
-                .update_current_view_layout(0, canvas.width(), canvas.height());
-        let buffer = ctx.buffer_manager.current_buffer().read();
-
+        let buffer = ctx.editor.current_buffer().read();
+        let view = ctx
+            .editor
+            .compute_view(&*buffer, canvas.height(), canvas.width());
         let lineno_width = buffer.num_lines().display_width() + 1;
 
         for (y, display_line) in view.visible_display_lines().iter().enumerate() {
@@ -78,10 +77,11 @@ impl Surface for BufferSurface {
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
         let ctrl_alt = KeyModifiers::CONTROL | KeyModifiers::ALT;
 
-        let mut buffer = ctx.buffer_manager.current_buffer().write();
+        let mut buffer = ctx.editor.current_buffer().write();
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), CTRL) => {
-                *ctx.exited = true;
+                drop(buffer);
+                ctx.editor.exit_editor();
             }
             (KeyCode::Backspace, NONE) => {
                 buffer.backspace();
@@ -113,7 +113,7 @@ impl Surface for BufferSurface {
     }
 
     fn handle_key_batch_event(&mut self, ctx: &mut Context, input: &str) -> Result<()> {
-        ctx.buffer_manager.current_buffer().write().insert(&input);
+        ctx.editor.current_buffer().write().insert(&input);
         Ok(())
     }
 }
