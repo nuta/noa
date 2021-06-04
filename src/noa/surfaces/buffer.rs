@@ -64,9 +64,7 @@ impl Surface for BufferSurface {
                     }
                 }
 
-                for x in (text_start + x)..canvas.width() {
-                    canvas.set_char(y, x, ' ');
-                }
+                canvas.set_str(y, x, &whitespaces(canvas.width() - (text_start + x)));
             }
         }
 
