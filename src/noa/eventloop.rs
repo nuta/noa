@@ -285,6 +285,7 @@ impl EventLoop {
         let mut views = self.views.write();
         let view = views.get_mut(&buffer.id()).unwrap();
         self.terminal.draw(&surfaces::Context {
+            exited: &mut self.exited,
             buffer: &mut *self.current_buffer.write(),
             view,
         });

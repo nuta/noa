@@ -79,7 +79,7 @@ impl Surface for BufferSurface {
 
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), CTRL) => {
-                // ctx.buffer = true;
+                *ctx.exited = true;
             }
             (KeyCode::Backspace, NONE) => {
                 ctx.buffer.backspace();

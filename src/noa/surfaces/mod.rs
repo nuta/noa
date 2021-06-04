@@ -7,6 +7,7 @@ use crate::{terminal::compositor::Canvas, view::View};
 pub mod buffer;
 
 pub struct Context<'a> {
+    pub exited: &'a mut bool,
     pub buffer: &'a mut Buffer,
     pub view: &'a mut View,
 }
