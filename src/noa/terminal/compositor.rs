@@ -17,9 +17,23 @@ pub struct Grapheme {
     attrs: crossterm::style::Attributes,
 }
 
+impl Grapheme {
+    pub fn blank() -> Grapheme {
+        use crossterm::style::Color;
+
+        Grapheme {
+            grapheme: " ".to_owned(),
+            fg: Color::Reset,
+            bg: Color::Reset,
+            attrs: Default::default(),
+        }
+    }
+}
+
 /// A rectangle filled with characters.
 pub struct Canvas {
-    cells: Vec<Vec<Grapheme>>,
+    /// Contains `height * width` items.
+    graphs: Vec<Grapheme>,
     /// The number of characters in a screen column.
     width: usize,
     /// The number of lines in the screen.
@@ -27,6 +41,19 @@ pub struct Canvas {
 }
 
 impl Canvas {
+    pub fn new(height: usize, width: usize) -> Canvas {
+        let mut graphs = Vec::with_capacity(height * width);
+        for _ in 0..(height * width) {
+            graphs.push(Grapheme::blank());
+        }
+
+        Canvas {
+            graphs,
+            height,
+            width,
+        }
+    }
+
     pub fn width(&self) -> usize {
         self.width
     }
