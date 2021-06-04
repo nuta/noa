@@ -73,8 +73,7 @@ async fn main() {
     };
 
     let (event_tx, mut event_rx) = unbounded_channel();
-    let mut compositor = Compositor::new();
-    let mut terminal = Terminal::new(event_tx);
+    let mut compositor = Compositor::new(Terminal::new(event_tx));
     let mut editor = editor::Editor::new(workspace_dir);
     for file in opt.files.iter() {
         if !file.is_file() {
@@ -94,18 +93,14 @@ async fn main() {
     ));
 
     while !editor.exited() {
-        terminal.draw(&mut surfaces::Context {
-            compositor: &mut compositor,
-            editor: &mut editor,
-        });
-
+        compositor.render(&mut editor);
         if let Some(ev) = event_rx.recv().await {
             let started_at = Instant::now();
             let prev_ver = editor.current_buffer().read().id_and_version();
 
-            compositor.handle_event(ev);
+            compositor.handle_event(&mut editor, ev);
             while let Ok(Some(ev)) = timeout(Duration::from_micros(400), event_rx.recv()).await {
-                compositor.handle_event(ev);
+                compositor.handle_event(&mut editor, ev);
             }
 
             let new_ver = editor.current_buffer().read().id_and_version();

@@ -2,6 +2,8 @@ use anyhow::Result;
 use arrayvec::ArrayString;
 use crossterm::style::{Attributes, Color};
 
+use super::DrawOp;
+
 /// A character in the terminal screen.
 #[derive(Clone, Copy, Debug)]
 pub struct Grapheme {
@@ -113,5 +115,26 @@ impl Canvas {
         let start = y * self.width + x;
         let end = (y + other.height) * self.width + (x + other.width);
         (&mut self.graphs[start..end]).copy_from_slice(&other.graphs[..]);
+    }
+
+    pub fn compute_draw_updates<'a, 'b>(&'a self, other: &'b Canvas) -> DrawUpdates<'a, 'b> {
+        DrawUpdates {
+            index: 0,
+            prev: self,
+            next: other,
+        }
+    }
+}
+
+pub struct DrawUpdates<'a, 'b> {
+    index: usize,
+    prev: &'a Canvas,
+    next: &'b Canvas,
+}
+
+impl<'a, 'b> Iterator for DrawUpdates<'a, 'b> {
+    type Item = DrawOp<'b>;
+    fn next(&mut self) -> Option<Self::Item> {
+        None
     }
 }

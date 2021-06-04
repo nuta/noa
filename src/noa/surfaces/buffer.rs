@@ -27,7 +27,11 @@ impl BufferSurface {
 }
 
 impl Surface for BufferSurface {
-    fn is_invalidated(&self, ctx: &mut Context) -> bool {
+    fn name(&self) -> &str {
+        "buffer"
+    }
+
+    fn invalidated(&self, ctx: &mut Context) -> bool {
         true
     }
 
