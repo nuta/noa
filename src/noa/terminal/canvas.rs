@@ -112,11 +112,17 @@ impl Canvas {
     pub fn copy_from_other(&mut self, y: usize, x: usize, other: &Canvas) {
         debug_assert!(y < self.height);
         debug_assert!(x < self.width);
-        debug_assert!(y + other.height < self.height);
-        debug_assert!(x + other.width < self.width);
-        let start = y * self.width + x;
-        let end = (y + other.height) * self.width + (x + other.width);
-        (&mut self.graphs[start..end]).copy_from_slice(&other.graphs[..]);
+        debug_assert!(y + other.height <= self.height);
+        debug_assert!(x + other.width <= self.width);
+
+        for y_off in 0..other.height() {
+            let dst_start = (y + y_off) * self.width + x;
+            let dst_end = dst_start + other.width;
+            let src_start = y_off * other.width;
+            let src_end = src_start + other.width;
+            (&mut self.graphs[dst_start..dst_end])
+                .copy_from_slice(&other.graphs[src_start..src_end]);
+        }
     }
 
     pub fn compute_draw_updates<'a, 'b>(&'a self, other: &'b Canvas) -> Vec<DrawOp<'b>> {
