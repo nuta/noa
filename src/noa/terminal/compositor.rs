@@ -93,6 +93,13 @@ impl Compositor {
                 .active_layer_mut()
                 .surface
                 .handle_key_batch_event(ctx, &input),
+            Event::Resize {
+                screen_height,
+                screen_width,
+            } => {
+                self.resize_screen(ctx, screen_height, screen_width);
+                Ok(())
+            }
             _ => {
                 trace!("unhandled event = {:?}", ev);
                 Ok(())
