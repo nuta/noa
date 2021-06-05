@@ -38,23 +38,25 @@ impl Surface for BufferSurface {
         let view = ctx
             .editor
             .compute_view(&*buffer, canvas.height(), canvas.width());
-        let lineno_width = buffer.num_lines().display_width() + 1;
+
+        let max_lineno_width = buffer.num_lines().display_width() + 1;
+        let text_start = max_lineno_width + 1;
 
         let mut y_end = 0;
         for (y, display_line) in view.visible_display_lines().iter().enumerate() {
             // Draw the line number.
             let lineno = display_line.range.front().y + 1;
-            let pad_len = lineno_width - lineno.display_width() - 1;
+            let lineno_width = lineno.display_width();
+            let pad_len = max_lineno_width - lineno_width;
             canvas.set_str(y, 0, &whitespaces(pad_len));
             canvas.set_str(y, pad_len, &lineno.to_string());
             canvas.set_char(
                 y,
-                pad_len + lineno_width,
+                max_lineno_width,
                 '\u{2502}', /* "Box Drawing Light Veritical" */
             );
 
             // Draw buffer contents.
-            let text_start = pad_len + lineno_width + 1;
             let rope_line = buffer.line(lineno - 1);
             let mut x = 0;
             for chunk in &display_line.chunks {
