@@ -161,7 +161,7 @@ impl View {
             // Cancel the selection.
             let pos = match cursor {
                 Cursor::Normal { pos, .. } => pos,
-                Cursor::Selection(range) => range.front(),
+                Cursor::Selection(range) => &range.end,
             };
 
             // Move the cursor.
