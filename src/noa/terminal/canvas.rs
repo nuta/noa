@@ -111,8 +111,37 @@ impl Canvas {
     pub fn set_char(&mut self, y: usize, x: usize, ch: char) {
         self.set_char_with_attrs(y, x, ch, Color::Reset, Color::Reset, Default::default());
     }
+
     pub fn set_str(&mut self, y: usize, x: usize, string: &str) {
         self.set_str_with_attrs(y, x, string, Color::Reset, Color::Reset, Default::default());
+    }
+
+    pub fn set_fg(&mut self, y: usize, x: usize, y_end: usize, x_end: usize, fg: Color) {
+        self.update_range(y, x, y_end, x_end, |graph| graph.fg = fg);
+    }
+
+    pub fn set_bg(&mut self, y: usize, x: usize, y_end: usize, x_end: usize, bg: Color) {
+        self.update_range(y, x, y_end, x_end, |graph| graph.bg = bg);
+    }
+
+    pub fn add_attrs(&mut self, y: usize, x: usize, y_end: usize, x_end: usize, attrs: Attributes) {
+        self.update_range(y, x, y_end, x_end, |graph| graph.attrs.extend(attrs));
+    }
+
+    pub fn update_range<F>(&mut self, y: usize, x: usize, y_end: usize, x_end: usize, f: F)
+    where
+        F: Fn(&mut Grapheme),
+    {
+        debug_assert!(y <= y_end);
+        debug_assert!(x <= x_end);
+        debug_assert!(y_end < self.height);
+        debug_assert!(x_end < self.width);
+
+        for y in y..y_end {
+            for x in x..x_end {
+                f(&mut self.graphs[y * self.width + x]);
+            }
+        }
     }
 
     pub fn copy_from_other(&mut self, y: usize, x: usize, other: &Canvas) {
