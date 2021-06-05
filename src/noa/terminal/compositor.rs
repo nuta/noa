@@ -1,4 +1,4 @@
-use std::{collections::HashMap, slice, sync::Arc};
+use std::{collections::HashMap, slice, sync::Arc, time::Instant};
 
 use crossterm::event::KeyEvent;
 use parking_lot::Mutex;
@@ -73,10 +73,17 @@ impl Compositor {
 
         let next_screen = &self.screens[self.active_screen_index];
         let prev_screen = &self.screens[prev_screen_index];
+        let draw_ops = next_screen.compute_draw_updates(&prev_screen);
+
+        trace!("draw changes: {} items", draw_ops.len());
+        let started_at = Instant::now();
         let mut drawer = self.terminal.drawer();
-        for op in next_screen.compute_draw_updates(&prev_screen) {
+        for op in draw_ops {
             drawer.draw(&op);
         }
+
+        drawer.flush();
+        trace!("draw took {:?}", started_at.elapsed());
     }
 
     pub fn handle_event(&mut self, ctx: &mut Context, ev: Event) {

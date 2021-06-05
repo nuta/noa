@@ -100,6 +100,9 @@ impl Canvas {
         bg: Color,
         attrs: Attributes,
     ) {
+        for ch in string.chars() {
+            self.set_char_with_attrs(y, x, ch, fg, bg, attrs);
+        }
     }
 
     pub fn set_char(&mut self, y: usize, x: usize, ch: char) {
@@ -137,7 +140,9 @@ impl Canvas {
         let mut needs_move = false;
         let mut ops = Vec::with_capacity(self.width() * self.height());
         for (old, new) in self.graphs.iter().zip(&other.graphs) {
-            if old == new {
+            if old == new && false
+            /* FIXME: */
+            {
                 needs_move = true;
             } else {
                 if needs_move {

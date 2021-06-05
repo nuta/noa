@@ -189,10 +189,14 @@ impl Drawer {
             }
         }
     }
+
+    fn flush(&mut self) {
+        self.stdout.flush().ok();
+    }
 }
 
 impl Drop for Drawer {
     fn drop(&mut self) {
-        self.stdout.flush().ok();
+        self.flush();
     }
 }
