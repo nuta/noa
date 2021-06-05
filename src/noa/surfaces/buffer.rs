@@ -32,6 +32,8 @@ impl Surface for BufferSurface {
     }
 
     fn render_all(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<()> {
+        canvas.clear();
+
         let buffer = ctx.editor.current_buffer().read();
         let view = ctx
             .editor

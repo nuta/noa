@@ -157,6 +157,8 @@ fn compose_layers<'a, 'b, 'c>(
     layers: slice::IterMut<'c, Layer>,
     render_all: bool,
 ) {
+    screen.clear();
+
     for layer in layers {
         if !layer.visible {
             continue;

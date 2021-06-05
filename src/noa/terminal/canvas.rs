@@ -1,6 +1,3 @@
-
-
-
 use arrayvec::ArrayString;
 use crossterm::style::{Attributes, Color};
 
@@ -45,7 +42,11 @@ impl Canvas {
             graphs.push(Grapheme::blank());
         }
 
-        Canvas { graphs, width, height }
+        Canvas {
+            graphs,
+            width,
+            height,
+        }
     }
 
     pub fn width(&self) -> usize {
@@ -54,6 +55,12 @@ impl Canvas {
 
     pub fn height(&self) -> usize {
         self.height
+    }
+
+    pub fn clear(&mut self) {
+        for graph in &mut self.graphs {
+            *graph = Grapheme::blank();
+        }
     }
 
     pub fn set_grapheme(&mut self, y: usize, x: usize, graph: Grapheme) {

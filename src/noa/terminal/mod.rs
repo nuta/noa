@@ -181,7 +181,12 @@ impl Drawer {
     }
 
     fn show_cursor(&mut self, screen_y: usize, screen_x: usize) {
-        queue!(self.stdout, MoveTo(screen_y as u16, screen_x as u16)).ok();
+        queue!(
+            self.stdout,
+            MoveTo(screen_y as u16, screen_x as u16),
+            cursor::Show
+        )
+        .ok();
     }
 
     fn flush(&mut self) {
