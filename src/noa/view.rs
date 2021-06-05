@@ -208,8 +208,7 @@ impl View {
             } else if let Some(next_line) = self.lines.get(current_y + 1) {
                 new_pos = *next_line.range.front();
             }
-        } else {
-            assert!(x_diff == -1);
+        } else if x_diff == -1 {
             if pos.x > 0 && pos.x > current_line.range.front().x {
                 new_pos.x = pos.x - 1;
             } else if current_y > 0 {
