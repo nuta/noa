@@ -82,6 +82,10 @@ impl Editor {
         &self.current_buffer
     }
 
+    pub fn view(&self, buffer: &Buffer) -> parking_lot::MutexGuard<'_, View> {
+        self.views[&buffer.id()].lock()
+    }
+
     pub fn compute_view(
         &self,
         buffer: &Buffer,

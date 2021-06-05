@@ -2,7 +2,7 @@ use std::cmp::{self, min};
 
 use std::ops;
 
-use noa_buffer::{Buffer, Point, Range};
+use noa_buffer::{Buffer, Cursor, Point, Range};
 
 use crate::terminal::display_width::DisplayWidth;
 
@@ -28,56 +28,6 @@ impl View {
             top_left: 0,
             height: 0,
         }
-    }
-
-    pub fn move_cursor_vertically(&mut self, pos: &Point, y_diff: isize) -> Point {
-        let prev_y = self.point_to_display_line(pos).unwrap();
-        let prev_line = &self.lines[prev_y];
-
-        let new_y = if y_diff < 0 {
-            prev_y.saturating_sub(y_diff.abs() as usize)
-        } else {
-            prev_y + y_diff.abs() as usize
-        };
-
-        let &new_line = &self
-            .lines
-            .get(new_y)
-            .unwrap_or_else(|| &self.lines[self.lines.len() - 1]);
-
-        let char_x = pos.x - prev_line.range.front().x;
-
-        Point::new(
-            new_line.range.front().y,
-            min(new_line.range.front().x + char_x, new_line.range.back().x),
-        )
-    }
-
-    pub fn move_cursor_horizontally(&mut self, pos: &Point, x_diff: isize) -> Point {
-        let current_y = self.point_to_display_line(pos).unwrap();
-        let current_line = &self.lines[current_y];
-        let mut new_pos = *pos;
-
-        if x_diff > 0 {
-            assert!(x_diff == 1);
-            let new_x = pos.x + 1;
-            if new_x < current_line.range.back().x {
-                new_pos.x = new_x;
-            } else if let Some(next_line) = self.lines.get(current_y + 1) {
-                new_pos = *next_line.range.front();
-            }
-        } else {
-            assert!(x_diff == -1);
-            if pos.x > 0 && pos.x > current_line.range.front().x {
-                new_pos.x = pos.x - 1;
-            } else if current_y > 0 {
-                if let Some(prev_line) = self.lines.get(current_y - 1) {
-                    new_pos = *prev_line.range.back();
-                }
-            }
-        }
-
-        new_pos
     }
 
     pub fn adjust_top_left(&mut self, main_cursor_pos: &Point) {
@@ -204,6 +154,73 @@ impl View {
             }
         }
     }
+
+    pub fn move_cursors_vertically(&self, buffer: &mut Buffer, y_diff: isize) {
+        let mut new_cursors = Vec::new();
+        for cursor in buffer.cursors() {
+            // Cancel the selection.
+            let pos = match cursor {
+                Cursor::Normal { pos, .. } => pos,
+                Cursor::Selection(range) => range.front(),
+            };
+
+            // Move the cursor.
+            let new_pos = self.move_y(&pos, y_diff);
+            new_cursors.push(Cursor::Normal { pos: new_pos });
+        }
+
+        buffer.set_cursors(new_cursors);
+    }
+
+    fn move_y(&self, pos: &Point, y_diff: isize) -> Point {
+        let prev_y = self.point_to_display_line(pos).unwrap();
+        let prev_line = &self.lines[prev_y];
+
+        let new_y = if y_diff < 0 {
+            prev_y.saturating_sub(y_diff.abs() as usize)
+        } else {
+            prev_y + y_diff.abs() as usize
+        };
+
+        let &new_line = &self
+            .lines
+            .get(new_y)
+            .unwrap_or_else(|| &self.lines[self.lines.len() - 1]);
+
+        let char_x = pos.x - prev_line.range.front().x;
+
+        Point::new(
+            new_line.range.front().y,
+            min(new_line.range.front().x + char_x, new_line.range.back().x),
+        )
+    }
+
+    fn move_x(&self, pos: &Point, x_diff: isize) -> Point {
+        let current_y = self.point_to_display_line(pos).unwrap();
+        let current_line = &self.lines[current_y];
+        let mut new_pos = *pos;
+
+        if x_diff > 0 {
+            assert!(x_diff == 1);
+            let new_x = pos.x + 1;
+            if new_x < current_line.range.back().x {
+                new_pos.x = new_x;
+            } else if let Some(next_line) = self.lines.get(current_y + 1) {
+                new_pos = *next_line.range.front();
+            }
+        } else {
+            assert!(x_diff == -1);
+            if pos.x > 0 && pos.x > current_line.range.front().x {
+                new_pos.x = pos.x - 1;
+            } else if current_y > 0 {
+                if let Some(prev_line) = self.lines.get(current_y - 1) {
+                    new_pos = *prev_line.range.back();
+                }
+            }
+        }
+
+        new_pos
+    }
 }
 
 #[cfg(test)]
@@ -282,7 +299,7 @@ mod test {
     }
 
     #[test]
-    fn move_cursor_horizontally() {
+    fn move_x() {
         // 12345
         // abcde
         // !@#
@@ -292,58 +309,58 @@ mod test {
         view.layout(&buffer, 0, 5, 3);
         assert_eq!(
             // 1|2345
-            view.move_cursor_horizontally(&Point::new(0, 1), 1),
+            view.move_x(&Point::new(0, 1), 1),
             // 12|345
             Point::new(0, 2)
         );
         assert_eq!(
             // 1234|5
-            view.move_cursor_horizontally(&Point::new(0, 4), 1),
+            view.move_x(&Point::new(0, 4), 1),
             // both 12345| and |abcde
             Point::new(0, 5)
         );
         assert_eq!(
             // both 12345| and |abcde
-            view.move_cursor_horizontally(&Point::new(0, 5), 1),
+            view.move_x(&Point::new(0, 5), 1),
             // a|bcde
             Point::new(0, 6)
         );
         assert_eq!(
             // !@#|
-            view.move_cursor_horizontally(&Point::new(0, 13), 1),
+            view.move_x(&Point::new(0, 13), 1),
             // |xyz
             Point::new(1, 0)
         );
 
         assert_eq!(
             // 12|345
-            view.move_cursor_horizontally(&Point::new(0, 2), -1),
+            view.move_x(&Point::new(0, 2), -1),
             // 1|2345
             Point::new(0, 1)
         );
         assert_eq!(
             // |xyz
-            view.move_cursor_horizontally(&Point::new(1, 0), -1),
+            view.move_x(&Point::new(1, 0), -1),
             // !@#|
             Point::new(0, 13)
         );
 
         assert_eq!(
             // |12345
-            view.move_cursor_horizontally(&Point::new(0, 0), -1),
+            view.move_x(&Point::new(0, 0), -1),
             // |12345
             Point::new(0, 0)
         );
         assert_eq!(
             // xyz|
-            view.move_cursor_horizontally(&Point::new(1, 3), 1),
+            view.move_x(&Point::new(1, 3), 1),
             // xyz|
             Point::new(1, 3)
         );
     }
 
     #[test]
-    fn move_cursor_vertically() {
+    fn move_y() {
         // 12345
         // abcde
         // !@#
@@ -353,51 +370,51 @@ mod test {
         view.layout(&buffer, 0, 5, 3);
         assert_eq!(
             // 1|2345
-            view.move_cursor_vertically(&Point::new(0, 1), 1),
+            view.move_y(&Point::new(0, 1), 1),
             // a|bcde
             Point::new(0, 6)
         );
         assert_eq!(
             // a|bcde
-            view.move_cursor_vertically(&Point::new(0, 6), 1),
+            view.move_y(&Point::new(0, 6), 1),
             // !|@#
             Point::new(0, 11)
         );
         assert_eq!(
             // !|@#
-            view.move_cursor_vertically(&Point::new(0, 11), 1),
+            view.move_y(&Point::new(0, 11), 1),
             // x|yz
             Point::new(1, 1)
         );
 
         assert_eq!(
             // x|yz
-            view.move_cursor_vertically(&Point::new(1, 1), -1),
+            view.move_y(&Point::new(1, 1), -1),
             // !|@#
             Point::new(0, 11)
         );
         assert_eq!(
             // !|@#
-            view.move_cursor_vertically(&Point::new(0, 11), -1),
+            view.move_y(&Point::new(0, 11), -1),
             // a|bcde
             Point::new(0, 6)
         );
         assert_eq!(
             // !|@#
-            view.move_cursor_vertically(&Point::new(0, 6), -1),
+            view.move_y(&Point::new(0, 6), -1),
             // a|bcde
             Point::new(0, 1)
         );
 
         assert_eq!(
             // 1|2345
-            view.move_cursor_vertically(&Point::new(0, 1), -1),
+            view.move_y(&Point::new(0, 1), -1),
             // 1|2345
             Point::new(0, 1)
         );
         assert_eq!(
             // x|yz
-            view.move_cursor_vertically(&Point::new(1, 1), 1),
+            view.move_y(&Point::new(1, 1), 1),
             // x|yz
             Point::new(1, 1)
         );

@@ -104,7 +104,16 @@ impl Surface for BufferSurface {
                     canvas.add_attrs(y, x, y, x + 1, (&[Attribute::Reverse][..]).into());
                 }
                 Cursor::Selection(Range { start, end }) => {
-                    //
+                    for buffer_y in start.y..end.y {
+                        let (y, x) = view.point_to_display_pos(
+                            main_cursor_pos,
+                            y_end,
+                            text_start,
+                            buffer.num_lines(),
+                        );
+
+                        canvas.add_attrs(y, x, y, x + 1, (&[Attribute::Reverse][..]).into());
+                    }
                 }
             }
         }
@@ -123,19 +132,21 @@ impl Surface for BufferSurface {
         let _ctrl_alt = KeyModifiers::CONTROL | KeyModifiers::ALT;
 
         let mut buffer = ctx.editor.current_buffer().write();
+        let view = ctx.editor.view(&*buffer);
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), CTRL) => {
                 drop(buffer);
+                drop(view);
                 ctx.editor.exit_editor();
             }
             (KeyCode::Backspace, NONE) => {
                 buffer.backspace();
             }
             (KeyCode::Up, NONE) => {
-                buffer.move_cursors(1, 0, 0, 0);
+                view.move_cursors_vertically(&mut *buffer, -1);
             }
             (KeyCode::Down, NONE) => {
-                buffer.move_cursors(0, 1, 0, 0);
+                view.move_cursors_vertically(&mut *buffer, 1);
             }
             (KeyCode::Left, NONE) => {
                 buffer.move_cursors(0, 0, 1, 0);
