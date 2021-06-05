@@ -7,7 +7,10 @@ use crossterm::{
     cursor::{self, MoveTo},
     event::{Event as TermEvent, EventStream, KeyCode, KeyEvent, KeyModifiers},
     execute, queue,
-    style::{Attributes, Color, Print, SetAttributes, SetBackgroundColor, SetForegroundColor},
+    style::{
+        Attribute, Attributes, Color, Print, SetAttribute, SetAttributes, SetBackgroundColor,
+        SetForegroundColor,
+    },
     terminal::*,
 };
 use futures::StreamExt;
@@ -138,7 +141,13 @@ impl Terminal {
         let mut stdout = stdout();
 
         // Hide the cursor to prevent flickering.
-        queue!(stdout, cursor::Hide, Clear(ClearType::All), MoveTo(0, 0),).ok();
+        queue!(
+            stdout,
+            cursor::Hide,
+            SetAttribute(Attribute::Reset),
+            MoveTo(0, 0),
+        )
+        .ok();
 
         Drawer { stdout }
     }
@@ -172,7 +181,7 @@ impl Drawer {
                 queue!(self.stdout, SetBackgroundColor(*color)).ok();
             }
             DrawOp::Reset => {
-                queue!(self.stdout, Clear(ClearType::All)).ok();
+                queue!(self.stdout, SetAttribute(Attribute::Reset)).ok();
             }
             DrawOp::Attributes(attrs) => {
                 queue!(self.stdout, SetAttributes(*attrs)).ok();
