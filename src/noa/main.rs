@@ -1,3 +1,5 @@
+// FIXME:
+#[allow(unused)]
 use log::LevelFilter;
 use noa_buffer::Buffer;
 use noa_common::{dirs::log_file_path, syncd_protocol::LspRequest};
