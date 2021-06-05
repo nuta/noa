@@ -170,7 +170,7 @@ impl Drawer {
     fn draw(&mut self, op: &DrawOp) {
         match op {
             DrawOp::MoveTo { y, x } => {
-                queue!(self.stdout, MoveTo(*y as u16, *x as u16)).ok();
+                queue!(self.stdout, MoveTo(*x as u16, *y as u16)).ok();
             }
             DrawOp::Grapheme(s) => {
                 queue!(self.stdout, Print(s)).ok();
@@ -193,7 +193,7 @@ impl Drawer {
     fn show_cursor(&mut self, screen_y: usize, screen_x: usize) {
         queue!(
             self.stdout,
-            MoveTo(screen_y as u16, screen_x as u16),
+            MoveTo(screen_x as u16, screen_y as u16),
             cursor::Show
         )
         .ok();

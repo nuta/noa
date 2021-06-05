@@ -17,7 +17,7 @@ pub struct Grapheme {
 impl Grapheme {
     pub fn blank() -> Grapheme {
         Grapheme {
-            grapheme: ArrayString::from("_").unwrap(),
+            grapheme: ArrayString::from(" ").unwrap(),
             fg: Color::Reset,
             bg: Color::Reset,
             attrs: Default::default(),
@@ -144,13 +144,9 @@ impl Canvas {
         let mut ops = Vec::with_capacity(self.width() * self.height());
         for (new, old) in self.graphs.iter().zip(&other.graphs) {
             if old == new {
-                if y < 3 && 3 < x && x < 10 {
-                    // trace!("({}, {})\n{:#?}\n{:#?}", y, x, old, new);
-                }
                 needs_move = true;
             } else {
                 if needs_move {
-                    trace!("({}, {})", y, x);
                     ops.push(DrawOp::MoveTo { y, x });
                     needs_move = false;
                 }
