@@ -31,11 +31,11 @@ impl Surface for BufferSurface {
         "buffer"
     }
 
-    fn invalidated(&self, ctx: &mut Context) -> bool {
-        true
+    fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<()> {
+        self.render_all(ctx, canvas)
     }
 
-    fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<()> {
+    fn render_all(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<()> {
         let buffer = ctx.editor.current_buffer().read();
         let view = ctx
             .editor

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, slice, sync::Arc};
 
 use crossterm::event::KeyEvent;
 use parking_lot::Mutex;
@@ -51,21 +51,18 @@ impl Compositor {
         }
     }
 
-    pub fn render(&mut self, editor: &mut Editor) {
+    pub fn resize_screen(&mut self, ctx: &mut Context, width: usize, height: usize) {
+        self.screens = [Canvas::new(height, width), Canvas::new(height, width)];
+        let active_screen = &mut self.screens[self.active_screen_index];
+        compose_layers(ctx, active_screen, self.layers.iter_mut(), true);
+    }
+
+    pub fn render(&mut self, ctx: &mut Context) {
         let prev_screen_index = self.active_screen_index;
         self.active_screen_index = (self.active_screen_index + 1) & self.screens.len();
         let next_screen = &mut self.screens[self.active_screen_index];
 
-        // Render each surfaces and copy the compose into the screen canvas.
-        let mut ctx = Context { editor };
-        for layer in self.layers.iter_mut().rev() {
-            if !layer.active || !layer.surface.invalidated(&mut ctx) {
-                continue;
-            }
-
-            layer.surface.render(&mut ctx, &mut layer.canvas);
-            next_screen.copy_from_other(layer.screen_y, layer.screen_x, &layer.canvas);
-        }
+        compose_layers(ctx, next_screen, self.layers.iter_mut(), false);
 
         let next_screen = &self.screens[self.active_screen_index];
         let prev_screen = &self.screens[prev_screen_index];
@@ -76,17 +73,13 @@ impl Compositor {
         }
     }
 
-    pub fn handle_event(&mut self, editor: &mut Editor, ev: Event) {
-        let mut ctx = Context { editor };
+    pub fn handle_event(&mut self, ctx: &mut Context, ev: Event) {
         let result = match ev {
-            Event::Key(key) => self
-                .active_layer_mut()
-                .surface
-                .handle_key_event(&mut ctx, key),
+            Event::Key(key) => self.active_layer_mut().surface.handle_key_event(ctx, key),
             Event::KeyBatch(input) => self
                 .active_layer_mut()
                 .surface
-                .handle_key_batch_event(&mut ctx, &input),
+                .handle_key_batch_event(ctx, &input),
             _ => {
                 trace!("unhandled event = {:?}", ev);
                 Ok(())
@@ -118,5 +111,27 @@ impl Compositor {
         }
 
         unreachable!("at least the buffer surface is always active");
+    }
+}
+
+/// Renders each surfaces and copy the compose into the screen canvas.
+fn compose_layers<'a, 'b, 'c>(
+    ctx: &'a mut Context,
+    screen: &'b mut Canvas,
+    layers: slice::IterMut<'c, Layer>,
+    render_all: bool,
+) {
+    for layer in layers {
+        if !layer.active {
+            continue;
+        }
+
+        if render_all {
+            layer.surface.render_all(ctx, &mut layer.canvas);
+        } else {
+            layer.surface.render(ctx, &mut layer.canvas);
+        }
+
+        screen.copy_from_other(layer.screen_y, layer.screen_x, &layer.canvas);
     }
 }

@@ -93,14 +93,27 @@ async fn main() {
     ));
 
     while !editor.exited() {
-        compositor.render(&mut editor);
+        compositor.render(&mut Context {
+            editor: &mut editor,
+        });
         if let Some(ev) = event_rx.recv().await {
             let started_at = Instant::now();
             let prev_ver = editor.current_buffer().read().id_and_version();
 
-            compositor.handle_event(&mut editor, ev);
+            compositor.handle_event(
+                &mut Context {
+                    editor: &mut editor,
+                },
+                ev,
+            );
+
             while let Ok(Some(ev)) = timeout(Duration::from_micros(400), event_rx.recv()).await {
-                compositor.handle_event(&mut editor, ev);
+                compositor.handle_event(
+                    &mut Context {
+                        editor: &mut editor,
+                    },
+                    ev,
+                );
             }
 
             let new_ver = editor.current_buffer().read().id_and_version();
