@@ -510,30 +510,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "noa-syncd"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "backtrace",
- "daemonize",
- "futures",
- "jsonrpc-core",
- "libc",
- "log",
- "lsp-types",
- "noa_buffer",
- "noa_common",
- "parking_lot",
- "pretty_assertions",
- "serde",
- "serde_json",
- "simplelog",
- "structopt",
- "tokio",
-]
-
-[[package]]
 name = "noa_buffer"
 version = "0.0.0"
 dependencies = [
@@ -559,6 +535,30 @@ name = "noa_editorconfig"
 version = "0.0.0"
 dependencies = [
  "log",
+]
+
+[[package]]
+name = "noa_syncd"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "backtrace",
+ "daemonize",
+ "futures",
+ "jsonrpc-core",
+ "libc",
+ "log",
+ "lsp-types",
+ "noa_buffer",
+ "noa_common",
+ "parking_lot",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "simplelog",
+ "structopt",
+ "tokio",
 ]
 
 [[package]]
