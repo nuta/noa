@@ -1,5 +1,9 @@
 use anyhow::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::{
+    event::{KeyCode, KeyEvent, KeyModifiers},
+    style::{Attribute, Attributes},
+};
+use noa_buffer::{Cursor, Range};
 
 use crate::terminal::{canvas::Canvas, display_width::DisplayWidth};
 
@@ -78,24 +82,36 @@ impl Surface for BufferSurface {
             y_end = y + 1;
         }
 
+        // Clear the remaining out of the buffer area.
         for y in y_end..canvas.height() {
             canvas.set_str(y, 0, &whitespaces(canvas.width()));
         }
 
-        // Determine the main cursor position.
-        let cursor_pos = buffer.main_cursor_pos();
-        self.cursor_position = view
-            .point_to_display_pos(cursor_pos)
-            .map(|(y, x)| (y, text_start + x))
-            .unwrap_or_else(|| {
-                if cursor_pos.y == buffer.num_lines() && cursor_pos.x == 0 {
-                    // EOF.
-                    return (y_end, text_start);
+        // Draw cursors / selections.
+        let main_cursor_pos = buffer.main_cursor_pos();
+        for cursor in buffer.cursors() {
+            match cursor {
+                Cursor::Normal { pos } if pos == main_cursor_pos => {
+                    // Do nothing. We use the native cursor through `self.cursor_position`.
                 }
+                Cursor::Normal { pos } => {
+                    let (y, x) = view.point_to_display_pos(
+                        main_cursor_pos,
+                        y_end,
+                        text_start,
+                        buffer.num_lines(),
+                    );
+                    canvas.add_attrs(y, x, y, x + 1, (&[Attribute::Reverse][..]).into());
+                }
+                Cursor::Selection(Range { start, end }) => {
+                    //
+                }
+            }
+        }
 
-                panic!("failed to determine the main cursor pos: {}", cursor_pos);
-            });
-
+        // Determine the main cursor position.
+        self.cursor_position =
+            view.point_to_display_pos(main_cursor_pos, y_end, text_start, buffer.num_lines());
         Ok(())
     }
 

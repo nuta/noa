@@ -92,10 +92,29 @@ impl View {
     }
 
     /// Returns `(screen_y, screen_x)`.
-    pub fn point_to_display_pos(&self, pos: &Point) -> Option<(usize, usize)> {
-        let y = self.point_to_display_line(pos)?;
-        let display_line = &self.lines[y];
-        Some((y, pos.x - display_line.range.front().x))
+    pub fn point_to_display_pos(
+        &self,
+        pos: &Point,
+        screen_y_end: usize,
+        screen_text_start: usize,
+        buffer_num_lines: usize,
+    ) -> (usize, usize) {
+        self.point_to_display_line(pos)
+            .map(|i| {
+                let display_line = &self.lines[i];
+                (
+                    i - self.top_left,
+                    screen_text_start + pos.x - display_line.range.front().x,
+                )
+            })
+            .unwrap_or_else(|| {
+                if pos.y == buffer_num_lines && pos.x == 0 {
+                    // EOF.
+                    return (screen_y_end, screen_text_start);
+                }
+
+                panic!("failed to determine the pos in the view: {}", pos);
+            })
     }
 
     fn point_to_display_line(&self, pos: &Point) -> Option<usize> {
