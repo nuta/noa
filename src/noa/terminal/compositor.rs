@@ -5,7 +5,7 @@ use parking_lot::Mutex;
 
 use crate::{
     editor::Editor,
-    surfaces::{Context, Surface},
+    surfaces::{buffer::BufferSurface, too_small::TooSmallSurface, Context, Surface},
 };
 
 use super::{canvas::Canvas, Terminal};
@@ -33,16 +33,19 @@ pub struct Compositor {
     terminal: Terminal,
     screens: [Canvas; 2],
     active_screen_index: usize,
+    /// The last element comes foreground.
     layers: Vec<Layer>,
 }
 
 impl Compositor {
     pub fn new(terminal: Terminal) -> Compositor {
-        let layers = vec![];
         let screen = [
             Canvas::new(terminal.height(), terminal.width()),
             Canvas::new(terminal.height(), terminal.width()),
         ];
+
+        let layers = create_layers(terminal.height(), terminal.width());
+
         Compositor {
             terminal,
             layers,
@@ -51,7 +54,9 @@ impl Compositor {
         }
     }
 
-    pub fn resize_screen(&mut self, ctx: &mut Context, width: usize, height: usize) {
+    pub fn resize_screen(&mut self, ctx: &mut Context, height: usize, width: usize) {
+        self.layers = create_layers(height, width);
+
         self.screens = [Canvas::new(height, width), Canvas::new(height, width)];
         let active_screen = &mut self.screens[self.active_screen_index];
         compose_layers(ctx, active_screen, self.layers.iter_mut(), true);
@@ -66,10 +71,9 @@ impl Compositor {
 
         let next_screen = &self.screens[self.active_screen_index];
         let prev_screen = &self.screens[prev_screen_index];
-        if let Some(mut drawer) = self.terminal.drawer() {
-            for op in next_screen.compute_draw_updates(&prev_screen) {
-                drawer.draw(&op);
-            }
+        let mut drawer = self.terminal.drawer();
+        for op in next_screen.compute_draw_updates(&prev_screen) {
+            drawer.draw(&op);
         }
     }
 
@@ -134,4 +138,26 @@ fn compose_layers<'a, 'b, 'c>(
 
         screen.copy_from_other(layer.screen_y, layer.screen_x, &layer.canvas);
     }
+}
+
+fn create_layers(screen_height: usize, screen_width: usize) -> Vec<Layer> {
+    if screen_width < 10 || screen_height < 5 {
+        // The screen is too small.
+        return vec![Layer {
+            surface: Box::new(TooSmallSurface::new("too small!")),
+            active: true,
+            canvas: Canvas::new(screen_height, screen_width),
+            screen_x: 0,
+            screen_y: 0,
+        }];
+    }
+
+    let buffer_height = screen_height - 2;
+    vec![Layer {
+        surface: Box::new(BufferSurface::new()),
+        active: true,
+        canvas: Canvas::new(0, 0),
+        screen_x: 0,
+        screen_y: 0,
+    }]
 }

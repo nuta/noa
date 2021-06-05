@@ -144,23 +144,13 @@ impl Terminal {
         self.width
     }
 
-    pub fn drawer(&mut self) -> Option<Drawer> {
+    pub fn drawer(&mut self) -> Drawer {
         let mut stdout = stdout();
-        if self.width < 10 || self.height < 5 {
-            queue!(
-                stdout,
-                Clear(ClearType::All),
-                MoveTo(0, 0),
-                Print("too small!"),
-            )
-            .unwrap();
-            stdout.flush().unwrap();
-            return None;
-        }
 
         // Hide the cursor to prevent flickering.
         queue!(stdout, cursor::Hide, Clear(ClearType::All), MoveTo(0, 0),).ok();
-        Some(Drawer { stdout })
+
+        Drawer { stdout }
     }
 }
 

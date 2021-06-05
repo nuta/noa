@@ -8,15 +8,7 @@ use crossterm::{
 
 use crate::terminal::{canvas::Canvas, display_width::DisplayWidth};
 
-use super::{Context, Surface};
-
-fn whitespaces(n: usize) -> String {
-    " ".repeat(n)
-}
-
-pub fn truncate(s: &str, width: usize) -> &str {
-    &s[..min(s.chars().count(), width)]
-}
+use super::{whitespaces, Context, Surface};
 
 pub struct BufferSurface {}
 
