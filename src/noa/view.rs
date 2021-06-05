@@ -1,8 +1,8 @@
 use std::cmp::{self, min};
-use std::convert::TryInto;
+
 use std::ops;
 
-use noa_buffer::{Buffer, Cursor, Point, Range};
+use noa_buffer::{Buffer, Point, Range};
 
 use crate::terminal::display_width::DisplayWidth;
 
@@ -63,20 +63,16 @@ impl View {
             let new_x = pos.x + 1;
             if new_x < current_line.range.back().x {
                 new_pos.x = new_x;
-            } else {
-                if let Some(next_line) = self.lines.get(current_y + 1) {
-                    new_pos = *next_line.range.front();
-                }
+            } else if let Some(next_line) = self.lines.get(current_y + 1) {
+                new_pos = *next_line.range.front();
             }
         } else {
             assert!(x_diff == -1);
-            if pos.x > 0 && pos.x - 1 >= current_line.range.front().x {
+            if pos.x > 0 && pos.x > current_line.range.front().x {
                 new_pos.x = pos.x - 1;
-            } else {
-                if current_y > 0 {
-                    if let Some(prev_line) = self.lines.get(current_y - 1) {
-                        new_pos = *prev_line.range.back();
-                    }
+            } else if current_y > 0 {
+                if let Some(prev_line) = self.lines.get(current_y - 1) {
+                    new_pos = *prev_line.range.back();
                 }
             }
         }
@@ -123,7 +119,7 @@ impl View {
         }
 
         for text_y in y_from..buffer.num_lines() {
-            let mut line_rope = buffer.line(text_y);
+            let line_rope = buffer.line(text_y);
             let mut spans = Vec::new();
             let mut width_remaining = width;
             let mut text_x = 0;
@@ -143,7 +139,7 @@ impl View {
                         width_remaining -= chunk_width;
                     } else {
                         // Needs a soft wrap.
-                        let mut i = 0;
+                        let _i = 0;
                         while !chunk.is_empty() {
                             let mut wrap_byte_at = 0;
                             let mut wrap_char_at = 0;

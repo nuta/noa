@@ -1,4 +1,4 @@
-use std::cmp::min;
+
 
 use crate::terminal::canvas::Canvas;
 
@@ -34,16 +34,16 @@ impl Surface for TooSmallSurface {
         self.render_all(ctx, canvas)
     }
 
-    fn render_all(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<()> {
+    fn render_all(&mut self, _ctx: &mut Context, canvas: &mut Canvas) -> Result<()> {
         canvas.set_str(0, 0, truncate_to_width(&self.text, canvas.width()));
         Ok(())
     }
 
-    fn handle_key_event(&mut self, ctx: &mut Context, key: KeyEvent) -> Result<()> {
+    fn handle_key_event(&mut self, _ctx: &mut Context, _key: KeyEvent) -> Result<()> {
         Ok(())
     }
 
-    fn handle_key_batch_event(&mut self, ctx: &mut Context, input: &str) -> Result<()> {
+    fn handle_key_batch_event(&mut self, _ctx: &mut Context, _input: &str) -> Result<()> {
         Ok(())
     }
 }

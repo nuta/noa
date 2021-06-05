@@ -1,9 +1,8 @@
-use std::cmp::min;
+
 
 use anyhow::Result;
 use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers},
-    style::Color,
 };
 
 use crate::terminal::{canvas::Canvas, display_width::DisplayWidth};
@@ -80,7 +79,7 @@ impl Surface for BufferSurface {
         const CTRL: KeyModifiers = KeyModifiers::CONTROL;
         const ALT: KeyModifiers = KeyModifiers::ALT;
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
-        let ctrl_alt = KeyModifiers::CONTROL | KeyModifiers::ALT;
+        let _ctrl_alt = KeyModifiers::CONTROL | KeyModifiers::ALT;
 
         let mut buffer = ctx.editor.current_buffer().write();
         match (key.code, key.modifiers) {

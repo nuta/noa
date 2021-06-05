@@ -26,7 +26,7 @@ impl PartialEq for Lang {
 
 impl Eq for Lang {}
 
-pub const LANGS: &'static [Lang] = &[PLAIN, C];
+pub const LANGS: &[Lang] = &[PLAIN, C];
 
 pub const PLAIN: Lang = Lang {
     id: "plain",

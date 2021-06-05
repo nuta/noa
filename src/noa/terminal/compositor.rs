@@ -1,10 +1,9 @@
 use std::{collections::HashMap, slice, sync::Arc, time::Instant};
 
 use crossterm::event::KeyEvent;
-use parking_lot::Mutex;
+
 
 use crate::{
-    editor::Editor,
     surfaces::{buffer::BufferSurface, too_small::TooSmallSurface, Context, Surface},
 };
 

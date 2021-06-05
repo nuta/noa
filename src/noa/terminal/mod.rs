@@ -1,7 +1,7 @@
-use std::cmp::min;
+
 use std::io::Stdout;
 use std::io::Write;
-use std::ops;
+
 use std::{io::stdout, time::Duration};
 
 pub use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -16,15 +16,15 @@ use crossterm::{
     cursor::{self, MoveTo},
     event::EventStream,
 };
-use crossterm::{event::Event as TermEvent, terminal};
+use crossterm::{event::Event as TermEvent};
 use crossterm::{execute, queue};
-use futures::{Stream, StreamExt, TryStreamExt};
+use futures::{StreamExt, TryStreamExt};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::terminal::compositor::Event;
-use crate::{surfaces::Context, view::View};
 
-use noa_buffer::{Buffer, Cursor, Point};
+
+
 
 pub mod canvas;
 pub mod compositor;

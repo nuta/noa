@@ -1,8 +1,8 @@
-use core::slice;
 
-use anyhow::Result;
+
+
 use arrayvec::ArrayString;
-use crossterm::style::{Attribute, Attributes, Color};
+use crossterm::style::{Attributes, Color};
 
 use super::DrawOp;
 
@@ -45,11 +45,7 @@ impl Canvas {
             graphs.push(Grapheme::blank());
         }
 
-        Canvas {
-            graphs,
-            height,
-            width,
-        }
+        Canvas { graphs, width, height }
     }
 
     pub fn width(&self) -> usize {

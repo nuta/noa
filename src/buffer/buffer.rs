@@ -62,7 +62,7 @@ fn guess_lang_from_path(path: &Path) -> &'static Lang {
         }
     }
 
-    return &crate::lang::PLAIN;
+    &crate::lang::PLAIN
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

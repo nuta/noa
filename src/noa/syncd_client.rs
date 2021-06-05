@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    io::ErrorKind,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -9,13 +8,12 @@ use anyhow::Result;
 use noa_buffer::Lang;
 use noa_common::{
     dirs::lsp_sock_path,
-    syncd_protocol::{LspRequest, LspResponse, Notification, Request, ToClient, ToServer},
+    syncd_protocol::{LspResponse, Notification, Request, ToClient, ToServer},
 };
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{unix::OwnedWriteHalf, UnixStream},
-    process::Command,
     sync::{oneshot, Mutex},
 };
 
@@ -27,7 +25,7 @@ pub struct SyncdClient {
 }
 
 impl SyncdClient {
-    pub fn new<F>(workspace_dir: &Path, notification_callback: F) -> SyncdClient
+    pub fn new<F>(workspace_dir: &Path, _notification_callback: F) -> SyncdClient
     where
         F: FnMut(Notification),
     {
@@ -105,7 +103,7 @@ impl SyncdClient {
                         };
 
                         match to_client {
-                            ToClient::Notification(noti) => {
+                            ToClient::Notification(_noti) => {
                                 // TODO:
                             }
                             ToClient::Response(resp) => {

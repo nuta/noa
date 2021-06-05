@@ -2,7 +2,7 @@ use std::cmp::min;
 
 use anyhow::Result;
 use crossterm::event::KeyEvent;
-use noa_buffer::Buffer;
+
 
 use crate::{
     editor::Editor,

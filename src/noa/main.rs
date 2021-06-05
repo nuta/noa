@@ -83,7 +83,7 @@ async fn main() {
     }
 
     // Register the event handler on file updates.
-    let (file_updated_tx, mut file_updated_rx) = unbounded_channel::<Arc<RwLock<Buffer>>>();
+    let (file_updated_tx, file_updated_rx) = unbounded_channel::<Arc<RwLock<Buffer>>>();
     tokio::spawn(on_file_change(
         file_updated_rx,
         editor.workspace_dir().to_path_buf(),
@@ -136,7 +136,7 @@ async fn on_file_change(
     while let Some(buffer_lock) = rx.recv().await {
         let (lang, file_modified_req, completion_req) = {
             let buffer = buffer_lock.read();
-            let (path) = match buffer.path() {
+            let path = match buffer.path() {
                 Some(path) => path,
                 None => {
                     continue;

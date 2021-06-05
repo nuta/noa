@@ -1,18 +1,17 @@
-use crate::surfaces;
-use crate::terminal::{KeyCode, KeyEvent, KeyModifiers};
+
+
 use crate::view::View;
 use crate::{
     syncd_client::SyncdClient,
-    terminal::{self, Terminal},
 };
 use anyhow::{bail, Context, Result};
-use log::LevelFilter;
+
 use noa_common::{
     syncd_protocol::{LspRequest, LspResponse},
     warn_on_error,
 };
 use parking_lot::RwLock;
-use simplelog::{Config, WriteLogger};
+
 use std::{
     collections::HashMap,
     env::current_dir,
@@ -22,13 +21,10 @@ use std::{
     task::Poll,
     time::Duration,
 };
-use std::{sync, time::Instant};
-use structopt::StructOpt;
-use tokio::sync::{Mutex, MutexGuard};
-use tokio::{
-    sync::mpsc::{self, unbounded_channel, UnboundedReceiver, UnboundedSender},
-    time::timeout,
-};
+
+
+use tokio::sync::{Mutex};
+
 
 use noa_buffer::{Buffer, BufferId};
 
@@ -66,7 +62,7 @@ impl Editor {
             .with_context(|| format!("failed to resolve workdir: {}", workspace_dir.display()))
             .unwrap();
 
-        let syncd = SyncdClient::new(&workspace_dir, |noti| {});
+        let syncd = SyncdClient::new(&workspace_dir, |_noti| {});
 
         Editor {
             exited: false,
@@ -129,7 +125,7 @@ impl Editor {
         };
 
         self.buffers.push(buffer.clone());
-        self.path2id.insert(abspath.clone(), buffer_id);
+        self.path2id.insert(abspath, buffer_id);
         self.views
             .insert(buffer_id, parking_lot::Mutex::new(View::new()));
         self.current_buffer = buffer.clone();
