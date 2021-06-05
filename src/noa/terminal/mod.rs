@@ -159,7 +159,7 @@ impl Terminal {
         }
 
         // Hide the cursor to prevent flickering.
-        queue!(stdout, cursor::Hide).ok();
+        queue!(stdout, cursor::Hide, Clear(ClearType::All), MoveTo(0, 0),).ok();
         Some(Drawer { stdout })
     }
 }

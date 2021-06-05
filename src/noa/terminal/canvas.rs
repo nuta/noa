@@ -1,11 +1,13 @@
+use core::slice;
+
 use anyhow::Result;
 use arrayvec::ArrayString;
-use crossterm::style::{Attributes, Color};
+use crossterm::style::{Attribute, Attributes, Color};
 
 use super::DrawOp;
 
 /// A character in the terminal screen.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Grapheme {
     /// The character. It can be larger than 1 if it consists of multiple unicode
     /// characters like A with the acute accent.
@@ -117,24 +119,50 @@ impl Canvas {
         (&mut self.graphs[start..end]).copy_from_slice(&other.graphs[..]);
     }
 
-    pub fn compute_draw_updates<'a, 'b>(&'a self, other: &'b Canvas) -> DrawUpdates<'a, 'b> {
-        DrawUpdates {
-            index: 0,
-            prev: self,
-            next: other,
+    pub fn compute_draw_updates<'a, 'b>(&'a self, other: &'b Canvas) -> Vec<DrawOp<'b>> {
+        debug_assert_eq!(self.width(), other.width());
+        debug_assert_eq!(self.height(), other.height());
+
+        let mut y = 0;
+        let mut x = 0;
+        let mut fg = Color::Reset;
+        let mut bg = Color::Reset;
+        let mut attrs = Attributes::default();
+        let mut needs_move = false;
+        let mut ops = Vec::with_capacity(self.width() * self.height());
+        for (old, new) in self.graphs.iter().zip(&other.graphs) {
+            if old == new {
+                needs_move = true;
+            } else {
+                if needs_move {
+                    ops.push(DrawOp::MoveTo { y, x });
+                    needs_move = false;
+                }
+
+                if new.fg != fg {
+                    ops.push(DrawOp::FgColor(new.fg));
+                    fg = new.fg;
+                }
+
+                if new.bg != bg {
+                    ops.push(DrawOp::BgColor(new.bg));
+                    bg = new.bg;
+                }
+
+                if new.attrs != attrs {
+                    ops.push(DrawOp::Attributes(new.attrs));
+                    attrs = new.attrs;
+                }
+
+                ops.push(DrawOp::Grapheme(&new.grapheme));
+            }
+
+            x += 1;
+            if x >= self.width {
+                y += 1;
+            }
         }
-    }
-}
 
-pub struct DrawUpdates<'a, 'b> {
-    index: usize,
-    prev: &'a Canvas,
-    next: &'b Canvas,
-}
-
-impl<'a, 'b> Iterator for DrawUpdates<'a, 'b> {
-    type Item = DrawOp<'b>;
-    fn next(&mut self) -> Option<Self::Item> {
-        None
+        ops
     }
 }
