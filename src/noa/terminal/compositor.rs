@@ -67,6 +67,11 @@ impl Compositor {
         let next_screen = &mut self.screens[self.active_screen_index];
 
         compose_layers(ctx, next_screen, self.layers.iter_mut(), false);
+        let active_layer = self.active_layer();
+        let cursor = active_layer
+            .surface
+            .cursor_position()
+            .map(|(y, x)| (active_layer.screen_y + y, active_layer.screen_x + x));
 
         let next_screen = &self.screens[self.active_screen_index];
         let prev_screen = &self.screens[prev_screen_index];
@@ -77,6 +82,10 @@ impl Compositor {
         let mut drawer = self.terminal.drawer();
         for op in draw_ops {
             drawer.draw(&op);
+        }
+
+        if let Some((screen_y, screen_x)) = cursor {
+            drawer.show_cursor(screen_y, screen_x);
         }
 
         drawer.flush();
@@ -118,6 +127,16 @@ impl Compositor {
         self.layers
             .iter_mut()
             .find(|layer| layer.surface.name() == name)
+    }
+
+    pub fn active_layer(&self) -> &Layer {
+        for layer in self.layers.iter().rev() {
+            if layer.active {
+                return layer;
+            }
+        }
+
+        unreachable!("at least buffer or too_small surface is always active");
     }
 
     pub fn active_layer_mut(&mut self) -> &mut Layer {

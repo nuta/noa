@@ -38,6 +38,7 @@ impl Surface for BufferSurface {
             .compute_view(&*buffer, canvas.height(), canvas.width());
         let lineno_width = buffer.num_lines().display_width() + 1;
 
+        let mut y_end = 0;
         for (y, display_line) in view.visible_display_lines().iter().enumerate() {
             // Draw the line number.
             let lineno = display_line.range.front().y + 1;
@@ -53,18 +54,28 @@ impl Surface for BufferSurface {
             // Draw buffer contents.
             let text_start = pad_len + lineno_width + 1;
             let rope_line = buffer.line(lineno - 1);
+            let mut x = 0;
             for chunk in &display_line.chunks {
                 let chunk_str = rope_line.slice(chunk.clone());
-                let mut x = 0;
                 for s in chunk_str.chunks() {
                     for ch in s.chars() {
                         canvas.set_char(y, text_start + x, ch);
                         x += 1;
                     }
                 }
-
-                canvas.set_str(y, x, &whitespaces(canvas.width() - (text_start + x)));
             }
+
+            canvas.set_str(
+                y,
+                text_start + x,
+                &whitespaces(canvas.width() - (text_start + x)),
+            );
+
+            y_end = y + 1;
+        }
+
+        for y in y_end..canvas.height() {
+            canvas.set_str(y, 0, &whitespaces(canvas.width()));
         }
 
         Ok(())
