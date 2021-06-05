@@ -129,7 +129,6 @@ impl Surface for BufferSurface {
                             } else {
                                 text_start + lines_end_xs[y] + 1
                             };
-                            info!("x0 x1: {} {}", x0, x1);
                             canvas.add_attrs(
                                 y,
                                 min(x0, x1),
