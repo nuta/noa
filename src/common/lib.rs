@@ -5,3 +5,4 @@ extern crate log;
 pub mod dirs;
 pub mod macros;
 pub mod syncd_protocol;
+pub mod time_report;

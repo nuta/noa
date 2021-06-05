@@ -1,7 +1,7 @@
 use std::{slice, time::Instant};
 
 use crossterm::event::KeyEvent;
-use noa_common::warn_on_error;
+use noa_common::{time_report::TimeReport, warn_on_error};
 
 use crate::surfaces::{buffer::BufferSurface, too_small::TooSmallSurface, Context, Surface};
 
@@ -63,24 +63,35 @@ impl Compositor {
 
     pub fn render_to_terminal(&mut self, ctx: &mut Context) {
         let prev_screen_index = self.active_screen_index;
-        self.active_screen_index = (self.active_screen_index + 1) & self.screens.len();
-        let next_screen = &mut self.screens[self.active_screen_index];
+        self.active_screen_index = (self.active_screen_index + 1) % self.screens.len();
+        let screen_index = self.active_screen_index;
 
-        compose_layers(ctx, next_screen, self.layers.iter_mut(), false);
+        info!("[{}] => [{}]", prev_screen_index, screen_index);
+        let compose_layers_time = TimeReport::new("compose_layers");
+        compose_layers(
+            ctx,
+            &mut self.screens[screen_index],
+            self.layers.iter_mut(),
+            false,
+        );
+        compose_layers_time.report();
+
         let active_layer = self.active_layer();
         let cursor = active_layer
             .surface
             .cursor_position()
             .map(|(y, x)| (active_layer.screen_y + y, active_layer.screen_x + x));
 
-        let next_screen = &self.screens[self.active_screen_index];
-        let prev_screen = &self.screens[prev_screen_index];
-        let draw_ops = next_screen.compute_draw_updates(&prev_screen);
+        let compute_draw_updates_time = TimeReport::new("compute_draw_updates");
+        let draw_ops =
+            self.screens[screen_index].compute_draw_updates(&self.screens[prev_screen_index]);
+        compute_draw_updates_time.report();
 
         trace!("draw changes: {} items", draw_ops.len());
-        let started_at = Instant::now();
+        let stdout_write_time = TimeReport::new("stdout_write");
         let mut drawer = self.terminal.drawer();
         for op in draw_ops {
+            // trace!("op={:?}", op);
             drawer.draw(&op);
         }
 
@@ -89,7 +100,7 @@ impl Compositor {
         }
 
         drawer.flush();
-        trace!("draw took {:?}", started_at.elapsed());
+        stdout_write_time.report();
     }
 
     pub fn handle_event(&mut self, ctx: &mut Context, ev: Event) {

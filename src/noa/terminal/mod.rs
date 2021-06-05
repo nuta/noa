@@ -103,15 +103,6 @@ async fn terminal_input_handler(event_queue: UnboundedSender<Event>) {
     }
 }
 
-pub enum DrawOp<'a> {
-    MoveTo { y: usize, x: usize },
-    Grapheme(&'a str),
-    FgColor(Color),
-    BgColor(Color),
-    Attributes(Attributes),
-    Reset,
-}
-
 pub struct Terminal {
     height: usize,
     width: usize,
@@ -159,6 +150,16 @@ impl Drop for Terminal {
         execute!(stdout(), cursor::Show).ok();
         disable_raw_mode().ok();
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum DrawOp<'a> {
+    MoveTo { y: usize, x: usize },
+    Grapheme(&'a str),
+    FgColor(Color),
+    BgColor(Color),
+    Attributes(Attributes),
+    Reset,
 }
 
 pub struct Drawer {
