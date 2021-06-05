@@ -23,7 +23,9 @@ pub enum Event {
 
 pub struct Layer {
     surface: Box<dyn Surface>,
+    /// If it's `false`, the surface won't receive key events.
     active: bool,
+    visible: bool,
     canvas: Canvas,
     screen_y: usize,
     screen_x: usize,
@@ -114,7 +116,7 @@ impl Compositor {
             }
         }
 
-        unreachable!("at least the buffer surface is always active");
+        unreachable!("at least buffer or too_small surface is always active");
     }
 }
 
@@ -126,7 +128,7 @@ fn compose_layers<'a, 'b, 'c>(
     render_all: bool,
 ) {
     for layer in layers {
-        if !layer.active {
+        if !layer.visible {
             continue;
         }
 
@@ -145,6 +147,7 @@ fn create_layers(screen_height: usize, screen_width: usize) -> Vec<Layer> {
         // The screen is too small.
         return vec![Layer {
             surface: Box::new(TooSmallSurface::new("too small!")),
+            visible: true,
             active: true,
             canvas: Canvas::new(screen_height, screen_width),
             screen_x: 0,
@@ -153,10 +156,12 @@ fn create_layers(screen_height: usize, screen_width: usize) -> Vec<Layer> {
     }
 
     let buffer_height = screen_height - 2;
+    let buffer_width = screen_width;
     vec![Layer {
         surface: Box::new(BufferSurface::new()),
+        visible: true,
         active: true,
-        canvas: Canvas::new(0, 0),
+        canvas: Canvas::new(buffer_height, buffer_width),
         screen_x: 0,
         screen_y: 0,
     }]
