@@ -1,3 +1,5 @@
+use std::cmp::{max, min};
+
 use anyhow::Result;
 use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers},
@@ -47,6 +49,7 @@ impl Surface for BufferSurface {
         let text_start = max_lineno_width + 1;
 
         let mut y_end = 0;
+        let mut lines_end_xs = Vec::new();
         for (y, display_line) in view.visible_display_lines().iter().enumerate() {
             // Draw the line number.
             let lineno = display_line.range.front().y + 1;
@@ -79,6 +82,7 @@ impl Surface for BufferSurface {
                 &whitespaces(canvas.width() - (text_start + x)),
             );
 
+            lines_end_xs.push(x);
             y_end = y + 1;
         }
 
@@ -103,17 +107,36 @@ impl Surface for BufferSurface {
                     );
                     canvas.add_attrs(y, x, y, x + 1, (&[Attribute::Reverse][..]).into());
                 }
-                Cursor::Selection(Range { start, end }) => {
-                    let (start_y, start_x) =
-                        view.point_to_display_pos(start, y_end, text_start, buffer.num_lines());
-                    let (end_y, end_x) =
-                        view.point_to_display_pos(end, y_end, text_start, buffer.num_lines());
+                Cursor::Selection(range) => {
+                    let (start_y, start_x) = view.point_to_display_pos(
+                        range.front(),
+                        y_end,
+                        text_start,
+                        buffer.num_lines(),
+                    );
+                    let (end_y, end_x) = view.point_to_display_pos(
+                        range.back(),
+                        y_end,
+                        text_start,
+                        buffer.num_lines(),
+                    );
 
                     for (y, display_line) in view.visible_display_lines().iter().enumerate() {
                         if start_y <= y && y <= end_y {
-                            let x0 = if y == start_y { start_x } else { 0 };
-                            let x1 = if y == end_y { end_x } else { x0 + 1 };
-                            canvas.add_attrs(y, x0, y + 1, x1, (&[Attribute::Reverse][..]).into());
+                            let x0 = if y == start_y { start_x } else { text_start };
+                            let x1 = if y == end_y {
+                                end_x
+                            } else {
+                                text_start + lines_end_xs[y] + 1
+                            };
+                            info!("x0 x1: {} {}", x0, x1);
+                            canvas.add_attrs(
+                                y,
+                                min(x0, x1),
+                                y + 1,
+                                max(x0, x1),
+                                (&[Attribute::Reverse][..]).into(),
+                            );
                         }
                     }
                 }
@@ -155,6 +178,12 @@ impl Surface for BufferSurface {
             }
             (KeyCode::Right, NONE) => {
                 view.move_cursors(&mut *buffer, 0, 1);
+            }
+            (KeyCode::Up, SHIFT) => {
+                view.expand_selections(&mut *buffer, -1, 0);
+            }
+            (KeyCode::Down, SHIFT) => {
+                view.expand_selections(&mut *buffer, 1, 0);
             }
             (KeyCode::Left, SHIFT) => {
                 view.expand_selections(&mut *buffer, 0, -1);
