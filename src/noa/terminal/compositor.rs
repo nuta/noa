@@ -64,7 +64,7 @@ impl Compositor {
         compose_layers(ctx, active_screen, self.layers.iter_mut(), true);
     }
 
-    pub fn render(&mut self, ctx: &mut Context) {
+    pub fn render_to_terminal(&mut self, ctx: &mut Context) {
         let prev_screen_index = self.active_screen_index;
         self.active_screen_index = (self.active_screen_index + 1) & self.screens.len();
         let next_screen = &mut self.screens[self.active_screen_index];

@@ -93,7 +93,7 @@ async fn main() {
     ));
 
     while !editor.exited() {
-        compositor.render(&mut Context {
+        compositor.render_to_terminal(&mut Context {
             editor: &mut editor,
         });
         if let Some(ev) = event_rx.recv().await {
