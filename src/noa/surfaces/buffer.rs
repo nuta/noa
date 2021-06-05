@@ -104,15 +104,17 @@ impl Surface for BufferSurface {
                     canvas.add_attrs(y, x, y, x + 1, (&[Attribute::Reverse][..]).into());
                 }
                 Cursor::Selection(Range { start, end }) => {
-                    for buffer_y in start.y..end.y {
-                        let (y, x) = view.point_to_display_pos(
-                            main_cursor_pos,
-                            y_end,
-                            text_start,
-                            buffer.num_lines(),
-                        );
+                    let (start_y, start_x) =
+                        view.point_to_display_pos(start, y_end, text_start, buffer.num_lines());
+                    let (end_y, end_x) =
+                        view.point_to_display_pos(end, y_end, text_start, buffer.num_lines());
 
-                        canvas.add_attrs(y, x, y, x + 1, (&[Attribute::Reverse][..]).into());
+                    for (y, display_line) in view.visible_display_lines().iter().enumerate() {
+                        if start_y <= y && y <= end_y {
+                            let x0 = if y == start_y { start_x } else { 0 };
+                            let x1 = if y == end_y { end_x } else { x0 + 1 };
+                            canvas.add_attrs(y, x0, y + 1, x1, (&[Attribute::Reverse][..]).into());
+                        }
                     }
                 }
             }
