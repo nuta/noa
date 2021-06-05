@@ -82,6 +82,20 @@ impl Surface for BufferSurface {
             canvas.set_str(y, 0, &whitespaces(canvas.width()));
         }
 
+        // Determine the main cursor position.
+        let cursor_pos = buffer.main_cursor_pos();
+        self.cursor_position = view
+            .point_to_display_pos(cursor_pos)
+            .map(|(y, x)| (y, text_start + x))
+            .unwrap_or_else(|| {
+                if cursor_pos.y == buffer.num_lines() && cursor_pos.x == 0 {
+                    // EOF.
+                    return (y_end, text_start);
+                }
+
+                panic!("failed to determine the main cursor pos: {}", cursor_pos);
+            });
+
         Ok(())
     }
 

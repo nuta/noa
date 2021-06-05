@@ -91,6 +91,13 @@ impl View {
         }
     }
 
+    /// Returns `(screen_y, screen_x)`.
+    pub fn point_to_display_pos(&self, pos: &Point) -> Option<(usize, usize)> {
+        let y = self.point_to_display_line(pos)?;
+        let display_line = &self.lines[y];
+        Some((y, pos.x - display_line.range.front().x))
+    }
+
     fn point_to_display_line(&self, pos: &Point) -> Option<usize> {
         self.lines
             .binary_search_by(|line| {
