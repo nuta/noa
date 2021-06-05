@@ -527,6 +527,7 @@ dependencies = [
  "dirs",
  "log",
  "noa_buffer",
+ "once_cell",
  "serde",
 ]
 

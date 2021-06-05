@@ -66,7 +66,7 @@ impl Compositor {
         self.active_screen_index = (self.active_screen_index + 1) % self.screens.len();
         let screen_index = self.active_screen_index;
 
-        info!("[{}] => [{}]", prev_screen_index, screen_index);
+        // Render and composite layers.
         let compose_layers_time = TimeReport::new("compose_layers");
         compose_layers(
             ctx,
@@ -76,17 +76,20 @@ impl Compositor {
         );
         compose_layers_time.report();
 
+        // Get the cursor position.
         let active_layer = self.active_layer();
         let cursor = active_layer
             .surface
             .cursor_position()
             .map(|(y, x)| (active_layer.screen_y + y, active_layer.screen_x + x));
 
+        // Compute diffs.
         let compute_draw_updates_time = TimeReport::new("compute_draw_updates");
         let draw_ops =
             self.screens[screen_index].compute_draw_updates(&self.screens[prev_screen_index]);
         compute_draw_updates_time.report();
 
+        // Write into stdout.
         trace!("draw changes: {} items", draw_ops.len());
         let stdout_write_time = TimeReport::new("stdout_write");
         let mut drawer = self.terminal.drawer();
