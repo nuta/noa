@@ -10,17 +10,26 @@ use crate::terminal::{canvas::Canvas, display_width::DisplayWidth};
 
 use super::{whitespaces, Context, Surface};
 
-pub struct BufferSurface {}
+pub struct BufferSurface {
+    // `(y, x)`.
+    cursor_position: (usize, usize),
+}
 
 impl BufferSurface {
     pub fn new() -> BufferSurface {
-        BufferSurface {}
+        BufferSurface {
+            cursor_position: (0, 0),
+        }
     }
 }
 
 impl Surface for BufferSurface {
     fn name(&self) -> &str {
         "buffer"
+    }
+
+    fn cursor_position(&self) -> Option<(usize, usize)> {
+        Some(self.cursor_position)
     }
 
     fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<()> {

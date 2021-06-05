@@ -19,6 +19,9 @@ pub struct Context<'a> {
 
 pub trait Surface {
     fn name(&self) -> &str;
+    /// Returns the cursor position in surface-local `(y, x)`. `None` if the cursor
+    /// is hidden.
+    fn cursor_position(&self) -> Option<(usize, usize)>;
     /// Renders its contents into the canvas. It may update only updated areas.
     fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<()>;
     /// Render its contents into the canvas. It must fill the whole canvas; the

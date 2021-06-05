@@ -26,6 +26,10 @@ impl Surface for TooSmallSurface {
         "too_small"
     }
 
+    fn cursor_position(&self) -> Option<(usize, usize)> {
+        None
+    }
+
     fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<()> {
         self.render_all(ctx, canvas)
     }
