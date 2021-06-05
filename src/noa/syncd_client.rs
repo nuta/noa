@@ -10,9 +10,9 @@ use noa_common::{
     dirs::lsp_sock_path,
     syncd_protocol::{LspResponse, Notification, Request, ToClient, ToServer},
 };
-use serde::{Serialize};
+use serde::Serialize;
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    io::{AsyncBufReadExt, BufReader},
     net::{unix::OwnedWriteHalf, UnixStream},
     sync::{oneshot, Mutex},
 };
@@ -109,7 +109,7 @@ impl SyncdClient {
                             ToClient::Response(resp) => {
                                 match sent_requests.lock().await.remove(&resp.id) {
                                     Some(tx) => {
-                                        tx.send(resp.body);
+                                        tx.send(resp.body).unwrap();
                                     }
                                     None => {
                                         warn!("unknown response id from syncd: {:#?}", resp);

@@ -1,11 +1,9 @@
-use std::{collections::HashMap, slice, sync::Arc, time::Instant};
+use std::{slice, time::Instant};
 
 use crossterm::event::KeyEvent;
+use noa_common::warn_on_error;
 
-
-use crate::{
-    surfaces::{buffer::BufferSurface, too_small::TooSmallSurface, Context, Surface},
-};
+use crate::surfaces::{buffer::BufferSurface, too_small::TooSmallSurface, Context, Surface};
 
 use super::{canvas::Canvas, Terminal};
 
@@ -110,13 +108,13 @@ impl Compositor {
         }
     }
 
-    pub fn layer(&self, name: &str) -> Option<&Layer> {
+    pub fn _layer(&self, name: &str) -> Option<&Layer> {
         self.layers
             .iter()
             .find(|layer| layer.surface.name() == name)
     }
 
-    pub fn layer_mut(&mut self, name: &str) -> Option<&mut Layer> {
+    pub fn _layer_mut(&mut self, name: &str) -> Option<&mut Layer> {
         self.layers
             .iter_mut()
             .find(|layer| layer.surface.name() == name)
@@ -146,9 +144,15 @@ fn compose_layers<'a, 'b, 'c>(
         }
 
         if render_all {
-            layer.surface.render_all(ctx, &mut layer.canvas);
+            warn_on_error!(
+                layer.surface.render_all(ctx, &mut layer.canvas),
+                "Surface::render_all() returned an error"
+            );
         } else {
-            layer.surface.render(ctx, &mut layer.canvas);
+            warn_on_error!(
+                layer.surface.render(ctx, &mut layer.canvas),
+                "Surface::render() returned an error"
+            );
         }
 
         screen.copy_from_other(layer.screen_y, layer.screen_x, &layer.canvas);

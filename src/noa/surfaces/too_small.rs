@@ -1,13 +1,8 @@
-
-
 use crate::terminal::canvas::Canvas;
 
 use super::{truncate_to_width, Context, Surface};
 use anyhow::Result;
-use crossterm::{
-    event::{KeyCode, KeyEvent, KeyModifiers},
-    style::Color,
-};
+use crossterm::event::KeyEvent;
 
 pub struct TooSmallSurface {
     text: String,

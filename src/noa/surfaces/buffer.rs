@@ -1,9 +1,5 @@
-
-
 use anyhow::Result;
-use crossterm::{
-    event::{KeyCode, KeyEvent, KeyModifiers},
-};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::terminal::{canvas::Canvas, display_width::DisplayWidth};
 
@@ -106,6 +102,9 @@ impl Surface for BufferSurface {
                 buffer.insert_char('\n');
             }
             (KeyCode::Char(ch), NONE) => {
+                buffer.insert_char(ch);
+            }
+            (KeyCode::Char(ch), SHIFT) => {
                 buffer.insert_char(ch);
             }
             _ => {

@@ -1,30 +1,19 @@
-
-use std::io::Stdout;
-use std::io::Write;
-
-use std::{io::stdout, time::Duration};
-
-pub use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use crossterm::style::Attributes;
-use crossterm::style::SetAttributes;
-use crossterm::style::{
-    Attribute, Color, Print, SetAttribute, SetBackgroundColor, SetForegroundColor,
+use std::{
+    io::{stdout, Stdout, Write},
+    time::Duration,
 };
-use crossterm::terminal::*;
-use crossterm::terminal::{Clear, ClearType};
+
 use crossterm::{
     cursor::{self, MoveTo},
-    event::EventStream,
+    event::{Event as TermEvent, EventStream, KeyCode, KeyEvent, KeyModifiers},
+    execute, queue,
+    style::{Attributes, Color, Print, SetAttributes, SetBackgroundColor, SetForegroundColor},
+    terminal::*,
 };
-use crossterm::{event::Event as TermEvent};
-use crossterm::{execute, queue};
-use futures::{StreamExt, TryStreamExt};
+use futures::StreamExt;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::terminal::compositor::Event;
-
-
-
 
 pub mod canvas;
 pub mod compositor;
@@ -36,16 +25,18 @@ async fn terminal_input_handler(event_queue: UnboundedSender<Event>) {
     fn handle_event(event_queue: &UnboundedSender<Event>, ev: TermEvent) {
         match ev {
             TermEvent::Key(key) => {
-                event_queue.send(Event::Key(key));
+                event_queue.send(Event::Key(key)).ok();
             }
             TermEvent::Mouse(_) => {
                 unreachable!();
             }
             TermEvent::Resize(cols, rows) => {
-                event_queue.send(Event::Resize {
-                    screen_width: cols as usize,
-                    screen_height: rows as usize,
-                });
+                event_queue
+                    .send(Event::Resize {
+                        screen_width: cols as usize,
+                        screen_height: rows as usize,
+                    })
+                    .ok();
             }
         }
     }
@@ -92,12 +83,11 @@ async fn terminal_input_handler(event_queue: UnboundedSender<Event>) {
                                 ev => {
                                     next_event = Some(ev);
                                 }
-                                _ => {}
                             }
                         }
                     }
 
-                    event_queue.send(Event::KeyBatch(buf));
+                    event_queue.send(Event::KeyBatch(buf)).ok();
                     if let Some(ev) = next_event {
                         handle_event(&event_queue, ev);
                     }

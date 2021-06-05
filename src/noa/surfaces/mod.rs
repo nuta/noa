@@ -3,12 +3,7 @@ use std::cmp::min;
 use anyhow::Result;
 use crossterm::event::KeyEvent;
 
-
-use crate::{
-    editor::Editor,
-    terminal::{canvas::Canvas, compositor::Compositor},
-    view::View,
-};
+use crate::{editor::Editor, terminal::canvas::Canvas};
 
 pub mod buffer;
 pub mod too_small;

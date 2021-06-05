@@ -1,30 +1,17 @@
-
-
+use crate::syncd_client::SyncdClient;
 use crate::view::View;
-use crate::{
-    syncd_client::SyncdClient,
-};
 use anyhow::{bail, Context, Result};
 
-use noa_common::{
-    syncd_protocol::{LspRequest, LspResponse},
-    warn_on_error,
-};
+use noa_common::syncd_protocol::LspRequest;
 use parking_lot::RwLock;
 
 use std::{
     collections::HashMap,
-    env::current_dir,
-    fs::OpenOptions,
     path::{Path, PathBuf},
     sync::Arc,
-    task::Poll,
-    time::Duration,
 };
 
-
-use tokio::sync::{Mutex};
-
+use tokio::sync::Mutex;
 
 use noa_buffer::{Buffer, BufferId};
 
