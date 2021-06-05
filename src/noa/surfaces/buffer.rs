@@ -143,16 +143,16 @@ impl Surface for BufferSurface {
                 buffer.backspace();
             }
             (KeyCode::Up, NONE) => {
-                view.move_cursors_vertically(&mut *buffer, -1);
+                view.move_cursors(&mut *buffer, -1, 0);
             }
             (KeyCode::Down, NONE) => {
-                view.move_cursors_vertically(&mut *buffer, 1);
+                view.move_cursors(&mut *buffer, 1, 0);
             }
             (KeyCode::Left, NONE) => {
-                buffer.move_cursors(0, 0, 1, 0);
+                view.move_cursors(&mut *buffer, 0, -1);
             }
             (KeyCode::Right, NONE) => {
-                buffer.move_cursors(0, 0, 0, 1);
+                view.move_cursors(&mut *buffer, 0, 1);
             }
             (KeyCode::Enter, NONE) => {
                 buffer.insert_char('\n');

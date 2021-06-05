@@ -155,7 +155,7 @@ impl View {
         }
     }
 
-    pub fn move_cursors_vertically(&self, buffer: &mut Buffer, y_diff: isize) {
+    pub fn move_cursors(&self, buffer: &mut Buffer, y_diff: isize, x_diff: isize) {
         let mut new_cursors = Vec::new();
         for cursor in buffer.cursors() {
             // Cancel the selection.
@@ -165,7 +165,7 @@ impl View {
             };
 
             // Move the cursor.
-            let new_pos = self.move_y(&pos, y_diff);
+            let new_pos = self.move_x(&self.move_y(&pos, y_diff), x_diff);
             new_cursors.push(Cursor::Normal { pos: new_pos });
         }
 
