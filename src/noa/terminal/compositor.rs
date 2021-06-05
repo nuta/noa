@@ -91,7 +91,6 @@ impl Compositor {
         let stdout_write_time = TimeReport::new("stdout_write");
         let mut drawer = self.terminal.drawer();
         for op in draw_ops {
-            trace!("op={:?}", op);
             drawer.draw(&op);
         }
 
@@ -118,7 +117,7 @@ impl Compositor {
                 Ok(())
             }
             _ => {
-                trace!("unhandled event = {:?}", ev);
+                trace!("unhandled event: {:?}", ev);
                 Ok(())
             }
         };
