@@ -150,6 +150,7 @@ impl Canvas {
                 needs_move = true;
             } else {
                 if needs_move {
+                    trace!("({}, {})", y, x);
                     ops.push(DrawOp::MoveTo { y, x });
                     needs_move = false;
                 }
