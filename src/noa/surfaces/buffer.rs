@@ -154,6 +154,12 @@ impl Surface for BufferSurface {
             (KeyCode::Right, NONE) => {
                 view.move_cursors(&mut *buffer, 0, 1);
             }
+            (KeyCode::Left, SHIFT) => {
+                view.expand_selections(&mut *buffer, 0, -1);
+            }
+            (KeyCode::Right, SHIFT) => {
+                view.expand_selections(&mut *buffer, 0, 1);
+            }
             (KeyCode::Enter, NONE) => {
                 buffer.insert_char('\n');
             }

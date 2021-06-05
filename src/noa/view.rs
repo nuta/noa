@@ -172,6 +172,22 @@ impl View {
         buffer.set_cursors(new_cursors);
     }
 
+    pub fn expand_selections(&self, buffer: &mut Buffer, y_diff: isize, x_diff: isize) {
+        let mut new_cursors = Vec::new();
+        for cursor in buffer.cursors() {
+            let (start, end) = match cursor {
+                Cursor::Normal { pos, .. } => (pos, pos),
+                Cursor::Selection(range) => (&range.start, &range.end),
+            };
+
+            // Move the cursor.
+            let new_end = self.move_x(&self.move_y(&end, y_diff), x_diff);
+            new_cursors.push(Cursor::Selection(Range::from_points(*start, new_end)));
+        }
+
+        buffer.set_cursors(new_cursors);
+    }
+
     fn move_y(&self, pos: &Point, y_diff: isize) -> Point {
         let prev_y = self.point_to_display_line(pos).unwrap();
         let prev_line = &self.lines[prev_y];
