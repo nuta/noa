@@ -5,6 +5,8 @@ A simplistic, intuitive, temrinal-based text editor.
 
 ## Installation
 
+- **For iTerm2 users:** Open `Preferences > Profiles > Keys` and enable `Report modifiers using CSI u`.
+
 ```
 $ cargo install noa
 ```
@@ -30,7 +32,7 @@ $ cargo install noa
 | <kbd>Ctrl</kbd> + <kbd>A</kbd>                  | Move to the beginning of the line.         |
 | <kbd>Ctrl</kbd> + <kbd>E</kbd>                  | Move to the end of the line.               |
 | <kbd>Alt</kbd> + <kbd>Left / Right</kbd>        | Move by a word.                            |
-| <kbd>Ctrl</kbd> + <kbd>Up / Down</kbd>          | Add a cursor in the previous/next line.    |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>Up / Down</kbd>          | Add a cursor in the previous/next line.    |
 | <kbd>Alt</kbd>  + <kbd>Up / Down</kbd>                    | Move the current line.                                |
 | <kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>Up / Down</kbd>                    | Duplicate the current line.                |
 | <kbd>Ctrl</kbd> + <kbd>N</kbd>                   | Rename a symbol (LSP).                     |
