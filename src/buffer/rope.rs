@@ -149,7 +149,7 @@ impl Ord for Range {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Cursor {
-    Normal { pos: Point },
+    Normal { pos: Point, logical_x: usize },
     Selection(Range),
 }
 
@@ -157,12 +157,13 @@ impl Cursor {
     pub fn new(y: usize, x: usize) -> Cursor {
         Cursor::Normal {
             pos: Point::new(y, x),
+            logical_x: x,
         }
     }
 
     pub fn front(&self) -> &Point {
         match self {
-            Cursor::Normal { pos } => pos,
+            Cursor::Normal { pos, .. } => pos,
             Cursor::Selection(Range { start, .. }) => start,
         }
     }

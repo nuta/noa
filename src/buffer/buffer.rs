@@ -140,13 +140,16 @@ impl Buffer {
         self.rope.insert(&Point::new(0, 0), text);
 
         let mut pos = match self.cursors[0] {
-            Cursor::Normal { pos } => pos,
+            Cursor::Normal { pos, .. } => pos,
             Cursor::Selection(Range { end, .. }) => end,
         };
 
         pos.y = min(pos.y, self.rope.num_lines().saturating_sub(1));
         pos.x = min(pos.x, self.rope.line_len(pos.y));
-        self.cursors = vec![Cursor::Normal { pos }];
+        self.cursors = vec![Cursor::Normal {
+            pos,
+            logical_x: pos.x,
+        }];
     }
 
     pub fn reset_dirty_flag(&mut self) {
@@ -259,7 +262,7 @@ impl Buffer {
 
     pub fn main_cursor_pos(&self) -> &Point {
         match &self.cursors[0] {
-            Cursor::Normal { pos } => pos,
+            Cursor::Normal { pos, .. } => pos,
             Cursor::Selection(range) => &range.end,
         }
     }
@@ -733,7 +736,7 @@ impl Buffer {
         self.cursors.sort();
         let duplicated = self.cursors.iter().enumerate().map(|(i, c)| match c {
             Cursor::Normal { pos, .. } => (&self.cursors[..i]).iter().any(|other| match other {
-                Cursor::Normal { pos: ref other } => *pos == *other,
+                Cursor::Normal { pos: ref other, .. } => *pos == *other,
                 _ => unreachable!(),
             }),
             Cursor::Selection(range) => (&self.cursors[..i]).iter().any(|other| match other {

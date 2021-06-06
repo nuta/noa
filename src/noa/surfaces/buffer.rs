@@ -95,10 +95,10 @@ impl Surface for BufferSurface {
         let main_cursor_pos = buffer.main_cursor_pos();
         for cursor in buffer.cursors() {
             match cursor {
-                Cursor::Normal { pos } if pos == main_cursor_pos => {
+                Cursor::Normal { pos, .. } if pos == main_cursor_pos => {
                     // Do nothing. We use the native cursor through `self.cursor_position`.
                 }
-                Cursor::Normal { pos } => {
+                Cursor::Normal { pos, .. } => {
                     let (y, x) = view.point_to_display_pos(
                         main_cursor_pos,
                         y_end,

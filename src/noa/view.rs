@@ -166,7 +166,10 @@ impl View {
 
             // Move the cursor.
             let new_pos = self.move_x(&self.move_y(&pos, y_diff), x_diff);
-            new_cursors.push(Cursor::Normal { pos: new_pos });
+            new_cursors.push(Cursor::Normal {
+                pos: new_pos,
+                logical_x: new_pos.x,
+            });
         }
 
         buffer.set_cursors(new_cursors);
