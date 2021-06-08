@@ -1,6 +1,6 @@
 use std::{
     cmp::{max, min, Ordering},
-    collections::BinaryHeap,
+    collections::{binary_heap, BinaryHeap},
     path::PathBuf,
     sync::Arc,
 };
@@ -13,17 +13,17 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::ui::{Canvas, Compositor, Context, Event, Layout, RectSize, Surface};
 
 enum Item {
-    File(String),
+    File { title: String, path: PathBuf },
 }
 
 pub struct FinderSurface {
     query: String,
-    items: Arc<Mutex<FuzzySet>>,
+    items: Arc<Mutex<Vec<Item>>>,
 }
 
 impl FinderSurface {
     pub fn new(ctx: &mut Context) -> FinderSurface {
-        let items = Arc::new(Mutex::new(FuzzySet::with_capacity(64)));
+        let items = Arc::new(Mutex::new(Vec::with_capacity(128)));
         tokio::spawn(update_items(
             ctx.editor.workspace_dir().to_owned(),
             ctx.event_tx.clone(),
@@ -94,74 +94,94 @@ impl Surface for FinderSurface {
     }
 }
 
-struct FuzzyItem {
+struct FuzzyItem<T> {
     score: isize,
-    text: String,
+    value: T,
 }
 
-impl PartialEq for FuzzyItem {
-    fn eq(&self, other: &FuzzyItem) -> bool {
+impl<T> PartialEq for FuzzyItem<T> {
+    fn eq(&self, other: &FuzzyItem<T>) -> bool {
         self.score.eq(&other.score)
     }
 }
 
-impl Eq for FuzzyItem {}
+impl<T> Eq for FuzzyItem<T> {}
 
-impl PartialOrd for FuzzyItem {
-    fn partial_cmp(&self, other: &FuzzyItem) -> Option<Ordering> {
+impl<T> PartialOrd for FuzzyItem<T> {
+    fn partial_cmp(&self, other: &FuzzyItem<T>) -> Option<Ordering> {
         self.score.partial_cmp(&other.score)
     }
 }
 
-impl Ord for FuzzyItem {
-    fn cmp(&self, other: &FuzzyItem) -> Ordering {
+impl<T> Ord for FuzzyItem<T> {
+    fn cmp(&self, other: &FuzzyItem<T>) -> Ordering {
         self.score.cmp(&other.score)
     }
 }
 
-struct FuzzySet {
+struct FuzzySet<T> {
     capacity: usize,
-    items: BinaryHeap<FuzzyItem>,
+    items: BinaryHeap<FuzzyItem<T>>,
 }
 
-impl FuzzySet {
-    pub fn with_capacity(capacity: usize) -> FuzzySet {
+impl<T> FuzzySet<T> {
+    pub fn with_capacity(capacity: usize) -> FuzzySet<T> {
         FuzzySet {
             capacity,
             items: BinaryHeap::with_capacity(capacity + 1),
         }
     }
 
-    pub fn push(&mut self, score: isize, text: String) {
-        self.items.push(FuzzyItem { score, text });
+    pub fn push(&mut self, score: isize, value: T) {
+        self.items.push(FuzzyItem { score, value });
         self.items.pop();
+    }
+
+    pub fn into_iter(self) -> binary_heap::IntoIter<FuzzyItem<T>> {
+        self.items.into_iter()
     }
 }
 
 async fn update_items(
     workspace_dir: PathBuf,
     event_tx: UnboundedSender<Event>,
-    items: Arc<Mutex<FuzzySet>>,
+    items: Arc<Mutex<Vec<Item>>>,
     query: String,
 ) {
     use ignore::{WalkBuilder, WalkState};
 
-    let path_resolver = tokio::spawn(async move {
+    // Scan all files.
+    let path_resolver = async move {
+        let mut results = Mutex::new(FuzzySet::with_capacity(32));
         WalkBuilder::new(workspace_dir).build_parallel().run(|| {
             Box::new(|dirent| {
                 if let Ok(dirent) = dirent {
                     let path = dirent.path().to_str().unwrap();
                     if let Some(m) = sublime_fuzzy::best_match(&query, path) {
-                        items.lock().push(
+                        let title =
+                            sublime_fuzzy::format_simple(&m, path, "\x1b[1m\x1b[4m", "\x1b[0m");
+                        results.lock().push(
                             m.score(),
-                            sublime_fuzzy::format_simple(&m, path, "\x1b[1m\x1b[4m", "\x1b[0m"),
+                            Item::File {
+                                title,
+                                path: dirent.path().to_owned(),
+                            },
                         );
                     }
                 }
                 WalkState::Continue
             })
         });
-    });
+        results
+    };
 
-    tokio::join!(path_resolver);
+    // Merge results.
+    let iter = futures::future::join_all(vec![path_resolver]).await;
+    let mut items = items.lock();
+    items.clear();
+    for results in iter {
+        for item in results.into_inner().into_iter() {
+            items.push(item.value);
+        }
+    }
 }
