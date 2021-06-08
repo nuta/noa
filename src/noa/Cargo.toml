@@ -26,6 +26,8 @@ ropey = "1"
 crossterm = { version = "0", features = ["event-stream"] }
 unicode-width = "0"
 arrayvec = "0"
+ignore = "0"
+sublime_fuzzy = "0"
 
 noa_common = { path = "../common" }
 noa_buffer = { path = "../buffer" }

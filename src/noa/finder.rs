@@ -1,5 +1,6 @@
 use std::{
-    cmp::{max, min},
+    cmp::{max, min, Ordering},
+    collections::BinaryHeap,
     path::PathBuf,
     sync::Arc,
 };
@@ -12,20 +13,25 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::ui::{Canvas, Compositor, Context, Event, Layout, RectSize, Surface};
 
 enum Item {
-    File(PathBuf),
+    File(String),
 }
 
 pub struct FinderSurface {
-    input: String,
-    items: Arc<Mutex<Vec<Item>>>,
+    query: String,
+    items: Arc<Mutex<FuzzySet>>,
 }
 
 impl FinderSurface {
     pub fn new(ctx: &mut Context) -> FinderSurface {
-        let items = Arc::new(Mutex::new(Vec::new()));
-        tokio::spawn(update_items(ctx.event_tx.clone(), items.clone()));
+        let items = Arc::new(Mutex::new(FuzzySet::with_capacity(64)));
+        tokio::spawn(update_items(
+            ctx.editor.workspace_dir().to_owned(),
+            ctx.event_tx.clone(),
+            items.clone(),
+            "".to_owned(),
+        ));
         FinderSurface {
-            input: String::new(),
+            query: String::new(),
             items,
         }
     }
@@ -70,7 +76,12 @@ impl Surface for FinderSurface {
             }
         };
 
-        tokio::spawn(update_items(ctx.event_tx.clone(), self.items.clone()));
+        tokio::spawn(update_items(
+            ctx.editor.workspace_dir().to_owned(),
+            ctx.event_tx.clone(),
+            self.items.clone(),
+            self.query.clone(),
+        ));
     }
 
     fn handle_key_batch_event(
@@ -83,4 +94,74 @@ impl Surface for FinderSurface {
     }
 }
 
-async fn update_items(event_tx: UnboundedSender<Event>, items: Arc<Mutex<Vec<Item>>>) {}
+struct FuzzyItem {
+    score: isize,
+    text: String,
+}
+
+impl PartialEq for FuzzyItem {
+    fn eq(&self, other: &FuzzyItem) -> bool {
+        self.score.eq(&other.score)
+    }
+}
+
+impl Eq for FuzzyItem {}
+
+impl PartialOrd for FuzzyItem {
+    fn partial_cmp(&self, other: &FuzzyItem) -> Option<Ordering> {
+        self.score.partial_cmp(&other.score)
+    }
+}
+
+impl Ord for FuzzyItem {
+    fn cmp(&self, other: &FuzzyItem) -> Ordering {
+        self.score.cmp(&other.score)
+    }
+}
+
+struct FuzzySet {
+    capacity: usize,
+    items: BinaryHeap<FuzzyItem>,
+}
+
+impl FuzzySet {
+    pub fn with_capacity(capacity: usize) -> FuzzySet {
+        FuzzySet {
+            capacity,
+            items: BinaryHeap::with_capacity(capacity + 1),
+        }
+    }
+
+    pub fn push(&mut self, score: isize, text: String) {
+        self.items.push(FuzzyItem { score, text });
+        self.items.pop();
+    }
+}
+
+async fn update_items(
+    workspace_dir: PathBuf,
+    event_tx: UnboundedSender<Event>,
+    items: Arc<Mutex<FuzzySet>>,
+    query: String,
+) {
+    use ignore::{WalkBuilder, WalkState};
+
+    let path_resolver = tokio::spawn(async move {
+        WalkBuilder::new(workspace_dir).build_parallel().run(|| {
+            Box::new(|dirent| {
+                if let Ok(dirent) = dirent {
+                    let path = dirent.path().to_str().unwrap();
+                    if let Some(m) = sublime_fuzzy::best_match(&query, path) {
+                        items.lock().push(
+                            m.score(),
+                            sublime_fuzzy::format_simple(&m, path, "\x1b[1m\x1b[4m", "\x1b[0m"),
+                        );
+                    }
+                }
+                WalkState::Continue
+            })
+        });
+    });
+
+    tokio::join!(path_resolver);
+}
