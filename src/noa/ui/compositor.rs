@@ -206,30 +206,28 @@ fn compose_layers<'a, 'b, 'c>(
 }
 
 fn create_layers(screen_size: RectSize) -> Vec<Layer> {
+    let mut layers = Vec::with_capacity(16);
+
     if screen_size.width < 10 || screen_size.height < 5 {
         // The screen is too small.
-        let too_small_surface = TooSmallSurface::new("too small!");
-        let (layout, rect_size) = too_small_surface.layout(screen_size);
-        return vec![Layer {
-            surface: Box::new(too_small_surface),
-            visible: true,
-            active: true,
-            canvas: Canvas::new(rect_size.height, rect_size.width),
-            layout,
-            screen_x: 0,
-            screen_y: 0,
-        }];
+        push_layer(&mut layers, screen_size, TooSmallSurface::new("too small!"));
+        return layers;
     }
 
-    let buffer_surface = BufferSurface::new();
-    let (layout, rect_size) = buffer_surface.layout(screen_size);
-    vec![Layer {
-        surface: Box::new(buffer_surface),
+    push_layer(&mut layers, screen_size, BufferSurface::new());
+
+    layers
+}
+
+fn push_layer(layers: &mut Vec<Layer>, screen_size: RectSize, surface: impl Surface + 'static) {
+    let (layout, rect_size) = surface.layout(screen_size);
+    layers.push(Layer {
+        surface: Box::new(surface),
         visible: true,
         active: true,
         canvas: Canvas::new(rect_size.height, rect_size.width),
         layout,
         screen_x: 0,
         screen_y: 0,
-    }]
+    });
 }
