@@ -1,11 +1,13 @@
 use anyhow::Result;
 use crossterm::event::KeyEvent;
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::editor::Editor;
 
-use super::{Canvas, Compositor};
+use super::{Canvas, Compositor, Event};
 
 pub struct Context<'a> {
+    pub event_tx: &'a UnboundedSender<Event>,
     pub editor: &'a mut Editor,
 }
 
@@ -28,20 +30,15 @@ pub trait Surface {
     /// is hidden.
     fn cursor_position(&self) -> Option<(usize, usize)>;
     /// Renders its contents into the canvas. It may update only updated areas.
-    fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<()>;
+    fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas);
     /// Render its contents into the canvas. It must fill the whole canvas; the
     /// canvas can be the newly created one due to, for example, screen resizing.
-    fn render_all(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<()>;
-    fn handle_key_event(
-        &mut self,
-        ctx: &mut Context,
-        compositor: &mut Compositor,
-        key: KeyEvent,
-    ) -> Result<()>;
+    fn render_all(&mut self, ctx: &mut Context, canvas: &mut Canvas);
+    fn handle_key_event(&mut self, ctx: &mut Context, compositor: &mut Compositor, key: KeyEvent);
     fn handle_key_batch_event(
         &mut self,
         ctx: &mut Context,
         compositor: &mut Compositor,
         input: &str,
-    ) -> Result<()>;
+    );
 }

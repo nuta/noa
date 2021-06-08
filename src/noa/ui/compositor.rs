@@ -13,9 +13,9 @@ use super::{truncate_to_width, Canvas, Layout, RectSize};
 
 #[derive(Debug)]
 pub enum Event {
+    ReDraw,
     Key(KeyEvent),
     KeyBatch(String),
-    NoCompletion,
     Resize {
         screen_height: usize,
         screen_width: usize,
@@ -166,17 +166,11 @@ impl Compositor {
                 screen_width,
             } => {
                 self.resize_screen(ctx, screen_height, screen_width);
-                Ok(())
             }
-            _ => {
-                trace!("unhandled event: {:?}", ev);
-                Ok(())
+            Event::ReDraw => {
+                // We have to do nothing here.
             }
         };
-
-        if let Err(err) = result {
-            error!("surface returned an error: {}", err);
-        }
     }
 
     fn active_layer(&self) -> &Arc<Mutex<Layer>> {
@@ -220,15 +214,9 @@ fn compose_layers<'a, 'b, 'c>(
         trace!("rendering {} layer", layer.surface.name());
 
         if render_all {
-            warn_on_error!(
-                layer.surface.render_all(ctx, &mut layer.canvas),
-                "Surface::render_all() returned an error"
-            );
+            layer.surface.render_all(ctx, &mut layer.canvas);
         } else {
-            warn_on_error!(
-                layer.surface.render(ctx, &mut layer.canvas),
-                "Surface::render() returned an error"
-            );
+            layer.surface.render(ctx, &mut layer.canvas);
         }
 
         screen.copy_from_other(layer.screen_y, layer.screen_x, &layer.canvas);
@@ -277,13 +265,12 @@ impl Surface for TooSmallSurface {
         None
     }
 
-    fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<()> {
+    fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) {
         self.render_all(ctx, canvas)
     }
 
-    fn render_all(&mut self, _ctx: &mut Context, canvas: &mut Canvas) -> Result<()> {
+    fn render_all(&mut self, _ctx: &mut Context, canvas: &mut Canvas) {
         canvas.set_str(0, 0, truncate_to_width(&self.text, canvas.width()));
-        Ok(())
     }
 
     fn handle_key_event(
@@ -291,8 +278,7 @@ impl Surface for TooSmallSurface {
         _ctx: &mut Context,
         _compositor: &mut Compositor,
         _key: KeyEvent,
-    ) -> Result<()> {
-        Ok(())
+    ) {
     }
 
     fn handle_key_batch_event(
@@ -300,7 +286,6 @@ impl Surface for TooSmallSurface {
         _ctx: &mut Context,
         _compositor: &mut Compositor,
         _input: &str,
-    ) -> Result<()> {
-        Ok(())
+    ) {
     }
 }

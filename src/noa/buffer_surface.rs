@@ -7,8 +7,9 @@ use crossterm::{
 };
 use noa_buffer::{Cursor, Range};
 
-use crate::ui::{
-    whitespaces, Canvas, Compositor, Context, DisplayWidth, Layout, RectSize, Surface,
+use crate::{
+    finder::FinderSurface,
+    ui::{whitespaces, Canvas, Compositor, Context, DisplayWidth, Layout, RectSize, Surface},
 };
 
 pub struct BufferSurface {
@@ -37,11 +38,11 @@ impl Surface for BufferSurface {
         Some(self.cursor_position)
     }
 
-    fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<()> {
+    fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) {
         self.render_all(ctx, canvas)
     }
 
-    fn render_all(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<()> {
+    fn render_all(&mut self, ctx: &mut Context, canvas: &mut Canvas) {
         canvas.clear();
 
         let buffer = ctx.editor.current_buffer().read();
@@ -149,15 +150,9 @@ impl Surface for BufferSurface {
         // Determine the main cursor position.
         self.cursor_position =
             view.point_to_display_pos(main_cursor_pos, y_end, text_start, buffer.num_lines());
-        Ok(())
     }
 
-    fn handle_key_event(
-        &mut self,
-        ctx: &mut Context,
-        compositor: &mut Compositor,
-        key: KeyEvent,
-    ) -> Result<()> {
+    fn handle_key_event(&mut self, ctx: &mut Context, compositor: &mut Compositor, key: KeyEvent) {
         const NONE: KeyModifiers = KeyModifiers::NONE;
         const CTRL: KeyModifiers = KeyModifiers::CONTROL;
         const ALT: KeyModifiers = KeyModifiers::ALT;
@@ -175,7 +170,7 @@ impl Surface for BufferSurface {
             (KeyCode::Char('f'), CTRL) => {
                 drop(buffer);
                 drop(view);
-                // compositor.push_layer();
+                compositor.push_layer(FinderSurface::new(ctx));
             }
             (KeyCode::Backspace, NONE) => {
                 buffer.backspace();
@@ -217,8 +212,6 @@ impl Surface for BufferSurface {
                 trace!("unhandled key = {:?}", key);
             }
         }
-
-        Ok(())
     }
 
     fn handle_key_batch_event(
@@ -226,8 +219,7 @@ impl Surface for BufferSurface {
         ctx: &mut Context,
         _compositor: &mut Compositor,
         input: &str,
-    ) -> Result<()> {
+    ) {
         ctx.editor.current_buffer().write().insert(&input);
-        Ok(())
     }
 }

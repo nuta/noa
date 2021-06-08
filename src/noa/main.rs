@@ -1,6 +1,7 @@
 // FIXME:
 #![allow(unused)]
 
+use crossterm::event;
 use log::LevelFilter;
 use noa_buffer::Buffer;
 use noa_common::{dirs::log_file_path, syncd_protocol::LspRequest};
@@ -75,7 +76,7 @@ async fn main() {
     };
 
     let (event_tx, mut event_rx) = unbounded_channel();
-    let terminal = Terminal::new(event_tx);
+    let terminal = Terminal::new(event_tx.clone());
     let mut compositor = Compositor::new(terminal);
     compositor.push_layer(BufferSurface::new());
 
@@ -100,6 +101,7 @@ async fn main() {
     while !editor.exited() {
         compositor.render_to_terminal(&mut Context {
             editor: &mut editor,
+            event_tx: &event_tx,
         });
         if let Some(ev) = event_rx.recv().await {
             let started_at = Instant::now();
@@ -108,6 +110,7 @@ async fn main() {
             compositor.handle_event(
                 &mut Context {
                     editor: &mut editor,
+                    event_tx: &event_tx,
                 },
                 ev,
             );
@@ -116,6 +119,7 @@ async fn main() {
                 compositor.handle_event(
                     &mut Context {
                         editor: &mut editor,
+                        event_tx: &event_tx,
                     },
                     ev,
                 );
