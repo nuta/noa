@@ -18,6 +18,7 @@ enum Item {
 
 pub struct FinderSurface {
     query: String,
+    selected_item_index: usize,
     items: Arc<Mutex<Vec<Item>>>,
 }
 
@@ -32,6 +33,7 @@ impl FinderSurface {
         ));
         FinderSurface {
             query: String::new(),
+            selected_item_index: 0,
             items,
         }
     }
@@ -60,7 +62,16 @@ impl Surface for FinderSurface {
     }
 
     fn render_all(&mut self, ctx: &mut Context, canvas: &mut Canvas) {
-        // TODO:
+        canvas.clear();
+
+        let items = self.items.lock();
+        for (i, item) in items.iter().enumerate() {
+            let title = match item {
+                Item::File { title, path } => title,
+            };
+
+            canvas.set_str(1 + i, 0, &title);
+        }
     }
 
     fn handle_key_event(&mut self, ctx: &mut Context, compositor: &mut Compositor, key: KeyEvent) {
