@@ -2,7 +2,6 @@ mod canvas;
 mod compositor;
 mod display_width;
 mod surface;
-mod surfaces;
 
 use std::cmp::min;
 
@@ -11,7 +10,7 @@ pub use compositor::{Compositor, Event};
 pub use display_width::DisplayWidth;
 pub use surface::{Context, Layout, RectSize, Surface};
 
-fn whitespaces(n: usize) -> String {
+pub fn whitespaces(n: usize) -> String {
     " ".repeat(n)
 }
 

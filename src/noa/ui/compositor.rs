@@ -1,17 +1,15 @@
 use std::{slice, sync::Arc, time::Instant};
 
+use anyhow::Result;
 use crossterm::event::KeyEvent;
 use noa_common::{time_report::TimeReport, warn_on_error};
 use parking_lot::Mutex;
 
-use crate::ui::{
-    surfaces::{buffer::BufferSurface, too_small::TooSmallSurface},
-    Context, Surface,
-};
+use crate::ui::{Context, Surface};
 
 use crate::terminal::Terminal;
 
-use super::{Canvas, Layout, RectSize};
+use super::{truncate_to_width, Canvas, Layout, RectSize};
 
 #[derive(Debug)]
 pub enum Event {
@@ -41,10 +39,14 @@ pub struct Compositor {
     active_screen_index: usize,
     /// The last element comes foreground.
     layers: Vec<Arc<Mutex<Layer>>>,
+    layer_ctor: Box<dyn Fn(RectSize) -> Vec<Box<dyn Surface>>>,
 }
 
 impl Compositor {
-    pub fn new(terminal: Terminal) -> Compositor {
+    pub fn new<F>(terminal: Terminal, layer_ctor: F) -> Compositor
+    where
+        F: Fn(RectSize) -> Vec<Box<dyn Surface>> + 'static,
+    {
         let screen_size = RectSize {
             height: terminal.height(),
             width: terminal.width(),
@@ -55,19 +57,21 @@ impl Compositor {
             Canvas::new(screen_size.height, screen_size.width),
         ];
 
-        let layers = create_layers(screen_size);
+        let layer_ctor: Box<dyn Fn(RectSize) -> Vec<Box<dyn Surface>>> = Box::new(layer_ctor);
+        let layers = create_layers(&layer_ctor, screen_size);
 
         Compositor {
             terminal,
             layers,
             screens: screen,
             active_screen_index: 0,
+            layer_ctor,
         }
     }
 
     pub fn resize_screen(&mut self, ctx: &mut Context, height: usize, width: usize) {
         let screen_size = RectSize { height, width };
-        self.layers = create_layers(screen_size);
+        self.layers = create_layers(&self.layer_ctor, screen_size);
 
         self.screens = [Canvas::new(height, width), Canvas::new(height, width)];
         let active_screen = &mut self.screens[self.active_screen_index];
@@ -197,24 +201,32 @@ fn compose_layers<'a, 'b, 'c>(
     }
 }
 
-fn create_layers(screen_size: RectSize) -> Vec<Arc<Mutex<Layer>>> {
+fn create_layers(
+    ctor: &Box<dyn Fn(RectSize) -> Vec<Box<dyn Surface>>>,
+    screen_size: RectSize,
+) -> Vec<Arc<Mutex<Layer>>> {
     let mut layers = Vec::with_capacity(16);
 
     if screen_size.width < 10 || screen_size.height < 5 {
         // The screen is too small.
-        push_layer(&mut layers, screen_size, TooSmallSurface::new("too small!"));
+        push_layer(
+            &mut layers,
+            screen_size,
+            Box::new(TooSmallSurface::new("too small!")),
+        );
         return layers;
     }
 
-    push_layer(&mut layers, screen_size, BufferSurface::new());
-
+    for surface in ctor(screen_size) {
+        push_layer(&mut layers, screen_size, surface);
+    }
     layers
 }
 
 fn push_layer(
     layers: &mut Vec<Arc<Mutex<Layer>>>,
     screen_size: RectSize,
-    surface: impl Surface + 'static,
+    surface: Box<dyn Surface>,
 ) {
     let (layout, rect_size) = surface.layout(screen_size);
 
@@ -227,7 +239,7 @@ fn push_layer(
     };
 
     layers.push(Arc::new(Mutex::new(Layer {
-        surface: Box::new(surface),
+        surface,
         visible: true,
         active: true,
         canvas: Canvas::new(rect_size.height, rect_size.width),
@@ -235,4 +247,57 @@ fn push_layer(
         screen_x,
         screen_y,
     })));
+}
+
+struct TooSmallSurface {
+    text: String,
+}
+
+impl TooSmallSurface {
+    pub fn new(text: &str) -> TooSmallSurface {
+        TooSmallSurface {
+            text: text.to_string(),
+        }
+    }
+}
+
+impl Surface for TooSmallSurface {
+    fn name(&self) -> &str {
+        "too_small"
+    }
+
+    fn layout(&self, screen_size: RectSize) -> (Layout, RectSize) {
+        (Layout::Full, screen_size)
+    }
+
+    fn cursor_position(&self) -> Option<(usize, usize)> {
+        None
+    }
+
+    fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<()> {
+        self.render_all(ctx, canvas)
+    }
+
+    fn render_all(&mut self, _ctx: &mut Context, canvas: &mut Canvas) -> Result<()> {
+        canvas.set_str(0, 0, truncate_to_width(&self.text, canvas.width()));
+        Ok(())
+    }
+
+    fn handle_key_event(
+        &mut self,
+        _ctx: &mut Context,
+        _compositor: &mut Compositor,
+        _key: KeyEvent,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    fn handle_key_batch_event(
+        &mut self,
+        _ctx: &mut Context,
+        _compositor: &mut Compositor,
+        _input: &str,
+    ) -> Result<()> {
+        Ok(())
+    }
 }

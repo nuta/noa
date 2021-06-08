@@ -22,7 +22,10 @@ use tokio::{
     time::timeout,
 };
 
-use crate::{syncd_client::SyncdClient, terminal::Terminal, ui::Compositor, ui::Context};
+use crate::{
+    buffer_surface::BufferSurface, syncd_client::SyncdClient, terminal::Terminal, ui::Compositor,
+    ui::Context,
+};
 
 #[macro_use]
 extern crate log;
@@ -31,6 +34,7 @@ extern crate log;
 #[macro_use]
 extern crate pretty_assertions;
 
+mod buffer_surface;
 mod editor;
 mod finder;
 mod syncd_client;
@@ -71,7 +75,10 @@ async fn main() {
     };
 
     let (event_tx, mut event_rx) = unbounded_channel();
-    let mut compositor = Compositor::new(Terminal::new(event_tx));
+    let terminal = Terminal::new(event_tx);
+    let mut compositor =
+        Compositor::new(terminal, |screen_size| vec![Box::new(BufferSurface::new())]);
+
     let mut editor = editor::Editor::new(workspace_dir);
     for file in opt.files.iter() {
         if !file.is_file() {
