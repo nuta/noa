@@ -111,8 +111,8 @@ impl Canvas {
         bg: Color,
         attrs: Attributes,
     ) {
-        for ch in string.chars() {
-            self.set_char_with_attrs(y, x, ch, fg, bg, attrs);
+        for (i, ch) in string.chars().enumerate() {
+            self.set_char_with_attrs(y, x + i, ch, fg, bg, attrs);
         }
     }
 

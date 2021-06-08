@@ -19,7 +19,7 @@ use crate::{
 };
 
 enum Item {
-    File { title: String, path: PathBuf },
+    File(PathBuf),
 }
 
 pub struct FinderSurface {
@@ -72,9 +72,10 @@ impl Surface for FinderSurface {
         canvas.clear();
 
         let items = self.items.lock();
+        trace!("text={}, {}", self.query.text(), items.len());
         for (i, item) in items.iter().enumerate() {
             let title = match item {
-                Item::File { title, path } => title,
+                Item::File(path) => path.to_str().unwrap(),
             };
 
             canvas.set_str(1 + i, 0, &title);
@@ -97,6 +98,7 @@ impl Surface for FinderSurface {
                 true
             }
             (NONE, KeyCode::Esc) => {
+                trace!("removing layers");
                 compositor.remove_layers(|layer| layer.surface.name() == "finder");
                 return;
             }
@@ -106,6 +108,7 @@ impl Surface for FinderSurface {
             }
             (NONE, KeyCode::Enter) => false,
             _ => {
+                trace!("finder: unhandled key event: {:?}", key);
                 return;
             }
         };
@@ -168,7 +171,9 @@ impl<T> FuzzySet<T> {
 
     pub fn push(&mut self, score: isize, value: T) {
         self.items.push(FuzzyItem { score, value });
-        self.items.pop();
+        if self.items.len() > self.capacity {
+            self.items.pop();
+        }
     }
 
     pub fn into_iter(self) -> binary_heap::IntoIter<FuzzyItem<T>> {
@@ -192,15 +197,9 @@ async fn update_items(
                 if let Ok(dirent) = dirent {
                     let path = dirent.path().to_str().unwrap();
                     if let Some(m) = sublime_fuzzy::best_match(&query, path) {
-                        let title =
-                            sublime_fuzzy::format_simple(&m, path, "\x1b[1m\x1b[4m", "\x1b[0m");
-                        results.lock().push(
-                            m.score(),
-                            Item::File {
-                                title,
-                                path: dirent.path().to_owned(),
-                            },
-                        );
+                        results
+                            .lock()
+                            .push(m.score(), Item::File(dirent.path().to_owned()));
                     }
                 }
                 WalkState::Continue
@@ -218,4 +217,6 @@ async fn update_items(
             items.push(item.value);
         }
     }
+
+    event_tx.send(Event::ReDraw);
 }
