@@ -61,8 +61,7 @@ impl Surface for FinderSurface {
     }
 
     fn cursor_position(&self) -> Option<(usize, usize)> {
-        // TODO:
-        None
+        Some((0, self.query.cursor()))
     }
 
     fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) {
@@ -82,14 +81,8 @@ impl Surface for FinderSurface {
         }
 
         canvas.set_str(0, 0, &self.query.text());
-        canvas.fill_bg(0, 0, canvas.height(), canvas.width(), Color::DarkYellow);
-        canvas.fill_bg(
-            1,
-            0,
-            canvas.height() - 1,
-            canvas.width(),
-            Color::DarkMagenta,
-        );
+        canvas.fill_bg(0, 0, 1, canvas.width(), Color::DarkYellow);
+        canvas.fill_bg(1, 0, canvas.height(), canvas.width(), Color::DarkMagenta);
     }
 
     fn handle_key_event(&mut self, ctx: &mut Context, compositor: &mut Compositor, key: KeyEvent) {

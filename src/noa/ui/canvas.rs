@@ -153,8 +153,8 @@ impl Canvas {
     {
         debug_assert!(y <= y_end);
         debug_assert!(x <= x_end);
-        debug_assert!(y_end < self.height);
-        debug_assert!(x_end < self.width);
+        debug_assert!(y_end <= self.height);
+        debug_assert!(x_end <= self.width);
 
         for y in y..y_end {
             for x in x..x_end {
