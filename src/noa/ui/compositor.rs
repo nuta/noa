@@ -217,7 +217,8 @@ fn compose_layers<'a, 'b, 'c>(
             _ => continue,
         }
 
-        info!("rendering {}", layer.surface.name());
+        trace!("rendering {} layer", layer.surface.name());
+
         if render_all {
             warn_on_error!(
                 layer.surface.render_all(ctx, &mut layer.canvas),

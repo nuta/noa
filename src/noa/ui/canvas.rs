@@ -153,10 +153,6 @@ impl Canvas {
     }
 
     pub fn copy_from_other(&mut self, y: usize, x: usize, other: &Canvas) {
-        info!("y={}", y);
-        info!("x={}", x);
-        info!("other.height={}", other.height);
-        info!("other.width={}", other.width);
         debug_assert!(y < self.height);
         debug_assert!(x < self.width);
         debug_assert!(y + other.height <= self.height);
