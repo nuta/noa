@@ -61,7 +61,7 @@ impl Surface for FinderSurface {
     }
 
     fn cursor_position(&self) -> Option<(usize, usize)> {
-        Some((0, self.query.cursor()))
+        Some((1, 1 + self.query.cursor()))
     }
 
     fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) {
@@ -77,11 +77,11 @@ impl Surface for FinderSurface {
                 Item::File(path) => path.to_str().unwrap(),
             };
 
-            canvas.draw_str(1 + i, 1, &title);
+            canvas.draw_str(2 + i, 1, &title);
         }
 
         canvas.draw_str(1, 1, &self.query.text());
-        canvas.draw_borders(0, 0, canvas.height(), canvas.width());
+        canvas.draw_borders(0, 0, canvas.height() - 1, canvas.width() - 1);
     }
 
     fn handle_key_event(&mut self, ctx: &mut Context, compositor: &mut Compositor, key: KeyEvent) {

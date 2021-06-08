@@ -167,27 +167,32 @@ impl Canvas {
         }
     }
 
-    pub fn draw_borders(&mut self, y: usize, x: usize, y_end: usize, x_end: usize) {
-        debug_assert!(y <= y_end);
-        debug_assert!(x <= x_end);
-        debug_assert!(y_end <= self.height);
-        debug_assert!(x_end <= self.width);
+    pub fn draw_borders(&mut self, y_top: usize, x_left: usize, y_bottom: usize, x_right: usize) {
+        debug_assert!(y_top < y_bottom);
+        debug_assert!(x_left < y_bottom);
+        debug_assert!(y_bottom < self.height);
+        debug_assert!(x_right < self.width);
 
-        self.graphs[y * self.width + x] = Grapheme::new("\u{250d}" /* top_left */);
-        self.graphs[y * self.width + x_end] = Grapheme::new("\u{2511}" /* top_right */);
-        self.graphs[y_end * self.width + x] = Grapheme::new("\u{2515}" /* bottom_left */);
-        self.graphs[y_end * self.width + x_end] = Grapheme::new("\u{2519}" /* bottom_right */);
-
-        for y in y..y_end {
-            self.graphs[y * self.width + x] = Grapheme::new("\u{2502}" /* vertical bar */);
-            self.graphs[y * self.width + x_end] = Grapheme::new("\u{2502}" /* vertical bar */);
+        for y in y_top..y_bottom {
+            self.graphs[y * self.width + x_left] =
+                Grapheme::new("\u{2502}" /* vertical bar */);
+            self.graphs[y * self.width + x_right] =
+                Grapheme::new("\u{2502}" /* vertical bar */);
         }
 
-        for x in x..x_end {
-            self.graphs[y * self.width + x] = Grapheme::new("\u{2500}" /* horizontal bar */);
-            self.graphs[y_end * self.width + x] =
+        for x in x_left..x_right {
+            self.graphs[y_top * self.width + x] =
+                Grapheme::new("\u{2500}" /* horizontal bar */);
+            self.graphs[y_bottom * self.width + x] =
                 Grapheme::new("\u{2500}" /* horizontal bar */);
         }
+
+        self.graphs[y_top * self.width + x_left] = Grapheme::new("\u{250d}" /* top_left */);
+        self.graphs[y_top * self.width + x_right] = Grapheme::new("\u{2511}" /* top_right */);
+        self.graphs[y_bottom * self.width + x_left] =
+            Grapheme::new("\u{2515}" /* bottom_left */);
+        self.graphs[y_bottom * self.width + x_right] =
+            Grapheme::new("\u{2519}" /* bottom_right */);
     }
 
     pub fn copy_from_other(&mut self, y: usize, x: usize, other: &Canvas) {
