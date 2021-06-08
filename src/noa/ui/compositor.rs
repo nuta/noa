@@ -84,12 +84,8 @@ impl Compositor {
         })));
     }
 
-    pub fn remove_layers<F>(&mut self, remove_if_true: F)
-    where
-        F: Fn(&Layer) -> bool,
-    {
-        self.layers
-            .retain(|layer_lock| remove_if_true(&*layer_lock.lock()));
+    pub fn pop_layer(&mut self) {
+        self.layers.pop();
     }
 
     pub fn resize_screen(&mut self, ctx: &mut Context, height: usize, width: usize) {
@@ -156,7 +152,7 @@ impl Compositor {
     }
 
     pub fn handle_event(&mut self, ctx: &mut Context, ev: Event) {
-        let result = match ev {
+        match ev {
             Event::Key(key) => self
                 .active_layer()
                 .clone()
@@ -178,7 +174,7 @@ impl Compositor {
             Event::ReDraw => {
                 // We have to do nothing here.
             }
-        };
+        }
     }
 
     fn active_layer(&self) -> &Arc<Mutex<Layer>> {

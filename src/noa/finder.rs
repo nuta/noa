@@ -98,8 +98,7 @@ impl Surface for FinderSurface {
                 true
             }
             (NONE, KeyCode::Esc) => {
-                trace!("removing layers");
-                compositor.remove_layers(|layer| layer.surface.name() == "finder");
+                compositor.pop_layer();
                 return;
             }
             (NONE, KeyCode::Backspace) => {
