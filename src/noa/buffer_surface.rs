@@ -110,7 +110,7 @@ impl Surface for BufferSurface {
                         text_start,
                         buffer.num_lines(),
                     );
-                    canvas.add_attrs(y, x, y, x + 1, (&[Attribute::Reverse][..]).into());
+                    canvas.fill_attrs(y, x, y, x + 1, (&[Attribute::Reverse][..]).into());
                 }
                 Cursor::Selection(range) => {
                     let (start_y, start_x) = view.point_to_display_pos(
@@ -134,7 +134,7 @@ impl Surface for BufferSurface {
                             } else {
                                 text_start + lines_end_xs[y] + 1
                             };
-                            canvas.add_attrs(
+                            canvas.fill_attrs(
                                 y,
                                 min(x0, x1),
                                 y + 1,

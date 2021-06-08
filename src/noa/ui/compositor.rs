@@ -23,13 +23,13 @@ pub enum Event {
 }
 
 pub struct Layer {
-    surface: Box<dyn Surface>,
+    pub surface: Box<dyn Surface>,
     /// If it's `false`, the surface won't receive key events.
-    active: bool,
-    visible: bool,
-    canvas: Canvas,
-    screen_y: usize,
-    screen_x: usize,
+    pub active: bool,
+    pub visible: bool,
+    pub canvas: Canvas,
+    pub screen_y: usize,
+    pub screen_x: usize,
 }
 
 pub struct Compositor {
@@ -82,6 +82,14 @@ impl Compositor {
             screen_x,
             screen_y,
         })));
+    }
+
+    pub fn remove_layers<F>(&mut self, remove_if_true: F)
+    where
+        F: Fn(&Layer) -> bool,
+    {
+        self.layers
+            .retain(|layer_lock| remove_if_true(&*layer_lock.lock()));
     }
 
     pub fn resize_screen(&mut self, ctx: &mut Context, height: usize, width: usize) {

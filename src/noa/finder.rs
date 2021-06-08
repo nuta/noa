@@ -6,18 +6,24 @@ use std::{
 };
 
 use anyhow::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::{
+    event::{KeyCode, KeyEvent, KeyModifiers},
+    style::Color,
+};
 use parking_lot::Mutex;
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::ui::{Canvas, Compositor, Context, Event, Layout, RectSize, Surface};
+use crate::{
+    line_edit::LineEdit,
+    ui::{Canvas, Compositor, Context, Event, Layout, RectSize, Surface},
+};
 
 enum Item {
     File { title: String, path: PathBuf },
 }
 
 pub struct FinderSurface {
-    query: String,
+    query: LineEdit,
     selected_item_index: usize,
     items: Arc<Mutex<Vec<Item>>>,
 }
@@ -25,14 +31,16 @@ pub struct FinderSurface {
 impl FinderSurface {
     pub fn new(ctx: &mut Context) -> FinderSurface {
         let items = Arc::new(Mutex::new(Vec::with_capacity(128)));
+
         tokio::spawn(update_items(
             ctx.editor.workspace_dir().to_owned(),
             ctx.event_tx.clone(),
             items.clone(),
             "".to_owned(),
         ));
+
         FinderSurface {
-            query: String::new(),
+            query: LineEdit::new(),
             selected_item_index: 0,
             items,
         }
@@ -72,6 +80,16 @@ impl Surface for FinderSurface {
 
             canvas.set_str(1 + i, 0, &title);
         }
+
+        canvas.set_str(0, 0, &self.query.text());
+        canvas.fill_bg(0, 0, canvas.height(), canvas.width(), Color::DarkYellow);
+        canvas.fill_bg(
+            1,
+            0,
+            canvas.height() - 1,
+            canvas.width(),
+            Color::DarkMagenta,
+        );
     }
 
     fn handle_key_event(&mut self, ctx: &mut Context, compositor: &mut Compositor, key: KeyEvent) {
@@ -81,6 +99,18 @@ impl Surface for FinderSurface {
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
         let updated = match (key.modifiers, key.code) {
+            (NONE, KeyCode::Char(ch)) => {
+                self.query.insert_char(ch);
+                true
+            }
+            (NONE, KeyCode::Esc) => {
+                compositor.remove_layers(|layer| layer.surface.name() == "finder");
+                return;
+            }
+            (NONE, KeyCode::Backspace) => {
+                self.query.backspace();
+                true
+            }
             (NONE, KeyCode::Enter) => false,
             _ => {
                 return;
@@ -91,7 +121,7 @@ impl Surface for FinderSurface {
             ctx.editor.workspace_dir().to_owned(),
             ctx.event_tx.clone(),
             self.items.clone(),
-            self.query.clone(),
+            self.query.text(),
         ));
     }
 

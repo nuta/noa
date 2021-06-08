@@ -132,7 +132,18 @@ impl Canvas {
         self.update_range(y, x, y_end, x_end, |graph| graph.bg = bg);
     }
 
-    pub fn add_attrs(&mut self, y: usize, x: usize, y_end: usize, x_end: usize, attrs: Attributes) {
+    pub fn fill_bg(&mut self, y: usize, x: usize, y_end: usize, x_end: usize, bg: Color) {
+        self.update_range(y, x, y_end, x_end, |graph| graph.bg = bg);
+    }
+
+    pub fn fill_attrs(
+        &mut self,
+        y: usize,
+        x: usize,
+        y_end: usize,
+        x_end: usize,
+        attrs: Attributes,
+    ) {
         self.update_range(y, x, y_end, x_end, |graph| graph.attrs.extend(attrs));
     }
 
