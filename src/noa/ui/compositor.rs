@@ -10,7 +10,7 @@ use crate::ui::{
 
 use crate::terminal::Terminal;
 
-use super::Canvas;
+use super::{Canvas, Layout, RectSize};
 
 #[derive(Debug)]
 pub enum Event {
@@ -29,6 +29,7 @@ pub struct Layer {
     active: bool,
     visible: bool,
     canvas: Canvas,
+    layout: Layout,
     screen_y: usize,
     screen_x: usize,
 }
@@ -43,12 +44,17 @@ pub struct Compositor {
 
 impl Compositor {
     pub fn new(terminal: Terminal) -> Compositor {
+        let screen_size = RectSize {
+            height: terminal.height(),
+            width: terminal.width(),
+        };
+
         let screen = [
-            Canvas::new(terminal.height(), terminal.width()),
-            Canvas::new(terminal.height(), terminal.width()),
+            Canvas::new(screen_size.height, screen_size.width),
+            Canvas::new(screen_size.height, screen_size.width),
         ];
 
-        let layers = create_layers(terminal.height(), terminal.width());
+        let layers = create_layers(screen_size);
 
         Compositor {
             terminal,
@@ -59,7 +65,8 @@ impl Compositor {
     }
 
     pub fn resize_screen(&mut self, ctx: &mut Context, height: usize, width: usize) {
-        self.layers = create_layers(height, width);
+        let screen_size = RectSize { height, width };
+        self.layers = create_layers(screen_size);
 
         self.screens = [Canvas::new(height, width), Canvas::new(height, width)];
         let active_screen = &mut self.screens[self.active_screen_index];
@@ -198,26 +205,30 @@ fn compose_layers<'a, 'b, 'c>(
     }
 }
 
-fn create_layers(screen_height: usize, screen_width: usize) -> Vec<Layer> {
-    if screen_width < 10 || screen_height < 5 {
+fn create_layers(screen_size: RectSize) -> Vec<Layer> {
+    if screen_size.width < 10 || screen_size.height < 5 {
         // The screen is too small.
+        let too_small_surface = TooSmallSurface::new("too small!");
+        let (layout, rect_size) = too_small_surface.layout(screen_size);
         return vec![Layer {
-            surface: Box::new(TooSmallSurface::new("too small!")),
+            surface: Box::new(too_small_surface),
             visible: true,
             active: true,
-            canvas: Canvas::new(screen_height, screen_width),
+            canvas: Canvas::new(rect_size.height, rect_size.width),
+            layout,
             screen_x: 0,
             screen_y: 0,
         }];
     }
 
-    let buffer_height = screen_height - 2;
-    let buffer_width = screen_width;
+    let buffer_surface = BufferSurface::new();
+    let (layout, rect_size) = buffer_surface.layout(screen_size);
     vec![Layer {
-        surface: Box::new(BufferSurface::new()),
+        surface: Box::new(buffer_surface),
         visible: true,
         active: true,
-        canvas: Canvas::new(buffer_height, buffer_width),
+        canvas: Canvas::new(rect_size.height, rect_size.width),
+        layout,
         screen_x: 0,
         screen_y: 0,
     }]

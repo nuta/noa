@@ -17,8 +17,8 @@ pub enum Layout {
 
 #[derive(Clone, Copy, Debug)]
 pub struct RectSize {
-    height: usize,
-    width: usize,
+    pub height: usize,
+    pub width: usize,
 }
 
 pub trait Surface {
