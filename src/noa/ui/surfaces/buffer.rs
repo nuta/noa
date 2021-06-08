@@ -7,7 +7,9 @@ use crossterm::{
 };
 use noa_buffer::{Cursor, Range};
 
-use crate::ui::{whitespaces, Canvas, Context, DisplayWidth, Layout, RectSize, Surface};
+use crate::ui::{
+    whitespaces, Canvas, Compositor, Context, DisplayWidth, Layout, RectSize, Surface,
+};
 
 pub struct BufferSurface {
     // `(y, x)`.
@@ -150,7 +152,12 @@ impl Surface for BufferSurface {
         Ok(())
     }
 
-    fn handle_key_event(&mut self, ctx: &mut Context, key: KeyEvent) -> Result<()> {
+    fn handle_key_event(
+        &mut self,
+        ctx: &mut Context,
+        compositor: &mut Compositor,
+        key: KeyEvent,
+    ) -> Result<()> {
         const NONE: KeyModifiers = KeyModifiers::NONE;
         const CTRL: KeyModifiers = KeyModifiers::CONTROL;
         const ALT: KeyModifiers = KeyModifiers::ALT;
@@ -164,6 +171,11 @@ impl Surface for BufferSurface {
                 drop(buffer);
                 drop(view);
                 ctx.editor.exit_editor();
+            }
+            (KeyCode::Char('f'), CTRL) => {
+                drop(buffer);
+                drop(view);
+                // ctx.editor.exit_editor();
             }
             (KeyCode::Backspace, NONE) => {
                 buffer.backspace();

@@ -1,4 +1,4 @@
-use crate::ui::{truncate_to_width, Canvas, Context, Layout, RectSize, Surface};
+use crate::ui::{truncate_to_width, Canvas, Compositor, Context, Layout, RectSize, Surface};
 use anyhow::Result;
 use crossterm::event::KeyEvent;
 
@@ -36,7 +36,12 @@ impl Surface for TooSmallSurface {
         Ok(())
     }
 
-    fn handle_key_event(&mut self, _ctx: &mut Context, _key: KeyEvent) -> Result<()> {
+    fn handle_key_event(
+        &mut self,
+        _ctx: &mut Context,
+        _compositor: &mut Compositor,
+        _key: KeyEvent,
+    ) -> Result<()> {
         Ok(())
     }
 

@@ -1,7 +1,9 @@
+use std::cmp::max;
+
 use anyhow::Result;
 use crossterm::event::KeyEvent;
 
-use crate::ui::{Canvas, Context, Layout, RectSize, Surface};
+use crate::ui::{Canvas, Compositor, Context, Layout, RectSize, Surface};
 
 pub struct Finder {}
 
@@ -11,7 +13,11 @@ impl Surface for Finder {
     }
 
     fn layout(&self, screen_size: RectSize) -> (Layout, RectSize) {
-        (Layout::Center, screen_size)
+        let rect_size = RectSize {
+            width: max(screen_size.width, 32),
+            height: max(screen_size.height, 8),
+        };
+        (Layout::Center, rect_size)
     }
 
     fn cursor_position(&self) -> Option<(usize, usize)> {
@@ -28,7 +34,12 @@ impl Surface for Finder {
         Ok(())
     }
 
-    fn handle_key_event(&mut self, ctx: &mut Context, key: KeyEvent) -> Result<()> {
+    fn handle_key_event(
+        &mut self,
+        ctx: &mut Context,
+        compositor: &mut Compositor,
+        key: KeyEvent,
+    ) -> Result<()> {
         // TODO:
         Ok(())
     }

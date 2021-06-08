@@ -3,7 +3,7 @@ use crossterm::event::KeyEvent;
 
 use crate::editor::Editor;
 
-use super::Canvas;
+use super::{Canvas, Compositor};
 
 pub struct Context<'a> {
     pub editor: &'a mut Editor,
@@ -32,6 +32,11 @@ pub trait Surface {
     /// Render its contents into the canvas. It must fill the whole canvas; the
     /// canvas can be the newly created one due to, for example, screen resizing.
     fn render_all(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<()>;
-    fn handle_key_event(&mut self, ctx: &mut Context, key: KeyEvent) -> Result<()>;
+    fn handle_key_event(
+        &mut self,
+        ctx: &mut Context,
+        compositor: &mut Compositor,
+        key: KeyEvent,
+    ) -> Result<()>;
     fn handle_key_batch_event(&mut self, ctx: &mut Context, input: &str) -> Result<()>;
 }

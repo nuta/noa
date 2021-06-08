@@ -1,7 +1,8 @@
-use std::{slice, time::Instant};
+use std::{slice, sync::Arc, time::Instant};
 
 use crossterm::event::KeyEvent;
 use noa_common::{time_report::TimeReport, warn_on_error};
+use parking_lot::Mutex;
 
 use crate::ui::{
     surfaces::{buffer::BufferSurface, too_small::TooSmallSurface},
@@ -39,7 +40,7 @@ pub struct Compositor {
     screens: [Canvas; 2],
     active_screen_index: usize,
     /// The last element comes foreground.
-    layers: Vec<Layer>,
+    layers: Vec<Arc<Mutex<Layer>>>,
 }
 
 impl Compositor {
@@ -70,7 +71,7 @@ impl Compositor {
 
         self.screens = [Canvas::new(height, width), Canvas::new(height, width)];
         let active_screen = &mut self.screens[self.active_screen_index];
-        compose_layers(ctx, active_screen, self.layers.iter_mut(), true);
+        compose_layers(ctx, active_screen, self.layers.iter(), true);
     }
 
     pub fn render_to_terminal(&mut self, ctx: &mut Context) {
@@ -83,17 +84,19 @@ impl Compositor {
         compose_layers(
             ctx,
             &mut self.screens[screen_index],
-            self.layers.iter_mut(),
+            self.layers.iter(),
             false,
         );
         compose_layers_time.report();
 
         // Get the cursor position.
-        let active_layer = self.active_layer();
-        let cursor = active_layer
-            .surface
-            .cursor_position()
-            .map(|(y, x)| (active_layer.screen_y + y, active_layer.screen_x + x));
+        let cursor = {
+            let active_layer = self.active_layer().lock();
+            active_layer
+                .surface
+                .cursor_position()
+                .map(|(y, x)| (active_layer.screen_y + y, active_layer.screen_x + x))
+        };
 
         // Compute diffs.
         let compute_draw_updates_time = TimeReport::new("compute_draw_updates");
@@ -119,9 +122,16 @@ impl Compositor {
 
     pub fn handle_event(&mut self, ctx: &mut Context, ev: Event) {
         let result = match ev {
-            Event::Key(key) => self.active_layer_mut().surface.handle_key_event(ctx, key),
+            Event::Key(key) => self
+                .active_layer()
+                .clone()
+                .lock()
+                .surface
+                .handle_key_event(ctx, self, key),
             Event::KeyBatch(input) => self
-                .active_layer_mut()
+                .active_layer()
+                .clone()
+                .lock()
                 .surface
                 .handle_key_batch_event(ctx, &input),
             Event::Resize {
@@ -142,32 +152,11 @@ impl Compositor {
         }
     }
 
-    pub fn _layer(&self, name: &str) -> Option<&Layer> {
-        self.layers
-            .iter()
-            .find(|layer| layer.surface.name() == name)
-    }
-
-    pub fn _layer_mut(&mut self, name: &str) -> Option<&mut Layer> {
-        self.layers
-            .iter_mut()
-            .find(|layer| layer.surface.name() == name)
-    }
-
-    pub fn active_layer(&self) -> &Layer {
-        for layer in self.layers.iter().rev() {
+    pub fn active_layer(&self) -> &Arc<Mutex<Layer>> {
+        for layer_lock in self.layers.iter().rev() {
+            let layer = layer_lock.lock();
             if layer.active {
-                return layer;
-            }
-        }
-
-        unreachable!("at least buffer or too_small surface is always active");
-    }
-
-    pub fn active_layer_mut(&mut self) -> &mut Layer {
-        for layer in self.layers.iter_mut().rev() {
-            if layer.active {
-                return layer;
+                return layer_lock;
             }
         }
 
@@ -179,12 +168,15 @@ impl Compositor {
 fn compose_layers<'a, 'b, 'c>(
     ctx: &'a mut Context,
     screen: &'b mut Canvas,
-    layers: slice::IterMut<'c, Layer>,
+    layers: slice::Iter<'c, Arc<Mutex<Layer>>>,
     render_all: bool,
 ) {
     screen.clear();
 
     for layer in layers {
+        let mut layer = layer.lock();
+        let layer = &mut *layer;
+
         if !layer.visible {
             continue;
         }
@@ -205,7 +197,7 @@ fn compose_layers<'a, 'b, 'c>(
     }
 }
 
-fn create_layers(screen_size: RectSize) -> Vec<Layer> {
+fn create_layers(screen_size: RectSize) -> Vec<Arc<Mutex<Layer>>> {
     let mut layers = Vec::with_capacity(16);
 
     if screen_size.width < 10 || screen_size.height < 5 {
@@ -219,15 +211,28 @@ fn create_layers(screen_size: RectSize) -> Vec<Layer> {
     layers
 }
 
-fn push_layer(layers: &mut Vec<Layer>, screen_size: RectSize, surface: impl Surface + 'static) {
+fn push_layer(
+    layers: &mut Vec<Arc<Mutex<Layer>>>,
+    screen_size: RectSize,
+    surface: impl Surface + 'static,
+) {
     let (layout, rect_size) = surface.layout(screen_size);
-    layers.push(Layer {
+
+    let (screen_y, screen_x) = match layout {
+        Layout::Center => (
+            (screen_size.height / 2).saturating_sub(rect_size.height / 2),
+            (screen_size.width / 2).saturating_sub(rect_size.width / 2),
+        ),
+        Layout::Full => (0, 0),
+    };
+
+    layers.push(Arc::new(Mutex::new(Layer {
         surface: Box::new(surface),
         visible: true,
         active: true,
         canvas: Canvas::new(rect_size.height, rect_size.width),
         layout,
-        screen_x: 0,
-        screen_y: 0,
-    });
+        screen_x,
+        screen_y,
+    })));
 }
