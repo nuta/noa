@@ -23,13 +23,17 @@ pub struct Grapheme {
 }
 
 impl Grapheme {
-    pub fn blank() -> Grapheme {
+    pub fn new(grapheme: &str) -> Grapheme {
         Grapheme {
-            grapheme: ArrayString::from(" ").unwrap(),
+            grapheme: ArrayString::from(grapheme).unwrap(),
             fg: Color::Reset,
             bg: Color::Reset,
             attrs: Default::default(),
         }
+    }
+
+    pub fn blank() -> Grapheme {
+        Grapheme::new(" ")
     }
 }
 
@@ -116,11 +120,11 @@ impl Canvas {
         }
     }
 
-    pub fn set_char(&mut self, y: usize, x: usize, ch: char) {
+    pub fn draw_char(&mut self, y: usize, x: usize, ch: char) {
         self.set_char_with_attrs(y, x, ch, Color::Reset, Color::Reset, Default::default());
     }
 
-    pub fn set_str(&mut self, y: usize, x: usize, string: &str) {
+    pub fn draw_str(&mut self, y: usize, x: usize, string: &str) {
         self.set_str_with_attrs(y, x, string, Color::Reset, Color::Reset, Default::default());
     }
 
@@ -160,6 +164,29 @@ impl Canvas {
             for x in x..x_end {
                 f(&mut self.graphs[y * self.width + x]);
             }
+        }
+    }
+
+    pub fn draw_borders(&mut self, y: usize, x: usize, y_end: usize, x_end: usize) {
+        debug_assert!(y <= y_end);
+        debug_assert!(x <= x_end);
+        debug_assert!(y_end <= self.height);
+        debug_assert!(x_end <= self.width);
+
+        self.graphs[y * self.width + x] = Grapheme::new("\u{250d}" /* top_left */);
+        self.graphs[y * self.width + x_end] = Grapheme::new("\u{2511}" /* top_right */);
+        self.graphs[y_end * self.width + x] = Grapheme::new("\u{2515}" /* bottom_left */);
+        self.graphs[y_end * self.width + x_end] = Grapheme::new("\u{2519}" /* bottom_right */);
+
+        for y in y..y_end {
+            self.graphs[y * self.width + x] = Grapheme::new("\u{2502}" /* vertical bar */);
+            self.graphs[y * self.width + x_end] = Grapheme::new("\u{2502}" /* vertical bar */);
+        }
+
+        for x in x..x_end {
+            self.graphs[y * self.width + x] = Grapheme::new("\u{2500}" /* horizontal bar */);
+            self.graphs[y_end * self.width + x] =
+                Grapheme::new("\u{2500}" /* horizontal bar */);
         }
     }
 

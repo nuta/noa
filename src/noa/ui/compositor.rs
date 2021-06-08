@@ -274,7 +274,7 @@ impl Surface for TooSmallSurface {
     }
 
     fn render_all(&mut self, _ctx: &mut Context, canvas: &mut Canvas) {
-        canvas.set_str(0, 0, truncate_to_width(&self.text, canvas.width()));
+        canvas.draw_str(0, 0, truncate_to_width(&self.text, canvas.width()));
     }
 
     fn handle_key_event(

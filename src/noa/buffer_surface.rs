@@ -60,9 +60,9 @@ impl Surface for BufferSurface {
             let lineno = display_line.range.front().y + 1;
             let lineno_width = lineno.display_width();
             let pad_len = max_lineno_width - lineno_width;
-            canvas.set_str(y, 0, &whitespaces(pad_len));
-            canvas.set_str(y, pad_len, &lineno.to_string());
-            canvas.set_char(
+            canvas.draw_str(y, 0, &whitespaces(pad_len));
+            canvas.draw_str(y, pad_len, &lineno.to_string());
+            canvas.draw_char(
                 y,
                 max_lineno_width,
                 '\u{2502}', /* "Box Drawing Light Veritical" */
@@ -75,13 +75,13 @@ impl Surface for BufferSurface {
                 let chunk_str = rope_line.slice(chunk.clone());
                 for s in chunk_str.chunks() {
                     for ch in s.chars() {
-                        canvas.set_char(y, text_start + x, ch);
+                        canvas.draw_char(y, text_start + x, ch);
                         x += 1;
                     }
                 }
             }
 
-            canvas.set_str(
+            canvas.draw_str(
                 y,
                 text_start + x,
                 &whitespaces(canvas.width() - (text_start + x)),
@@ -93,7 +93,7 @@ impl Surface for BufferSurface {
 
         // Clear the remaining out of the buffer area.
         for y in y_end..canvas.height() {
-            canvas.set_str(y, 0, &whitespaces(canvas.width()));
+            canvas.draw_str(y, 0, &whitespaces(canvas.width()));
         }
 
         // Draw cursors / selections.

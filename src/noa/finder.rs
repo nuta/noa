@@ -72,18 +72,16 @@ impl Surface for FinderSurface {
         canvas.clear();
 
         let items = self.items.lock();
-        trace!("text={}, {}", self.query.text(), items.len());
         for (i, item) in items.iter().enumerate() {
             let title = match item {
                 Item::File(path) => path.to_str().unwrap(),
             };
 
-            canvas.set_str(1 + i, 0, &title);
+            canvas.draw_str(1 + i, 1, &title);
         }
 
-        canvas.set_str(0, 0, &self.query.text());
-        canvas.fill_bg(0, 0, 1, canvas.width(), Color::DarkYellow);
-        canvas.fill_bg(1, 0, canvas.height(), canvas.width(), Color::DarkMagenta);
+        canvas.draw_str(1, 1, &self.query.text());
+        canvas.draw_borders(0, 0, canvas.height(), canvas.width());
     }
 
     fn handle_key_event(&mut self, ctx: &mut Context, compositor: &mut Compositor, key: KeyEvent) {
