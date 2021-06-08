@@ -28,7 +28,6 @@ pub struct Layer {
     active: bool,
     visible: bool,
     canvas: Canvas,
-    layout: Layout,
     screen_y: usize,
     screen_x: usize,
 }
@@ -36,17 +35,14 @@ pub struct Layer {
 pub struct Compositor {
     terminal: Terminal,
     screens: [Canvas; 2],
+    screen_size: RectSize,
     active_screen_index: usize,
     /// The last element comes foreground.
     layers: Vec<Arc<Mutex<Layer>>>,
-    layer_ctor: Box<dyn Fn(RectSize) -> Vec<Box<dyn Surface>>>,
 }
 
 impl Compositor {
-    pub fn new<F>(terminal: Terminal, layer_ctor: F) -> Compositor
-    where
-        F: Fn(RectSize) -> Vec<Box<dyn Surface>> + 'static,
-    {
+    pub fn new(terminal: Terminal) -> Compositor {
         let screen_size = RectSize {
             height: terminal.height(),
             width: terminal.width(),
@@ -57,21 +53,48 @@ impl Compositor {
             Canvas::new(screen_size.height, screen_size.width),
         ];
 
-        let layer_ctor: Box<dyn Fn(RectSize) -> Vec<Box<dyn Surface>>> = Box::new(layer_ctor);
-        let layers = create_layers(&layer_ctor, screen_size);
+        let mut layers = Vec::with_capacity(16);
+        layers.push(Arc::new(Mutex::new(Layer {
+            surface: Box::new(TooSmallSurface::new("too small!")),
+            active: true,
+            visible: true,
+            canvas: Canvas::new(screen_size.height, screen_size.width),
+            screen_y: screen_size.height,
+            screen_x: screen_size.width,
+        })));
 
         Compositor {
             terminal,
             layers,
             screens: screen,
             active_screen_index: 0,
-            layer_ctor,
+            screen_size,
         }
+    }
+
+    pub fn push_layer(&mut self, surface: impl Surface + 'static) {
+        let ((screen_y, screen_x), rect_size) = relayout_layers(self.screen_size, &surface);
+        self.layers.push(Arc::new(Mutex::new(Layer {
+            surface: Box::new(surface),
+            visible: true,
+            active: true,
+            canvas: Canvas::new(rect_size.height, rect_size.width),
+            screen_x,
+            screen_y,
+        })));
     }
 
     pub fn resize_screen(&mut self, ctx: &mut Context, height: usize, width: usize) {
         let screen_size = RectSize { height, width };
-        self.layers = create_layers(&self.layer_ctor, screen_size);
+
+        for layer in &mut self.layers {
+            let mut layer = layer.lock();
+            let ((screen_y, screen_x), rect_size) =
+                relayout_layers(self.screen_size, &*layer.surface);
+            layer.screen_x = screen_x;
+            layer.screen_y = screen_y;
+            layer.canvas = Canvas::new(screen_size.height, screen_size.width);
+        }
 
         self.screens = [Canvas::new(height, width), Canvas::new(height, width)];
         let active_screen = &mut self.screens[self.active_screen_index];
@@ -156,7 +179,7 @@ impl Compositor {
         }
     }
 
-    pub fn active_layer(&self) -> &Arc<Mutex<Layer>> {
+    fn active_layer(&self) -> &Arc<Mutex<Layer>> {
         for layer_lock in self.layers.iter().rev() {
             let layer = layer_lock.lock();
             if layer.active {
@@ -185,6 +208,11 @@ fn compose_layers<'a, 'b, 'c>(
             continue;
         }
 
+        // The screen is too small.
+        if (screen.width() < 10 || screen.height() < 5) && layer.surface.name() != "too_small" {
+            continue;
+        }
+
         if render_all {
             warn_on_error!(
                 layer.surface.render_all(ctx, &mut layer.canvas),
@@ -201,33 +229,10 @@ fn compose_layers<'a, 'b, 'c>(
     }
 }
 
-fn create_layers(
-    ctor: &Box<dyn Fn(RectSize) -> Vec<Box<dyn Surface>>>,
+fn relayout_layers(
     screen_size: RectSize,
-) -> Vec<Arc<Mutex<Layer>>> {
-    let mut layers = Vec::with_capacity(16);
-
-    if screen_size.width < 10 || screen_size.height < 5 {
-        // The screen is too small.
-        push_layer(
-            &mut layers,
-            screen_size,
-            Box::new(TooSmallSurface::new("too small!")),
-        );
-        return layers;
-    }
-
-    for surface in ctor(screen_size) {
-        push_layer(&mut layers, screen_size, surface);
-    }
-    layers
-}
-
-fn push_layer(
-    layers: &mut Vec<Arc<Mutex<Layer>>>,
-    screen_size: RectSize,
-    surface: Box<dyn Surface>,
-) {
+    surface: &(impl Surface + ?Sized),
+) -> ((usize, usize), RectSize) {
     let (layout, rect_size) = surface.layout(screen_size);
 
     let (screen_y, screen_x) = match layout {
@@ -238,15 +243,7 @@ fn push_layer(
         Layout::Full => (0, 0),
     };
 
-    layers.push(Arc::new(Mutex::new(Layer {
-        surface,
-        visible: true,
-        active: true,
-        canvas: Canvas::new(rect_size.height, rect_size.width),
-        layout,
-        screen_x,
-        screen_y,
-    })));
+    ((screen_y, screen_x), rect_size)
 }
 
 struct TooSmallSurface {

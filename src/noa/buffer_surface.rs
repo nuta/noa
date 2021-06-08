@@ -175,7 +175,7 @@ impl Surface for BufferSurface {
             (KeyCode::Char('f'), CTRL) => {
                 drop(buffer);
                 drop(view);
-                // ctx.editor.exit_editor();
+                // compositor.push_layer();
             }
             (KeyCode::Backspace, NONE) => {
                 buffer.backspace();

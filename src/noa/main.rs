@@ -76,8 +76,8 @@ async fn main() {
 
     let (event_tx, mut event_rx) = unbounded_channel();
     let terminal = Terminal::new(event_tx);
-    let mut compositor =
-        Compositor::new(terminal, |screen_size| vec![Box::new(BufferSurface::new())]);
+    let mut compositor = Compositor::new(terminal);
+    compositor.push_layer(BufferSurface::new());
 
     let mut editor = editor::Editor::new(workspace_dir);
     for file in opt.files.iter() {
