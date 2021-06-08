@@ -45,7 +45,12 @@ impl Surface for TooSmallSurface {
         Ok(())
     }
 
-    fn handle_key_batch_event(&mut self, _ctx: &mut Context, _input: &str) -> Result<()> {
+    fn handle_key_batch_event(
+        &mut self,
+        _ctx: &mut Context,
+        _compositor: &mut Compositor,
+        _input: &str,
+    ) -> Result<()> {
         Ok(())
     }
 }

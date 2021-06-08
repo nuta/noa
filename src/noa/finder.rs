@@ -44,7 +44,12 @@ impl Surface for Finder {
         Ok(())
     }
 
-    fn handle_key_batch_event(&mut self, ctx: &mut Context, input: &str) -> Result<()> {
+    fn handle_key_batch_event(
+        &mut self,
+        ctx: &mut Context,
+        _compositor: &mut Compositor,
+        input: &str,
+    ) -> Result<()> {
         // TODO:
         Ok(())
     }

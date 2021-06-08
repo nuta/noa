@@ -221,7 +221,12 @@ impl Surface for BufferSurface {
         Ok(())
     }
 
-    fn handle_key_batch_event(&mut self, ctx: &mut Context, input: &str) -> Result<()> {
+    fn handle_key_batch_event(
+        &mut self,
+        ctx: &mut Context,
+        _compositor: &mut Compositor,
+        input: &str,
+    ) -> Result<()> {
         ctx.editor.current_buffer().write().insert(&input);
         Ok(())
     }

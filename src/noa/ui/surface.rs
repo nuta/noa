@@ -38,5 +38,10 @@ pub trait Surface {
         compositor: &mut Compositor,
         key: KeyEvent,
     ) -> Result<()>;
-    fn handle_key_batch_event(&mut self, ctx: &mut Context, input: &str) -> Result<()>;
+    fn handle_key_batch_event(
+        &mut self,
+        ctx: &mut Context,
+        compositor: &mut Compositor,
+        input: &str,
+    ) -> Result<()>;
 }

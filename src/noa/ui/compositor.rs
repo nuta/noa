@@ -133,7 +133,7 @@ impl Compositor {
                 .clone()
                 .lock()
                 .surface
-                .handle_key_batch_event(ctx, &input),
+                .handle_key_batch_event(ctx, self, &input),
             Event::Resize {
                 screen_height,
                 screen_width,
