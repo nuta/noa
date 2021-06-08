@@ -1,7 +1,15 @@
 use arrayvec::ArrayString;
 use crossterm::style::{Attributes, Color};
 
-use super::DrawOp;
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum DrawOp<'a> {
+    MoveTo { y: usize, x: usize },
+    Grapheme(&'a str),
+    FgColor(Color),
+    BgColor(Color),
+    Attributes(Attributes),
+    Reset,
+}
 
 /// A character in the terminal screen.
 #[derive(Clone, Copy, PartialEq, Debug)]

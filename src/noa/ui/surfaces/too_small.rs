@@ -1,6 +1,4 @@
-use crate::terminal::canvas::Canvas;
-
-use super::{truncate_to_width, Context, Surface};
+use crate::ui::{truncate_to_width, Canvas, Context, Layout, RectSize, Surface};
 use anyhow::Result;
 use crossterm::event::KeyEvent;
 
@@ -19,6 +17,10 @@ impl TooSmallSurface {
 impl Surface for TooSmallSurface {
     fn name(&self) -> &str {
         "too_small"
+    }
+
+    fn layout(&self, screen_size: RectSize) -> (Layout, RectSize) {
+        (Layout::Full, screen_size)
     }
 
     fn cursor_position(&self) -> Option<(usize, usize)> {

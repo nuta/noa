@@ -1,19 +1,29 @@
-use std::cmp::min;
-
 use anyhow::Result;
 use crossterm::event::KeyEvent;
 
-use crate::{editor::Editor, terminal::canvas::Canvas};
+use crate::editor::Editor;
 
-pub mod buffer;
-pub mod too_small;
+use super::Canvas;
 
 pub struct Context<'a> {
     pub editor: &'a mut Editor,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum Layout {
+    Full,
+    Center,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct RectSize {
+    height: usize,
+    width: usize,
+}
+
 pub trait Surface {
     fn name(&self) -> &str;
+    fn layout(&self, screen_size: RectSize) -> (Layout, RectSize);
     /// Returns the cursor position in surface-local `(y, x)`. `None` if the cursor
     /// is hidden.
     fn cursor_position(&self) -> Option<(usize, usize)>;
@@ -24,12 +34,4 @@ pub trait Surface {
     fn render_all(&mut self, ctx: &mut Context, canvas: &mut Canvas) -> Result<()>;
     fn handle_key_event(&mut self, ctx: &mut Context, key: KeyEvent) -> Result<()>;
     fn handle_key_batch_event(&mut self, ctx: &mut Context, input: &str) -> Result<()>;
-}
-
-fn whitespaces(n: usize) -> String {
-    " ".repeat(n)
-}
-
-pub fn truncate_to_width(s: &str, width: usize) -> &str {
-    &s[..min(s.chars().count(), width)]
 }

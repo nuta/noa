@@ -22,11 +22,7 @@ use tokio::{
     time::timeout,
 };
 
-use crate::{
-    surfaces::Context,
-    syncd_client::SyncdClient,
-    terminal::{compositor::Compositor, Terminal},
-};
+use crate::{syncd_client::SyncdClient, terminal::Terminal, ui::Compositor, ui::Context};
 
 #[macro_use]
 extern crate log;
@@ -36,9 +32,10 @@ extern crate log;
 extern crate pretty_assertions;
 
 mod editor;
-mod surfaces;
+mod finder;
 mod syncd_client;
 mod terminal;
+mod ui;
 mod view;
 
 #[derive(StructOpt)]

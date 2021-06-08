@@ -4,7 +4,7 @@ use std::ops;
 
 use noa_buffer::{Buffer, Cursor, Point, Range};
 
-use crate::terminal::display_width::DisplayWidth;
+use crate::ui::DisplayWidth;
 
 #[derive(Debug, Clone)]
 pub struct DisplayLine {

@@ -16,11 +16,7 @@ use crossterm::{
 use futures::StreamExt;
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::terminal::compositor::Event;
-
-pub mod canvas;
-pub mod compositor;
-pub mod display_width;
+use crate::ui::{DrawOp, Event};
 
 async fn terminal_input_handler(event_queue: UnboundedSender<Event>) {
     let mut stream = EventStream::new().fuse();
@@ -152,22 +148,12 @@ impl Drop for Terminal {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub enum DrawOp<'a> {
-    MoveTo { y: usize, x: usize },
-    Grapheme(&'a str),
-    FgColor(Color),
-    BgColor(Color),
-    Attributes(Attributes),
-    Reset,
-}
-
 pub struct Drawer {
     stdout: Stdout,
 }
 
 impl Drawer {
-    fn draw(&mut self, op: &DrawOp) {
+    pub fn draw(&mut self, op: &DrawOp) {
         match op {
             DrawOp::MoveTo { y, x } => {
                 queue!(self.stdout, MoveTo(*x as u16, *y as u16)).ok();
@@ -190,7 +176,7 @@ impl Drawer {
         }
     }
 
-    fn show_cursor(&mut self, screen_y: usize, screen_x: usize) {
+    pub fn show_cursor(&mut self, screen_y: usize, screen_x: usize) {
         queue!(
             self.stdout,
             MoveTo(screen_x as u16, screen_y as u16),
@@ -199,7 +185,7 @@ impl Drawer {
         .ok();
     }
 
-    fn flush(&mut self) {
+    pub fn flush(&mut self) {
         self.stdout.flush().ok();
     }
 }

@@ -3,9 +3,14 @@ use std::{slice, time::Instant};
 use crossterm::event::KeyEvent;
 use noa_common::{time_report::TimeReport, warn_on_error};
 
-use crate::surfaces::{buffer::BufferSurface, too_small::TooSmallSurface, Context, Surface};
+use crate::ui::{
+    surfaces::{buffer::BufferSurface, too_small::TooSmallSurface},
+    Context, Surface,
+};
 
-use super::{canvas::Canvas, Terminal};
+use crate::terminal::Terminal;
+
+use super::Canvas;
 
 #[derive(Debug)]
 pub enum Event {

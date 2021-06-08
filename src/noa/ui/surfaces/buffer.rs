@@ -7,9 +7,7 @@ use crossterm::{
 };
 use noa_buffer::{Cursor, Range};
 
-use crate::terminal::{canvas::Canvas, display_width::DisplayWidth};
-
-use super::{whitespaces, Context, Surface};
+use crate::ui::{whitespaces, Canvas, Context, DisplayWidth, Layout, RectSize, Surface};
 
 pub struct BufferSurface {
     // `(y, x)`.
@@ -27,6 +25,10 @@ impl BufferSurface {
 impl Surface for BufferSurface {
     fn name(&self) -> &str {
         "buffer"
+    }
+
+    fn layout(&self, screen_size: RectSize) -> (Layout, RectSize) {
+        (Layout::Full, screen_size)
     }
 
     fn cursor_position(&self) -> Option<(usize, usize)> {
