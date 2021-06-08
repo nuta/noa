@@ -59,8 +59,8 @@ impl Compositor {
             active: true,
             visible: true,
             canvas: Canvas::new(screen_size.height, screen_size.width),
-            screen_y: screen_size.height,
-            screen_x: screen_size.width,
+            screen_y: 0,
+            screen_x: 0,
         })));
 
         Compositor {
@@ -85,7 +85,8 @@ impl Compositor {
     }
 
     pub fn resize_screen(&mut self, ctx: &mut Context, height: usize, width: usize) {
-        let screen_size = RectSize { height, width };
+        self.screen_size = RectSize { height, width };
+        self.screens = [Canvas::new(height, width), Canvas::new(height, width)];
 
         for layer in &mut self.layers {
             let mut layer = layer.lock();
@@ -93,10 +94,9 @@ impl Compositor {
                 relayout_layers(self.screen_size, &*layer.surface);
             layer.screen_x = screen_x;
             layer.screen_y = screen_y;
-            layer.canvas = Canvas::new(screen_size.height, screen_size.width);
+            layer.canvas = Canvas::new(self.screen_size.height, self.screen_size.width);
         }
 
-        self.screens = [Canvas::new(height, width), Canvas::new(height, width)];
         let active_screen = &mut self.screens[self.active_screen_index];
         compose_layers(ctx, active_screen, self.layers.iter(), true);
     }
@@ -208,11 +208,16 @@ fn compose_layers<'a, 'b, 'c>(
             continue;
         }
 
-        // The screen is too small.
-        if (screen.width() < 10 || screen.height() < 5) && layer.surface.name() != "too_small" {
-            continue;
+        // Handle the case when the screen is too small.
+        let too_small = (screen.width() < 10 || screen.height() < 5);
+        let is_too_small_layer = layer.surface.name() == "too_small";
+        match (too_small, is_too_small_layer) {
+            (true, true) => {}   /* render too_small layer */
+            (false, false) => {} /* render layers except too_small */
+            _ => continue,
         }
 
+        info!("rendering {}", layer.surface.name());
         if render_all {
             warn_on_error!(
                 layer.surface.render_all(ctx, &mut layer.canvas),
