@@ -15,6 +15,7 @@ pub struct Context<'a> {
 pub enum Layout {
     Full,
     Center,
+    AroundCursor,
 }
 
 #[derive(Clone, Copy, Debug)]

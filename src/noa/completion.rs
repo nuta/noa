@@ -18,8 +18,14 @@ use crate::{
     fuzzy_set::FuzzySet,
     line_edit::LineEdit,
     selector::Selector,
-    ui::{Canvas, Compositor, Context, Event, HandledEvent, Layout, RectSize, Surface},
+    ui::{
+        Canvas, Compositor, Context, DisplayWidth, Event, HandledEvent, Layout, RectSize, Surface,
+    },
 };
+
+const MIN_WIDTH: usize = 16;
+const MAX_WIDTH: usize = 64;
+const MAX_HEIGHT: usize = 16;
 
 enum Item {
     Word(String),
@@ -55,11 +61,27 @@ impl Surface for Completion {
     }
 
     fn layout(&self, screen_size: RectSize) -> (Layout, RectSize) {
-        todo!()
+        let selector = self.selector.lock();
+
+        // Determine the maximum item width.
+        let max_width = selector
+            .items()
+            .take(16)
+            .fold(MIN_WIDTH, |max_width, (_, item)| {
+                let width = match item {
+                    Item::Word(s) => s.len(),
+                };
+
+                max(max_width, width)
+            });
+
+        let width = max_width + 2 /* border */;
+        let height = selector.len() + 2 /* border */;
+        (Layout::AroundCursor, RectSize { height, width })
     }
 
     fn cursor_position(&self) -> Option<(usize, usize)> {
-        todo!()
+        None
     }
 
     fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) {

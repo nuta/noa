@@ -17,6 +17,10 @@ impl<T> Selector<T> {
         self.selected
     }
 
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
     pub fn items(&self) -> impl Iterator<Item = (bool, &T)> {
         let selected = self.selected();
         self.items

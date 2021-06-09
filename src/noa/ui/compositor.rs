@@ -121,13 +121,16 @@ impl Compositor {
         compose_layers_time.report();
 
         // Get the cursor position.
-        let cursor = {
-            let active_layer = self.active_layer().lock();
-            active_layer
-                .surface
-                .cursor_position()
-                .map(|(y, x)| (active_layer.screen_y + y, active_layer.screen_x + x))
-        };
+        let mut cursor = None;
+        for layer_lock in self.layers.clone().iter().rev() {
+            let mut layer = layer_lock.lock();
+            if layer.active {
+                if let Some((y, x)) = layer.surface.cursor_position() {
+                    cursor = Some((layer.screen_y + y, layer.screen_x + x));
+                    break;
+                }
+            }
+        }
 
         // Compute diffs.
         let compute_draw_updates_time = TimeReport::new("compute_draw_updates");
