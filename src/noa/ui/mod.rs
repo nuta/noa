@@ -8,7 +8,7 @@ use std::cmp::min;
 pub use canvas::{Canvas, DrawOp};
 pub use compositor::{Compositor, Event};
 pub use display_width::DisplayWidth;
-pub use surface::{Context, Layout, RectSize, Surface};
+pub use surface::{Context, HandledEvent, Layout, RectSize, Surface};
 
 pub fn whitespaces(n: usize) -> String {
     " ".repeat(n)

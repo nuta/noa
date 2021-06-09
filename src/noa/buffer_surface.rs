@@ -8,8 +8,11 @@ use crossterm::{
 use noa_buffer::{Cursor, Range};
 
 use crate::{
-    finder::FinderSurface,
-    ui::{whitespaces, Canvas, Compositor, Context, DisplayWidth, Layout, RectSize, Surface},
+    finder::Finder,
+    ui::{
+        whitespaces, Canvas, Compositor, Context, DisplayWidth, HandledEvent, Layout, RectSize,
+        Surface,
+    },
 };
 
 pub struct BufferSurface {
@@ -152,7 +155,12 @@ impl Surface for BufferSurface {
             view.point_to_display_pos(main_cursor_pos, y_end, text_start, buffer.num_lines());
     }
 
-    fn handle_key_event(&mut self, ctx: &mut Context, compositor: &mut Compositor, key: KeyEvent) {
+    fn handle_key_event(
+        &mut self,
+        ctx: &mut Context,
+        compositor: &mut Compositor,
+        key: KeyEvent,
+    ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
         const CTRL: KeyModifiers = KeyModifiers::CONTROL;
         const ALT: KeyModifiers = KeyModifiers::ALT;
@@ -170,7 +178,7 @@ impl Surface for BufferSurface {
             (KeyCode::Char('f'), CTRL) => {
                 drop(buffer);
                 drop(view);
-                compositor.push_layer(FinderSurface::new(ctx));
+                compositor.push_layer(Finder::new(ctx));
             }
             (KeyCode::Backspace, NONE) => {
                 buffer.backspace();
@@ -212,6 +220,8 @@ impl Surface for BufferSurface {
                 trace!("unhandled key = {:?}", key);
             }
         }
+
+        HandledEvent::Consumed
     }
 
     fn handle_key_batch_event(
@@ -219,7 +229,8 @@ impl Surface for BufferSurface {
         ctx: &mut Context,
         _compositor: &mut Compositor,
         input: &str,
-    ) {
+    ) -> HandledEvent {
         ctx.editor.current_buffer().write().insert(&input);
+        HandledEvent::Consumed
     }
 }

@@ -15,21 +15,21 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     line_edit::LineEdit,
-    ui::{Canvas, Compositor, Context, Event, Layout, RectSize, Surface},
+    ui::{Canvas, Compositor, Context, Event, HandledEvent, Layout, RectSize, Surface},
 };
 
 enum Item {
     File(PathBuf),
 }
 
-pub struct FinderSurface {
+pub struct Finder {
     query: LineEdit,
     selected_item_index: usize,
     items: Arc<Mutex<Vec<Item>>>,
 }
 
-impl FinderSurface {
-    pub fn new(ctx: &mut Context) -> FinderSurface {
+impl Finder {
+    pub fn new(ctx: &mut Context) -> Finder {
         let items = Arc::new(Mutex::new(Vec::with_capacity(128)));
 
         tokio::spawn(update_items(
@@ -39,7 +39,7 @@ impl FinderSurface {
             "".to_owned(),
         ));
 
-        FinderSurface {
+        Finder {
             query: LineEdit::new(),
             selected_item_index: 0,
             items,
@@ -47,7 +47,7 @@ impl FinderSurface {
     }
 }
 
-impl Surface for FinderSurface {
+impl Surface for Finder {
     fn name(&self) -> &str {
         "finder"
     }
@@ -84,7 +84,12 @@ impl Surface for FinderSurface {
         canvas.draw_borders(0, 0, canvas.height() - 1, canvas.width() - 1);
     }
 
-    fn handle_key_event(&mut self, ctx: &mut Context, compositor: &mut Compositor, key: KeyEvent) {
+    fn handle_key_event(
+        &mut self,
+        ctx: &mut Context,
+        compositor: &mut Compositor,
+        key: KeyEvent,
+    ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
         const CTRL: KeyModifiers = KeyModifiers::CONTROL;
         const ALT: KeyModifiers = KeyModifiers::ALT;
@@ -97,7 +102,7 @@ impl Surface for FinderSurface {
             }
             (NONE, KeyCode::Esc) => {
                 compositor.pop_layer();
-                return;
+                return HandledEvent::Consumed;
             }
             (NONE, KeyCode::Backspace) => {
                 self.query.backspace();
@@ -106,7 +111,7 @@ impl Surface for FinderSurface {
             (NONE, KeyCode::Enter) => false,
             _ => {
                 trace!("finder: unhandled key event: {:?}", key);
-                return;
+                return HandledEvent::Consumed;
             }
         };
 
@@ -116,6 +121,8 @@ impl Surface for FinderSurface {
             self.items.clone(),
             self.query.text(),
         ));
+
+        HandledEvent::Consumed
     }
 
     fn handle_key_batch_event(
@@ -123,8 +130,9 @@ impl Surface for FinderSurface {
         ctx: &mut Context,
         _compositor: &mut Compositor,
         input: &str,
-    ) {
-        // TODO:
+    ) -> HandledEvent {
+        self.query.insert(input);
+        HandledEvent::Consumed
     }
 }
 

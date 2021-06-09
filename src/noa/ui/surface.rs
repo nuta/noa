@@ -23,6 +23,12 @@ pub struct RectSize {
     pub width: usize,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum HandledEvent {
+    Consumed,
+    Ignored,
+}
+
 pub trait Surface {
     fn name(&self) -> &str;
     fn layout(&self, screen_size: RectSize) -> (Layout, RectSize);
@@ -34,11 +40,16 @@ pub trait Surface {
     /// Render its contents into the canvas. It must fill the whole canvas; the
     /// canvas can be the newly created one due to, for example, screen resizing.
     fn render_all(&mut self, ctx: &mut Context, canvas: &mut Canvas);
-    fn handle_key_event(&mut self, ctx: &mut Context, compositor: &mut Compositor, key: KeyEvent);
+    fn handle_key_event(
+        &mut self,
+        ctx: &mut Context,
+        compositor: &mut Compositor,
+        key: KeyEvent,
+    ) -> HandledEvent;
     fn handle_key_batch_event(
         &mut self,
         ctx: &mut Context,
         compositor: &mut Compositor,
         input: &str,
-    );
+    ) -> HandledEvent;
 }

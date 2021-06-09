@@ -36,9 +36,11 @@ extern crate log;
 extern crate pretty_assertions;
 
 mod buffer_surface;
+mod completion;
 mod editor;
 mod finder;
 mod line_edit;
+mod selector;
 mod syncd_client;
 mod terminal;
 mod ui;

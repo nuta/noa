@@ -9,7 +9,7 @@ use crate::ui::{Context, Surface};
 
 use crate::terminal::Terminal;
 
-use super::{truncate_to_width, Canvas, Layout, RectSize};
+use super::{truncate_to_width, Canvas, HandledEvent, Layout, RectSize};
 
 #[derive(Debug)]
 pub enum Event {
@@ -153,18 +153,30 @@ impl Compositor {
 
     pub fn handle_event(&mut self, ctx: &mut Context, ev: Event) {
         match ev {
-            Event::Key(key) => self
-                .active_layer()
-                .clone()
-                .lock()
-                .surface
-                .handle_key_event(ctx, self, key),
-            Event::KeyBatch(input) => self
-                .active_layer()
-                .clone()
-                .lock()
-                .surface
-                .handle_key_batch_event(ctx, self, &input),
+            Event::Key(key) => {
+                for layer_lock in self.layers.clone().iter().rev() {
+                    let mut layer = layer_lock.lock();
+                    if layer.active {
+                        if let HandledEvent::Consumed =
+                            layer.surface.handle_key_event(ctx, self, key)
+                        {
+                            return;
+                        }
+                    }
+                }
+            }
+            Event::KeyBatch(input) => {
+                for layer_lock in self.layers.clone().iter().rev() {
+                    let mut layer = layer_lock.lock();
+                    if layer.active {
+                        if let HandledEvent::Consumed =
+                            layer.surface.handle_key_batch_event(ctx, self, &input)
+                        {
+                            return;
+                        }
+                    }
+                }
+            }
             Event::Resize {
                 screen_height,
                 screen_width,
@@ -282,7 +294,8 @@ impl Surface for TooSmallSurface {
         _ctx: &mut Context,
         _compositor: &mut Compositor,
         _key: KeyEvent,
-    ) {
+    ) -> HandledEvent {
+        HandledEvent::Consumed
     }
 
     fn handle_key_batch_event(
@@ -290,6 +303,7 @@ impl Surface for TooSmallSurface {
         _ctx: &mut Context,
         _compositor: &mut Compositor,
         _input: &str,
-    ) {
+    ) -> HandledEvent {
+        HandledEvent::Consumed
     }
 }
