@@ -15,6 +15,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     line_edit::LineEdit,
+    selector::Selector,
     ui::{Canvas, Compositor, Context, Event, HandledEvent, Layout, RectSize, Surface},
 };
 
@@ -24,25 +25,23 @@ enum Item {
 
 pub struct Finder {
     query: LineEdit,
-    selected_item_index: usize,
-    items: Arc<Mutex<Vec<Item>>>,
+    selector: Arc<Mutex<Selector<Item>>>,
 }
 
 impl Finder {
     pub fn new(ctx: &mut Context) -> Finder {
-        let items = Arc::new(Mutex::new(Vec::with_capacity(128)));
+        let selector = Arc::new(Mutex::new(Selector::new()));
 
         tokio::spawn(update_items(
             ctx.editor.workspace_dir().to_owned(),
             ctx.event_tx.clone(),
-            items.clone(),
+            selector.clone(),
             "".to_owned(),
         ));
 
         Finder {
             query: LineEdit::new(),
-            selected_item_index: 0,
-            items,
+            selector,
         }
     }
 }
@@ -71,8 +70,8 @@ impl Surface for Finder {
     fn render_all(&mut self, ctx: &mut Context, canvas: &mut Canvas) {
         canvas.clear();
 
-        let items = self.items.lock();
-        for (i, item) in items.iter().enumerate() {
+        let selector = self.selector.lock();
+        for (i, (active, item)) in selector.items().enumerate() {
             let title = match item {
                 Item::File(path) => path.to_str().unwrap(),
             };
@@ -118,7 +117,7 @@ impl Surface for Finder {
         tokio::spawn(update_items(
             ctx.editor.workspace_dir().to_owned(),
             ctx.event_tx.clone(),
-            self.items.clone(),
+            self.selector.clone(),
             self.query.text(),
         ));
 
@@ -189,7 +188,7 @@ impl<T> FuzzySet<T> {
 async fn update_items(
     workspace_dir: PathBuf,
     event_tx: UnboundedSender<Event>,
-    items: Arc<Mutex<Vec<Item>>>,
+    selector: Arc<Mutex<Selector<Item>>>,
     query: String,
 ) {
     use ignore::{WalkBuilder, WalkState};
@@ -215,11 +214,11 @@ async fn update_items(
 
     // Merge results.
     let iter = futures::future::join_all(vec![path_resolver]).await;
-    let mut items = items.lock();
-    items.clear();
+    let mut selector = selector.lock();
+    selector.clear();
     for results in iter {
         for item in results.into_inner().into_iter() {
-            items.push(item.value);
+            selector.push(item.value);
         }
     }
 

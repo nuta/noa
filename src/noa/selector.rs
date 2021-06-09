@@ -34,7 +34,11 @@ impl<T> Selector<T> {
         self.selected = self.selected.saturating_sub(1);
     }
 
-    pub fn add_item(&mut self, item: T) {
+    pub fn push(&mut self, item: T) {
         self.items.push(item);
+    }
+
+    pub fn clear(&mut self) {
+        self.items.clear();
     }
 }
