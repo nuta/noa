@@ -41,12 +41,12 @@ impl LineEdit {
     }
 
     pub fn insert(&mut self, s: &str) {
-        self.rope.insert(&self.cursor_as_pos(), s);
+        self.rope.insert(self.cursor_as_pos(), s);
         self.cursor += s.chars().count();
     }
 
     pub fn insert_char(&mut self, c: char) {
-        self.rope.insert_char(&self.cursor_as_pos(), c);
+        self.rope.insert_char(self.cursor_as_pos(), c);
         self.cursor += 1;
     }
 

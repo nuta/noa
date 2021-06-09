@@ -106,16 +106,16 @@ impl Range {
         Range { start, end }
     }
 
-    pub fn front(&self) -> &Point {
-        min(&self.start, &self.end)
+    pub fn front(&self) -> Point {
+        min(self.start, self.end)
     }
 
-    pub fn back(&self) -> &Point {
-        max(&self.start, &self.end)
+    pub fn back(&self) -> Point {
+        max(self.start, self.end)
     }
 
-    pub fn contains(&self, pos: &Point) -> bool {
-        self.start <= *pos && *pos < self.end
+    pub fn contains(&self, pos: Point) -> bool {
+        self.start <= pos && pos < self.end
     }
 
     pub fn is_empty(&self) -> bool {
@@ -138,19 +138,19 @@ impl fmt::Display for Range {
 
 impl PartialOrd for Range {
     fn partial_cmp(&self, other: &Range) -> Option<Ordering> {
-        self.front().partial_cmp(other.front())
+        self.front().partial_cmp(&other.front())
     }
 }
 
 impl Ord for Range {
     fn cmp(&self, other: &Range) -> Ordering {
-        self.front().cmp(other.front())
+        self.front().cmp(&other.front())
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Cursor {
-    Normal { pos: Point, logical_x: usize },
+    Normal { pos: Point },
     Selection(Range),
 }
 
@@ -158,7 +158,6 @@ impl Cursor {
     pub fn new(y: usize, x: usize) -> Cursor {
         Cursor::Normal {
             pos: Point::new(y, x),
-            logical_x: x,
         }
     }
 
@@ -275,12 +274,12 @@ impl Rope {
         self.inner.write_to(f)
     }
 
-    pub fn insert(&mut self, pos: &Point, string: &str) {
+    pub fn insert(&mut self, pos: Point, string: &str) {
         self.inner.insert(self.index_in_rope(pos), string);
         self.on_modified(pos.y);
     }
 
-    pub fn insert_char(&mut self, pos: &Point, ch: char) {
+    pub fn insert_char(&mut self, pos: Point, ch: char) {
         self.inner.insert_char(self.index_in_rope(pos), ch);
         self.on_modified(pos.y);
     }
@@ -418,7 +417,7 @@ impl Rope {
         Point::new(pos.y, end)
     }
 
-    fn index_in_rope(&self, pos: &Point) -> usize {
+    fn index_in_rope(&self, pos: Point) -> usize {
         let x = if pos.x == std::usize::MAX {
             self.line_len(pos.y)
         } else {

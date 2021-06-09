@@ -30,7 +30,7 @@ impl View {
         }
     }
 
-    pub fn adjust_top_left(&mut self, main_cursor_pos: &Point) {
+    pub fn adjust_top_left(&mut self, main_cursor_pos: Point) {
         let index = self.point_to_display_line(main_cursor_pos).unwrap();
         if index < self.top_left {
             self.top_left = index;
@@ -44,7 +44,7 @@ impl View {
     /// Returns `(screen_y, screen_x)`.
     pub fn point_to_display_pos(
         &self,
-        pos: &Point,
+        pos: Point,
         screen_y_end: usize,
         screen_text_start: usize,
         buffer_num_lines: usize,
@@ -67,7 +67,7 @@ impl View {
             })
     }
 
-    fn point_to_display_line(&self, pos: &Point) -> Option<usize> {
+    fn point_to_display_line(&self, pos: Point) -> Option<usize> {
         self.lines
             .binary_search_by(|line| {
                 if line.range.contains(pos) || line.range.back() == pos {
@@ -91,7 +91,7 @@ impl View {
             self.lines.clear();
         } else {
             self.lines
-                .truncate(self.point_to_display_line(&Point::new(y_from, 0)).unwrap());
+                .truncate(self.point_to_display_line(Point::new(y_from, 0)).unwrap());
         }
 
         for text_y in y_from..buffer.num_lines() {
@@ -160,16 +160,13 @@ impl View {
         for cursor in buffer.cursors() {
             // Cancel the selection.
             let pos = match cursor {
-                Cursor::Normal { pos, .. } => pos,
-                Cursor::Selection(range) => &range.end,
+                Cursor::Normal { pos, .. } => *pos,
+                Cursor::Selection(range) => range.end,
             };
 
             // Move the cursor.
-            let new_pos = self.move_x(&self.move_y(&pos, y_diff), x_diff);
-            new_cursors.push(Cursor::Normal {
-                pos: new_pos,
-                logical_x: new_pos.x,
-            });
+            let new_pos = self.move_x(self.move_y(pos, y_diff), x_diff);
+            new_cursors.push(Cursor::Normal { pos: new_pos });
         }
 
         buffer.set_cursors(new_cursors);
@@ -179,19 +176,19 @@ impl View {
         let mut new_cursors = Vec::new();
         for cursor in buffer.cursors() {
             let (start, end) = match cursor {
-                Cursor::Normal { pos, .. } => (pos, pos),
-                Cursor::Selection(range) => (&range.start, &range.end),
+                Cursor::Normal { pos, .. } => (*pos, *pos),
+                Cursor::Selection(range) => (range.start, range.end),
             };
 
             // Move the cursor.
-            let new_end = self.move_x(&self.move_y(&end, y_diff), x_diff);
-            new_cursors.push(Cursor::Selection(Range::from_points(*start, new_end)));
+            let new_end = self.move_x(self.move_y(end, y_diff), x_diff);
+            new_cursors.push(Cursor::Selection(Range::from_points(start, new_end)));
         }
 
         buffer.set_cursors(new_cursors);
     }
 
-    fn move_y(&self, pos: &Point, y_diff: isize) -> Point {
+    fn move_y(&self, pos: Point, y_diff: isize) -> Point {
         let prev_y = self.point_to_display_line(pos).unwrap();
         let prev_line = &self.lines[prev_y];
 
@@ -214,10 +211,10 @@ impl View {
         )
     }
 
-    fn move_x(&self, pos: &Point, x_diff: isize) -> Point {
+    fn move_x(&self, pos: Point, x_diff: isize) -> Point {
         let current_y = self.point_to_display_line(pos).unwrap();
         let current_line = &self.lines[current_y];
-        let mut new_pos = *pos;
+        let mut new_pos = pos;
 
         if x_diff > 0 {
             assert!(x_diff == 1);
@@ -225,14 +222,14 @@ impl View {
             if new_x < current_line.range.back().x {
                 new_pos.x = new_x;
             } else if let Some(next_line) = self.lines.get(current_y + 1) {
-                new_pos = *next_line.range.front();
+                new_pos = next_line.range.front();
             }
         } else if x_diff == -1 {
             if pos.x > 0 && pos.x > current_line.range.front().x {
                 new_pos.x = pos.x - 1;
             } else if current_y > 0 {
                 if let Some(prev_line) = self.lines.get(current_y - 1) {
-                    new_pos = *prev_line.range.back();
+                    new_pos = prev_line.range.back();
                 }
             }
         }
@@ -306,14 +303,14 @@ mod test {
         let mut view = View::new();
         let buffer = Buffer::from_str("12345abcde!@#$%\nxyz");
         view.layout(&buffer, 0, 5, 3);
-        assert_eq!(view.point_to_display_line(&Point::new(0, 0)), Some(0));
-        assert_eq!(view.point_to_display_line(&Point::new(0, 5)), Some(1));
-        assert_eq!(view.point_to_display_line(&Point::new(0, 14)), Some(2));
-        assert_eq!(view.point_to_display_line(&Point::new(0, 15)), Some(2));
-        assert_eq!(view.point_to_display_line(&Point::new(1, 16)), None);
-        assert_eq!(view.point_to_display_line(&Point::new(1, 2)), Some(3));
-        assert_eq!(view.point_to_display_line(&Point::new(1, 3)), Some(3));
-        assert_eq!(view.point_to_display_line(&Point::new(1, 4)), None);
+        assert_eq!(view.point_to_display_line(Point::new(0, 0)), Some(0));
+        assert_eq!(view.point_to_display_line(Point::new(0, 5)), Some(1));
+        assert_eq!(view.point_to_display_line(Point::new(0, 14)), Some(2));
+        assert_eq!(view.point_to_display_line(Point::new(0, 15)), Some(2));
+        assert_eq!(view.point_to_display_line(Point::new(1, 16)), None);
+        assert_eq!(view.point_to_display_line(Point::new(1, 2)), Some(3));
+        assert_eq!(view.point_to_display_line(Point::new(1, 3)), Some(3));
+        assert_eq!(view.point_to_display_line(Point::new(1, 4)), None);
     }
 
     #[test]
@@ -327,51 +324,51 @@ mod test {
         view.layout(&buffer, 0, 5, 3);
         assert_eq!(
             // 1|2345
-            view.move_x(&Point::new(0, 1), 1),
+            view.move_x(Point::new(0, 1), 1),
             // 12|345
             Point::new(0, 2)
         );
         assert_eq!(
             // 1234|5
-            view.move_x(&Point::new(0, 4), 1),
+            view.move_x(Point::new(0, 4), 1),
             // both 12345| and |abcde
             Point::new(0, 5)
         );
         assert_eq!(
             // both 12345| and |abcde
-            view.move_x(&Point::new(0, 5), 1),
+            view.move_x(Point::new(0, 5), 1),
             // a|bcde
             Point::new(0, 6)
         );
         assert_eq!(
             // !@#|
-            view.move_x(&Point::new(0, 13), 1),
+            view.move_x(Point::new(0, 13), 1),
             // |xyz
             Point::new(1, 0)
         );
 
         assert_eq!(
             // 12|345
-            view.move_x(&Point::new(0, 2), -1),
+            view.move_x(Point::new(0, 2), -1),
             // 1|2345
             Point::new(0, 1)
         );
         assert_eq!(
             // |xyz
-            view.move_x(&Point::new(1, 0), -1),
+            view.move_x(Point::new(1, 0), -1),
             // !@#|
             Point::new(0, 13)
         );
 
         assert_eq!(
             // |12345
-            view.move_x(&Point::new(0, 0), -1),
+            view.move_x(Point::new(0, 0), -1),
             // |12345
             Point::new(0, 0)
         );
         assert_eq!(
             // xyz|
-            view.move_x(&Point::new(1, 3), 1),
+            view.move_x(Point::new(1, 3), 1),
             // xyz|
             Point::new(1, 3)
         );
@@ -388,51 +385,51 @@ mod test {
         view.layout(&buffer, 0, 5, 3);
         assert_eq!(
             // 1|2345
-            view.move_y(&Point::new(0, 1), 1),
+            view.move_y(Point::new(0, 1), 1),
             // a|bcde
             Point::new(0, 6)
         );
         assert_eq!(
             // a|bcde
-            view.move_y(&Point::new(0, 6), 1),
+            view.move_y(Point::new(0, 6), 1),
             // !|@#
             Point::new(0, 11)
         );
         assert_eq!(
             // !|@#
-            view.move_y(&Point::new(0, 11), 1),
+            view.move_y(Point::new(0, 11), 1),
             // x|yz
             Point::new(1, 1)
         );
 
         assert_eq!(
             // x|yz
-            view.move_y(&Point::new(1, 1), -1),
+            view.move_y(Point::new(1, 1), -1),
             // !|@#
             Point::new(0, 11)
         );
         assert_eq!(
             // !|@#
-            view.move_y(&Point::new(0, 11), -1),
+            view.move_y(Point::new(0, 11), -1),
             // a|bcde
             Point::new(0, 6)
         );
         assert_eq!(
             // !|@#
-            view.move_y(&Point::new(0, 6), -1),
+            view.move_y(Point::new(0, 6), -1),
             // a|bcde
             Point::new(0, 1)
         );
 
         assert_eq!(
             // 1|2345
-            view.move_y(&Point::new(0, 1), -1),
+            view.move_y(Point::new(0, 1), -1),
             // 1|2345
             Point::new(0, 1)
         );
         assert_eq!(
             // x|yz
-            view.move_y(&Point::new(1, 1), 1),
+            view.move_y(Point::new(1, 1), 1),
             // x|yz
             Point::new(1, 1)
         );
@@ -448,7 +445,7 @@ mod test {
         let mut view = View::new();
         let buffer = Buffer::from_str("12345abcde!@#$\nxyz");
         view.layout(&buffer, 0, 5, 2);
-        view.adjust_top_left(&Point::new(0, 6));
+        view.adjust_top_left(Point::new(0, 6));
         assert_eq!(view.top_left, 0);
 
         // 12345
@@ -456,7 +453,7 @@ mod test {
         // -----+
         // !@#  |
         // xyz  |
-        view.adjust_top_left(&Point::new(1, 0));
+        view.adjust_top_left(Point::new(1, 0));
         assert_eq!(view.top_left, 2);
 
         // 12345
@@ -464,7 +461,7 @@ mod test {
         // abcde|
         // !@#  |
         // xyz
-        view.adjust_top_left(&Point::new(0, 6));
+        view.adjust_top_left(Point::new(0, 6));
         assert_eq!(view.top_left, 1);
     }
 }

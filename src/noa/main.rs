@@ -179,7 +179,7 @@ async fn on_file_change(
 
             let completion_req = LspRequest::Completion {
                 path: path.to_owned(),
-                position: *buffer.main_cursor_pos(),
+                position: buffer.main_cursor_pos(),
             };
 
             (lang, file_modified_req, completion_req)

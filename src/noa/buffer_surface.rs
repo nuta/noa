@@ -103,7 +103,7 @@ impl Surface for BufferSurface {
         let main_cursor_pos = buffer.main_cursor_pos();
         for cursor in buffer.cursors() {
             match cursor {
-                Cursor::Normal { pos, .. } if pos == main_cursor_pos => {
+                Cursor::Normal { pos, .. } if *pos == main_cursor_pos => {
                     // Do nothing. We use the native cursor through `self.cursor_position`.
                 }
                 Cursor::Normal { pos, .. } => {

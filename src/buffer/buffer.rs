@@ -39,7 +39,7 @@ fn remove_range(
     // Preserve the current cursor if it's unique (no other cursors at
     // the same position).
     match next_cursor {
-        Some(Cursor::Normal { pos, .. }) if pos == front => {}
+        Some(Cursor::Normal { pos, .. }) if *pos == front => {}
         _ => {
             new_cursors.push(Cursor::new(front.y, front.x));
         }
@@ -141,7 +141,7 @@ impl Buffer {
 
     pub fn set_text(&mut self, text: &str) {
         self.rope.clear();
-        self.rope.insert(&Point::new(0, 0), text);
+        self.rope.insert(Point::new(0, 0), text);
 
         let mut pos = match self.cursors[0] {
             Cursor::Normal { pos, .. } => pos,
@@ -150,10 +150,7 @@ impl Buffer {
 
         pos.y = min(pos.y, self.rope.num_lines().saturating_sub(1));
         pos.x = min(pos.x, self.rope.line_len(pos.y));
-        self.cursors = vec![Cursor::Normal {
-            pos,
-            logical_x: pos.x,
-        }];
+        self.cursors = vec![Cursor::Normal { pos }];
     }
 
     pub fn reset_dirty_flag(&mut self) {
@@ -274,10 +271,10 @@ impl Buffer {
         &self.cursors
     }
 
-    pub fn main_cursor_pos(&self) -> &Point {
+    pub fn main_cursor_pos(&self) -> Point {
         match &self.cursors[0] {
-            Cursor::Normal { pos, .. } => pos,
-            Cursor::Selection(range) => &range.end,
+            Cursor::Normal { pos, .. } => *pos,
+            Cursor::Selection(range) => range.end,
         }
     }
 
@@ -433,7 +430,7 @@ impl Buffer {
         let string_count = string.chars().count();
         for c in self.cursors.iter().rev() {
             let (remove, insert_at, end) = match c {
-                Cursor::Normal { pos, .. } => (None, pos, pos),
+                Cursor::Normal { pos, .. } => (None, *pos, *pos),
                 Cursor::Selection(range) => (Some(range), range.front(), range.back()),
             };
 
@@ -514,7 +511,7 @@ impl Buffer {
         let mut new_cursors = Vec::new();
         for c in self.cursors.iter().rev() {
             let pos = match c {
-                Cursor::Normal { pos, .. } => pos,
+                Cursor::Normal { pos, .. } => *pos,
                 Cursor::Selection(range) => range.front(),
             };
 
@@ -557,7 +554,7 @@ impl Buffer {
         let mut ys = HashSet::new();
         for c in self.cursors.iter().rev() {
             let pos = match c {
-                Cursor::Normal { pos, .. } => pos,
+                Cursor::Normal { pos, .. } => *pos,
                 Cursor::Selection(range) => range.front(),
             };
 
