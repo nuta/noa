@@ -27,7 +27,6 @@ impl<T> Selector<T> {
             .iter()
             .enumerate()
             .map(move |(i, item)| (i == selected, item))
-            .into_iter()
     }
 
     pub fn select_next(&mut self) {

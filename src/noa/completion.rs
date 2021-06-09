@@ -44,7 +44,7 @@ impl Completion {
 
         tokio::spawn(update_completion(
             ctx.event_tx.clone(),
-            selector.clone(),
+            selector,
             current_word,
             snapshot,
         ));
@@ -133,7 +133,7 @@ impl Surface for Completion {
                     snapshot,
                 ));
 
-                return HandledEvent::Ignored;
+                HandledEvent::Ignored
             }
         }
     }

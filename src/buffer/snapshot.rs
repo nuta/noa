@@ -48,6 +48,6 @@ impl Snapshot {
         &self.text
     }
     pub fn words(&self) -> impl Iterator<Item = &str> {
-        self.words.iter().map(String::as_str).into_iter()
+        self.words.iter().map(String::as_str)
     }
 }
