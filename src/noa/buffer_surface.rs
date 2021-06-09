@@ -178,7 +178,8 @@ impl Surface for BufferSurface {
             (KeyCode::Char('f'), CTRL) => {
                 drop(buffer);
                 drop(view);
-                compositor.push_layer(Finder::new(ctx));
+                let finder = Finder::new(ctx);
+                compositor.push_layer(ctx, finder);
             }
             (KeyCode::Backspace, NONE) => {
                 buffer.backspace();

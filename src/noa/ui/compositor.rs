@@ -2,6 +2,7 @@ use std::{slice, sync::Arc, time::Instant};
 
 use anyhow::Result;
 use crossterm::event::KeyEvent;
+use noa_buffer::Point;
 use noa_common::{time_report::TimeReport, warn_on_error};
 use parking_lot::Mutex;
 
@@ -72,8 +73,10 @@ impl Compositor {
         }
     }
 
-    pub fn push_layer(&mut self, surface: impl Surface + 'static) {
-        let ((screen_y, screen_x), rect_size) = relayout_layers(self.screen_size, &surface);
+    pub fn push_layer(&mut self, ctx: &mut Context, surface: impl Surface + 'static) {
+        let cursor_pos = ctx.editor.current_buffer().read().main_cursor_pos();
+        let ((screen_y, screen_x), rect_size) =
+            relayout_layers(self.screen_size, &surface, cursor_pos);
         self.layers.push(Arc::new(Mutex::new(Layer {
             surface: Box::new(surface),
             visible: true,
@@ -92,10 +95,11 @@ impl Compositor {
         self.screen_size = RectSize { height, width };
         self.screens = [Canvas::new(height, width), Canvas::new(height, width)];
 
+        let cursor_pos = ctx.editor.current_buffer().read().main_cursor_pos();
         for layer in &mut self.layers {
             let mut layer = layer.lock();
             let ((screen_y, screen_x), rect_size) =
-                relayout_layers(self.screen_size, &*layer.surface);
+                relayout_layers(self.screen_size, &*layer.surface, cursor_pos);
             layer.screen_x = screen_x;
             layer.screen_y = screen_y;
             layer.canvas = Canvas::new(self.screen_size.height, self.screen_size.width);
@@ -245,15 +249,20 @@ fn compose_layers<'a, 'b, 'c>(
 fn relayout_layers(
     screen_size: RectSize,
     surface: &(impl Surface + ?Sized),
+    cursor_pos: Point,
 ) -> ((usize, usize), RectSize) {
     let (layout, rect_size) = surface.layout(screen_size);
 
     let (screen_y, screen_x) = match layout {
+        Layout::Full => (0, 0),
         Layout::Center => (
             (screen_size.height / 2).saturating_sub(rect_size.height / 2),
             (screen_size.width / 2).saturating_sub(rect_size.width / 2),
         ),
-        Layout::Full => (0, 0),
+        Layout::AroundCursor => {
+            // let x;
+            (0, 0)
+        }
     };
 
     ((screen_y, screen_x), rect_size)

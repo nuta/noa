@@ -79,12 +79,19 @@ async fn main() {
         _ => current_dir().unwrap(),
     };
 
+    let mut editor = editor::Editor::new(workspace_dir);
+
     let (event_tx, mut event_rx) = unbounded_channel();
     let terminal = Terminal::new(event_tx.clone());
     let mut compositor = Compositor::new(terminal);
-    compositor.push_layer(BufferSurface::new());
+    compositor.push_layer(
+        &mut Context {
+            editor: &mut editor,
+            event_tx: &event_tx,
+        },
+        BufferSurface::new(),
+    );
 
-    let mut editor = editor::Editor::new(workspace_dir);
     for file in opt.files.iter() {
         if !file.is_file() {
             continue;
