@@ -39,6 +39,7 @@ mod buffer_surface;
 mod completion;
 mod editor;
 mod finder;
+mod fuzzy_set;
 mod line_edit;
 mod selector;
 mod syncd_client;

@@ -14,6 +14,7 @@ use parking_lot::Mutex;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
+    fuzzy_set::FuzzySet,
     line_edit::LineEdit,
     selector::Selector,
     ui::{Canvas, Compositor, Context, Event, HandledEvent, Layout, RectSize, Surface},
@@ -107,7 +108,11 @@ impl Surface for Finder {
                 self.query.backspace();
                 true
             }
-            (NONE, KeyCode::Enter) => false,
+            (NONE, KeyCode::Enter) => {
+                compositor.pop_layer();
+                // TODO:
+                return HandledEvent::Consumed;
+            }
             _ => {
                 trace!("finder: unhandled key event: {:?}", key);
                 return HandledEvent::Consumed;
@@ -132,56 +137,6 @@ impl Surface for Finder {
     ) -> HandledEvent {
         self.query.insert(input);
         HandledEvent::Consumed
-    }
-}
-
-struct FuzzyItem<T> {
-    score: isize,
-    value: T,
-}
-
-impl<T> PartialEq for FuzzyItem<T> {
-    fn eq(&self, other: &FuzzyItem<T>) -> bool {
-        self.score.eq(&other.score)
-    }
-}
-
-impl<T> Eq for FuzzyItem<T> {}
-
-impl<T> PartialOrd for FuzzyItem<T> {
-    fn partial_cmp(&self, other: &FuzzyItem<T>) -> Option<Ordering> {
-        self.score.partial_cmp(&other.score)
-    }
-}
-
-impl<T> Ord for FuzzyItem<T> {
-    fn cmp(&self, other: &FuzzyItem<T>) -> Ordering {
-        self.score.cmp(&other.score)
-    }
-}
-
-struct FuzzySet<T> {
-    capacity: usize,
-    items: BinaryHeap<FuzzyItem<T>>,
-}
-
-impl<T> FuzzySet<T> {
-    pub fn with_capacity(capacity: usize) -> FuzzySet<T> {
-        FuzzySet {
-            capacity,
-            items: BinaryHeap::with_capacity(capacity + 1),
-        }
-    }
-
-    pub fn push(&mut self, score: isize, value: T) {
-        self.items.push(FuzzyItem { score, value });
-        if self.items.len() > self.capacity {
-            self.items.pop();
-        }
-    }
-
-    pub fn into_iter(self) -> binary_heap::IntoIter<FuzzyItem<T>> {
-        self.items.into_iter()
     }
 }
 
