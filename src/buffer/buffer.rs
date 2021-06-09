@@ -1,11 +1,13 @@
-use crate::{rope::*, Lang};
+use crate::{rope::*, Lang, Snapshot};
 use noa_editorconfig::*;
+use std::cell::{Ref, RefCell};
 use std::cmp::{max, min};
 use std::collections::HashSet;
 use std::fs;
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, MutexGuard};
 
 fn remove_range(
     buf: &mut Rope,
@@ -86,6 +88,7 @@ pub struct Buffer {
     redo_stack: Vec<Rope>,
     lang: &'static Lang,
     config: EditorConfig,
+    cached_text: RefCell<(usize, Arc<String>)>,
 }
 
 impl Buffer {
@@ -101,6 +104,7 @@ impl Buffer {
             redo_stack: Vec::new(),
             lang: &crate::lang::PLAIN,
             config: EditorConfig::default(),
+            cached_text: RefCell::new((0, Arc::new(String::new()))),
         };
 
         buffer.mark_undo_point();
@@ -128,11 +132,24 @@ impl Buffer {
             redo_stack: Vec::new(),
             lang,
             config: EditorConfig::resolve(path),
+            cached_text: RefCell::new((0, Arc::new(String::new()))),
         };
 
         buffer.mark_undo_point();
         buffer.is_dirty = false;
         Ok(buffer)
+    }
+
+    pub fn cached_text(&self) -> Ref<'_, Arc<String>> {
+        {
+            let cached_text = self.cached_text.borrow_mut();
+            if cached_text.0 != self.rope.version() {
+                cached_text.0 = self.rope.version();
+                cached_text.1 = Arc::new(self.rope.text());
+            }
+        }
+
+        Ref::map(self.cached_text.borrow(), |(ver, text)| text)
     }
 
     pub fn set_text(&mut self, text: &str) {
@@ -254,6 +271,10 @@ impl Buffer {
         }
 
         Ok(())
+    }
+
+    pub fn take_snapshot(&self) -> Snapshot {
+        Snapshot::new(self.cached_text().clone())
     }
 
     pub fn cursors(&self) -> &[Cursor] {

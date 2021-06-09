@@ -10,6 +10,7 @@ use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers},
     style::Color,
 };
+use noa_buffer::Snapshot;
 use parking_lot::Mutex;
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -35,11 +36,15 @@ pub struct Completion {
 impl Completion {
     pub fn new(ctx: &mut Context) -> Completion {
         let selector = Arc::new(Mutex::new(Selector::new()));
+        let buffer = ctx.editor.current_buffer().read();
+        let current_word = buffer.current_word().unwrap_or_else(|| "".to_owned());
+        let snapshot = buffer.take_snapshot();
 
         tokio::spawn(update_completion(
             ctx.event_tx.clone(),
             selector.clone(),
-            "".to_owned(),
+            current_word,
+            snapshot,
         ));
 
         Completion {
@@ -99,17 +104,15 @@ impl Surface for Completion {
                 HandledEvent::Consumed
             }
             _ => {
-                let current_word = ctx
-                    .editor
-                    .current_buffer()
-                    .read()
-                    .current_word()
-                    .unwrap_or_else(|| "".to_owned());
+                let buffer = ctx.editor.current_buffer().read();
+                let current_word = buffer.current_word().unwrap_or_else(|| "".to_owned());
+                let snapshot = buffer.take_snapshot();
 
                 tokio::spawn(update_completion(
                     ctx.event_tx.clone(),
                     self.selector.clone(),
                     current_word,
+                    ctx,
                 ));
 
                 return HandledEvent::Ignored;
@@ -132,17 +135,19 @@ async fn update_completion(
     event_tx: UnboundedSender<Event>,
     selector: Arc<Mutex<Selector<(Kind, Item)>>>,
     query: String,
+    snapshot: Snapshot,
 ) {
     use ignore::{WalkBuilder, WalkState};
 
-    // Scan all files.
-    let path_resolver = async move {
-        let mut results = Mutex::new(FuzzySet::with_capacity(32));
+    // Word completion.
+    let word_comp = async move {
+        let mut results = FuzzySet::with_capacity(32);
+
         results
     };
 
     // Merge results.
-    let iter = futures::future::join_all(vec![path_resolver]).await;
+    let iter = futures::future::join_all(vec![word_comp]).await;
     let mut selector = selector.lock();
     selector.clear();
     for results in iter {

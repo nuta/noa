@@ -3,6 +3,7 @@ use std::cmp::{max, min};
 use std::fmt;
 use std::fs::OpenOptions;
 use std::path::Path;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
