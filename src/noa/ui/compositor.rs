@@ -251,21 +251,32 @@ fn relayout_layers(
     surface: &(impl Surface + ?Sized),
     cursor_pos: Point,
 ) -> ((usize, usize), RectSize) {
-    let (layout, rect_size) = surface.layout(screen_size);
+    let (layout, rect) = surface.layout(screen_size);
 
     let (screen_y, screen_x) = match layout {
         Layout::Full => (0, 0),
         Layout::Center => (
-            (screen_size.height / 2).saturating_sub(rect_size.height / 2),
-            (screen_size.width / 2).saturating_sub(rect_size.width / 2),
+            (screen_size.height / 2).saturating_sub(rect.height / 2),
+            (screen_size.width / 2).saturating_sub(rect.width / 2),
         ),
         Layout::AroundCursor => {
-            // let x;
-            (0, 0)
+            let y = if cursor_pos.y + rect.height + 1 > screen_size.height {
+                cursor_pos.y.saturating_sub(rect.height + 1)
+            } else {
+                cursor_pos.y + 1
+            };
+
+            let x = if cursor_pos.x + rect.width > screen_size.width {
+                cursor_pos.x.saturating_sub(rect.width)
+            } else {
+                cursor_pos.x
+            };
+
+            (y, x)
         }
     };
 
-    ((screen_y, screen_x), rect_size)
+    ((screen_y, screen_x), rect)
 }
 
 struct TooSmallSurface {
