@@ -22,15 +22,11 @@ use crate::{
 };
 
 enum Item {
-    Text(String),
-}
-
-enum Kind {
-    WordCompletion,
+    Word(String),
 }
 
 pub struct Completion {
-    selector: Arc<Mutex<Selector<(Kind, Item)>>>,
+    selector: Arc<Mutex<Selector<Item>>>,
 }
 
 impl Completion {
@@ -112,7 +108,7 @@ impl Surface for Completion {
                     ctx.event_tx.clone(),
                     self.selector.clone(),
                     current_word,
-                    ctx,
+                    snapshot,
                 ));
 
                 return HandledEvent::Ignored;
@@ -133,15 +129,20 @@ impl Surface for Completion {
 
 async fn update_completion(
     event_tx: UnboundedSender<Event>,
-    selector: Arc<Mutex<Selector<(Kind, Item)>>>,
+    selector: Arc<Mutex<Selector<Item>>>,
     query: String,
-    snapshot: Snapshot,
+    snapshot: Arc<Snapshot>,
 ) {
     use ignore::{WalkBuilder, WalkState};
 
     // Word completion.
     let word_comp = async move {
         let mut results = FuzzySet::with_capacity(32);
+        for word in snapshot.words() {
+            if let Some(m) = sublime_fuzzy::best_match(&query, word) {
+                results.push(m.score(), Item::Word(word.to_owned()));
+            }
+        }
 
         results
     };
@@ -151,7 +152,7 @@ async fn update_completion(
     let mut selector = selector.lock();
     selector.clear();
     for results in iter {
-        for item in results.into_inner().into_iter() {
+        for item in results.into_iter() {
             selector.push(item.value);
         }
     }

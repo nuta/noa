@@ -3,8 +3,8 @@ use std::cmp::{max, min};
 use std::fmt;
 use std::fs::OpenOptions;
 use std::path::Path;
-use std::sync::Arc;
 
+use ropey::iter::Chunks;
 use serde::{Deserialize, Serialize};
 
 /// The position in the text buffer (0-origin).
@@ -231,6 +231,11 @@ impl Rope {
         self.inner.len_chars()
     }
 
+    /// Returns the number of bytes in the buffer.
+    pub fn len_bytes(&self) -> usize {
+        self.inner.len_bytes()
+    }
+
     /// Returns the number of characters in the buffer.
     pub fn num_lines(&self) -> usize {
         self.cached_num_lines
@@ -243,6 +248,10 @@ impl Rope {
         } else {
             self.line(line).len_chars()
         }
+    }
+
+    pub fn chunks(&self) -> Chunks {
+        self.inner.chunks()
     }
 
     pub fn version(&self) -> usize {
