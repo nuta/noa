@@ -161,10 +161,17 @@ impl Cursor {
         }
     }
 
-    pub fn front(&self) -> &Point {
+    pub fn front(&self) -> Point {
         match self {
-            Cursor::Normal { pos, .. } => pos,
-            Cursor::Selection(Range { start, .. }) => start,
+            Cursor::Normal { pos, .. } => *pos,
+            Cursor::Selection(range) => range.front(),
+        }
+    }
+
+    pub fn anchor(&self) -> Point {
+        match self {
+            Cursor::Normal { pos, .. } => *pos,
+            Cursor::Selection(Range { start, .. }) => *start,
         }
     }
 }

@@ -732,11 +732,15 @@ impl Buffer {
             self.insert(text);
         } else {
             let cursors = self.cursors.clone();
+            let mut new_cursors = Vec::with_capacity(self.cursors.len());
             let lines: Vec<&str> = text.split('\n').collect();
             for (c, line) in cursors.iter().rev().zip(lines.iter().rev()) {
                 self.cursors = vec![c.clone()];
                 self.insert(line);
+                new_cursors.push(Cursor::new(c.front().y, c.front().x + line.chars().count()));
             }
+
+            self.set_cursors(new_cursors);
         }
     }
 
@@ -794,64 +798,6 @@ impl Buffer {
         self.rope.prev_word_at(pos)
     }
 
-    pub fn find(&mut self, needle: &str) -> Vec<Range> {
-        if needle.is_empty() {
-            return Vec::new();
-        }
-
-        // TODO: Implement a well-known better algorithm.
-        let needle_chars: Vec<char> = needle.chars().collect();
-        let mut matches = Vec::new();
-        let mut y = 0;
-        let mut x = 0;
-        for ch in self.rope.chars() {
-            for m in &mut matches {
-                match m {
-                    (0, _) => {
-                        // this `m` does not match.
-                    }
-                    (next_index, _) if *next_index == needle_chars.len() => {
-                        // This `m` matches to the needle.
-                    }
-                    (next_index, _) if needle_chars[*next_index] == ch => {
-                        // This `m` partially matches to the needle. Go to the
-                        // next char...
-                        *next_index += 1;
-                    }
-                    (next_index, _) => {
-                        // this `m` does not match.
-                        *next_index = 0;
-                    }
-                }
-            }
-
-            if ch == needle_chars[0] {
-                matches.push((1, Point::new(y, x)));
-            }
-
-            if ch == '\n' {
-                y += 1;
-                x = 0;
-            } else {
-                x += 1;
-            }
-        }
-
-        let y_len = needle.matches('\n').count();
-        let last_newline_idx = needle.rfind('\n');
-
-        matches
-            .iter()
-            .filter(|(index, _)| *index == needle_chars.len())
-            .map(|(_, start)| {
-                let x = last_newline_idx
-                    .map(|i| needle.len() - i - 1)
-                    .unwrap_or_else(|| start.x + needle.len());
-                Range::new(start.y, start.x, start.y + y_len, x)
-            })
-            .collect::<Vec<Range>>()
-    }
-
     pub fn select_by_ranges(&mut self, selections: &[Range]) {
         self.cursors.clear();
         for selection in selections {
@@ -862,7 +808,7 @@ impl Buffer {
     }
 
     pub fn add_cursor_above(&mut self) {
-        let top = *self.cursors[0].front();
+        let top = self.cursors[0].anchor();
         if top.y > 0 {
             let y = top.y - 1;
             self.cursors
@@ -873,7 +819,7 @@ impl Buffer {
     }
 
     pub fn add_cursor_below(&mut self) {
-        let bottom = *self.cursors[self.cursors.len() - 1].front();
+        let bottom = self.cursors[self.cursors.len() - 1].anchor();
         if bottom.y < self.num_lines() {
             let y = bottom.y + 1;
             let x = if bottom.y == self.num_lines() {
@@ -886,6 +832,25 @@ impl Buffer {
 
         self.sort_and_merge_cursors();
     }
+
+    pub fn move_current_line_above(&mut self) {
+        let old_cursors = self.cursors.clone();
+        self.move_to_beginning_of_line();
+        self.select_until_end_of_line();
+        let text = self.cut_selection();
+        self.delete(); // Remove backspace.
+        self.move_cursors(1, 0, 0, 0);
+        self.paste(&text);
+        self.insert_char('\n');
+
+        // Try to restore cursors' x.
+        self.set_cursors(old_cursors);
+        self.move_cursors(1, 0, 0, 0);
+    }
+
+    pub fn move_current_line_below(&mut self) {}
+    pub fn duplicate_line_above(&mut self) {}
+    pub fn duplicate_line_below(&mut self) {}
 }
 
 #[cfg(test)]
@@ -1646,33 +1611,6 @@ mod test {
     }
 
     #[test]
-    fn find() {
-        // 012345678901234567890
-        // hello rust from rust
-        //       ^^^^      ^^^^
-        let mut b = Buffer::from_str("hello rust from rust");
-        assert_eq!(
-            &b.find("rust"),
-            &[Range::new(0, 6, 0, 10), Range::new(0, 16, 0, 20),]
-        );
-
-        let mut b = Buffer::from_str("hello rust from rust");
-        assert_eq!(&b.find("rrrrr"), &[]);
-
-        let mut b = Buffer::from_str("abXYZ\nXYZab");
-        assert_eq!(
-            &b.find("XYZ"),
-            &[Range::new(0, 2, 0, 5), Range::new(1, 0, 1, 3),]
-        );
-
-        let mut b = Buffer::from_str("abXY\nZab");
-        assert_eq!(&b.find("XY\nZ"), &[Range::new(0, 2, 1, 1),]);
-
-        let mut b = Buffer::from_str("");
-        assert_eq!(&b.find("rrrrr"), &[]);
-    }
-
-    #[test]
     fn indent_by_tab() {
         let mut b = Buffer::from_str("abc");
         b.set_cursors(vec![Cursor::new(0, 0)]);
@@ -1780,5 +1718,27 @@ mod test {
         assert_eq!(b.text(), "ab");
         b.paste("123");
         assert_eq!(b.text(), "a123b");
+    }
+
+    #[test]
+    fn move_current_line_above() {
+        // A
+        // 123
+        // xy
+        let mut b = Buffer::from_str("A\n123\nxy\n");
+        b.set_cursors(vec![Cursor::new(2, 1)]);
+
+        b.move_current_line_above();
+        assert_eq!(b.text(), "A\nxy\n123\n");
+        assert_eq!(b.cursors(), &[Cursor::new(1, 1)]);
+
+        b.move_current_line_above();
+        assert_eq!(b.cursors(), &[Cursor::new(0, 1)]);
+        assert_eq!(b.text(), "xy\nA\n123\n");
+
+        // No changes.
+        b.move_current_line_above();
+        assert_eq!(b.cursors(), &[Cursor::new(0, 1)]);
+        assert_eq!(b.text(), "xy\nA\n123\n");
     }
 }
