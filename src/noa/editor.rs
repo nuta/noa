@@ -93,8 +93,10 @@ impl Editor {
     }
 
     pub fn error<T: Into<String>>(&self, str: T) {
+        let string = str.into();
+        error!("error: {}", string);
         let mut messages = self.messages.lock();
-        messages.push(UserMessage::Error(str.into()));
+        messages.push(UserMessage::Error(string));
         messages.truncate(128);
     }
 
@@ -109,7 +111,8 @@ impl Editor {
         view
     }
 
-    pub async fn open_file(&mut self, path: &Path) {
+    pub fn open_file(&mut self, path: &Path) {
+        info!(">>>> OPENING {}", path.display());
         let abspath = match path.canonicalize() {
             Ok(abspath) => abspath,
             Err(err) => {
@@ -141,8 +144,9 @@ impl Editor {
         self.path2id.insert(abspath, buffer_id);
         self.views
             .insert(buffer_id, parking_lot::Mutex::new(View::new()));
+        info!("changing current_buffer to {:#?}", buffer.read().path());
         self.current_buffer = buffer.clone();
-
+        /* TODO:
         // Tell the LSP server about the newly opened file.
         let asyncd = self.syncd.clone();
         let buffer = buffer.read();
@@ -162,5 +166,6 @@ impl Editor {
                 }
             };
         });
+        */
     }
 }

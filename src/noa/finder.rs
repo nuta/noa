@@ -8,7 +8,7 @@ use std::{
 use anyhow::Result;
 use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers},
-    style::Color,
+    style::{Attribute, Color},
 };
 use parking_lot::Mutex;
 use tokio::sync::mpsc::UnboundedSender;
@@ -20,6 +20,7 @@ use crate::{
     ui::{Canvas, Compositor, Context, Event, HandledEvent, Layout, RectSize, Surface},
 };
 
+#[derive(Debug)]
 enum Item {
     File(PathBuf),
 }
@@ -86,6 +87,15 @@ impl Surface for Finder {
             };
 
             canvas.draw_str(2 + i, 1, &title);
+            if active {
+                canvas.set_attrs(
+                    2 + i,
+                    1,
+                    2 + i + 1,
+                    canvas.width() - 1,
+                    (&[Attribute::Underlined, Attribute::Bold][..]).into(),
+                );
+            }
         }
 
         canvas.draw_str(1, 1, &self.query.text());
@@ -117,7 +127,11 @@ impl Surface for Finder {
                 true
             }
             (NONE, KeyCode::Enter) => {
-                self.select(ctx, self.selector.lock().selected());
+                if let Some(item) = self.selector.lock().selected() {
+                    info!("select: {:#?}", item);
+                    self.select(ctx, item);
+                }
+
                 compositor.pop_layer();
                 return HandledEvent::Consumed;
             }
@@ -162,6 +176,10 @@ async fn update_items(
         WalkBuilder::new(workspace_dir).build_parallel().run(|| {
             Box::new(|dirent| {
                 if let Ok(dirent) = dirent {
+                    if !dirent.metadata().unwrap().is_file() {
+                        return WalkState::Continue;
+                    }
+
                     let path = dirent.path().to_str().unwrap();
                     if let Some(m) = sublime_fuzzy::best_match(&query, path) {
                         results

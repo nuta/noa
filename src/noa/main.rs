@@ -97,8 +97,7 @@ async fn main() {
             continue;
         }
 
-        trace!("file = {}", file.display());
-        editor.open_file(file).await;
+        editor.open_file(file);
     }
 
     // Register the event handler on file updates.
@@ -114,6 +113,7 @@ async fn main() {
             editor: &mut editor,
             event_tx: &event_tx,
         });
+
         if let Some(ev) = event_rx.recv().await {
             let started_at = Instant::now();
             let prev_ver = editor.current_buffer().read().id_and_version();

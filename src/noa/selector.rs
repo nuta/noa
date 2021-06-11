@@ -17,8 +17,12 @@ impl<T> Selector<T> {
         self.selected
     }
 
-    pub fn selected(&self) -> &T {
-        &self.items[self.selected]
+    pub fn selected(&self) -> Option<&T> {
+        if self.items.is_empty() {
+            return None;
+        }
+
+        Some(&self.items[self.selected])
     }
 
     pub fn len(&self) -> usize {
@@ -47,5 +51,6 @@ impl<T> Selector<T> {
 
     pub fn clear(&mut self) {
         self.items.clear();
+        self.selected = 0;
     }
 }

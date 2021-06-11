@@ -49,6 +49,7 @@ impl Surface for BufferSurface {
         canvas.clear();
 
         let buffer = ctx.editor.current_buffer().read();
+        trace!(">>> rendering {:#?}", buffer.path());
         let view = ctx
             .editor
             .compute_view(&*buffer, canvas.height(), canvas.width());
@@ -113,7 +114,7 @@ impl Surface for BufferSurface {
                         text_start,
                         buffer.num_lines(),
                     );
-                    canvas.fill_attrs(y, x, y, x + 1, (&[Attribute::Reverse][..]).into());
+                    canvas.set_attrs(y, x, y, x + 1, (&[Attribute::Reverse][..]).into());
                 }
                 Cursor::Selection(range) => {
                     let (start_y, start_x) = view.point_to_display_pos(
@@ -137,7 +138,7 @@ impl Surface for BufferSurface {
                             } else {
                                 text_start + lines_end_xs[y] + 1
                             };
-                            canvas.fill_attrs(
+                            canvas.set_attrs(
                                 y,
                                 min(x0, x1),
                                 y + 1,
