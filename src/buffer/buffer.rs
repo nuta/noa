@@ -872,9 +872,62 @@ impl Buffer {
         self.move_cursors(1, 0, 0, 0);
     }
 
-    pub fn move_current_line_below(&mut self) {}
-    pub fn duplicate_line_above(&mut self) {}
-    pub fn duplicate_line_below(&mut self) {}
+    pub fn move_current_line_below(&mut self) {
+        let old_cursors = self.cursors.clone();
+        self.move_to_beginning_of_line();
+        self.select_until_end_of_line_with_newline();
+        let text = self.cut_selection();
+        self.move_cursors(0, 1, 0, 0);
+        self.paste(&text);
+        if !text.ends_with('\n') {
+            self.insert_char('\n');
+            self.move_to_end_of_line();
+            self.delete();
+        }
+
+        // Try to restore cursors' x.
+        self.set_cursors(old_cursors);
+        self.move_cursors(0, 1, 0, 0);
+    }
+
+    pub fn duplicate_line_above(&mut self) {
+        let old_cursors = self.cursors.clone();
+        self.move_to_beginning_of_line();
+        self.select_until_end_of_line_with_newline();
+
+        let text = self.copy_selection();
+        self.move_to_beginning_of_line();
+
+        self.paste(&text);
+        if !text.ends_with('\n') {
+            self.insert_char('\n');
+            self.move_to_end_of_line();
+            self.delete();
+        }
+
+        // Try to restore cursors' x.
+        self.set_cursors(old_cursors);
+    }
+
+    pub fn duplicate_line_below(&mut self) {
+        let old_cursors = self.cursors.clone();
+        self.move_to_beginning_of_line();
+        self.select_until_end_of_line_with_newline();
+
+        let text = self.copy_selection();
+        self.move_to_beginning_of_line();
+
+        self.paste(&text);
+        if !text.ends_with('\n') {
+            self.insert_char('\n');
+            self.move_to_end_of_line();
+            self.delete();
+        }
+
+        // Try to restore cursors' x.
+        self.set_cursors(old_cursors);
+        self.move_cursors(0, 1, 0, 0);
+    }
 }
 
 #[cfg(test)]

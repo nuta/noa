@@ -165,7 +165,6 @@ impl Surface for BufferSurface {
         const CTRL: KeyModifiers = KeyModifiers::CONTROL;
         const ALT: KeyModifiers = KeyModifiers::ALT;
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
-        let _ctrl_alt = KeyModifiers::CONTROL | KeyModifiers::ALT;
 
         let mut buffer = ctx.editor.current_buffer().write();
         let view = ctx.editor.view(&*buffer);
@@ -205,16 +204,16 @@ impl Surface for BufferSurface {
             (KeyCode::Down, ALT) => {
                 buffer.move_current_line_below();
             }
-            (KeyCode::Up, ALT | CTRL) => {
+            (KeyCode::Up, modifiers) if modifiers == (CTRL | ALT) => {
                 buffer.add_cursor_above();
             }
-            (KeyCode::Down, ALT | CTRL) => {
+            (KeyCode::Down, modifiers) if modifiers == (CTRL | ALT) => {
                 buffer.add_cursor_below();
             }
-            (KeyCode::Up, CTRL | SHIFT) => {
+            (KeyCode::Up, modifiers) if modifiers == (SHIFT | ALT) => {
                 buffer.duplicate_line_above();
             }
-            (KeyCode::Up, CTRL | SHIFT) => {
+            (KeyCode::Down, modifiers) if modifiers == (SHIFT | ALT) => {
                 buffer.duplicate_line_below();
             }
             (KeyCode::Backspace, NONE) => {
