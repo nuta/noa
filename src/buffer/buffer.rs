@@ -424,9 +424,6 @@ impl Buffer {
         let mut new_cursors = Vec::new();
         for cursor in &self.cursors {
             let (start, mut end) = match cursor {
-                Cursor::Normal { pos, .. } if pos.x == self.rope.line_len(pos.y) => {
-                    (*pos, Point::new(pos.y + 1, 0))
-                }
                 Cursor::Normal { pos, .. } => (*pos, Point::new(pos.y, self.rope.line_len(pos.y))),
                 Cursor::Selection(Range { start, end }) => {
                     (*start, Point::new(end.y, self.rope.line_len(end.y)))
@@ -871,9 +868,7 @@ impl Buffer {
         }
 
         // Try to restore cursors' x.
-        trace!("text={}, cs={:#?}", self.text(), &old_cursors);
         self.set_cursors(old_cursors);
-        trace!("new_cs={:#?}", &self.cursors);
         self.move_cursors(1, 0, 0, 0);
     }
 
@@ -1383,6 +1378,12 @@ mod test {
                 Cursor::Selection(Range::new(1, 1, 1, 2)),
             ]
         );
+
+        let mut b = Buffer::new();
+        b.insert("\n\n");
+        b.set_cursors(vec![Cursor::new(0, 0)]);
+        b.select_until_end_of_line_with_newline();
+        assert_eq!(b.cursors(), &[Cursor::Selection(Range::new(0, 0, 1, 0)),]);
     }
 
     #[test]
@@ -1790,5 +1791,27 @@ mod test {
         b.move_current_line_above();
         assert_eq!(b.cursors(), &[Cursor::new(0, 1)]);
         assert_eq!(b.text(), "xy\nA\n123");
+    }
+
+    #[test]
+    fn move_current_line_above_empty_line() {
+        //
+        //
+        // ABC
+        //
+        let mut b = Buffer::from_str("\n\nABC\n\n");
+        b.set_cursors(vec![Cursor::new(3, 0)]);
+
+        b.move_current_line_above();
+        assert_eq!(b.text(), "\n\n\nABC\n");
+        assert_eq!(b.cursors(), &[Cursor::new(2, 0)]);
+
+        b.move_current_line_above();
+        assert_eq!(b.text(), "\n\n\nABC\n");
+        assert_eq!(b.cursors(), &[Cursor::new(1, 0)]);
+
+        b.move_current_line_above();
+        assert_eq!(b.text(), "\n\n\nABC\n");
+        assert_eq!(b.cursors(), &[Cursor::new(0, 0)]);
     }
 }
