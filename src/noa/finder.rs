@@ -88,13 +88,10 @@ impl Surface for Finder {
 
             canvas.draw_str(2 + i, 1, &title);
             if active {
-                canvas.set_attrs(
-                    2 + i,
-                    1,
-                    2 + i + 1,
-                    canvas.width() - 1,
-                    (&[Attribute::Underlined, Attribute::Bold][..]).into(),
-                );
+                let y = 2 + i;
+                trace!("y{}={}", y, active);
+                let attrs = [Attribute::Underlined, Attribute::Bold];
+                canvas.set_attrs(y, 1, y + 1, canvas.width() - 1, (&attrs[..]).into());
             }
         }
 
@@ -113,10 +110,10 @@ impl Surface for Finder {
         const ALT: KeyModifiers = KeyModifiers::ALT;
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
+        let prev_line = self.query.rope().clone();
         let updated = match (key.modifiers, key.code) {
             (NONE, KeyCode::Char(ch)) => {
                 self.query.insert_char(ch);
-                true
             }
             (NONE, KeyCode::Esc) => {
                 compositor.pop_layer();
@@ -124,7 +121,12 @@ impl Surface for Finder {
             }
             (NONE, KeyCode::Backspace) => {
                 self.query.backspace();
-                true
+            }
+            (NONE, KeyCode::Up) => {
+                self.selector.lock().select_prev();
+            }
+            (NONE, KeyCode::Down) => {
+                self.selector.lock().select_next();
             }
             (NONE, KeyCode::Enter) => {
                 if let Some(item) = self.selector.lock().selected() {
@@ -141,13 +143,14 @@ impl Surface for Finder {
             }
         };
 
-        tokio::spawn(update_items(
-            ctx.editor.workspace_dir().to_owned(),
-            ctx.event_tx.clone(),
-            self.selector.clone(),
-            self.query.text(),
-        ));
-
+        if &prev_line != self.query.rope() {
+            tokio::spawn(update_items(
+                ctx.editor.workspace_dir().to_owned(),
+                ctx.event_tx.clone(),
+                self.selector.clone(),
+                self.query.text(),
+            ));
+        }
         HandledEvent::Consumed
     }
 

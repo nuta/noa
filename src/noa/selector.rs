@@ -39,6 +39,7 @@ impl<T> Selector<T> {
 
     pub fn select_next(&mut self) {
         self.selected = min(self.items.len(), self.selected + 1);
+        info!("select_next: {} {}", self.selected, self.items.len());
     }
 
     pub fn select_prev(&mut self) {

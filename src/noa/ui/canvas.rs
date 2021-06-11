@@ -231,6 +231,7 @@ impl Canvas {
                 }
 
                 if new.attrs != attrs {
+                    ops.push(DrawOp::Reset);
                     ops.push(DrawOp::Attributes(new.attrs));
                     attrs = new.attrs;
                 }

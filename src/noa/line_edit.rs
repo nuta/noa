@@ -19,6 +19,10 @@ impl LineEdit {
         self.rope.line_len(0)
     }
 
+    pub fn rope(&self) -> &Rope {
+        &self.rope
+    }
+
     pub fn text(&self) -> String {
         self.rope.text()
     }
