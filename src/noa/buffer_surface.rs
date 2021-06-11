@@ -186,6 +186,12 @@ impl Surface for BufferSurface {
             (KeyCode::Char('y'), CTRL) => {
                 buffer.redo();
             }
+            (KeyCode::Char('d'), CTRL) => {
+                buffer.delete();
+            }
+            (KeyCode::Char('k'), CTRL) => {
+                buffer.truncate();
+            }
             (KeyCode::Char('a'), CTRL) => {
                 buffer.move_to_beginning_of_line();
             }
