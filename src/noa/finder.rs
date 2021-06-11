@@ -45,6 +45,14 @@ impl Finder {
             selector,
         }
     }
+
+    fn select(&self, ctx: &mut Context, item: &Item) {
+        match item {
+            Item::File(path) => {
+                ctx.editor.open_file(&path);
+            }
+        }
+    }
 }
 
 impl Surface for Finder {
@@ -109,8 +117,8 @@ impl Surface for Finder {
                 true
             }
             (NONE, KeyCode::Enter) => {
+                self.select(ctx, self.selector.lock().selected());
                 compositor.pop_layer();
-                // TODO:
                 return HandledEvent::Consumed;
             }
             _ => {

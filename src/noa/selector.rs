@@ -13,8 +13,12 @@ impl<T> Selector<T> {
         }
     }
 
-    pub fn selected(&self) -> usize {
+    pub fn selected_index(&self) -> usize {
         self.selected
+    }
+
+    pub fn selected(&self) -> &T {
+        &self.items[self.selected]
     }
 
     pub fn len(&self) -> usize {
@@ -22,7 +26,7 @@ impl<T> Selector<T> {
     }
 
     pub fn items(&self) -> impl Iterator<Item = (bool, &T)> {
-        let selected = self.selected();
+        let selected = self.selected_index();
         self.items
             .iter()
             .enumerate()

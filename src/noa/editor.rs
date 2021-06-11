@@ -25,6 +25,10 @@ fn main() {
 }
 ";
 
+enum UserMessage {
+    Error(String),
+}
+
 pub struct Editor {
     exited: bool,
     workspace_dir: PathBuf,
@@ -33,6 +37,7 @@ pub struct Editor {
     path2id: HashMap<PathBuf, BufferId>,
     views: HashMap<BufferId, parking_lot::Mutex<View>>,
     syncd: Arc<Mutex<SyncdClient>>,
+    messages: parking_lot::Mutex<Vec<UserMessage>>,
 }
 
 impl Editor {
@@ -59,6 +64,7 @@ impl Editor {
             path2id: HashMap::new(),
             views,
             syncd: Arc::new(Mutex::new(syncd)),
+            messages: parking_lot::Mutex::new(Vec::new()),
         }
     }
 
@@ -86,6 +92,12 @@ impl Editor {
         self.views[&buffer.id()].lock()
     }
 
+    pub fn error<T: Into<String>>(&self, str: T) {
+        let mut messages = self.messages.lock();
+        messages.push(UserMessage::Error(str.into()));
+        messages.truncate(128);
+    }
+
     pub fn compute_view(
         &self,
         buffer: &Buffer,
@@ -97,11 +109,16 @@ impl Editor {
         view
     }
 
-    pub async fn open_file(&mut self, path: &Path) -> Result<()> {
+    pub async fn open_file(&mut self, path: &Path) {
         let abspath = match path.canonicalize() {
             Ok(abspath) => abspath,
             Err(err) => {
-                bail!("failed to resolve path: {} ({})", path.display(), err);
+                self.error(format!(
+                    "failed to resolve path: {} ({})",
+                    path.display(),
+                    err
+                ));
+                return;
             }
         };
 
@@ -111,7 +128,12 @@ impl Editor {
                 (Arc::new(RwLock::new(buffer)), id)
             }
             Err(err) => {
-                bail!("failed to open file: {} ({})", abspath.display(), err);
+                self.error(format!(
+                    "failed to open file: {} ({})",
+                    abspath.display(),
+                    err
+                ));
+                return;
             }
         };
 
@@ -140,7 +162,5 @@ impl Editor {
                 }
             };
         });
-
-        Ok(())
     }
 }
