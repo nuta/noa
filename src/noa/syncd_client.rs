@@ -5,11 +5,11 @@ use std::{
 };
 
 use anyhow::Result;
-use noa_buffer::Lang;
 use noa_common::{
     dirs::lsp_sock_path,
     syncd_protocol::{LspResponse, Notification, Request, ToClient, ToServer},
 };
+use noa_langs::Lang;
 use serde::Serialize;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},

@@ -13,3 +13,4 @@ ropey = "1"
 serde = { version = "1", features = ["derive"] }
 
 noa_editorconfig = { path = "../editorconfig" }
+noa_langs = { path = "../langs" }

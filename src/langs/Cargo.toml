@@ -1,0 +1,10 @@
+[package]
+name = "noa_langs"
+version = "0.0.0"
+authors = ["Seiya Nuta <nuta@seiya.me>"]
+edition = "2018"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]

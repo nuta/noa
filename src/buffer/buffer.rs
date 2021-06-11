@@ -1,5 +1,6 @@
-use crate::{rope::*, Lang, Snapshot};
+use crate::{rope::*, Snapshot};
 use noa_editorconfig::*;
+use noa_langs::Lang;
 use std::cmp::{max, min};
 use std::collections::HashSet;
 use std::fs;
@@ -53,7 +54,7 @@ fn backup_path(backup_dir: &Path, base: &str, revision: usize) -> PathBuf {
 fn guess_lang_from_path(path: &Path) -> &'static Lang {
     let basename = path.file_name().map(|s| s.to_str().unwrap()).unwrap_or("");
     let ext = path.extension().map(|s| s.to_str().unwrap());
-    for lang in crate::lang::LANGS {
+    for lang in noa_langs::LANGS {
         if let Some(ext) = ext.as_ref() {
             if lang.filenames.iter().any(|&f| f == basename)
                 || lang.extensions.iter().any(|e| e == ext)
@@ -63,7 +64,7 @@ fn guess_lang_from_path(path: &Path) -> &'static Lang {
         }
     }
 
-    &crate::lang::PLAIN
+    &noa_langs::PLAIN
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -101,7 +102,7 @@ impl Buffer {
             cursors: vec![Cursor::new(0, 0)],
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
-            lang: &crate::lang::PLAIN,
+            lang: &noa_langs::PLAIN,
             config: EditorConfig::default(),
             snapshot_cache: Mutex::new((0, Arc::new(Snapshot::empty()))),
         };

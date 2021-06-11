@@ -32,3 +32,4 @@ sublime_fuzzy = "0"
 noa_common = { path = "../common" }
 noa_buffer = { path = "../buffer" }
 noa_editorconfig = { path = "../editorconfig" }
+noa_langs = { path = "../langs" }

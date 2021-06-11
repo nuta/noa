@@ -564,6 +564,7 @@ dependencies = [
  "noa_buffer",
  "noa_common",
  "noa_editorconfig",
+ "noa_langs",
  "parking_lot",
  "pretty_assertions",
  "ropey",
@@ -582,6 +583,7 @@ version = "0.0.0"
 dependencies = [
  "log",
  "noa_editorconfig",
+ "noa_langs",
  "ropey",
  "serde",
 ]
@@ -604,6 +606,10 @@ version = "0.0.0"
 dependencies = [
  "log",
 ]
+
+[[package]]
+name = "noa_langs"
+version = "0.0.0"
 
 [[package]]
 name = "noa_syncd"
