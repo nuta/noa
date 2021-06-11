@@ -861,7 +861,7 @@ impl Buffer {
         self.sort_and_merge_cursors();
     }
 
-    pub fn add_cursor_up(&mut self) {
+    pub fn add_cursor_above(&mut self) {
         let top = *self.cursors[0].front();
         if top.y > 0 {
             let y = top.y - 1;
@@ -872,7 +872,7 @@ impl Buffer {
         self.sort_and_merge_cursors();
     }
 
-    pub fn add_cursor_down(&mut self) {
+    pub fn add_cursor_below(&mut self) {
         let bottom = *self.cursors[self.cursors.len() - 1].front();
         if bottom.y < self.num_lines() {
             let y = bottom.y + 1;

@@ -181,6 +181,42 @@ impl Surface for BufferSurface {
                 let finder = Finder::new(ctx);
                 compositor.push_layer(ctx, finder);
             }
+            (KeyCode::Char('u'), CTRL) => {
+                buffer.undo();
+            }
+            (KeyCode::Char('y'), CTRL) => {
+                buffer.redo();
+            }
+            (KeyCode::Char('a'), CTRL) => {
+                buffer.move_to_beginning_of_line();
+            }
+            (KeyCode::Char('e'), CTRL) => {
+                buffer.move_to_end_of_line();
+            }
+            (KeyCode::Char('f'), ALT) => {
+                buffer.move_to_next_word();
+            }
+            (KeyCode::Char('b'), ALT) => {
+                buffer.move_to_prev_word();
+            }
+            (KeyCode::Up, ALT) => {
+                buffer.move_current_line_above();
+            }
+            (KeyCode::Down, ALT) => {
+                buffer.move_current_line_below();
+            }
+            (KeyCode::Up, ALT | CTRL) => {
+                buffer.add_cursor_above();
+            }
+            (KeyCode::Down, ALT | CTRL) => {
+                buffer.add_cursor_below();
+            }
+            (KeyCode::Up, CTRL | SHIFT) => {
+                buffer.duplicate_line_above();
+            }
+            (KeyCode::Up, CTRL | SHIFT) => {
+                buffer.duplicate_line_below();
+            }
             (KeyCode::Backspace, NONE) => {
                 buffer.backspace();
             }
