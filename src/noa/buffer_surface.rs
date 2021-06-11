@@ -49,7 +49,6 @@ impl Surface for BufferSurface {
         canvas.clear();
 
         let buffer = ctx.editor.current_buffer().read();
-        trace!(">>> rendering {:#?}", buffer.path());
         let view = ctx
             .editor
             .compute_view(&*buffer, canvas.height(), canvas.width());

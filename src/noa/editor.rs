@@ -112,7 +112,6 @@ impl Editor {
     }
 
     pub fn open_file(&mut self, path: &Path) {
-        info!(">>>> OPENING {}", path.display());
         let abspath = match path.canonicalize() {
             Ok(abspath) => abspath,
             Err(err) => {
@@ -144,7 +143,6 @@ impl Editor {
         self.path2id.insert(abspath, buffer_id);
         self.views
             .insert(buffer_id, parking_lot::Mutex::new(View::new()));
-        info!("changing current_buffer to {:#?}", buffer.read().path());
         self.current_buffer = buffer.clone();
         /* TODO:
         // Tell the LSP server about the newly opened file.
