@@ -144,7 +144,7 @@ impl Editor {
         self.views
             .insert(buffer_id, parking_lot::Mutex::new(View::new()));
         self.current_buffer = buffer.clone();
-        /* TODO:
+
         // Tell the LSP server about the newly opened file.
         let asyncd = self.syncd.clone();
         let buffer = buffer.read();
@@ -164,6 +164,5 @@ impl Editor {
                 }
             };
         });
-        */
     }
 }

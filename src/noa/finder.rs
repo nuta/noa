@@ -110,7 +110,7 @@ impl Surface for Finder {
         const ALT: KeyModifiers = KeyModifiers::ALT;
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
-        let prev_line = self.query.rope().clone();
+        let prev_query = self.query.rope().clone();
         let updated = match (key.modifiers, key.code) {
             (NONE, KeyCode::Char(ch)) => {
                 self.query.insert_char(ch);
@@ -143,7 +143,7 @@ impl Surface for Finder {
             }
         };
 
-        if &prev_line != self.query.rope() {
+        if &prev_query != self.query.rope() {
             tokio::spawn(update_items(
                 ctx.editor.workspace_dir().to_owned(),
                 ctx.event_tx.clone(),
