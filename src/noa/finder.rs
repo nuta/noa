@@ -89,7 +89,6 @@ impl Surface for Finder {
             canvas.draw_str(2 + i, 1, &title);
             if active {
                 let y = 2 + i;
-                trace!("y{}={}", y, active);
                 let attrs = [Attribute::Underlined, Attribute::Bold];
                 canvas.set_attrs(y, 1, y + 1, canvas.width() - 1, (&attrs[..]).into());
             }
@@ -130,7 +129,6 @@ impl Surface for Finder {
             }
             (NONE, KeyCode::Enter) => {
                 if let Some(item) = self.selector.lock().selected() {
-                    info!("select: {:#?}", item);
                     self.select(ctx, item);
                 }
 
