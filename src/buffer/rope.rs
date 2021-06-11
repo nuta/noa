@@ -22,34 +22,38 @@ impl Point {
 
     pub fn move_by(&mut self, rope: &Rope, up: usize, down: usize, left: usize, right: usize) {
         let num_lines = rope.num_lines();
-        let mut r = right;
-        loop {
-            let max_x = rope.line_len(self.y);
-            if self.x + r <= max_x {
-                self.x += r;
-                break;
-            } else if self.y >= num_lines {
-                break;
-            } else {
-                r -= max_x - self.x + 1;
-                self.x = 0;
-                self.y += 1;
+        if right > 0 {
+            let mut r = right;
+            loop {
+                let max_x = rope.line_len(self.y);
+                if self.x + r <= max_x {
+                    self.x += r;
+                    break;
+                } else if self.y >= num_lines {
+                    break;
+                } else {
+                    r -= max_x - self.x + 1;
+                    self.x = 0;
+                    self.y += 1;
+                }
             }
         }
 
-        let mut l = left;
-        loop {
-            if l <= self.x {
-                self.x -= l;
-                break;
-            } else if self.y == 0 {
-                break;
-            } else {
-                l -= self.x;
-                if l > 0 {
-                    l -= 1;
-                    self.y -= 1;
-                    self.x = rope.line_len(self.y);
+        if left > 0 {
+            let mut l = left;
+            loop {
+                if l <= self.x {
+                    self.x -= l;
+                    break;
+                } else if self.y == 0 {
+                    break;
+                } else {
+                    l -= self.x;
+                    if l > 0 {
+                        l -= 1;
+                        self.y -= 1;
+                        self.x = rope.line_len(self.y);
+                    }
                 }
             }
         }

@@ -420,6 +420,30 @@ impl Buffer {
         self.set_cursors(new_cursors);
     }
 
+    pub fn select_until_end_of_line_with_newline(&mut self) {
+        let mut new_cursors = Vec::new();
+        for cursor in &self.cursors {
+            let (start, mut end) = match cursor {
+                Cursor::Normal { pos, .. } if pos.x == self.rope.line_len(pos.y) => {
+                    (*pos, Point::new(pos.y + 1, 0))
+                }
+                Cursor::Normal { pos, .. } => (*pos, Point::new(pos.y, self.rope.line_len(pos.y))),
+                Cursor::Selection(Range { start, end }) => {
+                    (*start, Point::new(end.y, self.rope.line_len(end.y)))
+                }
+            };
+
+            if end.y + 1 < self.num_lines() {
+                end.y += 1;
+                end.x = 0;
+            }
+
+            new_cursors.push(Cursor::Selection(Range::from_points(start, end)));
+        }
+
+        self.set_cursors(new_cursors);
+    }
+
     pub fn insert_char(&mut self, ch: char) {
         self.insert(&ch.to_string())
     }
@@ -836,15 +860,20 @@ impl Buffer {
     pub fn move_current_line_above(&mut self) {
         let old_cursors = self.cursors.clone();
         self.move_to_beginning_of_line();
-        self.select_until_end_of_line();
+        self.select_until_end_of_line_with_newline();
         let text = self.cut_selection();
-        self.delete(); // Remove backspace.
         self.move_cursors(1, 0, 0, 0);
         self.paste(&text);
-        self.insert_char('\n');
+        if !text.ends_with('\n') {
+            self.insert_char('\n');
+            self.move_to_end_of_line();
+            self.delete();
+        }
 
         // Try to restore cursors' x.
+        trace!("text={}, cs={:#?}", self.text(), &old_cursors);
         self.set_cursors(old_cursors);
+        trace!("new_cs={:#?}", &self.cursors);
         self.move_cursors(1, 0, 0, 0);
     }
 
@@ -1336,6 +1365,27 @@ mod test {
     }
 
     #[test]
+    fn select_until_end_of_line_with_newline() {
+        let mut b = Buffer::new();
+        // |ab|c|  =>  |abc|
+        // d|e         d|e|
+        b.insert("abc\nde");
+        b.set_cursors(vec![
+            Cursor::new(0, 0),
+            Cursor::new(0, 2),
+            Cursor::new(1, 1),
+        ]);
+        b.select_until_end_of_line_with_newline();
+        assert_eq!(
+            b.cursors(),
+            &[
+                Cursor::Selection(Range::new(0, 0, 1, 0)),
+                Cursor::Selection(Range::new(1, 1, 1, 2)),
+            ]
+        );
+    }
+
+    #[test]
     fn set_text() {
         let mut b = Buffer::from_str("");
         b.set_text("abc");
@@ -1725,20 +1775,20 @@ mod test {
         // A
         // 123
         // xy
-        let mut b = Buffer::from_str("A\n123\nxy\n");
+        let mut b = Buffer::from_str("A\n123\nxy");
         b.set_cursors(vec![Cursor::new(2, 1)]);
 
         b.move_current_line_above();
-        assert_eq!(b.text(), "A\nxy\n123\n");
+        assert_eq!(b.text(), "A\nxy\n123");
         assert_eq!(b.cursors(), &[Cursor::new(1, 1)]);
 
         b.move_current_line_above();
         assert_eq!(b.cursors(), &[Cursor::new(0, 1)]);
-        assert_eq!(b.text(), "xy\nA\n123\n");
+        assert_eq!(b.text(), "xy\nA\n123");
 
         // No changes.
         b.move_current_line_above();
         assert_eq!(b.cursors(), &[Cursor::new(0, 1)]);
-        assert_eq!(b.text(), "xy\nA\n123\n");
+        assert_eq!(b.text(), "xy\nA\n123");
     }
 }
