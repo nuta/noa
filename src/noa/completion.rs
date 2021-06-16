@@ -61,6 +61,10 @@ impl Surface for Completion {
         "popup"
     }
 
+    fn is_visible(&self) -> bool {
+        !self.selector.lock().is_empty()
+    }
+
     fn layout(&self, screen_size: RectSize) -> (Layout, RectSize) {
         let selector = self.selector.lock();
 
@@ -78,6 +82,7 @@ impl Surface for Completion {
 
         let width = max_width + 2 /* border */;
         let height = selector.len() + 2 /* border */;
+        info!("relayout {}", height);
         (Layout::AroundCursor, RectSize { height, width })
     }
 
@@ -93,11 +98,19 @@ impl Surface for Completion {
         canvas.clear();
         canvas.draw_borders(0, 0, canvas.height() - 1, canvas.width() - 1);
 
-        for (i, (active, item)) in self.selector.lock().items().enumerate() {
+        info!("canvas.height()={}", canvas.height());
+        for (i, (active, item)) in self
+            .selector
+            .lock()
+            .items()
+            .take(canvas.height().saturating_sub(2))
+            .enumerate()
+        {
             let text = match item {
                 Item::Word(text) => text,
             };
 
+            info!("{}: {}", i, text);
             let y = 1 + i;
             let x = 1;
             canvas.draw_str(y, x, truncate_to_width(text, canvas.width() - 1));
@@ -133,25 +146,26 @@ impl Surface for Completion {
             ));
         }
 
-        if self.selector.lock().is_empty() {
+        let mut selector = self.selector.lock();
+        if selector.is_empty() {
             return HandledEvent::Ignored;
         }
 
         match (key.modifiers, key.code) {
             (NONE, KeyCode::Esc) => {
-                compositor.pop_layer();
+                selector.clear();
                 HandledEvent::Consumed
             }
             (NONE, KeyCode::Up) => {
-                self.selector.lock().select_prev();
+                selector.select_prev();
                 HandledEvent::Consumed
             }
             (NONE, KeyCode::Down) => {
-                self.selector.lock().select_next();
+                selector.select_next();
                 HandledEvent::Consumed
             }
             (NONE, KeyCode::Enter) => {
-                if let Some(selected) = self.selector.lock().selected() {
+                if let Some(selected) = selector.selected() {
                     match selected {
                         Item::Word(word) => {
                             let mut buffer = ctx.editor.current_buffer().write();
@@ -163,7 +177,7 @@ impl Surface for Completion {
                     }
                 }
 
-                compositor.pop_layer();
+                selector.clear();
                 HandledEvent::Consumed
             }
             _ => HandledEvent::Ignored,
@@ -211,5 +225,6 @@ async fn update_completion(
         }
     }
 
+    info!("update completion to {}", selector.len());
     event_tx.send(Event::ReDraw);
 }

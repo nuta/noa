@@ -61,6 +61,10 @@ impl Surface for Finder {
         "finder"
     }
 
+    fn is_visible(&self) -> bool {
+        true
+    }
+
     fn layout(&self, screen_size: RectSize) -> (Layout, RectSize) {
         let rect_size = RectSize {
             width: min(max(screen_size.width, 32), 80),

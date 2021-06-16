@@ -33,6 +33,10 @@ impl Surface for BufferSurface {
         "buffer"
     }
 
+    fn is_visible(&self) -> bool {
+        true
+    }
+
     fn layout(&self, screen_size: RectSize) -> (Layout, RectSize) {
         (Layout::Full, screen_size)
     }

@@ -32,6 +32,7 @@ pub enum HandledEvent {
 
 pub trait Surface {
     fn name(&self) -> &str;
+    fn is_visible(&self) -> bool;
     fn layout(&self, screen_size: RectSize) -> (Layout, RectSize);
     /// Returns the cursor position in surface-local `(y, x)`. `None` if the cursor
     /// is hidden.

@@ -74,16 +74,13 @@ impl Compositor {
     }
 
     pub fn push_layer(&mut self, ctx: &mut Context, surface: impl Surface + 'static) {
-        let cursor_pos = ctx.editor.current_buffer().read().main_cursor_pos();
-        let ((screen_y, screen_x), rect_size) =
-            relayout_layers(self.screen_size, &surface, cursor_pos);
         self.layers.push(Arc::new(Mutex::new(Layer {
             surface: Box::new(surface),
             visible: true,
             active: true,
-            canvas: Canvas::new(rect_size.height, rect_size.width),
-            screen_x,
-            screen_y,
+            canvas: Canvas::new(0, 0),
+            screen_x: 0,
+            screen_y: 0,
         })));
     }
 
@@ -94,7 +91,13 @@ impl Compositor {
     pub fn resize_screen(&mut self, ctx: &mut Context, height: usize, width: usize) {
         self.screen_size = RectSize { height, width };
         self.screens = [Canvas::new(height, width), Canvas::new(height, width)];
+        let cursor_pos = ctx.editor.current_buffer().read().main_cursor_pos();
+        let active_screen = &mut self.screens[self.active_screen_index];
+        compose_layers(ctx, active_screen, self.layers.iter(), true);
+    }
 
+    pub fn render_to_terminal(&mut self, ctx: &mut Context) {
+        // Re-layout layers.
         let cursor_pos = ctx.editor.current_buffer().read().main_cursor_pos();
         for layer in &mut self.layers {
             let mut layer = layer.lock();
@@ -102,14 +105,9 @@ impl Compositor {
                 relayout_layers(self.screen_size, &*layer.surface, cursor_pos);
             layer.screen_x = screen_x;
             layer.screen_y = screen_y;
-            layer.canvas = Canvas::new(self.screen_size.height, self.screen_size.width);
+            layer.canvas = Canvas::new(rect_size.height, rect_size.width);
         }
 
-        let active_screen = &mut self.screens[self.active_screen_index];
-        compose_layers(ctx, active_screen, self.layers.iter(), true);
-    }
-
-    pub fn render_to_terminal(&mut self, ctx: &mut Context) {
         let prev_screen_index = self.active_screen_index;
         self.active_screen_index = (self.active_screen_index + 1) % self.screens.len();
         let screen_index = self.active_screen_index;
@@ -221,7 +219,7 @@ fn compose_layers<'a, 'b, 'c>(
         let mut layer = layer.lock();
         let layer = &mut *layer;
 
-        if !layer.visible {
+        if !layer.visible || !layer.surface.is_visible() {
             continue;
         }
 
@@ -294,6 +292,10 @@ impl TooSmallSurface {
 impl Surface for TooSmallSurface {
     fn name(&self) -> &str {
         "too_small"
+    }
+
+    fn is_visible(&self) -> bool {
+        true
     }
 
     fn layout(&self, screen_size: RectSize) -> (Layout, RectSize) {
