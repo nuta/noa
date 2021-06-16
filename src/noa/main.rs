@@ -6,7 +6,7 @@ use log::LevelFilter;
 use noa_buffer::Buffer;
 use noa_common::{dirs::log_file_path, syncd_protocol::LspRequest};
 use parking_lot::RwLock;
-use simplelog::{Config, WriteLogger};
+use simplelog::{Config, ConfigBuilder, WriteLogger};
 use std::{
     env::current_dir,
     fs::OpenOptions,
@@ -24,8 +24,8 @@ use tokio::{
 };
 
 use crate::{
-    buffer_surface::BufferSurface, syncd_client::SyncdClient, terminal::Terminal, ui::Compositor,
-    ui::Context,
+    buffer_surface::BufferSurface, completion::Completion, syncd_client::SyncdClient,
+    terminal::Terminal, ui::Compositor, ui::Context,
 };
 
 #[macro_use]
@@ -84,13 +84,15 @@ async fn main() {
     let (event_tx, mut event_rx) = unbounded_channel();
     let terminal = Terminal::new(event_tx.clone());
     let mut compositor = Compositor::new(terminal);
-    compositor.push_layer(
-        &mut Context {
-            editor: &mut editor,
-            event_tx: &event_tx,
-        },
-        BufferSurface::new(),
-    );
+
+    let mut ctx = Context {
+        editor: &mut editor,
+        event_tx: &event_tx,
+    };
+
+    let completion = Completion::new(&mut ctx);
+    compositor.push_layer(&mut ctx, BufferSurface::new());
+    compositor.push_layer(&mut ctx, completion);
 
     for file in opt.files.iter() {
         if !file.is_file() {
@@ -109,31 +111,25 @@ async fn main() {
     ));
 
     while !editor.exited() {
-        compositor.render_to_terminal(&mut Context {
+        let mut ctx = Context {
             editor: &mut editor,
             event_tx: &event_tx,
-        });
+        };
+
+        compositor.render_to_terminal(&mut ctx);
 
         if let Some(ev) = event_rx.recv().await {
             let started_at = Instant::now();
             let prev_ver = editor.current_buffer().read().id_and_version();
 
-            compositor.handle_event(
-                &mut Context {
-                    editor: &mut editor,
-                    event_tx: &event_tx,
-                },
-                ev,
-            );
+            let mut ctx = Context {
+                editor: &mut editor,
+                event_tx: &event_tx,
+            };
+            compositor.handle_event(&mut ctx, ev);
 
             while let Ok(Some(ev)) = timeout(Duration::from_micros(400), event_rx.recv()).await {
-                compositor.handle_event(
-                    &mut Context {
-                        editor: &mut editor,
-                        event_tx: &event_tx,
-                    },
-                    ev,
-                );
+                compositor.handle_event(&mut ctx, ev);
             }
 
             let new_ver = editor.current_buffer().read().id_and_version();

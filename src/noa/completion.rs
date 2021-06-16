@@ -89,7 +89,7 @@ impl Surface for Completion {
     }
 
     fn render_all(&mut self, ctx: &mut Context, canvas: &mut Canvas) {
-        todo!()
+        // TODO:
     }
 
     fn handle_key_event(
@@ -102,6 +102,23 @@ impl Surface for Completion {
         const CTRL: KeyModifiers = KeyModifiers::CONTROL;
         const ALT: KeyModifiers = KeyModifiers::ALT;
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
+
+        if matches!(key.code, KeyCode::Char(_)) {
+            let buffer = ctx.editor.current_buffer().read();
+            let current_word = buffer.current_word().unwrap_or_else(|| "".to_owned());
+            let snapshot = buffer.take_snapshot();
+
+            tokio::spawn(update_completion(
+                ctx.event_tx.clone(),
+                self.selector.clone(),
+                current_word,
+                snapshot,
+            ));
+        }
+
+        if self.selector.lock().is_empty() {
+            return HandledEvent::Ignored;
+        }
 
         match (key.modifiers, key.code) {
             (NONE, KeyCode::Esc) => {
@@ -117,24 +134,22 @@ impl Surface for Completion {
                 HandledEvent::Consumed
             }
             (NONE, KeyCode::Enter) => {
+                if let Some(selected) = self.selector.lock().selected() {
+                    match selected {
+                        Item::Word(word) => {
+                            let mut buffer = ctx.editor.current_buffer().write();
+                            if let Some(range) = buffer.current_word_range() {
+                                buffer.select_by_ranges(&[range]);
+                                buffer.insert(word);
+                            }
+                        }
+                    }
+                }
+
                 compositor.pop_layer();
-                // TODO:
                 HandledEvent::Consumed
             }
-            _ => {
-                let buffer = ctx.editor.current_buffer().read();
-                let current_word = buffer.current_word().unwrap_or_else(|| "".to_owned());
-                let snapshot = buffer.take_snapshot();
-
-                tokio::spawn(update_completion(
-                    ctx.event_tx.clone(),
-                    self.selector.clone(),
-                    current_word,
-                    snapshot,
-                ));
-
-                HandledEvent::Ignored
-            }
+            _ => HandledEvent::Ignored,
         }
     }
 
@@ -156,6 +171,8 @@ async fn update_completion(
     snapshot: Arc<Snapshot>,
 ) {
     use ignore::{WalkBuilder, WalkState};
+
+    info!("updating completion");
 
     // Word completion.
     let word_comp = async move {

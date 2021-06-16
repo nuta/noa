@@ -25,6 +25,10 @@ impl<T> Selector<T> {
         Some(&self.items[self.selected])
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
     pub fn len(&self) -> usize {
         self.items.len()
     }
