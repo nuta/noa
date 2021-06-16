@@ -207,6 +207,10 @@ async fn update_completion(
     let word_comp = async move {
         let mut results = FuzzySet::with_capacity(32);
         for word in snapshot.words() {
+            if word == query {
+                continue;
+            }
+
             if let Some(m) = sublime_fuzzy::best_match(&query, word) {
                 results.push(m.score(), Item::Word(word.to_owned()));
             }
