@@ -8,7 +8,7 @@ use std::{
 use anyhow::Result;
 use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers},
-    style::Color,
+    style::{Attribute, Color},
 };
 use noa_buffer::Snapshot;
 use parking_lot::Mutex;
@@ -19,7 +19,8 @@ use crate::{
     line_edit::LineEdit,
     selector::Selector,
     ui::{
-        Canvas, Compositor, Context, DisplayWidth, Event, HandledEvent, Layout, RectSize, Surface,
+        truncate_to_width, Canvas, Compositor, Context, DisplayWidth, Event, HandledEvent, Layout,
+        RectSize, Surface,
     },
 };
 
@@ -89,7 +90,23 @@ impl Surface for Completion {
     }
 
     fn render_all(&mut self, ctx: &mut Context, canvas: &mut Canvas) {
-        // TODO:
+        canvas.clear();
+        canvas.draw_borders(0, 0, canvas.height() - 1, canvas.width() - 1);
+
+        for (i, (active, item)) in self.selector.lock().items().enumerate() {
+            let text = match item {
+                Item::Word(text) => text,
+            };
+
+            let y = 1 + i;
+            let x = 1;
+            canvas.draw_str(y, x, truncate_to_width(text, canvas.width() - 1));
+
+            if active {
+                let attrs = [Attribute::Underlined, Attribute::Bold];
+                canvas.set_attrs(y, x, y + 1, canvas.width() - 1, (&attrs[..]).into());
+            }
+        }
     }
 
     fn handle_key_event(
@@ -171,8 +188,6 @@ async fn update_completion(
     snapshot: Arc<Snapshot>,
 ) {
     use ignore::{WalkBuilder, WalkState};
-
-    info!("updating completion");
 
     // Word completion.
     let word_comp = async move {
