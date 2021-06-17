@@ -106,10 +106,10 @@ impl Surface for PromptSurface {
 
     fn render(&mut self, _ctx: &mut Context, canvas: &mut Canvas) {
         canvas.clear();
-        let inner_width = canvas.width() - 3;
+        let inner_width = canvas.width() - 2;
 
         // Title.
-        canvas.draw_str(1, 2, truncate_to_width(&self.title, inner_width));
+        canvas.draw_str(1, 1, truncate_to_width(&self.title, inner_width));
         canvas.set_attrs(1, 1, 2, inner_width, (&[Attribute::Bold][..]).into());
 
         // Prompt.
