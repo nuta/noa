@@ -17,7 +17,10 @@ use crate::{
     fuzzy_set::FuzzySet,
     line_edit::LineEdit,
     selector::Selector,
-    ui::{Canvas, Compositor, Context, Event, HandledEvent, Layout, RectSize, Surface},
+    ui::{
+        truncate_to_width, Canvas, Compositor, Context, DisplayWidth, Event, HandledEvent, Layout,
+        RectSize, Surface,
+    },
 };
 
 #[derive(Debug)]
@@ -35,6 +38,11 @@ pub enum CallbackResult {
 
 pub struct PromptSurface {
     input: LineEdit,
+    title: String,
+    title_width: usize,
+    prompt: String,
+    prompt_width: usize,
+    input_width: usize,
     committed: bool,
     message: Option<PromptMessage>,
     onchange: Option<Box<dyn Fn(&mut Context, &mut LineEdit) -> CallbackResult>>,
@@ -44,11 +52,19 @@ pub struct PromptSurface {
 impl PromptSurface {
     pub fn new(
         ctx: &mut Context,
+        title: &str,
+        prompt: &str,
+        input_width: usize,
         onchange: Option<Box<dyn Fn(&mut Context, &mut LineEdit) -> CallbackResult>>,
         oncommit: Box<dyn Fn(&mut Context, &str) -> CallbackResult>,
     ) -> PromptSurface {
         PromptSurface {
             input: LineEdit::new(),
+            title: title.to_owned(),
+            title_width: title.display_width(),
+            prompt: prompt.to_owned(),
+            prompt_width: prompt.display_width(),
+            input_width,
             committed: false,
             message: None,
             onchange,
@@ -87,8 +103,14 @@ impl Surface for PromptSurface {
 
     fn layout(&self, screen_size: RectSize) -> (Layout, RectSize) {
         let rect_size = RectSize {
-            width: min(max(screen_size.width, 32), 80),
-            height: min(max(screen_size.height, 8), 16),
+            width: min(
+                screen_size.width,
+                max(
+                    4 + self.prompt_width + self.input_width,
+                    2 + self.title_width,
+                ),
+            ),
+            height: 5,
         };
         (Layout::Center, rect_size)
     }
@@ -99,7 +121,27 @@ impl Surface for PromptSurface {
 
     fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) {
         canvas.clear();
-        canvas.draw_str(1, 1, &self.input.text());
+        let inner_width = canvas.width() - 2;
+
+        // Title.
+        canvas.draw_str(1, 1, truncate_to_width(&self.title, inner_width));
+
+        // Prompt.
+        canvas.draw_str(2, 1, &self.prompt);
+        canvas.draw_str(2, 1 + self.prompt_width, ": ");
+        canvas.draw_str(2, 1 + self.prompt_width + 2, &self.input.text());
+
+        // Message.
+        if let Some(message) = &self.message {
+            let text = match message {
+                PromptMessage::Error(text) => (text),
+                PromptMessage::Info(text) => (text),
+            };
+
+            canvas.draw_str(3, 1, text);
+        }
+
+        // Border.
         canvas.draw_borders(0, 0, canvas.height() - 1, canvas.width() - 1);
     }
 

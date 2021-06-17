@@ -35,7 +35,7 @@ pub struct YesNoSurface {
 }
 
 impl YesNoSurface {
-    pub fn new(ctx: &mut Context, choices: Vec<YesNoChoice>) -> YesNoSurface {
+    pub fn new(ctx: &mut Context, title: &str, choices: Vec<YesNoChoice>) -> YesNoSurface {
         let mut keys = String::with_capacity(choices.len());
         for choice in &choices {
             keys.push(choice.key);
@@ -44,6 +44,9 @@ impl YesNoSurface {
         YesNoSurface {
             prompt: PromptSurface::new(
                 ctx,
+                title,
+                &format!("[{}]", keys),
+                1,
                 Some(Box::new(move |ctx, le| {
                     if le.is_empty() {
                         return CallbackResult::Ok;
@@ -57,6 +60,7 @@ impl YesNoSurface {
                     }
 
                     le.clear();
+
                     CallbackResult::ShowMessage(PromptMessage::Error(format!(
                         "invalid input '{}'",
                         input_char
