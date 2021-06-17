@@ -37,11 +37,9 @@ pub trait Surface {
     /// Returns the cursor position in surface-local `(y, x)`. `None` if the cursor
     /// is hidden.
     fn cursor_position(&self) -> Option<(usize, usize)>;
-    /// Renders its contents into the canvas. It may update only updated areas.
-    fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas);
     /// Render its contents into the canvas. It must fill the whole canvas; the
     /// canvas can be the newly created one due to, for example, screen resizing.
-    fn render_all(&mut self, ctx: &mut Context, canvas: &mut Canvas);
+    fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas);
     fn handle_key_event(
         &mut self,
         ctx: &mut Context,

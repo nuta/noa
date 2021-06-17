@@ -108,12 +108,7 @@ impl Compositor {
 
         // Render and composite layers.
         let compose_layers_time = TimeReport::new("compose_layers");
-        compose_layers(
-            ctx,
-            &mut self.screens[screen_index],
-            self.layers.iter(),
-            false,
-        );
+        compose_layers(ctx, &mut self.screens[screen_index], self.layers.iter());
         compose_layers_time.report();
 
         // Get the cursor position.
