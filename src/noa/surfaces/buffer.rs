@@ -8,7 +8,7 @@ use crossterm::{
 use noa_buffer::{Cursor, Range};
 
 use crate::{
-    finder::Finder,
+    surfaces::FinderSurface,
     ui::{
         whitespaces, Canvas, Compositor, Context, DisplayWidth, HandledEvent, Layout, RectSize,
         Surface,
@@ -177,7 +177,7 @@ impl Surface for BufferSurface {
             (KeyCode::Char('f'), CTRL) => {
                 drop(buffer);
                 drop(view);
-                let finder = Finder::new(ctx);
+                let finder = FinderSurface::new(ctx);
                 compositor.push_layer(ctx, finder);
             }
             (KeyCode::Char('u'), CTRL) => {

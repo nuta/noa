@@ -37,7 +37,6 @@ extern crate log;
 extern crate pretty_assertions;
 
 mod editor;
-mod finder;
 mod fuzzy_set;
 mod line_edit;
 mod selector;

@@ -25,13 +25,13 @@ enum Item {
     File(PathBuf),
 }
 
-pub struct Finder {
+pub struct FinderSurface {
     query: LineEdit,
     selector: Arc<Mutex<Selector<Item>>>,
 }
 
-impl Finder {
-    pub fn new(ctx: &mut Context) -> Finder {
+impl FinderSurface {
+    pub fn new(ctx: &mut Context) -> FinderSurface {
         let selector = Arc::new(Mutex::new(Selector::new()));
 
         tokio::spawn(update_items(
@@ -41,7 +41,7 @@ impl Finder {
             "".to_owned(),
         ));
 
-        Finder {
+        FinderSurface {
             query: LineEdit::new(),
             selector,
         }
@@ -56,7 +56,7 @@ impl Finder {
     }
 }
 
-impl Surface for Finder {
+impl Surface for FinderSurface {
     fn name(&self) -> &str {
         "finder"
     }
