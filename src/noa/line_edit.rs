@@ -130,6 +130,9 @@ impl LineEdit {
             (NONE, KeyCode::Char(ch)) => {
                 self.insert_char(ch);
             }
+            (SHIFT, KeyCode::Char(ch)) => {
+                self.insert_char(ch);
+            }
             (NONE, KeyCode::Backspace) => {
                 self.backspace();
             }

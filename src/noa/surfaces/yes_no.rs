@@ -61,7 +61,7 @@ impl YesNoSurface {
                 1,
                 Some(Box::new(move |ctx, le| {
                     if le.is_empty() {
-                        return CallbackResult::Ok;
+                        return CallbackResult::Keep(None);
                     }
 
                     let input_char = le.text().chars().next().unwrap();
@@ -72,13 +72,10 @@ impl YesNoSurface {
                     }
 
                     le.clear();
-
-                    CallbackResult::ShowMessage(PromptMessage::Error(format!(
-                        "invalid choice '{}'",
-                        input_char
-                    )))
+                    let msg = format!("invalid choice '{}'", input_char);
+                    CallbackResult::Keep(Some(PromptMessage::Error(msg)))
                 })),
-                Box::new(|ctx, input| CallbackResult::Ok),
+                Box::new(|ctx, input| CallbackResult::Close),
             ),
         }
     }

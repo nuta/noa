@@ -31,9 +31,9 @@ pub enum PromptMessage {
 
 #[derive(Debug)]
 pub enum CallbackResult {
-    ShowMessage(PromptMessage),
+    Keep(Option<PromptMessage>),
     Commit,
-    Ok,
+    Close,
 }
 
 pub struct PromptSurface {
@@ -78,12 +78,12 @@ impl PromptSurface {
 
     fn commit(&mut self, ctx: &mut Context, compositor: &mut Compositor) {
         match (self.oncommit)(ctx, &self.input.text()) {
-            CallbackResult::Ok => {
+            CallbackResult::Keep(message) => {
+                self.message = message;
+            }
+            CallbackResult::Close => {
                 self.committed = true;
                 compositor.pop_layer();
-            }
-            CallbackResult::ShowMessage(msg) => {
-                self.message = Some(msg);
             }
             CallbackResult::Commit => {
                 panic!("oncommit hook should never use CallbackResult::Commit");
@@ -177,9 +177,11 @@ impl Surface for PromptSurface {
         if &prev_query != self.input.rope() {
             if let Some(onchange) = &self.onchange {
                 match onchange(ctx, &mut self.input) {
-                    CallbackResult::Ok => {}
-                    CallbackResult::ShowMessage(msg) => {
-                        self.message = Some(msg);
+                    CallbackResult::Keep(message) => {
+                        self.message = message;
+                    }
+                    CallbackResult::Close => {
+                        compositor.pop_layer();
                     }
                     CallbackResult::Commit => {
                         self.commit(ctx, compositor);

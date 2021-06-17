@@ -66,14 +66,14 @@ impl BufferSurface {
                         }
                     }
                     ctx.editor.exit_editor();
-                    CallbackResult::Ok
+                    CallbackResult::Close
                 }),
                 // Cancel.
-                YesNoChoice::new('c', |ctx| CallbackResult::Ok),
+                YesNoChoice::new('c', |ctx| CallbackResult::Close),
                 // Force quit.
                 YesNoChoice::new('Q', |ctx| {
                     ctx.editor.exit_editor();
-                    CallbackResult::Ok
+                    CallbackResult::Close
                 }),
             ],
         );

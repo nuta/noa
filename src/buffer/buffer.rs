@@ -166,7 +166,7 @@ impl Buffer {
     }
 
     pub fn is_dirty(&self) -> bool {
-        self.rope == self.saved_rope
+        self.rope != self.saved_rope
     }
 
     pub fn lang(&self) -> &'static Lang {
