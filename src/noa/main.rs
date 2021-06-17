@@ -15,6 +15,7 @@ use std::{
     time::{Duration, Instant},
 };
 use structopt::StructOpt;
+use surfaces::CompletionSurface;
 use tokio::{
     sync::{
         mpsc::{unbounded_channel, UnboundedReceiver},
@@ -24,8 +25,8 @@ use tokio::{
 };
 
 use crate::{
-    completion::Completion, surfaces::BufferSurface, syncd_client::SyncdClient, terminal::Terminal,
-    ui::Compositor, ui::Context,
+    surfaces::BufferSurface, syncd_client::SyncdClient, terminal::Terminal, ui::Compositor,
+    ui::Context,
 };
 
 #[macro_use]
@@ -35,7 +36,6 @@ extern crate log;
 #[macro_use]
 extern crate pretty_assertions;
 
-mod completion;
 mod editor;
 mod finder;
 mod fuzzy_set;
@@ -109,7 +109,7 @@ async fn main() {
         event_tx: &event_tx,
     };
 
-    let completion = Completion::new(&mut ctx);
+    let completion = CompletionSurface::new(&mut ctx);
     compositor.push_layer(&mut ctx, BufferSurface::new());
     compositor.push_layer(&mut ctx, completion);
 

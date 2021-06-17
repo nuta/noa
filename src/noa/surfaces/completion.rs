@@ -32,12 +32,12 @@ enum Item {
     Word(String),
 }
 
-pub struct Completion {
+pub struct CompletionSurface {
     selector: Arc<Mutex<Selector<Item>>>,
 }
 
-impl Completion {
-    pub fn new(ctx: &mut Context) -> Completion {
+impl CompletionSurface {
+    pub fn new(ctx: &mut Context) -> CompletionSurface {
         let selector = Arc::new(Mutex::new(Selector::new()));
         let buffer = ctx.editor.current_buffer().read();
         let current_word = buffer.current_word().unwrap_or_else(|| "".to_owned());
@@ -50,13 +50,13 @@ impl Completion {
             snapshot,
         ));
 
-        Completion {
+        CompletionSurface {
             selector: Arc::new(Mutex::new(Selector::new())),
         }
     }
 }
 
-impl Surface for Completion {
+impl Surface for CompletionSurface {
     fn name(&self) -> &str {
         "popup"
     }
