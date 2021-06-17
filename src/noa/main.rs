@@ -149,7 +149,7 @@ async fn main() {
             let new_ver = editor.current_buffer().read().id_and_version();
             if prev_ver != new_ver {
                 // Switched or modified the current buffer.
-                file_updated_tx.send(editor.current_buffer().clone());
+                file_updated_tx.send(editor.current_buffer().clone()).ok();
             }
 
             trace!(

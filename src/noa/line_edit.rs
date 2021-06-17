@@ -37,12 +37,12 @@ impl LineEdit {
         self.cursor = 0;
     }
 
-    pub fn top_left(&self) -> usize {
-        self.top_left
-    }
-
     pub fn cursor(&self) -> usize {
         self.cursor
+    }
+
+    pub fn cursor_display_pos(&self) -> usize {
+        self.cursor - self.top_left
     }
 
     fn cursor_as_pos(&self) -> Point {
@@ -78,10 +78,10 @@ impl LineEdit {
             .remove(&Range::new(0, self.cursor, 0, self.cursor + 1));
     }
 
-    pub fn relocate_top_left(&mut self, cols: usize) {
+    pub fn relocate_top_left(&mut self, width: usize) {
         // Scroll Right.
-        if self.cursor > self.top_left + cols {
-            self.top_left = self.cursor - cols;
+        if self.cursor > self.top_left + width {
+            self.top_left = self.cursor - width;
         }
 
         // Scroll Left.
@@ -135,6 +135,27 @@ impl LineEdit {
             }
             (NONE, KeyCode::Backspace) => {
                 self.backspace();
+            }
+            (NONE, KeyCode::Delete) | (CTRL, KeyCode::Char('d')) => {
+                self.delete();
+            }
+            (NONE, KeyCode::Left) => {
+                self.move_left();
+            }
+            (NONE, KeyCode::Right) => {
+                self.move_right();
+            }
+            (CTRL, KeyCode::Char('a')) => {
+                self.move_to_beginning_of_line();
+            }
+            (CTRL, KeyCode::Char('e')) => {
+                self.move_to_end_of_line();
+            }
+            (ALT, KeyCode::Char('f')) => {
+                self.move_to_next_word();
+            }
+            (ALT, KeyCode::Char('b')) => {
+                self.move_to_prev_word();
             }
             _ => {
                 return false;

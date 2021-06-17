@@ -1,14 +1,8 @@
-use std::{
-    cmp::{max, min, Ordering},
-    collections::{binary_heap, BinaryHeap},
-    path::PathBuf,
-    sync::Arc,
-};
-
+use std::{cmp::max, sync::Arc};
 
 use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers},
-    style::{Attribute},
+    style::Attribute,
 };
 use noa_buffer::Snapshot;
 use parking_lot::Mutex;
@@ -16,17 +10,14 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     fuzzy_set::FuzzySet,
-    line_edit::LineEdit,
     selector::Selector,
     ui::{
-        truncate_to_width, Canvas, Compositor, Context, DisplayWidth, Event, HandledEvent, Layout,
-        RectSize, Surface,
+        truncate_to_width, Canvas, Compositor, Context, Event, HandledEvent, Layout, RectSize,
+        Surface,
     },
 };
 
 const MIN_WIDTH: usize = 16;
-const MAX_WIDTH: usize = 64;
-const MAX_HEIGHT: usize = 16;
 
 enum Item {
     Word(String),
@@ -123,9 +114,9 @@ impl Surface for CompletionSurface {
         key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
-        const CTRL: KeyModifiers = KeyModifiers::CONTROL;
-        const ALT: KeyModifiers = KeyModifiers::ALT;
-        const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
+        // const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        // const ALT: KeyModifiers = KeyModifiers::ALT;
+        // const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
         if matches!(key.code, KeyCode::Char(_)) {
             let buffer = ctx.editor.current_buffer().read();
@@ -195,8 +186,6 @@ async fn update_completion(
     query: String,
     snapshot: Arc<Snapshot>,
 ) {
-    
-
     // Word completion.
     let word_comp = async move {
         let mut results = FuzzySet::with_capacity(32);
@@ -224,5 +213,5 @@ async fn update_completion(
     }
 
     info!("update completion to {}", selector.len());
-    event_tx.send(Event::ReDraw);
+    event_tx.send(Event::ReDraw).unwrap();
 }

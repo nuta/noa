@@ -1,37 +1,24 @@
-use std::{
-    cmp::{max, min, Ordering},
-    collections::{binary_heap, BinaryHeap},
-    path::PathBuf,
-    sync::Arc,
-};
+use std::cmp::{max, min};
 
-
-use crossterm::{
-    event::{KeyCode, KeyEvent, KeyModifiers},
-};
-
-
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::{
-    fuzzy_set::FuzzySet,
     line_edit::LineEdit,
-    selector::Selector,
     ui::{
-        truncate_to_width, Canvas, Compositor, Context, DisplayWidth, Event, HandledEvent, Layout,
+        truncate_to_width, Canvas, Compositor, Context, DisplayWidth, HandledEvent, Layout,
         RectSize, Surface,
     },
 };
 
 #[derive(Debug)]
 pub enum PromptMessage {
-    Info(String),
     Error(String),
 }
 
 #[derive(Debug)]
 pub enum CallbackResult {
     Keep(Option<PromptMessage>),
-    Commit,
+    _Commit,
     Close,
 }
 
@@ -42,7 +29,6 @@ pub struct PromptSurface {
     prompt: String,
     prompt_width: usize,
     input_width: usize,
-    committed: bool,
     message: Option<PromptMessage>,
     onchange: Option<Box<dyn Fn(&mut Context, &mut LineEdit) -> CallbackResult>>,
     oncommit: Box<dyn Fn(&mut Context, &str) -> CallbackResult>,
@@ -64,15 +50,10 @@ impl PromptSurface {
             prompt: prompt.to_owned(),
             prompt_width: prompt.display_width(),
             input_width,
-            committed: false,
             message: None,
             onchange,
             oncommit,
         }
-    }
-
-    fn committed(&self) -> bool {
-        self.committed
     }
 
     fn commit(&mut self, ctx: &mut Context, compositor: &mut Compositor) {
@@ -81,10 +62,9 @@ impl PromptSurface {
                 self.message = message;
             }
             CallbackResult::Close => {
-                self.committed = true;
                 compositor.pop_layer();
             }
-            CallbackResult::Commit => {
+            CallbackResult::_Commit => {
                 panic!("oncommit hook should never use CallbackResult::Commit");
             }
         }
@@ -115,7 +95,10 @@ impl Surface for PromptSurface {
     }
 
     fn cursor_position(&self) -> Option<(usize, usize)> {
-        Some((1, 1 + self.input.cursor()))
+        Some((
+            2,
+            1 + self.prompt_width + 2 + self.input.cursor_display_pos(),
+        ))
     }
 
     fn render(&mut self, _ctx: &mut Context, canvas: &mut Canvas) {
@@ -134,7 +117,6 @@ impl Surface for PromptSurface {
         if let Some(message) = &self.message {
             let text = match message {
                 PromptMessage::Error(text) => (text),
-                PromptMessage::Info(text) => (text),
             };
 
             canvas.draw_str(3, 1, text);
@@ -151,12 +133,14 @@ impl Surface for PromptSurface {
         key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
-        const CTRL: KeyModifiers = KeyModifiers::CONTROL;
-        const ALT: KeyModifiers = KeyModifiers::ALT;
-        const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
+        // const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        // const ALT: KeyModifiers = KeyModifiers::ALT;
+        // const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
         let prev_query = self.input.rope().clone();
-        if !self.input.consume_key_event(key) {
+        if self.input.consume_key_event(key) {
+            self.input.relocate_top_left(self.input_width);
+        } else {
             match (key.modifiers, key.code) {
                 (NONE, KeyCode::Esc) => {
                     compositor.pop_layer();
@@ -182,7 +166,7 @@ impl Surface for PromptSurface {
                     CallbackResult::Close => {
                         compositor.pop_layer();
                     }
-                    CallbackResult::Commit => {
+                    CallbackResult::_Commit => {
                         self.commit(ctx, compositor);
                     }
                 }
@@ -198,6 +182,7 @@ impl Surface for PromptSurface {
         input: &str,
     ) -> HandledEvent {
         self.input.insert(input);
+        self.input.relocate_top_left(self.input_width);
         HandledEvent::Consumed
     }
 }

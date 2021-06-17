@@ -30,17 +30,6 @@ impl View {
         }
     }
 
-    pub fn adjust_top_left(&mut self, main_cursor_pos: Point) {
-        let index = self.point_to_display_line(main_cursor_pos).unwrap();
-        if index < self.top_left {
-            self.top_left = index;
-        }
-
-        if index >= self.top_left + self.height {
-            self.top_left = index - self.height + 1;
-        }
-    }
-
     /// Returns `(screen_y, screen_x)`.
     pub fn point_to_display_pos(
         &self,

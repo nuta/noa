@@ -1,11 +1,10 @@
 use std::cmp::{max, min};
 
-
 use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers},
-    style::{Attribute},
+    style::Attribute,
 };
-use noa_buffer::{Cursor};
+use noa_buffer::Cursor;
 
 use crate::{
     surfaces::{prompt::CallbackResult, yes_no::YesNoChoice, FinderSurface, YesNoSurface},
@@ -28,31 +27,26 @@ impl BufferSurface {
     }
 
     fn quit(&mut self, ctx: &mut Context, compositor: &mut Compositor) {
-        // Check if all buffers are not dirty.
-        let mut num_unsaved_files = 0;
-        let mut example = Some("".to_owned());
-        for buffer in ctx.editor.buffers() {
-            let buffer = buffer.read();
-            if buffer.is_dirty() {
-                if let Some(path) = buffer.path() {
-                    let filename = path.file_name().unwrap().to_str().unwrap().to_owned();
-                    num_unsaved_files += 1;
-                    example = Some(filename);
-                }
-            }
-        }
-
-        if num_unsaved_files == 0 {
+        let dirty_buffers = ctx.editor.dirty_buffers();
+        if dirty_buffers.is_empty() {
             ctx.editor.exit_editor();
             return;
         }
 
         // If any files are not yet saved, show a dialog to ask what we should do.
+        let first_buffer = dirty_buffers[0].read();
+        let basename = first_buffer
+            .path()
+            .unwrap()
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap();
         let title = format!(
             "{} unsaved files ({}{})",
-            num_unsaved_files,
-            example.unwrap(),
-            if num_unsaved_files > 1 { ", ..." } else { "" }
+            dirty_buffers.len(),
+            basename,
+            if dirty_buffers.len() > 1 { ", ..." } else { "" }
         );
         let prompt = YesNoSurface::new(
             ctx,
@@ -60,13 +54,7 @@ impl BufferSurface {
             vec![
                 // Save all.
                 YesNoChoice::new('a', |ctx| {
-                    for buffer in ctx.editor.buffers() {
-                        let mut buffer = buffer.write();
-                        if !buffer.is_virtual_file() {
-                            buffer.save(ctx.editor.backup_dir());
-                        }
-                    }
-                    ctx.editor.exit_editor();
+                    ctx.editor.save_all();
                     CallbackResult::Close
                 }),
                 // Cancel.
@@ -235,7 +223,7 @@ impl Surface for BufferSurface {
                 compositor.push_layer(ctx, finder);
             }
             (KeyCode::Char('s'), CTRL) => {
-                buffer.save(ctx.editor.backup_dir());
+                ctx.editor.save_current_buffer();
             }
             (KeyCode::Char('u'), CTRL) => {
                 buffer.undo();

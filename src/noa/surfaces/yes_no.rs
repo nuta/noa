@@ -1,19 +1,6 @@
+use crossterm::event::KeyEvent;
 
-
-
-use crossterm::{
-    event::{KeyCode, KeyEvent, KeyModifiers},
-    style::{Attribute, Color},
-};
-
-
-
-use crate::{
-    fuzzy_set::FuzzySet,
-    line_edit::LineEdit,
-    selector::Selector,
-    ui::{Canvas, Compositor, Context, Event, HandledEvent, Layout, RectSize, Surface},
-};
+use crate::ui::{Canvas, Compositor, Context, HandledEvent, Layout, RectSize, Surface};
 
 use super::{
     prompt::{CallbackResult, PromptMessage},

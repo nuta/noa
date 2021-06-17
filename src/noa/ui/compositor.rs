@@ -1,9 +1,8 @@
 use std::{slice, sync::Arc};
 
-
 use crossterm::event::KeyEvent;
 use noa_buffer::Point;
-use noa_common::{time_report::TimeReport};
+use noa_common::time_report::TimeReport;
 use parking_lot::Mutex;
 
 use crate::ui::{Context, Surface};
@@ -181,17 +180,6 @@ impl Compositor {
                 // We have to do nothing here.
             }
         }
-    }
-
-    fn active_layer(&self) -> &Arc<Mutex<Layer>> {
-        for layer_lock in self.layers.iter().rev() {
-            let layer = layer_lock.lock();
-            if layer.active {
-                return layer_lock;
-            }
-        }
-
-        unreachable!("at least buffer or too_small surface is always active");
     }
 }
 

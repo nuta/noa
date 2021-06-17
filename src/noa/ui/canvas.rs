@@ -128,11 +128,11 @@ impl Canvas {
         self.set_str_with_attrs(y, x, string, Color::Reset, Color::Reset, Default::default());
     }
 
-    pub fn set_fg(&mut self, y: usize, x: usize, y_end: usize, x_end: usize, fg: Color) {
+    pub fn _set_fg(&mut self, y: usize, x: usize, y_end: usize, x_end: usize, fg: Color) {
         self.update_range(y, x, y_end, x_end, |graph| graph.fg = fg);
     }
 
-    pub fn set_bg(&mut self, y: usize, x: usize, y_end: usize, x_end: usize, bg: Color) {
+    pub fn _set_bg(&mut self, y: usize, x: usize, y_end: usize, x_end: usize, bg: Color) {
         self.update_range(y, x, y_end, x_end, |graph| graph.bg = bg);
     }
 

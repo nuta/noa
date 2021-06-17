@@ -1,8 +1,7 @@
-
 use crate::syncd_client::SyncdClient;
 
 use crate::view::View;
-use anyhow::{bail, Context, Result};
+use anyhow::Context;
 
 use noa_common::dirs::backup_dir;
 use noa_common::syncd_protocol::LspRequest;
@@ -81,10 +80,6 @@ impl Editor {
         self.exited = true;
     }
 
-    pub fn backup_dir(&self) -> &Path {
-        &self.backup_dir
-    }
-
     pub fn workspace_dir(&self) -> &Path {
         &self.workspace_dir
     }
@@ -95,10 +90,6 @@ impl Editor {
 
     pub fn current_buffer(&self) -> &Arc<RwLock<Buffer>> {
         &self.current_buffer
-    }
-
-    pub fn buffers(&self) -> &[Arc<RwLock<Buffer>>] {
-        &self.buffers
     }
 
     pub fn view(&self, buffer: &Buffer) -> parking_lot::MutexGuard<'_, View> {
@@ -177,5 +168,30 @@ impl Editor {
                 }
             };
         });
+    }
+
+    pub fn save_current_buffer(&self) {
+        if let Err(err) = self.current_buffer.write().save(&self.backup_dir) {
+            self.error(format!("{}", err));
+        }
+    }
+
+    pub fn dirty_buffers(&self) -> Vec<Arc<RwLock<Buffer>>> {
+        let mut buffers = Vec::new();
+        for buffer_lock in &self.buffers {
+            let buffer = buffer_lock.read();
+            if buffer.is_dirty() && !buffer.is_virtual_file() {
+                buffers.push(buffer_lock.clone());
+            }
+        }
+        buffers
+    }
+
+    pub fn save_all(&self) {
+        for buffer in self.dirty_buffers() {
+            if let Err(err) = buffer.write().save(&self.backup_dir) {
+                self.error(format!("{}", err));
+            }
+        }
     }
 }

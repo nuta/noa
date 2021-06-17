@@ -1,14 +1,12 @@
 use std::{
-    cmp::{max, min, Ordering},
-    collections::{binary_heap, BinaryHeap},
+    cmp::{max, min},
     path::PathBuf,
     sync::Arc,
 };
 
-
 use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers},
-    style::{Attribute},
+    style::Attribute,
 };
 use parking_lot::Mutex;
 use tokio::sync::mpsc::UnboundedSender;
@@ -26,7 +24,7 @@ enum Item {
 }
 
 pub struct FinderSurface {
-    query: LineEdit,
+    input: LineEdit,
     selector: Arc<Mutex<Selector<Item>>>,
 }
 
@@ -42,7 +40,7 @@ impl FinderSurface {
         ));
 
         FinderSurface {
-            query: LineEdit::new(),
+            input: LineEdit::new(),
             selector,
         }
     }
@@ -74,7 +72,7 @@ impl Surface for FinderSurface {
     }
 
     fn cursor_position(&self) -> Option<(usize, usize)> {
-        Some((1, 1 + self.query.cursor()))
+        Some((1, 1 + self.input.cursor_display_pos()))
     }
 
     fn render(&mut self, _ctx: &mut Context, canvas: &mut Canvas) {
@@ -94,7 +92,7 @@ impl Surface for FinderSurface {
             }
         }
 
-        canvas.draw_str(1, 1, &self.query.text());
+        canvas.draw_str(1, 1, &self.input.text());
         canvas.draw_borders(0, 0, canvas.height() - 1, canvas.width() - 1);
     }
 
@@ -105,12 +103,12 @@ impl Surface for FinderSurface {
         key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
-        const CTRL: KeyModifiers = KeyModifiers::CONTROL;
-        const ALT: KeyModifiers = KeyModifiers::ALT;
-        const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
+        // const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        // const ALT: KeyModifiers = KeyModifiers::ALT;
+        // const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
-        let prev_query = self.query.rope().clone();
-        if !self.query.consume_key_event(key) {
+        let prev_query = self.input.rope().clone();
+        if !self.input.consume_key_event(key) {
             match (key.modifiers, key.code) {
                 (NONE, KeyCode::Esc) => {
                     compositor.pop_layer();
@@ -137,12 +135,12 @@ impl Surface for FinderSurface {
             }
         }
 
-        if &prev_query != self.query.rope() {
+        if &prev_query != self.input.rope() {
             tokio::spawn(update_items(
                 ctx.editor.workspace_dir().to_owned(),
                 ctx.event_tx.clone(),
                 self.selector.clone(),
-                self.query.text(),
+                self.input.text(),
             ));
         }
         HandledEvent::Consumed
@@ -154,7 +152,7 @@ impl Surface for FinderSurface {
         _compositor: &mut Compositor,
         input: &str,
     ) -> HandledEvent {
-        self.query.insert(input);
+        self.input.insert(input);
         HandledEvent::Consumed
     }
 }
@@ -200,5 +198,5 @@ async fn update_items(
         }
     }
 
-    event_tx.send(Event::ReDraw);
+    event_tx.send(Event::ReDraw).unwrap();
 }
