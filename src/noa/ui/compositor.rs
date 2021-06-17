@@ -1,9 +1,9 @@
-use std::{slice, sync::Arc, time::Instant};
+use std::{slice, sync::Arc};
 
-use anyhow::Result;
+
 use crossterm::event::KeyEvent;
 use noa_buffer::Point;
-use noa_common::{time_report::TimeReport, warn_on_error};
+use noa_common::{time_report::TimeReport};
 use parking_lot::Mutex;
 
 use crate::ui::{Context, Surface};
@@ -71,7 +71,7 @@ impl Compositor {
         }
     }
 
-    pub fn push_layer(&mut self, ctx: &mut Context, surface: impl Surface + 'static) {
+    pub fn push_layer(&mut self, _ctx: &mut Context, surface: impl Surface + 'static) {
         self.layers.push(Arc::new(Mutex::new(Layer {
             surface: Box::new(surface),
             active: true,
@@ -85,7 +85,7 @@ impl Compositor {
         self.layers.pop();
     }
 
-    pub fn resize_screen(&mut self, ctx: &mut Context, height: usize, width: usize) {
+    pub fn resize_screen(&mut self, _ctx: &mut Context, height: usize, width: usize) {
         self.screen_size = RectSize { height, width };
         self.screens = [Canvas::new(height, width), Canvas::new(height, width)];
     }
@@ -114,7 +114,7 @@ impl Compositor {
         // Get the cursor position.
         let mut cursor = None;
         for layer_lock in self.layers.clone().iter().rev() {
-            let mut layer = layer_lock.lock();
+            let layer = layer_lock.lock();
             if layer.active {
                 if let Some((y, x)) = layer.surface.cursor_position() {
                     cursor = Some((layer.screen_y + y, layer.screen_x + x));
@@ -212,7 +212,7 @@ fn compose_layers<'a, 'b, 'c>(
         }
 
         // Handle the case when the screen is too small.
-        let too_small = (screen.width() < 10 || screen.height() < 5);
+        let too_small = screen.width() < 10 || screen.height() < 5;
         let is_too_small_layer = layer.surface.name() == "too_small";
         match (too_small, is_too_small_layer) {
             (true, true) => {}   /* render too_small layer */

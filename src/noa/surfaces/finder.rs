@@ -5,10 +5,10 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::Result;
+
 use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers},
-    style::{Attribute, Color},
+    style::{Attribute},
 };
 use parking_lot::Mutex;
 use tokio::sync::mpsc::UnboundedSender;
@@ -77,7 +77,7 @@ impl Surface for FinderSurface {
         Some((1, 1 + self.query.cursor()))
     }
 
-    fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) {
+    fn render(&mut self, _ctx: &mut Context, canvas: &mut Canvas) {
         canvas.clear();
 
         let selector = self.selector.lock();
@@ -150,7 +150,7 @@ impl Surface for FinderSurface {
 
     fn handle_key_batch_event(
         &mut self,
-        ctx: &mut Context,
+        _ctx: &mut Context,
         _compositor: &mut Compositor,
         input: &str,
     ) -> HandledEvent {
@@ -169,7 +169,7 @@ async fn update_items(
 
     // Scan all files.
     let path_resolver = async move {
-        let mut results = Mutex::new(FuzzySet::with_capacity(32));
+        let results = Mutex::new(FuzzySet::with_capacity(32));
         WalkBuilder::new(workspace_dir).build_parallel().run(|| {
             Box::new(|dirent| {
                 if let Ok(dirent) = dirent {

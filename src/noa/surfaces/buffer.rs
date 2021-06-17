@@ -1,11 +1,11 @@
 use std::cmp::{max, min};
 
-use anyhow::Result;
+
 use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers},
-    style::{Attribute, Attributes},
+    style::{Attribute},
 };
-use noa_buffer::{Cursor, Range};
+use noa_buffer::{Cursor};
 
 use crate::{
     surfaces::{prompt::CallbackResult, yes_no::YesNoChoice, FinderSurface, YesNoSurface},
@@ -70,7 +70,7 @@ impl BufferSurface {
                     CallbackResult::Close
                 }),
                 // Cancel.
-                YesNoChoice::new('c', |ctx| CallbackResult::Close),
+                YesNoChoice::new('c', |_ctx| CallbackResult::Close),
                 // Force quit.
                 YesNoChoice::new('Q', |ctx| {
                     ctx.editor.exit_editor();
@@ -160,7 +160,7 @@ impl Surface for BufferSurface {
                 Cursor::Normal { pos, .. } if *pos == main_cursor_pos => {
                     // Do nothing. We use the native cursor through `self.cursor_position`.
                 }
-                Cursor::Normal { pos, .. } => {
+                Cursor::Normal { pos: _, .. } => {
                     let (y, x) = view.point_to_display_pos(
                         main_cursor_pos,
                         y_end,
@@ -183,7 +183,7 @@ impl Surface for BufferSurface {
                         buffer.num_lines(),
                     );
 
-                    for (y, display_line) in view.visible_display_lines().iter().enumerate() {
+                    for (y, _display_line) in view.visible_display_lines().iter().enumerate() {
                         if start_y <= y && y <= end_y {
                             let x0 = if y == start_y { start_x } else { text_start };
                             let x1 = if y == end_y {

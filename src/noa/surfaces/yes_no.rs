@@ -1,17 +1,12 @@
-use std::{
-    cmp::{max, min, Ordering},
-    collections::{binary_heap, BinaryHeap},
-    path::PathBuf,
-    sync::Arc,
-};
 
-use anyhow::Result;
+
+
 use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers},
     style::{Attribute, Color},
 };
-use parking_lot::Mutex;
-use tokio::sync::mpsc::UnboundedSender;
+
+
 
 use crate::{
     fuzzy_set::FuzzySet,
@@ -75,7 +70,7 @@ impl YesNoSurface {
                     let msg = format!("invalid choice '{}'", input_char);
                     CallbackResult::Keep(Some(PromptMessage::Error(msg)))
                 })),
-                Box::new(|ctx, input| CallbackResult::Close),
+                Box::new(|_ctx, _input| CallbackResult::Close),
             ),
         }
     }

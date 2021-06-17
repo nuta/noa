@@ -8,7 +8,7 @@ use crossterm::{
     event::{Event as TermEvent, EventStream, KeyCode, KeyEvent, KeyModifiers},
     execute, queue,
     style::{
-        Attribute, Attributes, Color, Print, SetAttribute, SetAttributes, SetBackgroundColor,
+        Attribute, Print, SetAttribute, SetAttributes, SetBackgroundColor,
         SetForegroundColor,
     },
     terminal::*,

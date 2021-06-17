@@ -1,6 +1,6 @@
-use crate::surfaces::YesNoSurface;
+
 use crate::syncd_client::SyncdClient;
-use crate::ui::Compositor;
+
 use crate::view::View;
 use anyhow::{bail, Context, Result};
 

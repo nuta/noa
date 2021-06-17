@@ -1,4 +1,4 @@
-use anyhow::Result;
+
 use crossterm::event::KeyEvent;
 use tokio::sync::mpsc::UnboundedSender;
 

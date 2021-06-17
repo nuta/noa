@@ -5,13 +5,12 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::Result;
+
 use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers},
-    style::{Attribute, Color},
 };
-use parking_lot::Mutex;
-use tokio::sync::mpsc::UnboundedSender;
+
+
 
 use crate::{
     fuzzy_set::FuzzySet,
@@ -51,7 +50,7 @@ pub struct PromptSurface {
 
 impl PromptSurface {
     pub fn new(
-        ctx: &mut Context,
+        _ctx: &mut Context,
         title: &str,
         prompt: &str,
         input_width: usize,
@@ -119,7 +118,7 @@ impl Surface for PromptSurface {
         Some((1, 1 + self.input.cursor()))
     }
 
-    fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) {
+    fn render(&mut self, _ctx: &mut Context, canvas: &mut Canvas) {
         canvas.clear();
         let inner_width = canvas.width() - 2;
 
@@ -194,7 +193,7 @@ impl Surface for PromptSurface {
 
     fn handle_key_batch_event(
         &mut self,
-        ctx: &mut Context,
+        _ctx: &mut Context,
         _compositor: &mut Compositor,
         input: &str,
     ) -> HandledEvent {

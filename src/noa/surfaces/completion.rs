@@ -5,10 +5,10 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::Result;
+
 use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers},
-    style::{Attribute, Color},
+    style::{Attribute},
 };
 use noa_buffer::Snapshot;
 use parking_lot::Mutex;
@@ -65,7 +65,7 @@ impl Surface for CompletionSurface {
         !self.selector.lock().is_empty()
     }
 
-    fn layout(&self, screen_size: RectSize) -> (Layout, RectSize) {
+    fn layout(&self, _screen_size: RectSize) -> (Layout, RectSize) {
         let selector = self.selector.lock();
 
         // Determine the maximum item width.
@@ -90,7 +90,7 @@ impl Surface for CompletionSurface {
         None
     }
 
-    fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) {
+    fn render(&mut self, _ctx: &mut Context, canvas: &mut Canvas) {
         canvas.clear();
         canvas.draw_borders(0, 0, canvas.height() - 1, canvas.width() - 1);
 
@@ -102,9 +102,7 @@ impl Surface for CompletionSurface {
             .take(canvas.height().saturating_sub(2))
             .enumerate()
         {
-            let text = match item {
-                Item::Word(text) => text,
-            };
+            let Item::Word(text) = item;
 
             info!("{}: {}", i, text);
             let y = 1 + i;
@@ -121,7 +119,7 @@ impl Surface for CompletionSurface {
     fn handle_key_event(
         &mut self,
         ctx: &mut Context,
-        compositor: &mut Compositor,
+        _compositor: &mut Compositor,
         key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
@@ -197,7 +195,7 @@ async fn update_completion(
     query: String,
     snapshot: Arc<Snapshot>,
 ) {
-    use ignore::{WalkBuilder, WalkState};
+    
 
     // Word completion.
     let word_comp = async move {
