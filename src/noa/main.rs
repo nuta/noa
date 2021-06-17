@@ -1,12 +1,8 @@
-// FIXME:
-#![allow(unused)]
-
-use crossterm::event;
 use log::LevelFilter;
 use noa_buffer::Buffer;
 use noa_common::{dirs::log_file_path, syncd_protocol::LspRequest};
 use parking_lot::RwLock;
-use simplelog::{Config, ConfigBuilder, WriteLogger};
+use simplelog::{Config, WriteLogger};
 use std::{
     env::current_dir,
     fs::OpenOptions,
