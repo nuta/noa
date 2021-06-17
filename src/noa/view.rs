@@ -85,7 +85,7 @@ impl View {
         &self.lines[self.top_left..min(self.lines.len(), self.top_left + self.height)]
     }
 
-    pub fn layout(&mut self, buffer: &Buffer, y_from: usize, width: usize, height: usize) {
+    pub fn layout(&mut self, buffer: &Buffer, y_from: usize, height: usize, width: usize) {
         self.height = height;
         if y_from == 0 {
             self.lines.clear();

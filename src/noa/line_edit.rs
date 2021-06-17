@@ -1,3 +1,4 @@
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use noa_buffer::{Point, Range, Rope};
 
 pub struct LineEdit {
@@ -113,6 +114,27 @@ impl LineEdit {
     pub fn move_to_prev_word(&mut self) {
         let new_pos = self.rope.prev_word_end(&self.cursor_as_pos());
         self.cursor = new_pos.x;
+    }
+
+    pub fn consume_key_event(&mut self, key: KeyEvent) -> bool {
+        const NONE: KeyModifiers = KeyModifiers::NONE;
+        const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        const ALT: KeyModifiers = KeyModifiers::ALT;
+        const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
+
+        match (key.modifiers, key.code) {
+            (NONE, KeyCode::Char(ch)) => {
+                self.insert_char(ch);
+            }
+            (NONE, KeyCode::Backspace) => {
+                self.backspace();
+            }
+            _ => {
+                return false;
+            }
+        }
+
+        true
     }
 }
 

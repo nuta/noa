@@ -27,7 +27,6 @@ pub struct Layer {
     pub surface: Box<dyn Surface>,
     /// If it's `false`, the surface won't receive key events.
     pub active: bool,
-    pub visible: bool,
     pub canvas: Canvas,
     pub screen_y: usize,
     pub screen_x: usize,
@@ -58,7 +57,6 @@ impl Compositor {
         layers.push(Arc::new(Mutex::new(Layer {
             surface: Box::new(TooSmallSurface::new("too small!")),
             active: true,
-            visible: true,
             canvas: Canvas::new(screen_size.height, screen_size.width),
             screen_y: 0,
             screen_x: 0,
@@ -76,7 +74,6 @@ impl Compositor {
     pub fn push_layer(&mut self, ctx: &mut Context, surface: impl Surface + 'static) {
         self.layers.push(Arc::new(Mutex::new(Layer {
             surface: Box::new(surface),
-            visible: true,
             active: true,
             canvas: Canvas::new(0, 0),
             screen_x: 0,
@@ -91,9 +88,6 @@ impl Compositor {
     pub fn resize_screen(&mut self, ctx: &mut Context, height: usize, width: usize) {
         self.screen_size = RectSize { height, width };
         self.screens = [Canvas::new(height, width), Canvas::new(height, width)];
-        let cursor_pos = ctx.editor.current_buffer().read().main_cursor_pos();
-        let active_screen = &mut self.screens[self.active_screen_index];
-        compose_layers(ctx, active_screen, self.layers.iter(), true);
     }
 
     pub fn render_to_terminal(&mut self, ctx: &mut Context) {
@@ -211,7 +205,6 @@ fn compose_layers<'a, 'b, 'c>(
     ctx: &'a mut Context,
     screen: &'b mut Canvas,
     layers: slice::Iter<'c, Arc<Mutex<Layer>>>,
-    render_all: bool,
 ) {
     screen.clear();
 
@@ -219,7 +212,7 @@ fn compose_layers<'a, 'b, 'c>(
         let mut layer = layer.lock();
         let layer = &mut *layer;
 
-        if !layer.visible || !layer.surface.is_visible() {
+        if !layer.surface.is_visible() {
             continue;
         }
 
@@ -234,12 +227,7 @@ fn compose_layers<'a, 'b, 'c>(
 
         trace!("rendering {} layer", layer.surface.name());
 
-        if render_all {
-            layer.surface.render_all(ctx, &mut layer.canvas);
-        } else {
-            layer.surface.render(ctx, &mut layer.canvas);
-        }
-
+        layer.surface.render(ctx, &mut layer.canvas);
         screen.copy_from_other(layer.screen_y, layer.screen_x, &layer.canvas);
     }
 }
@@ -306,11 +294,7 @@ impl Surface for TooSmallSurface {
         None
     }
 
-    fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) {
-        self.render_all(ctx, canvas)
-    }
-
-    fn render_all(&mut self, _ctx: &mut Context, canvas: &mut Canvas) {
+    fn render(&mut self, _ctx: &mut Context, canvas: &mut Canvas) {
         canvas.draw_str(0, 0, truncate_to_width(&self.text, canvas.width()));
     }
 

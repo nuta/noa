@@ -46,10 +46,6 @@ impl Surface for BufferSurface {
     }
 
     fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) {
-        self.render_all(ctx, canvas)
-    }
-
-    fn render_all(&mut self, ctx: &mut Context, canvas: &mut Canvas) {
         canvas.clear();
 
         let buffer = ctx.editor.current_buffer().read();
@@ -255,6 +251,12 @@ impl Surface for BufferSurface {
             }
             (KeyCode::Enter, NONE) => {
                 buffer.insert_char('\n');
+            }
+            (KeyCode::Tab, NONE) => {
+                buffer.tab();
+            }
+            (KeyCode::BackTab, NONE) => {
+                buffer.back_tab();
             }
             (KeyCode::Char(ch), NONE) => {
                 buffer.insert_char(ch);

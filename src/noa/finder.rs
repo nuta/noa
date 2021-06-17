@@ -78,10 +78,6 @@ impl Surface for Finder {
     }
 
     fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) {
-        self.render_all(ctx, canvas)
-    }
-
-    fn render_all(&mut self, ctx: &mut Context, canvas: &mut Canvas) {
         canvas.clear();
 
         let selector = self.selector.lock();
@@ -114,36 +110,32 @@ impl Surface for Finder {
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
         let prev_query = self.query.rope().clone();
-        let updated = match (key.modifiers, key.code) {
-            (NONE, KeyCode::Char(ch)) => {
-                self.query.insert_char(ch);
-            }
-            (NONE, KeyCode::Esc) => {
-                compositor.pop_layer();
-                return HandledEvent::Consumed;
-            }
-            (NONE, KeyCode::Backspace) => {
-                self.query.backspace();
-            }
-            (NONE, KeyCode::Up) => {
-                self.selector.lock().select_prev();
-            }
-            (NONE, KeyCode::Down) => {
-                self.selector.lock().select_next();
-            }
-            (NONE, KeyCode::Enter) => {
-                if let Some(item) = self.selector.lock().selected() {
-                    self.select(ctx, item);
+        if !self.query.consume_key_event(key) {
+            match (key.modifiers, key.code) {
+                (NONE, KeyCode::Esc) => {
+                    compositor.pop_layer();
+                    return HandledEvent::Consumed;
                 }
+                (NONE, KeyCode::Up) => {
+                    self.selector.lock().select_prev();
+                }
+                (NONE, KeyCode::Down) => {
+                    self.selector.lock().select_next();
+                }
+                (NONE, KeyCode::Enter) => {
+                    if let Some(item) = self.selector.lock().selected() {
+                        self.select(ctx, item);
+                    }
 
-                compositor.pop_layer();
-                return HandledEvent::Consumed;
+                    compositor.pop_layer();
+                    return HandledEvent::Consumed;
+                }
+                _ => {
+                    trace!("finder: unhandled key event: {:?}", key);
+                    return HandledEvent::Consumed;
+                }
             }
-            _ => {
-                trace!("finder: unhandled key event: {:?}", key);
-                return HandledEvent::Consumed;
-            }
-        };
+        }
 
         if &prev_query != self.query.rope() {
             tokio::spawn(update_items(

@@ -24,8 +24,8 @@ use tokio::{
 };
 
 use crate::{
-    buffer_surface::BufferSurface, completion::Completion, syncd_client::SyncdClient,
-    terminal::Terminal, ui::Compositor, ui::Context,
+    completion::Completion, surfaces::BufferSurface, syncd_client::SyncdClient, terminal::Terminal,
+    ui::Compositor, ui::Context,
 };
 
 #[macro_use]
@@ -35,13 +35,13 @@ extern crate log;
 #[macro_use]
 extern crate pretty_assertions;
 
-mod buffer_surface;
 mod completion;
 mod editor;
 mod finder;
 mod fuzzy_set;
 mod line_edit;
 mod selector;
+mod surfaces;
 mod syncd_client;
 mod terminal;
 mod ui;

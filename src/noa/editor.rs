@@ -103,11 +103,11 @@ impl Editor {
     pub fn compute_view(
         &self,
         buffer: &Buffer,
-        width: usize,
         height: usize,
+        width: usize,
     ) -> parking_lot::MutexGuard<'_, View> {
         let mut view = self.views[&buffer.id()].lock();
-        view.layout(buffer, 0, width, height);
+        view.layout(buffer, 0, height, width);
         view
     }
 

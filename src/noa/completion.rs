@@ -91,10 +91,6 @@ impl Surface for Completion {
     }
 
     fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) {
-        self.render_all(ctx, canvas)
-    }
-
-    fn render_all(&mut self, ctx: &mut Context, canvas: &mut Canvas) {
         canvas.clear();
         canvas.draw_borders(0, 0, canvas.height() - 1, canvas.width() - 1);
 
