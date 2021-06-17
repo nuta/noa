@@ -30,6 +30,18 @@ pub struct YesNoChoice {
     pub callback: Box<dyn Fn(&mut Context) -> CallbackResult>,
 }
 
+impl YesNoChoice {
+    pub fn new(
+        key: char,
+        callback: impl Fn(&mut Context) -> CallbackResult + 'static,
+    ) -> YesNoChoice {
+        YesNoChoice {
+            key,
+            callback: Box::new(callback),
+        }
+    }
+}
+
 pub struct YesNoSurface {
     prompt: PromptSurface,
 }
@@ -62,7 +74,7 @@ impl YesNoSurface {
                     le.clear();
 
                     CallbackResult::ShowMessage(PromptMessage::Error(format!(
-                        "invalid input '{}'",
+                        "invalid choice '{}'",
                         input_char
                     )))
                 })),

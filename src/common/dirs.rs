@@ -49,3 +49,9 @@ pub fn log_file_path(name: &str) -> PathBuf {
     create_dir_all(&log_dir).expect("failed to create dir");
     log_dir.join(&format!("{}.log", name))
 }
+
+pub fn backup_dir() -> PathBuf {
+    let backup_dir = noa_dir().join("backup");
+    create_dir_all(&backup_dir).expect("failed to create dir");
+    backup_dir
+}

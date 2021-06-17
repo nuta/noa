@@ -1,7 +1,10 @@
+use crate::surfaces::YesNoSurface;
 use crate::syncd_client::SyncdClient;
+use crate::ui::Compositor;
 use crate::view::View;
 use anyhow::{bail, Context, Result};
 
+use noa_common::dirs::backup_dir;
 use noa_common::syncd_protocol::LspRequest;
 use parking_lot::RwLock;
 
@@ -31,6 +34,7 @@ enum UserMessage {
 
 pub struct Editor {
     exited: bool,
+    backup_dir: PathBuf,
     workspace_dir: PathBuf,
     current_buffer: Arc<RwLock<Buffer>>,
     buffers: Vec<Arc<RwLock<Buffer>>>,
@@ -58,6 +62,7 @@ impl Editor {
 
         Editor {
             exited: false,
+            backup_dir: backup_dir(),
             workspace_dir,
             current_buffer: scratch_buffer,
             buffers,
@@ -76,6 +81,10 @@ impl Editor {
         self.exited = true;
     }
 
+    pub fn backup_dir(&self) -> &Path {
+        &self.backup_dir
+    }
+
     pub fn workspace_dir(&self) -> &Path {
         &self.workspace_dir
     }
@@ -86,6 +95,10 @@ impl Editor {
 
     pub fn current_buffer(&self) -> &Arc<RwLock<Buffer>> {
         &self.current_buffer
+    }
+
+    pub fn buffers(&self) -> &[Arc<RwLock<Buffer>>] {
+        &self.buffers
     }
 
     pub fn view(&self, buffer: &Buffer) -> parking_lot::MutexGuard<'_, View> {

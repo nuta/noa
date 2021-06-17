@@ -8,7 +8,7 @@ use crossterm::{
 use noa_buffer::{Cursor, Range};
 
 use crate::{
-    surfaces::FinderSurface,
+    surfaces::{prompt::CallbackResult, yes_no::YesNoChoice, FinderSurface, YesNoSurface},
     ui::{
         whitespaces, Canvas, Compositor, Context, DisplayWidth, HandledEvent, Layout, RectSize,
         Surface,
@@ -25,6 +25,59 @@ impl BufferSurface {
         BufferSurface {
             cursor_position: (0, 0),
         }
+    }
+
+    fn quit(&mut self, ctx: &mut Context, compositor: &mut Compositor) {
+        // Check if all buffers are not dirty.
+        let mut num_unsaved_files = 0;
+        let mut example = Some("".to_owned());
+        for buffer in ctx.editor.buffers() {
+            let buffer = buffer.read();
+            if buffer.is_dirty() {
+                if let Some(path) = buffer.path() {
+                    let filename = path.file_name().unwrap().to_str().unwrap().to_owned();
+                    num_unsaved_files += 1;
+                    example = Some(filename);
+                }
+            }
+        }
+
+        if num_unsaved_files == 0 {
+            ctx.editor.exit_editor();
+            return;
+        }
+
+        // If any files are not yet saved, show a dialog to ask what we should do.
+        let title = format!(
+            "{} unsaved files: e.g. {}",
+            num_unsaved_files,
+            example.unwrap()
+        );
+        let prompt = YesNoSurface::new(
+            ctx,
+            &title,
+            vec![
+                // Save all.
+                YesNoChoice::new('a', |ctx| {
+                    for buffer in ctx.editor.buffers() {
+                        let mut buffer = buffer.write();
+                        if !buffer.is_virtual_file() {
+                            buffer.save(ctx.editor.backup_dir());
+                        }
+                    }
+                    ctx.editor.exit_editor();
+                    CallbackResult::Ok
+                }),
+                // Cancel.
+                YesNoChoice::new('c', |ctx| CallbackResult::Ok),
+                // Force quit.
+                YesNoChoice::new('Q', |ctx| {
+                    ctx.editor.exit_editor();
+                    CallbackResult::Ok
+                }),
+            ],
+        );
+        compositor.push_layer(ctx, prompt);
     }
 }
 
@@ -172,13 +225,16 @@ impl Surface for BufferSurface {
             (KeyCode::Char('q'), CTRL) => {
                 drop(buffer);
                 drop(view);
-                ctx.editor.exit_editor();
+                self.quit(ctx, compositor);
             }
             (KeyCode::Char('f'), CTRL) => {
                 drop(buffer);
                 drop(view);
                 let finder = FinderSurface::new(ctx);
                 compositor.push_layer(ctx, finder);
+            }
+            (KeyCode::Char('s'), CTRL) => {
+                buffer.save(ctx.editor.backup_dir());
             }
             (KeyCode::Char('u'), CTRL) => {
                 buffer.undo();
