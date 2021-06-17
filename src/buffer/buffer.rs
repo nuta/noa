@@ -80,7 +80,7 @@ impl BufferId {
 pub struct Buffer {
     id: BufferId,
     rope: Rope,
-    is_dirty: bool,
+    saved_rope: Rope,
     name: String,
     path: Option<PathBuf>,
     cursors: Vec<Cursor>,
@@ -93,23 +93,20 @@ pub struct Buffer {
 
 impl Buffer {
     pub fn new() -> Buffer {
-        let mut buffer = Buffer {
+        let rope = Rope::new();
+        Buffer {
             id: BufferId::alloc(),
-            rope: Rope::new(),
-            is_dirty: false,
+            rope: rope.clone(),
+            saved_rope: rope.clone(),
             name: String::new(),
             path: None,
             cursors: vec![Cursor::new(0, 0)],
-            undo_stack: Vec::new(),
+            undo_stack: vec![rope],
             redo_stack: Vec::new(),
             lang: &noa_langs::PLAIN,
             config: EditorConfig::default(),
             snapshot_cache: Mutex::new((0, Arc::new(Snapshot::empty()))),
-        };
-
-        buffer.mark_undo_point();
-        buffer.is_dirty = false;
-        buffer
+        }
     }
 
     pub fn from_str(text: &str) -> Buffer {
@@ -121,23 +118,20 @@ impl Buffer {
     pub fn open_file(path: &Path) -> std::io::Result<Buffer> {
         let file = std::fs::File::open(path)?;
         let lang = guess_lang_from_path(path);
-        let mut buffer = Buffer {
+        let rope = Rope::from_reader(file)?;
+        Ok(Buffer {
             id: BufferId::alloc(),
-            rope: Rope::from_reader(file)?,
-            is_dirty: false,
+            rope: rope.clone(),
+            saved_rope: rope.clone(),
             name: String::new(),
             path: Some(path.canonicalize()?),
             cursors: vec![Cursor::new(0, 0)],
-            undo_stack: Vec::new(),
+            undo_stack: vec![rope],
             redo_stack: Vec::new(),
             lang,
             config: EditorConfig::resolve(path),
             snapshot_cache: Mutex::new((0, Arc::new(Snapshot::empty()))),
-        };
-
-        buffer.mark_undo_point();
-        buffer.is_dirty = false;
-        Ok(buffer)
+        })
     }
 
     pub fn set_text(&mut self, text: &str) {
@@ -152,10 +146,6 @@ impl Buffer {
         pos.y = min(pos.y, self.rope.num_lines().saturating_sub(1));
         pos.x = min(pos.x, self.rope.line_len(pos.y));
         self.cursors = vec![Cursor::Normal { pos }];
-    }
-
-    pub fn reset_dirty_flag(&mut self) {
-        self.is_dirty = false;
     }
 
     #[cfg(test)]
@@ -176,7 +166,7 @@ impl Buffer {
     }
 
     pub fn is_dirty(&self) -> bool {
-        self.is_dirty
+        self.rope == self.saved_rope
     }
 
     pub fn lang(&self) -> &'static Lang {
@@ -252,7 +242,7 @@ impl Buffer {
             .ok();
             fs::copy(path, backup_path(backup_dir, &base, 1)).ok();
             self.rope.save_into_file(path)?;
-            self.is_dirty = false;
+            self.saved_rope = self.rope.clone();
         }
 
         Ok(())
@@ -696,7 +686,6 @@ impl Buffer {
         }
 
         self.undo_stack.push(self.rope.clone());
-        self.is_dirty = true;
     }
 
     pub fn undo(&mut self) {
