@@ -16,6 +16,10 @@ impl LineEdit {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.rope.is_empty()
+    }
+
     pub fn len(&self) -> usize {
         self.rope.line_len(0)
     }

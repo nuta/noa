@@ -22,17 +22,34 @@ use crate::{
 
 use super::{prompt::CallbackResult, PromptSurface};
 
+pub struct YesNoChoice {
+    pub char: char,
+    pub callback: Box<dyn Fn(&mut Context) -> CallbackResult>,
+}
+
 pub struct YesNoSurface {
     prompt: PromptSurface,
 }
 
 impl YesNoSurface {
-    pub fn new(ctx: &mut Context) -> YesNoSurface {
+    pub fn new(ctx: &mut Context, choices: Vec<YesNoChoice>) -> YesNoSurface {
         YesNoSurface {
             prompt: PromptSurface::new(
                 ctx,
-                Some(Box::new(|ctx, le| {
-                    //
+                Some(Box::new(move |ctx, le| {
+                    if le.is_empty() {
+                        return CallbackResult::Ok;
+                    }
+
+                    let input_char = le.text().chars().next().unwrap();
+                    for choice in &choices {
+                        if choice.char == input_char {
+                            let result = (choice.callback)(ctx);
+                            if matches!(CallbackResult::Ok, result) {}
+                            return result;
+                        }
+                    }
+
                     CallbackResult::Ok
                 })),
                 Box::new(|ctx, input| CallbackResult::Ok),

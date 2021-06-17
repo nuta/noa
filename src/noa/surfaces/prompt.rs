@@ -34,28 +34,35 @@ pub enum CallbackResult {
 
 pub struct PromptSurface {
     input: LineEdit,
+    committed: bool,
     message: Option<PromptMessage>,
-    onchange: Option<Box<dyn Fn(&Context, &mut LineEdit) -> CallbackResult>>,
+    onchange: Option<Box<dyn Fn(&mut Context, &mut LineEdit) -> CallbackResult>>,
     oncommit: Box<dyn Fn(&mut Context, &str) -> CallbackResult>,
 }
 
 impl PromptSurface {
     pub fn new(
         ctx: &mut Context,
-        onchange: Option<Box<dyn Fn(&Context, &mut LineEdit) -> CallbackResult>>,
+        onchange: Option<Box<dyn Fn(&mut Context, &mut LineEdit) -> CallbackResult>>,
         oncommit: Box<dyn Fn(&mut Context, &str) -> CallbackResult>,
     ) -> PromptSurface {
         PromptSurface {
             input: LineEdit::new(),
+            committed: false,
             message: None,
             onchange,
             oncommit,
         }
     }
 
+    fn committed(&self) -> bool {
+        self.committed
+    }
+
     fn commit(&mut self, ctx: &mut Context, compositor: &mut Compositor) {
         match (self.oncommit)(ctx, &self.input.text()) {
             CallbackResult::Ok => {
+                self.committed = true;
                 compositor.pop_layer();
             }
             CallbackResult::ShowMessage(msg) => {
