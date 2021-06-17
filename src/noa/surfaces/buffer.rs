@@ -49,9 +49,10 @@ impl BufferSurface {
 
         // If any files are not yet saved, show a dialog to ask what we should do.
         let title = format!(
-            "{} unsaved files: e.g. {}",
+            "{} unsaved files ({}{})",
             num_unsaved_files,
-            example.unwrap()
+            example.unwrap(),
+            if num_unsaved_files > 1 { ", ..." } else { "" }
         );
         let prompt = YesNoSurface::new(
             ctx,
