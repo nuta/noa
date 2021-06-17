@@ -58,7 +58,7 @@ impl CompletionSurface {
 
 impl Surface for CompletionSurface {
     fn name(&self) -> &str {
-        "popup"
+        "completion"
     }
 
     fn is_visible(&self) -> bool {
