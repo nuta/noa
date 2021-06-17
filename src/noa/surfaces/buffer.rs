@@ -55,6 +55,7 @@ impl BufferSurface {
                 // Save all.
                 YesNoChoice::new('a', |ctx| {
                     ctx.editor.save_all();
+                    ctx.editor.exit_editor();
                     CallbackResult::Close
                 }),
                 // Cancel.

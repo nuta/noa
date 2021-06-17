@@ -37,10 +37,6 @@ impl LineEdit {
         self.cursor = 0;
     }
 
-    pub fn cursor(&self) -> usize {
-        self.cursor
-    }
-
     pub fn cursor_display_pos(&self) -> usize {
         self.cursor - self.top_left
     }
@@ -175,17 +171,17 @@ mod tests {
         let mut le = LineEdit::new();
         le.insert("abcde");
         le.relocate_top_left(5);
-        assert_eq!(le.top_left(), 0);
+        assert_eq!(le.top_left, 0);
 
         le.relocate_top_left(4);
-        assert_eq!(le.top_left(), 1);
+        assert_eq!(le.top_left, 1);
 
         le.insert_char('f');
         le.relocate_top_left(4);
-        assert_eq!(le.top_left(), 2);
+        assert_eq!(le.top_left, 2);
 
         le.move_to_beginning_of_line();
         le.relocate_top_left(4);
-        assert_eq!(le.top_left(), 0);
+        assert_eq!(le.top_left, 0);
     }
 }

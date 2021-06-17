@@ -1,6 +1,9 @@
 use std::cmp::{max, min};
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::{
+    event::{KeyCode, KeyEvent, KeyModifiers},
+    style::Attribute,
+};
 
 use crate::{
     line_edit::LineEdit,
@@ -89,29 +92,30 @@ impl Surface for PromptSurface {
                     2 + self.title_width,
                 ),
             ),
-            height: 5,
+            height: 7,
         };
         (Layout::Center, rect_size)
     }
 
     fn cursor_position(&self) -> Option<(usize, usize)> {
         Some((
-            2,
+            3,
             1 + self.prompt_width + 2 + self.input.cursor_display_pos(),
         ))
     }
 
     fn render(&mut self, _ctx: &mut Context, canvas: &mut Canvas) {
         canvas.clear();
-        let inner_width = canvas.width() - 2;
+        let inner_width = canvas.width() - 3;
 
         // Title.
-        canvas.draw_str(1, 1, truncate_to_width(&self.title, inner_width));
+        canvas.draw_str(1, 2, truncate_to_width(&self.title, inner_width));
+        canvas.set_attrs(1, 1, 2, inner_width, (&[Attribute::Bold][..]).into());
 
         // Prompt.
-        canvas.draw_str(2, 1, &self.prompt);
-        canvas.draw_str(2, 1 + self.prompt_width, ": ");
-        canvas.draw_str(2, 1 + self.prompt_width + 2, &self.input.text());
+        canvas.draw_str(3, 1, &self.prompt);
+        canvas.draw_str(3, 1 + self.prompt_width, ": ");
+        canvas.draw_str(3, 1 + self.prompt_width + 2, &self.input.text());
 
         // Message.
         if let Some(message) = &self.message {
@@ -119,7 +123,7 @@ impl Surface for PromptSurface {
                 PromptMessage::Error(text) => (text),
             };
 
-            canvas.draw_str(3, 1, text);
+            canvas.draw_str(5, 1, text);
         }
 
         // Border.
