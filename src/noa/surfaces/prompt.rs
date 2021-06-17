@@ -22,6 +22,7 @@ use crate::{
 
 #[derive(Debug)]
 pub enum PromptMessage {
+    Info(String),
     Error(String),
 }
 

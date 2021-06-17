@@ -20,10 +20,13 @@ use crate::{
     ui::{Canvas, Compositor, Context, Event, HandledEvent, Layout, RectSize, Surface},
 };
 
-use super::{prompt::CallbackResult, PromptSurface};
+use super::{
+    prompt::{CallbackResult, PromptMessage},
+    PromptSurface,
+};
 
 pub struct YesNoChoice {
-    pub char: char,
+    pub key: char,
     pub callback: Box<dyn Fn(&mut Context) -> CallbackResult>,
 }
 
@@ -33,6 +36,11 @@ pub struct YesNoSurface {
 
 impl YesNoSurface {
     pub fn new(ctx: &mut Context, choices: Vec<YesNoChoice>) -> YesNoSurface {
+        let mut keys = String::with_capacity(choices.len());
+        for choice in &choices {
+            keys.push(choice.key);
+        }
+
         YesNoSurface {
             prompt: PromptSurface::new(
                 ctx,
@@ -43,14 +51,16 @@ impl YesNoSurface {
 
                     let input_char = le.text().chars().next().unwrap();
                     for choice in &choices {
-                        if choice.char == input_char {
-                            let result = (choice.callback)(ctx);
-                            if matches!(CallbackResult::Ok, result) {}
-                            return result;
+                        if choice.key == input_char {
+                            return (choice.callback)(ctx);
                         }
                     }
 
-                    CallbackResult::Ok
+                    le.clear();
+                    CallbackResult::ShowMessage(PromptMessage::Error(format!(
+                        "invalid input '{}'",
+                        input_char
+                    )))
                 })),
                 Box::new(|ctx, input| CallbackResult::Ok),
             ),
