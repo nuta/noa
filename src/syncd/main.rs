@@ -4,7 +4,6 @@ extern crate log;
 mod eventloop;
 mod lsp;
 
-use daemonize::Daemonize;
 use log::LevelFilter;
 use noa_common::{
     dirs::{log_file_path, lsp_pid_path},
@@ -12,7 +11,7 @@ use noa_common::{
 };
 use simplelog::{CombinedLogger, Config, TermLogger, TerminalMode, WriteLogger};
 use std::{
-    fs::{read_to_string, File, OpenOptions},
+    fs::{read_to_string, OpenOptions},
     path::PathBuf,
 };
 use structopt::StructOpt;
@@ -31,8 +30,6 @@ struct Opt {
     lang: String,
     #[structopt(long)]
     kill_existing_daemon: bool,
-    #[structopt(long, short)]
-    foreground: bool,
 }
 
 #[tokio::main]
@@ -80,16 +77,6 @@ async fn main() {
 
             std::fs::remove_file(&pid_file).ok();
         }
-    }
-
-    if !opt.foreground {
-        Daemonize::new()
-            .pid_file(pid_file)
-            .working_directory(std::env::current_dir().unwrap())
-            .stdout(File::open("/dev/null").unwrap())
-            .stderr(File::open("/dev/null").unwrap())
-            .start()
-            .expect("failed to daemonize the process");
     }
 
     match opt.daemon_type.as_str() {

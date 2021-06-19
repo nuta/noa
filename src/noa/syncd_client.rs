@@ -152,7 +152,6 @@ fn spawn_syncd<A: AsRef<OsStr>>(
     if cfg!(debug_assertions) {
         Command::new("cargo")
             .args(&["run", "--bin", "noa-syncd", "--"])
-            .arg("-f") // FIXME: Something goes wrong in daemon mode
             .arg("--daemon-type")
             .arg(daemon_type)
             .arg("--workspace-dir")
@@ -167,7 +166,6 @@ fn spawn_syncd<A: AsRef<OsStr>>(
             .context("failed to spawn noa-syncd from cargo")?;
     } else {
         Command::new("noa-syncd")
-            .arg("-f") // FIXME: Something goes wrong in daemon mode
             .arg("--daemon-type")
             .arg(daemon_type)
             .arg("--workspace-dir")
