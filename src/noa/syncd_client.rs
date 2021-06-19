@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    ffi::OsStr,
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -77,17 +78,7 @@ impl SyncdClient {
         if !sock_path.exists() {
             // The syncd for the language is not running. Spawn it.
             trace!("spawning lsp syncd at {}", sock_path.display());
-            Command::new("noa-syncd")
-                .arg("--daemon-type")
-                .arg("lsp")
-                .arg("--lang")
-                .arg(lang.id)
-                .arg("--workspace-dir")
-                .arg(&self.workspace_dir)
-                .arg("--sock-path")
-                .arg(&sock_path)
-                .spawn()
-                .context("failed to spawn noa-syncd")?;
+            spawn_syncd("lsp", &self.workspace_dir, &sock_path, &["--lang", lang.id])?;
         }
 
         let sock = try_to_connect(&sock_path).await?;
@@ -145,6 +136,26 @@ impl SyncdClient {
 
         Ok(())
     }
+}
+
+fn spawn_syncd<A: AsRef<OsStr>>(
+    daemon_type: &str,
+    workspace_dir: &Path,
+    sock_path: &Path,
+    extra_args: &[A],
+) -> Result<()> {
+    Command::new("noa-syncd")
+        .arg("--daemon-type")
+        .arg(daemon_type)
+        .arg("--workspace-dir")
+        .arg(&workspace_dir)
+        .arg("--sock-path")
+        .arg(&sock_path)
+        .args(extra_args)
+        .spawn()
+        .context("failed to spawn noa-syncd")?;
+
+    Ok(())
 }
 
 async fn try_to_connect(sock_path: &Path) -> Result<UnixStream> {
