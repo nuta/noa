@@ -214,15 +214,7 @@ impl Buffer {
         self.path.is_none()
     }
 
-    pub fn save_without_backup(&self) -> std::io::Result<()> {
-        if let Some(path) = &self.path {
-            self.rope.save_into_file(path)
-        } else {
-            Ok(())
-        }
-    }
-
-    fn backup_path(&mut self, backup_dir: &Path) -> PathBuf {
+    fn backup_path(&self, backup_dir: &Path) -> PathBuf {
         let base = self
             .path
             .as_ref()
@@ -242,7 +234,7 @@ impl Buffer {
         Ok(())
     }
 
-    pub fn update_backup(&mut self, backup_dir: &Path) {
+    pub fn update_backup(&self, backup_dir: &Path) {
         if let Err(err) = fs::create_dir_all(backup_dir) {
             error!(
                 "failed to create the backup_dir {}: {}",
@@ -689,7 +681,7 @@ impl Buffer {
         self.delete();
     }
 
-    pub fn mark_undo_point(&mut self, backup_dir: &Path) {
+    pub fn mark_undo_point(&mut self) {
         match self.undo_stack.last() {
             Some(rope) if *rope == self.rope => {
                 // The buffer is not modified.

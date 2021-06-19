@@ -1,6 +1,9 @@
 use log::LevelFilter;
 use noa_buffer::Buffer;
-use noa_common::{dirs::log_file_path, syncd_protocol::LspRequest};
+use noa_common::{
+    dirs::{backup_dir, log_file_path},
+    syncd_protocol::LspRequest,
+};
 use parking_lot::RwLock;
 use simplelog::{Config, WriteLogger};
 use std::{
@@ -124,6 +127,7 @@ async fn main() {
         editor.syncd().clone(),
     ));
 
+    let backup_dir = backup_dir();
     while !editor.exited() {
         let mut ctx = Context {
             editor: &mut editor,
@@ -132,30 +136,41 @@ async fn main() {
 
         compositor.render_to_terminal(&mut ctx);
 
-        if let Some(ev) = event_rx.recv().await {
-            let started_at = Instant::now();
-            let prev_ver = editor.current_buffer().read().id_and_version();
+        match timeout(Duration::from_millis(400), event_rx.recv()).await {
+            Ok(Some(ev)) => {
+                let started_at = Instant::now();
+                let prev_ver = editor.current_buffer().read().id_and_version();
 
-            let mut ctx = Context {
-                editor: &mut editor,
-                event_tx: &event_tx,
-            };
-            compositor.handle_event(&mut ctx, ev);
-
-            while let Ok(Some(ev)) = timeout(Duration::from_micros(400), event_rx.recv()).await {
+                let mut ctx = Context {
+                    editor: &mut editor,
+                    event_tx: &event_tx,
+                };
                 compositor.handle_event(&mut ctx, ev);
-            }
+                while let Ok(Some(ev)) = timeout(Duration::from_micros(400), event_rx.recv()).await
+                {
+                    compositor.handle_event(&mut ctx, ev);
+                }
 
-            let new_ver = editor.current_buffer().read().id_and_version();
-            if prev_ver != new_ver {
-                // Switched or modified the current buffer.
-                file_updated_tx.send(editor.current_buffer().clone()).ok();
-            }
+                let new_ver = editor.current_buffer().read().id_and_version();
+                if prev_ver != new_ver {
+                    // Switched or modified the current buffer.
+                    file_updated_tx.send(editor.current_buffer().clone()).ok();
+                }
 
-            trace!(
-                "event handling took {} us",
-                started_at.elapsed().as_micros()
-            );
+                trace!(
+                    "event handling took {} us",
+                    started_at.elapsed().as_micros()
+                );
+            }
+            Ok(None) => {
+                break;
+            }
+            Err(_) => {
+                // Timeout.
+                let mut buffer = editor.current_buffer().write();
+                buffer.update_backup(&backup_dir);
+                buffer.mark_undo_point();
+            }
         }
     }
 }
