@@ -9,8 +9,8 @@ use noa_buffer::Cursor;
 use crate::{
     surfaces::{prompt::CallbackResult, yes_no::YesNoChoice, FinderSurface, YesNoSurface},
     ui::{
-        whitespaces, Canvas, Compositor, Context, DisplayWidth, HandledEvent, Layout, RectSize,
-        Surface,
+        whitespaces, CanvasViewMut, Compositor, Context, DisplayWidth, HandledEvent, Layout,
+        RectSize, Surface,
     },
 };
 
@@ -88,7 +88,7 @@ impl Surface for BufferSurface {
         Some(self.cursor_position)
     }
 
-    fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) {
+    fn render<'a>(&mut self, ctx: &mut Context, mut canvas: CanvasViewMut<'a>) {
         canvas.clear();
 
         let buffer = ctx.editor.current_buffer().read();

@@ -1,6 +1,6 @@
 use crossterm::event::KeyEvent;
 
-use crate::ui::{Canvas, Compositor, Context, HandledEvent, Layout, RectSize, Surface};
+use crate::ui::{CanvasViewMut, Compositor, Context, HandledEvent, Layout, RectSize, Surface};
 
 use super::{
     prompt::{CallbackResult, PromptMessage},
@@ -80,7 +80,7 @@ impl Surface for YesNoSurface {
         self.prompt.cursor_position()
     }
 
-    fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas) {
+    fn render<'a>(&mut self, ctx: &mut Context, canvas: CanvasViewMut<'a>) {
         self.prompt.render(ctx, canvas)
     }
 

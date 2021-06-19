@@ -9,7 +9,7 @@ use crate::ui::{Context, Surface};
 
 use crate::terminal::Terminal;
 
-use super::{truncate_to_width, Canvas, HandledEvent, Layout, RectSize};
+use super::{truncate_to_width, Canvas, CanvasViewMut, HandledEvent, Layout, RectSize};
 
 #[derive(Debug)]
 pub enum Event {
@@ -189,7 +189,7 @@ fn compose_layers<'a, 'b, 'c>(
     screen: &'b mut Canvas,
     layers: slice::Iter<'c, Arc<Mutex<Layer>>>,
 ) {
-    screen.clear();
+    screen.view_mut().clear();
 
     for layer in layers {
         let mut layer = layer.lock();
@@ -210,7 +210,7 @@ fn compose_layers<'a, 'b, 'c>(
 
         trace!("rendering {} layer", layer.surface.name());
 
-        layer.surface.render(ctx, &mut layer.canvas);
+        layer.surface.render(ctx, layer.canvas.view_mut());
         screen.copy_from_other(layer.screen_y, layer.screen_x, &layer.canvas);
     }
 }
@@ -277,7 +277,7 @@ impl Surface for TooSmallSurface {
         None
     }
 
-    fn render(&mut self, _ctx: &mut Context, canvas: &mut Canvas) {
+    fn render<'a>(&mut self, _ctx: &mut Context, mut canvas: CanvasViewMut<'a>) {
         canvas.draw_str(0, 0, truncate_to_width(&self.text, canvas.width()));
     }
 

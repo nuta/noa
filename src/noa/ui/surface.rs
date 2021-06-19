@@ -1,10 +1,9 @@
-
 use crossterm::event::KeyEvent;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::editor::Editor;
 
-use super::{Canvas, Compositor, Event};
+use super::{canvas::CanvasViewMut, Compositor, Event};
 
 pub struct Context<'a> {
     pub event_tx: &'a UnboundedSender<Event>,
@@ -39,7 +38,7 @@ pub trait Surface {
     fn cursor_position(&self) -> Option<(usize, usize)>;
     /// Render its contents into the canvas. It must fill the whole canvas; the
     /// canvas can be the newly created one due to, for example, screen resizing.
-    fn render(&mut self, ctx: &mut Context, canvas: &mut Canvas);
+    fn render<'a>(&mut self, _ctx: &mut Context, canvas: CanvasViewMut<'a>);
     fn handle_key_event(
         &mut self,
         ctx: &mut Context,

@@ -8,7 +8,7 @@ use crossterm::{
 use crate::{
     line_edit::LineEdit,
     ui::{
-        truncate_to_width, Canvas, Compositor, Context, DisplayWidth, HandledEvent, Layout,
+        truncate_to_width, CanvasViewMut, Compositor, Context, DisplayWidth, HandledEvent, Layout,
         RectSize, Surface,
     },
 };
@@ -104,7 +104,7 @@ impl Surface for PromptSurface {
         ))
     }
 
-    fn render(&mut self, _ctx: &mut Context, canvas: &mut Canvas) {
+    fn render<'a>(&mut self, _ctx: &mut Context, mut canvas: CanvasViewMut<'a>) {
         canvas.clear();
         let inner_width = canvas.width() - 2;
 

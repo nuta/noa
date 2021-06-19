@@ -69,8 +69,102 @@ impl Canvas {
         self.height
     }
 
+    pub fn copy_from_other(&mut self, y: usize, x: usize, other: &Canvas) {
+        debug_assert!(y < self.height);
+        debug_assert!(x < self.width);
+        debug_assert!(y + other.height <= self.height);
+        debug_assert!(x + other.width <= self.width);
+
+        for y_off in 0..other.height() {
+            let dst_start = (y + y_off) * self.width + x;
+            let dst_end = dst_start + other.width;
+            let src_start = y_off * other.width;
+            let src_end = src_start + other.width;
+            (&mut self.graphs[dst_start..dst_end])
+                .copy_from_slice(&other.graphs[src_start..src_end]);
+        }
+    }
+
+    pub fn compute_draw_updates<'a, 'b>(&'a self, other: &'b Canvas) -> Vec<DrawOp<'a>> {
+        debug_assert_eq!(self.width(), other.width());
+        debug_assert_eq!(self.height(), other.height());
+
+        let mut y = 0;
+        let mut x = 0;
+        let mut fg = Color::Reset;
+        let mut bg = Color::Reset;
+        let mut attrs = Attributes::default();
+        let mut needs_move = false;
+        let mut ops = Vec::with_capacity(self.width() * self.height());
+        for (new, old) in self.graphs.iter().zip(&other.graphs) {
+            if old == new {
+                needs_move = true;
+            } else {
+                if needs_move {
+                    ops.push(DrawOp::MoveTo { y, x });
+                    needs_move = false;
+                }
+
+                if new.fg != fg {
+                    ops.push(DrawOp::FgColor(new.fg));
+                    fg = new.fg;
+                }
+
+                if new.bg != bg {
+                    ops.push(DrawOp::BgColor(new.bg));
+                    bg = new.bg;
+                }
+
+                if new.attrs != attrs {
+                    ops.push(DrawOp::Reset);
+                    ops.push(DrawOp::Attributes(new.attrs));
+                    attrs = new.attrs;
+                }
+
+                ops.push(DrawOp::Grapheme(&new.grapheme));
+            }
+
+            x += 1;
+            if x >= self.width {
+                y += 1;
+                x = 0;
+            }
+        }
+
+        ops
+    }
+
+    pub fn view_mut(&mut self) -> CanvasViewMut<'_> {
+        CanvasViewMut {
+            graphs: &mut self.graphs,
+            y: 0,
+            x: 0,
+            width: self.width,
+            height: self.height,
+        }
+    }
+}
+
+/// A part of rectangle a canvas.
+pub struct CanvasViewMut<'a> {
+    graphs: &'a mut [Grapheme],
+    y: usize,
+    x: usize,
+    width: usize,
+    height: usize,
+}
+
+impl<'a> CanvasViewMut<'a> {
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    pub fn height(&self) -> usize {
+        self.height
+    }
+
     pub fn clear(&mut self) {
-        for graph in &mut self.graphs {
+        for graph in self.graphs.as_mut() {
             *graph = Grapheme::blank();
         }
     }
@@ -79,7 +173,7 @@ impl Canvas {
         debug_assert!(y < self.height);
         debug_assert!(x < self.width);
 
-        self.graphs[y * self.width + x] = graph;
+        self.graphs[(self.y + y) * self.width + self.x + x] = graph;
     }
 
     pub fn set_char_with_attrs(
@@ -151,7 +245,7 @@ impl Canvas {
 
         for y in y..y_end {
             for x in x..x_end {
-                f(&mut self.graphs[y * self.width + x]);
+                f(&mut self.graphs[(self.y + y) * self.width + self.x + x]);
             }
         }
     }
@@ -163,89 +257,26 @@ impl Canvas {
         debug_assert!(x_right < self.width);
 
         for y in y_top..y_bottom {
-            self.graphs[y * self.width + x_left] =
+            self.graphs[(self.y + y) * self.width + self.x + x_left] =
                 Grapheme::new("\u{2502}" /* vertical bar */);
-            self.graphs[y * self.width + x_right] =
+            self.graphs[(self.y + y) * self.width + self.x + x_right] =
                 Grapheme::new("\u{2502}" /* vertical bar */);
         }
 
         for x in x_left..x_right {
-            self.graphs[y_top * self.width + x] =
+            self.graphs[(self.y + y_top) * self.width + self.x + x] =
                 Grapheme::new("\u{2500}" /* horizontal bar */);
-            self.graphs[y_bottom * self.width + x] =
+            self.graphs[(self.y + y_bottom) * self.width + self.x + x] =
                 Grapheme::new("\u{2500}" /* horizontal bar */);
         }
 
-        self.graphs[y_top * self.width + x_left] = Grapheme::new("\u{250d}" /* top_left */);
-        self.graphs[y_top * self.width + x_right] = Grapheme::new("\u{2511}" /* top_right */);
-        self.graphs[y_bottom * self.width + x_left] =
+        self.graphs[(self.y + y_top) * self.width + self.x + x_left] =
+            Grapheme::new("\u{250d}" /* top_left */);
+        self.graphs[(self.y + y_top) * self.width + self.x + x_right] =
+            Grapheme::new("\u{2511}" /* top_right */);
+        self.graphs[(self.y + y_bottom) * self.width + self.x + x_left] =
             Grapheme::new("\u{2515}" /* bottom_left */);
-        self.graphs[y_bottom * self.width + x_right] =
+        self.graphs[(self.y + y_bottom) * self.width + self.x + x_right] =
             Grapheme::new("\u{2519}" /* bottom_right */);
-    }
-
-    pub fn copy_from_other(&mut self, y: usize, x: usize, other: &Canvas) {
-        debug_assert!(y < self.height);
-        debug_assert!(x < self.width);
-        debug_assert!(y + other.height <= self.height);
-        debug_assert!(x + other.width <= self.width);
-
-        for y_off in 0..other.height() {
-            let dst_start = (y + y_off) * self.width + x;
-            let dst_end = dst_start + other.width;
-            let src_start = y_off * other.width;
-            let src_end = src_start + other.width;
-            (&mut self.graphs[dst_start..dst_end])
-                .copy_from_slice(&other.graphs[src_start..src_end]);
-        }
-    }
-
-    pub fn compute_draw_updates<'a, 'b>(&'a self, other: &'b Canvas) -> Vec<DrawOp<'a>> {
-        debug_assert_eq!(self.width(), other.width());
-        debug_assert_eq!(self.height(), other.height());
-
-        let mut y = 0;
-        let mut x = 0;
-        let mut fg = Color::Reset;
-        let mut bg = Color::Reset;
-        let mut attrs = Attributes::default();
-        let mut needs_move = false;
-        let mut ops = Vec::with_capacity(self.width() * self.height());
-        for (new, old) in self.graphs.iter().zip(&other.graphs) {
-            if old == new {
-                needs_move = true;
-            } else {
-                if needs_move {
-                    ops.push(DrawOp::MoveTo { y, x });
-                    needs_move = false;
-                }
-
-                if new.fg != fg {
-                    ops.push(DrawOp::FgColor(new.fg));
-                    fg = new.fg;
-                }
-
-                if new.bg != bg {
-                    ops.push(DrawOp::BgColor(new.bg));
-                    bg = new.bg;
-                }
-
-                if new.attrs != attrs {
-                    ops.push(DrawOp::Reset);
-                    ops.push(DrawOp::Attributes(new.attrs));
-                    attrs = new.attrs;
-                }
-
-                ops.push(DrawOp::Grapheme(&new.grapheme));
-            }
-
-            x += 1;
-            if x >= self.width {
-                y += 1;
-                x = 0;
-            }
-        }
-
-        ops
     }
 }

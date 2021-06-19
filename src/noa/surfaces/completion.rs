@@ -12,8 +12,8 @@ use crate::{
     fuzzy_set::FuzzySet,
     selector::Selector,
     ui::{
-        truncate_to_width, Canvas, Compositor, Context, Event, HandledEvent, Layout, RectSize,
-        Surface,
+        truncate_to_width, CanvasViewMut, Compositor, Context, Event, HandledEvent, Layout,
+        RectSize, Surface,
     },
 };
 
@@ -81,7 +81,7 @@ impl Surface for CompletionSurface {
         None
     }
 
-    fn render(&mut self, _ctx: &mut Context, canvas: &mut Canvas) {
+    fn render<'a>(&mut self, _ctx: &mut Context, mut canvas: CanvasViewMut<'a>) {
         canvas.clear();
         canvas.draw_borders(0, 0, canvas.height() - 1, canvas.width() - 1);
 

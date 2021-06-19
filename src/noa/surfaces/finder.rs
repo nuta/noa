@@ -15,7 +15,7 @@ use crate::{
     fuzzy_set::FuzzySet,
     line_edit::LineEdit,
     selector::Selector,
-    ui::{Canvas, Compositor, Context, Event, HandledEvent, Layout, RectSize, Surface},
+    ui::{CanvasViewMut, Compositor, Context, Event, HandledEvent, Layout, RectSize, Surface},
 };
 
 #[derive(Debug)]
@@ -75,7 +75,7 @@ impl Surface for FinderSurface {
         Some((1, 1 + self.input.cursor_display_pos()))
     }
 
-    fn render(&mut self, _ctx: &mut Context, canvas: &mut Canvas) {
+    fn render<'a>(&mut self, _ctx: &mut Context, mut canvas: CanvasViewMut<'a>) {
         canvas.clear();
 
         let selector = self.selector.lock();
