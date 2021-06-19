@@ -2,6 +2,7 @@ use std::{
     collections::HashMap,
     path::Path,
     sync::{atomic::AtomicUsize, Arc},
+    time::Duration,
 };
 
 use anyhow::Result;
@@ -16,6 +17,7 @@ use tokio::{
     net::{unix::OwnedWriteHalf, UnixListener},
     spawn,
     sync::{mpsc::UnboundedReceiver, Mutex},
+    time::timeout,
 };
 
 #[async_trait]
@@ -63,68 +65,86 @@ pub async fn eventloop<D: Daemon + 'static>(
 
     // Handle requests from noa.
     let next_client_id = AtomicUsize::new(1);
+    let progress = Arc::new(parking_lot::Mutex::new(false));
     loop {
-        if let Ok((new_client, _)) = listener.accept().await {
-            let client_id = next_client_id.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            info!("new client #{}", client_id);
+        match timeout(Duration::from_secs(5), listener.accept()).await {
+            Err(_) => {
+                // Timed out.
+                if !*progress.lock() {
+                    trace!("idle state for a long while, exiting...");
+                    return Ok(());
+                }
 
-            let (read_end, write_end) = new_client.into_split();
-            let write_end = Arc::new(Mutex::new(write_end));
-            let daemon_lock = daemon_lock.clone();
-            let clients = clients.clone();
-            spawn(async move {
-                clients.lock().await.insert(client_id, write_end.clone());
-                let mut reader = BufReader::new(read_end);
-                let mut buf = String::with_capacity(128 * 1024);
-                loop {
-                    buf.clear();
-                    // Receive a request from noa.
-                    match reader.read_line(&mut buf).await {
-                        Ok(0) => break, // EOF
-                        Ok(_) => {
-                            let packet: ToServer<D::Request> =
-                                serde_json::from_str(&buf).expect("invalid request");
-                            match packet {
-                                ToServer::Request(Request { id, body: params }) => {
-                                    match daemon_lock.lock().await.process_request(params).await {
-                                        Ok(body) => {
-                                            let resp =
-                                                ToClient::<D::Response>::Response(Response {
-                                                    id,
-                                                    body,
-                                                });
-                                            let mut json = serde_json::to_string(&resp).unwrap();
+                *progress.lock() = false;
+            }
+            Ok(Ok((new_client, _))) => {
+                let client_id = next_client_id.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                info!("new client #{}", client_id);
 
-                                            json.push('\n');
+                let (read_end, write_end) = new_client.into_split();
+                let write_end = Arc::new(Mutex::new(write_end));
+                let daemon_lock = daemon_lock.clone();
+                let progress = progress.clone();
+                let clients = clients.clone();
+                spawn(async move {
+                    clients.lock().await.insert(client_id, write_end.clone());
+                    let mut reader = BufReader::new(read_end);
+                    let mut buf = String::with_capacity(128 * 1024);
+                    loop {
+                        buf.clear();
+                        // Receive a request from noa.
+                        match reader.read_line(&mut buf).await {
+                            Ok(0) => break, // EOF
+                            Ok(_) => {
+                                *progress.lock() = true;
 
-                                            // Reply the response to noa.
-                                            warn_on_error!(
-                                                write_end
-                                                    .lock()
-                                                    .await
-                                                    .write_all(json.as_bytes())
-                                                    .await,
-                                                "failed to write the response"
-                                            );
-                                        }
-                                        Err(err) => {
-                                            trace!("error in process_request: {}", err);
+                                let packet: ToServer<D::Request> =
+                                    serde_json::from_str(&buf).expect("invalid request");
+                                match packet {
+                                    ToServer::Request(Request { id, body: params }) => {
+                                        match daemon_lock.lock().await.process_request(params).await
+                                        {
+                                            Ok(body) => {
+                                                let resp =
+                                                    ToClient::<D::Response>::Response(Response {
+                                                        id,
+                                                        body,
+                                                    });
+                                                let mut json =
+                                                    serde_json::to_string(&resp).unwrap();
+
+                                                json.push('\n');
+
+                                                // Reply the response to noa.
+                                                warn_on_error!(
+                                                    write_end
+                                                        .lock()
+                                                        .await
+                                                        .write_all(json.as_bytes())
+                                                        .await,
+                                                    "failed to write the response"
+                                                );
+                                            }
+                                            Err(err) => {
+                                                trace!("error in process_request: {}", err);
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
-                        Err(err) => {
-                            warn!("failed to read from a client: {}", err);
-                            break;
+                            Err(err) => {
+                                warn!("failed to read from a client: {}", err);
+                                break;
+                            }
                         }
                     }
-                }
 
-                // The client has exited.
-                info!("client #{} is being closed", client_id);
-                clients.lock().await.remove(&client_id);
-            });
+                    // The client has exited.
+                    info!("client #{} is being closed", client_id);
+                    clients.lock().await.remove(&client_id);
+                });
+            }
+            _ => {}
         }
     }
 }

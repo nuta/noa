@@ -18,7 +18,7 @@ use noa_buffer::Point;
 use noa_common::syncd_protocol::{LspNotification, LspRequest, LspResponse, Notification};
 use tokio::{
     io::BufReader,
-    process::{ChildStdin, ChildStdout, Command},
+    process::{Child, ChildStdin, ChildStdout, Command},
     sync::{mpsc::UnboundedSender, oneshot, Mutex},
 };
 
@@ -153,7 +153,7 @@ async fn receive_responses(
                         // let _params: CompletionResponse =
                         //     serde_json::from_value(json.result).unwrap();
                         // TODO:
-                        info!("received completion");
+
                         LspResponse::NoContent
                     }
                     _ => {
@@ -205,6 +205,7 @@ impl IntoPosition for Point {
 pub struct LspDaemon {
     workspace_dir: PathBuf,
     lsp_stdin: ChildStdin,
+    _lsp_server: Child,
     lang: String,
     next_req_id: usize,
     req_id_tx_map: ReqIdTxMap,
@@ -223,6 +224,7 @@ impl LspDaemon {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
+            .kill_on_drop(true)
             .spawn()
             .with_context(|| {
                 format!(
@@ -244,6 +246,7 @@ impl LspDaemon {
         Ok(LspDaemon {
             workspace_dir: workspace_dir.to_path_buf(),
             lsp_stdin,
+            _lsp_server: lsp_server,
             lang,
             next_req_id: 1,
             req_id_tx_map,
@@ -251,7 +254,6 @@ impl LspDaemon {
     }
 
     pub async fn initialize(&mut self) -> Result<()> {
-        info!("calling iniailize");
         self.call_method::<Initialize>(
             // `root_path` is deprecated. We already use root_uri instead.
             #[allow(deprecated)]
@@ -280,12 +282,12 @@ impl LspDaemon {
 
     async fn send_message(&mut self, body: &str) -> Result<()> {
         use tokio::io::AsyncWriteExt;
-        info!("write into lsp stdin {}", body.len());
+
         self.lsp_stdin
             .write_all(format!("Content-Length: {}\r\n\r\n", body.len()).as_bytes())
             .await?;
         self.lsp_stdin.write_all(body.as_bytes()).await?;
-        info!("body={}", body);
+
         Ok(())
     }
 
@@ -293,11 +295,8 @@ impl LspDaemon {
         &mut self,
         params: T::Params,
     ) -> Result<LspResponse> {
-        info!("calling method");
         let (id, rx) = self.alloc_req_id(T::METHOD).await;
-        info!("calling method2");
         let req = serialize_lsp_request::<T>(id.clone(), params);
-        info!("calling method3");
         self.send_message(&req).await?;
         let resp = rx.await?;
         Ok(resp)
