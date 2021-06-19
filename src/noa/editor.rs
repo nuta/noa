@@ -171,7 +171,7 @@ impl Editor {
     }
 
     pub fn save_current_buffer(&self) {
-        if let Err(err) = self.current_buffer.write().save(&self.backup_dir) {
+        if let Err(err) = self.current_buffer.write().save() {
             self.error(format!("{}", err));
         }
     }
@@ -189,7 +189,7 @@ impl Editor {
 
     pub fn save_all(&self) {
         for buffer in self.dirty_buffers() {
-            if let Err(err) = buffer.write().save(&self.backup_dir) {
+            if let Err(err) = buffer.write().save() {
                 self.error(format!("{}", err));
             }
         }

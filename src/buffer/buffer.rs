@@ -47,10 +47,6 @@ fn remove_range(
     }
 }
 
-fn backup_path(backup_dir: &Path, base: &str, revision: usize) -> PathBuf {
-    backup_dir.join(format!("{}.{}", base, revision))
-}
-
 fn guess_lang_from_path(path: &Path) -> &'static Lang {
     let basename = path.file_name().map(|s| s.to_str().unwrap()).unwrap_or("");
     let ext = path.extension().map(|s| s.to_str().unwrap());
@@ -226,26 +222,43 @@ impl Buffer {
         }
     }
 
-    pub fn save(&mut self, backup_dir: &Path) -> std::io::Result<()> {
+    fn backup_path(&mut self, backup_dir: &Path) -> PathBuf {
+        let base = self
+            .path
+            .as_ref()
+            .map(|path| path.to_str().unwrap())
+            .unwrap_or(self.name())
+            .replace('/', ".");
+
+        backup_dir.join(base)
+    }
+
+    pub fn save(&mut self) -> std::io::Result<()> {
         if let Some(path) = &self.path {
-            let base = path.to_str().unwrap().replace('/', ".");
-            fs::create_dir_all(backup_dir)?;
-            fs::rename(
-                backup_path(backup_dir, &base, 2),
-                backup_path(backup_dir, &base, 3),
-            )
-            .ok();
-            fs::rename(
-                backup_path(backup_dir, &base, 1),
-                backup_path(backup_dir, &base, 2),
-            )
-            .ok();
-            fs::copy(path, backup_path(backup_dir, &base, 1)).ok();
             self.rope.save_into_file(path)?;
             self.saved_rope = self.rope.clone();
         }
 
         Ok(())
+    }
+
+    pub fn update_backup(&mut self, backup_dir: &Path) {
+        if let Err(err) = fs::create_dir_all(backup_dir) {
+            error!(
+                "failed to create the backup_dir {}: {}",
+                backup_dir.display(),
+                err
+            );
+        }
+
+        let backup_file = self.backup_path(backup_dir);
+        if let Err(err) = self.rope.save_into_file(&backup_file) {
+            error!(
+                "failed to create the backup file {}: {}",
+                backup_file.display(),
+                err
+            );
+        }
     }
 
     pub fn take_snapshot(&self) -> Arc<Snapshot> {
@@ -676,7 +689,7 @@ impl Buffer {
         self.delete();
     }
 
-    pub fn mark_undo_point(&mut self) {
+    pub fn mark_undo_point(&mut self, backup_dir: &Path) {
         match self.undo_stack.last() {
             Some(rope) if *rope == self.rope => {
                 // The buffer is not modified.
