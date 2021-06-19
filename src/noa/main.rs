@@ -96,21 +96,23 @@ async fn main() {
         _ => current_dir().unwrap(),
     };
 
+    // Initialize editor components.
     let mut editor = editor::Editor::new(workspace_dir);
-
     let (event_tx, mut event_rx) = unbounded_channel();
-    let terminal = Terminal::new(event_tx.clone());
-    let mut compositor = Compositor::new(terminal);
 
     let mut ctx = Context {
         editor: &mut editor,
         event_tx: &event_tx,
     };
 
+    // Initialize UI.
+    let terminal = Terminal::new(event_tx.clone());
+    let mut compositor = Compositor::new(terminal);
     let completion = CompletionSurface::new(&mut ctx);
     compositor.push_layer(&mut ctx, BufferSurface::new());
     compositor.push_layer(&mut ctx, completion);
 
+    // Open speicifed file or the workspace dir.
     for file in opt.files.iter() {
         if !file.is_file() {
             continue;
@@ -127,6 +129,7 @@ async fn main() {
         editor.syncd().clone(),
     ));
 
+    // The main event loop.
     let backup_dir = backup_dir();
     let mut updated = false;
     while !editor.exited() {
@@ -179,6 +182,9 @@ async fn main() {
             Err(_) => {}
         }
     }
+
+    trace!("exiting the editor");
+    // TODO: Cleanup LSP processes.
 }
 
 async fn on_file_change(

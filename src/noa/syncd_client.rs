@@ -191,12 +191,11 @@ async fn try_to_connect(sock_path: &Path) -> Result<UnixStream> {
         match UnixStream::connect(sock_path).await {
             Ok(sock) => return Ok(sock),
             Err(err) => {
-                error!("cannot conenct: {:?}", err);
                 last_err = Some(err);
             }
         }
 
-        sleep(Duration::from_millis(1000 * i)).await;
+        sleep(Duration::from_millis(30 * i)).await;
     }
 
     return Err(last_err.unwrap().into());
