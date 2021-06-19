@@ -73,7 +73,7 @@ pub async fn eventloop<D: Daemon + 'static>(
             Err(_) => {
                 // Timed out.
                 if !*progress.lock() {
-                    trace!("idle state for a long while, exiting...");
+                    info!("idle state for a long while, exiting...");
                     return Ok(());
                 }
 
