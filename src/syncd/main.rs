@@ -55,7 +55,7 @@ async fn main() {
 
     let opt = Opt::from_args();
 
-    if let Ok(_) = UnixStream::connect(&opt.sock_path).await {
+    if UnixStream::connect(&opt.sock_path).await.is_ok() {
         panic!("syncd already running at {}", opt.sock_path.display());
     }
 
