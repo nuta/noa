@@ -72,6 +72,9 @@ impl SyncdClient {
     }
 
     async fn ensure_lsp_server_is_spawned(&mut self, lang: &'static Lang) -> Result<()> {
+        static SPAWN_LOCK: Mutex<()> = Mutex::const_new(());
+        let _spawn_lock = SPAWN_LOCK.lock().await;
+
         if self.lsp_daemons.contains_key(lang.id) {
             return Ok(());
         }
@@ -149,7 +152,7 @@ fn spawn_syncd<A: AsRef<OsStr>>(
     trace!("{:?}", std::env::current_dir().unwrap());
     if cfg!(debug_assertions) {
         Command::new("cargo")
-            .args(&["run", "--bin", "syncd", "--"])
+            .args(&["run", "--bin", "noa-syncd", "--"])
             .arg("--daemon-type")
             .arg(daemon_type)
             .arg("--workspace-dir")
