@@ -423,34 +423,4 @@ mod test {
             Point::new(1, 1)
         );
     }
-
-    #[test]
-    fn adjust_top_left() {
-        // 12345|
-        // abcde|
-        // -----+
-        // !@#
-        // xyz
-        let mut view = View::new();
-        let buffer = Buffer::from_str("12345abcde!@#$\nxyz");
-        view.layout(&buffer, 0, 2, 5);
-        view.adjust_top_left(Point::new(0, 6));
-        assert_eq!(view.top_left, 0);
-
-        // 12345
-        // abcde
-        // -----+
-        // !@#  |
-        // xyz  |
-        view.adjust_top_left(Point::new(1, 0));
-        assert_eq!(view.top_left, 2);
-
-        // 12345
-        // -----+
-        // abcde|
-        // !@#  |
-        // xyz
-        view.adjust_top_left(Point::new(0, 6));
-        assert_eq!(view.top_left, 1);
-    }
 }
