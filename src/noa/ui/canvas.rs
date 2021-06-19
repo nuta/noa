@@ -166,7 +166,7 @@ impl<'a> CanvasViewMut<'a> {
     }
 
     pub fn clear(&mut self) {
-        for graph in self.graphs {
+        for graph in self.graphs.iter_mut() {
             *graph = Grapheme::blank();
         }
     }
