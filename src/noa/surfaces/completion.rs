@@ -85,7 +85,6 @@ impl Surface for CompletionSurface {
         canvas.clear();
         canvas.draw_borders(0, 0, canvas.height() - 1, canvas.width() - 1);
 
-        info!("canvas.height()={}", canvas.height());
         for (i, (active, item)) in self
             .selector
             .lock()
@@ -95,7 +94,6 @@ impl Surface for CompletionSurface {
         {
             let Item::Word(text) = item;
 
-            info!("{}: {}", i, text);
             let y = 1 + i;
             let x = 1;
             canvas.draw_str(y, x, truncate_to_width(text, canvas.width() - 1));

@@ -39,11 +39,6 @@ pub fn lsp_sock_path(workdir: &Path, lang: &str) -> PathBuf {
     dir.join(&format!("{}.sock", lang))
 }
 
-pub fn lsp_pid_path(workdir: &Path, lang: &str) -> PathBuf {
-    let dir = noa_workdir(workdir);
-    dir.join(&format!("{}.pid", lang))
-}
-
 pub fn log_file_path(name: &str) -> PathBuf {
     let log_dir = noa_dir().join("log");
     create_dir_all(&log_dir).expect("failed to create dir");

@@ -5,15 +5,9 @@ mod eventloop;
 mod lsp;
 
 use log::LevelFilter;
-use noa_common::{
-    dirs::{log_file_path, lsp_pid_path},
-    syncd_protocol::Notification,
-};
+use noa_common::{dirs::log_file_path, syncd_protocol::Notification};
 use simplelog::{CombinedLogger, Config, TermLogger, TerminalMode, WriteLogger};
-use std::{
-    fs::{read_to_string, OpenOptions},
-    path::PathBuf,
-};
+use std::{fs::OpenOptions, path::PathBuf};
 use structopt::StructOpt;
 
 use crate::{eventloop::eventloop, lsp::LspDaemon};
@@ -53,44 +47,18 @@ async fn main() {
     ])
     .unwrap();
 
-    let opt = Opt::from_args();
-    let pid_file = match opt.daemon_type.as_str() {
-        "lsp" => lsp_pid_path(&opt.workspace_dir, &opt.lang),
-        _ => panic!("unknown daemon type: {}", opt.daemon_type),
-    };
-
-    {
-        let pid_file = pid_file.clone();
-        std::panic::set_hook(Box::new(move |info| {
-            error!("{}", info);
-            error!("{:#?}", backtrace::Backtrace::new());
-            std::fs::remove_file(&pid_file).ok();
-        }));
-    }
+    std::panic::set_hook(Box::new(move |info| {
+        error!("{}", info);
+        error!("{:#?}", backtrace::Backtrace::new());
+    }));
 
     trace!("starting");
 
-    if opt.kill_existing_daemon {
-        if let Ok(pid) = read_to_string(&pid_file) {
-            let pid = pid.parse().expect("failed to parse pid file");
-            info!("found an existing daemon process (pid={}), killing...", pid);
-            unsafe {
-                libc::kill(pid, libc::SIGTERM);
-            }
+    let opt = Opt::from_args();
 
-            std::fs::remove_file(&pid_file).ok();
-        }
+    if opt.sock_path.exists() {
+        panic!("syncd already running at {}", opt.sock_path.display());
     }
-
-    // Create a PID file.
-    if pid_file.exists() {
-        panic!(
-            "syncd already running at PID {:?} ({})",
-            read_to_string(&pid_file),
-            pid_file.display()
-        );
-    }
-    std::fs::write(&pid_file, format!("{}", unsafe { libc::getpid() })).ok();
 
     match opt.daemon_type.as_str() {
         "lsp" => {
@@ -113,5 +81,4 @@ async fn main() {
     };
 
     trace!("exiting");
-    std::fs::remove_file(&pid_file).ok();
 }

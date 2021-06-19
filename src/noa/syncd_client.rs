@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     ffi::OsStr,
+    io::ErrorKind,
     path::{Path, PathBuf},
     process::Stdio,
     sync::Arc,
@@ -58,14 +59,29 @@ impl SyncdClient {
         let mut body = serde_json::to_string(&ToServer::Request(Request { id, body: request }))?;
         body.push('\n');
 
-        self.ensure_lsp_server_is_spawned(lang).await?;
+        for _ in 0..2 {
+            self.ensure_lsp_server_is_spawned(lang).await?;
 
-        // Send the request.
-        self.lsp_daemons
-            .get_mut(lang.id)
-            .unwrap()
-            .write_all(body.as_bytes())
-            .await?;
+            // Send the request.
+            match self
+                .lsp_daemons
+                .get_mut(lang.id)
+                .unwrap()
+                .write_all(body.as_bytes())
+                .await
+            {
+                Ok(()) => break,
+                Err(err) if err.kind() == ErrorKind::BrokenPipe => {
+                    // Perhaps the LSP server has been exited due to the idle timeout.
+                    // Try again.
+                    self.lsp_daemons.remove(lang.id);
+                    continue;
+                }
+                Err(err) => {
+                    return Err(err.into());
+                }
+            }
+        }
 
         // Wait for the response.
         Ok(rx.await?)
