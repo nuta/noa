@@ -8,6 +8,7 @@ use std::{
 
 use anyhow::{Context, Result};
 use noa_common::{
+    debug_feature_frag,
     dirs::lsp_sock_path,
     syncd_protocol::{LspResponse, Notification, Request, ToClient, ToServer},
 };
@@ -57,8 +58,9 @@ impl SyncdClient {
         let mut body = serde_json::to_string(&ToServer::Request(Request { id, body: request }))?;
         body.push('\n');
 
-        // Send the request.
         self.ensure_lsp_server_is_spawned(lang).await?;
+
+        // Send the request.
         self.lsp_daemons
             .get_mut(lang.id)
             .unwrap()
@@ -144,16 +146,30 @@ fn spawn_syncd<A: AsRef<OsStr>>(
     sock_path: &Path,
     extra_args: &[A],
 ) -> Result<()> {
-    Command::new("noa-syncd")
-        .arg("--daemon-type")
-        .arg(daemon_type)
-        .arg("--workspace-dir")
-        .arg(&workspace_dir)
-        .arg("--sock-path")
-        .arg(&sock_path)
-        .args(extra_args)
-        .spawn()
-        .context("failed to spawn noa-syncd")?;
+    if debug_feature_frag!(LOCAL_SYNCD) {
+        Command::new("cargo")
+            .args(&["run", "--bin", "syncd", "--"])
+            .arg("--daemon-type")
+            .arg(daemon_type)
+            .arg("--workspace-dir")
+            .arg(&workspace_dir)
+            .arg("--sock-path")
+            .arg(&sock_path)
+            .args(extra_args)
+            .spawn()
+            .context("failed to spawn noa-syncd from cargo")?;
+    } else {
+        Command::new("noa-syncd")
+            .arg("--daemon-type")
+            .arg(daemon_type)
+            .arg("--workspace-dir")
+            .arg(&workspace_dir)
+            .arg("--sock-path")
+            .arg(&sock_path)
+            .args(extra_args)
+            .spawn()
+            .context("failed to spawn noa-syncd")?;
+    }
 
     Ok(())
 }
