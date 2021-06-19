@@ -171,7 +171,6 @@ async fn main() {
             }
             Err(_) if updated => {
                 // Timeout.
-                trace!("timeout saving backup...");
                 let mut buffer = editor.current_buffer().write();
                 buffer.update_backup(&backup_dir);
                 buffer.mark_undo_point();
