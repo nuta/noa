@@ -137,6 +137,7 @@ impl Canvas {
     pub fn view_mut(&mut self) -> CanvasViewMut<'_> {
         CanvasViewMut {
             graphs: &mut self.graphs,
+            canvas_width: self.width,
             y: 0,
             x: 0,
             width: self.width,
@@ -148,6 +149,7 @@ impl Canvas {
 /// A part of rectangle a canvas.
 pub struct CanvasViewMut<'a> {
     graphs: &'a mut [Grapheme],
+    canvas_width: usize,
     y: usize,
     x: usize,
     width: usize,
@@ -173,7 +175,7 @@ impl<'a> CanvasViewMut<'a> {
         debug_assert!(y < self.height);
         debug_assert!(x < self.width);
 
-        self.graphs[(self.y + y) * self.width + self.x + x] = graph;
+        self.graphs[(self.y + y) * self.canvas_width + self.x + x] = graph;
     }
 
     pub fn set_char_with_attrs(
@@ -245,38 +247,71 @@ impl<'a> CanvasViewMut<'a> {
 
         for y in y..y_end {
             for x in x..x_end {
-                f(&mut self.graphs[(self.y + y) * self.width + self.x + x]);
+                f(&mut self.graphs[(self.y + y) * self.canvas_width + self.x + x]);
             }
         }
     }
 
-    pub fn draw_borders(&mut self, y_top: usize, x_left: usize, y_bottom: usize, x_right: usize) {
+    pub fn draw_borders(
+        &mut self,
+        y_top: usize,
+        x_left: usize,
+        y_bottom: usize,
+        x_right: usize,
+    ) -> CanvasViewMut<'_> {
         debug_assert!(y_top < y_bottom);
         debug_assert!(x_left < y_bottom);
-        debug_assert!(y_bottom < self.height);
-        debug_assert!(x_right < self.width);
+        debug_assert!(y_bottom <= self.height);
+        debug_assert!(x_right <= self.width);
 
-        for y in y_top..y_bottom {
-            self.graphs[(self.y + y) * self.width + self.x + x_left] =
-                Grapheme::new("\u{2502}" /* vertical bar */);
-            self.graphs[(self.y + y) * self.width + self.x + x_right] =
-                Grapheme::new("\u{2502}" /* vertical bar */);
+        if x_right - x_left <= 2 || y_bottom - y_top <= 2 {
+            warn!("too small canvas to draw borders");
+            return CanvasViewMut {
+                graphs: self.graphs,
+                canvas_width: self.canvas_width,
+                x: self.x,
+                y: self.y,
+                width: self.width,
+                height: self.height,
+            };
         }
 
-        for x in x_left..x_right {
-            self.graphs[(self.y + y_top) * self.width + self.x + x] =
-                Grapheme::new("\u{2500}" /* horizontal bar */);
-            self.graphs[(self.y + y_bottom) * self.width + self.x + x] =
-                Grapheme::new("\u{2500}" /* horizontal bar */);
+        let vertical_bar = Grapheme::new("\u{2502}" /* vertical bar */);
+        for y in (y_top + 1)..(y_bottom - 1) {
+            self.set_grapheme(y, x_left, vertical_bar);
+            self.set_grapheme(y, x_right - 1, vertical_bar);
         }
 
-        self.graphs[(self.y + y_top) * self.width + self.x + x_left] =
-            Grapheme::new("\u{250d}" /* top_left */);
-        self.graphs[(self.y + y_top) * self.width + self.x + x_right] =
-            Grapheme::new("\u{2511}" /* top_right */);
-        self.graphs[(self.y + y_bottom) * self.width + self.x + x_left] =
-            Grapheme::new("\u{2515}" /* bottom_left */);
-        self.graphs[(self.y + y_bottom) * self.width + self.x + x_right] =
-            Grapheme::new("\u{2519}" /* bottom_right */);
+        let horizontal_bar = Grapheme::new("\u{2500}" /* horizontal bar */);
+        for x in (x_left + 1)..(x_right - 1) {
+            self.set_grapheme(y_top, x, horizontal_bar);
+            self.set_grapheme(y_bottom - 1, x, horizontal_bar);
+        }
+
+        self.set_grapheme(y_top, x_left, Grapheme::new("\u{250d}" /* top_left */));
+        self.set_grapheme(
+            y_top,
+            x_right - 1,
+            Grapheme::new("\u{2511}" /* top_right */),
+        );
+        self.set_grapheme(
+            y_bottom - 1,
+            x_left,
+            Grapheme::new("\u{2515}" /* bottom_left */),
+        );
+        self.set_grapheme(
+            y_bottom - 1,
+            x_right - 1,
+            Grapheme::new("\u{2519}" /* bottom_right */),
+        );
+
+        CanvasViewMut {
+            graphs: self.graphs,
+            canvas_width: self.canvas_width,
+            x: self.x + 1,
+            y: self.y + 1,
+            width: self.width - 2,
+            height: self.height - 2,
+        }
     }
 }

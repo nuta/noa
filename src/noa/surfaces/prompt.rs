@@ -106,16 +106,19 @@ impl Surface for PromptSurface {
 
     fn render<'a>(&mut self, _ctx: &mut Context, mut canvas: CanvasViewMut<'a>) {
         canvas.clear();
-        let inner_width = canvas.width() - 2;
+
+        // Border.
+        let mut inner = canvas.draw_borders(0, 0, canvas.height(), canvas.width());
 
         // Title.
-        canvas.draw_str(1, 1, truncate_to_width(&self.title, inner_width));
-        canvas.set_attrs(1, 1, 2, inner_width, (&[Attribute::Bold][..]).into());
+        inner.draw_str(0, 0, truncate_to_width(&self.title, inner.width()));
+        info!("inner.width()={} / {}", inner.width(), &self.title.len());
+        inner.set_attrs(0, 0, 1, inner.width(), (&[Attribute::Bold][..]).into());
 
         // Prompt.
-        canvas.draw_str(3, 1, &self.prompt);
-        canvas.draw_str(3, 1 + self.prompt_width, ": ");
-        canvas.draw_str(3, 1 + self.prompt_width + 2, &self.input.text());
+        inner.draw_str(2, 0, &self.prompt);
+        inner.draw_str(2, self.prompt_width, ": ");
+        inner.draw_str(2, self.prompt_width + 2, &self.input.text());
 
         // Message.
         if let Some(message) = &self.message {
@@ -123,11 +126,8 @@ impl Surface for PromptSurface {
                 PromptMessage::Error(text) => (text),
             };
 
-            canvas.draw_str(5, 1, text);
+            canvas.draw_str(4, 0, text);
         }
-
-        // Border.
-        canvas.draw_borders(0, 0, canvas.height() - 1, canvas.width() - 1);
     }
 
     fn handle_key_event(
