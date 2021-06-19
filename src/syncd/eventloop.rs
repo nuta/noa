@@ -20,6 +20,8 @@ use tokio::{
     time::timeout,
 };
 
+const IDLE_STATE_MAX_SECS: u64 = 10;
+
 #[async_trait]
 pub trait Daemon: Send {
     type Request: DeserializeOwned + Send;
@@ -67,7 +69,7 @@ pub async fn eventloop<D: Daemon + 'static>(
     let next_client_id = AtomicUsize::new(1);
     let progress = Arc::new(parking_lot::Mutex::new(false));
     loop {
-        match timeout(Duration::from_secs(5), listener.accept()).await {
+        match timeout(Duration::from_secs(IDLE_STATE_MAX_SECS), listener.accept()).await {
             Err(_) => {
                 // Timed out.
                 if !*progress.lock() {

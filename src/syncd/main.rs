@@ -53,19 +53,22 @@ async fn main() {
     ])
     .unwrap();
 
-    std::panic::set_hook(Box::new(|info| {
-        error!("{}", info);
-        error!("{:#?}", backtrace::Backtrace::new());
-    }));
-
-    trace!("starting");
-
     let opt = Opt::from_args();
-
     let pid_file = match opt.daemon_type.as_str() {
         "lsp" => lsp_pid_path(&opt.workspace_dir, &opt.lang),
         _ => panic!("unknown daemon type: {}", opt.daemon_type),
     };
+
+    {
+        let pid_file = pid_file.clone();
+        std::panic::set_hook(Box::new(move |info| {
+            error!("{}", info);
+            error!("{:#?}", backtrace::Backtrace::new());
+            std::fs::remove_file(&pid_file).ok();
+        }));
+    }
+
+    trace!("starting");
 
     if opt.kill_existing_daemon {
         if let Ok(pid) = read_to_string(&pid_file) {
@@ -78,6 +81,16 @@ async fn main() {
             std::fs::remove_file(&pid_file).ok();
         }
     }
+
+    // Create a PID file.
+    if pid_file.exists() {
+        panic!(
+            "syncd already running at PID {:?} ({})",
+            read_to_string(&pid_file),
+            pid_file.display()
+        );
+    }
+    std::fs::write(&pid_file, format!("{}", unsafe { libc::getpid() })).ok();
 
     match opt.daemon_type.as_str() {
         "lsp" => {
@@ -100,4 +113,5 @@ async fn main() {
     };
 
     trace!("exiting");
+    std::fs::remove_file(&pid_file).ok();
 }
