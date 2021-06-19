@@ -20,7 +20,7 @@ use tokio::{
     time::timeout,
 };
 
-const IDLE_STATE_MAX_SECS: u64 = 10;
+const IDLE_STATE_MAX_SECS: u64 = 60 * 5;
 
 #[async_trait]
 pub trait Daemon: Send {

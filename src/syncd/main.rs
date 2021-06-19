@@ -9,6 +9,7 @@ use noa_common::{dirs::log_file_path, syncd_protocol::Notification};
 use simplelog::{CombinedLogger, Config, TermLogger, TerminalMode, WriteLogger};
 use std::{fs::OpenOptions, path::PathBuf};
 use structopt::StructOpt;
+use tokio::net::UnixStream;
 
 use crate::{eventloop::eventloop, lsp::LspDaemon};
 
@@ -16,14 +17,12 @@ use crate::{eventloop::eventloop, lsp::LspDaemon};
 struct Opt {
     #[structopt(long, parse(from_os_str))]
     workspace_dir: PathBuf,
-    #[structopt(long, name = "type")]
-    daemon_type: String,
     #[structopt(long, parse(from_os_str))]
     sock_path: PathBuf,
+    #[structopt(long, name = "type")]
+    daemon_type: String,
     #[structopt(long)]
     lang: String,
-    #[structopt(long)]
-    kill_existing_daemon: bool,
 }
 
 #[tokio::main]
@@ -56,7 +55,7 @@ async fn main() {
 
     let opt = Opt::from_args();
 
-    if opt.sock_path.exists() {
+    if let Ok(_) = UnixStream::connect(&opt.sock_path).await {
         panic!("syncd already running at {}", opt.sock_path.display());
     }
 

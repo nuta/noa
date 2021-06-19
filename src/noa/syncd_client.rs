@@ -71,9 +71,13 @@ impl SyncdClient {
                 .await
             {
                 Ok(()) => break,
-                Err(err) if err.kind() == ErrorKind::BrokenPipe => {
+                Err(err)
+                    if err.kind() == ErrorKind::BrokenPipe
+                        || err.kind() == ErrorKind::ConnectionRefused =>
+                {
                     // Perhaps the LSP server has been exited due to the idle timeout.
                     // Try again.
+                    trace!("syncd is not available, respawning...");
                     self.lsp_daemons.remove(lang.id);
                     continue;
                 }
@@ -96,7 +100,7 @@ impl SyncdClient {
         }
 
         let sock_path = lsp_sock_path(&self.workspace_dir, lang.id);
-        if !sock_path.exists() {
+        if UnixStream::connect(&sock_path).await.is_err() {
             // The syncd for the language is not running. Spawn it.
             trace!("spawning lsp syncd at {}", sock_path.display());
             spawn_syncd("lsp", &self.workspace_dir, &sock_path, &["--lang", lang.id])?;
@@ -201,7 +205,7 @@ fn spawn_syncd<A: AsRef<OsStr>>(
 
 async fn try_to_connect(sock_path: &Path) -> Result<UnixStream> {
     let mut last_err = None;
-    for i in 0..10 {
+    for i in 0..20 {
         match UnixStream::connect(sock_path).await {
             Ok(sock) => return Ok(sock),
             Err(err) => {
