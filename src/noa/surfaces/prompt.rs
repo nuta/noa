@@ -112,7 +112,6 @@ impl Surface for PromptSurface {
 
         // Title.
         inner.draw_str(0, 0, truncate_to_width(&self.title, inner.width()));
-        info!("inner.width()={} / {}", inner.width(), &self.title.len());
         inner.set_attrs(0, 0, 1, inner.width(), (&[Attribute::Bold][..]).into());
 
         // Prompt.
