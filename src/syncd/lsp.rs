@@ -216,12 +216,13 @@ impl LspDaemon {
         workspace_dir: &Path,
         lang: String,
     ) -> Result<LspDaemon> {
+        trace!("workspace_dir={}", workspace_dir.display());
         let mut lsp_server = Command::new("/usr/bin/clangd")
             .args(&["-j=8", "--log=verbose", "--pretty"])
             .current_dir(workspace_dir)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
+            .stderr(Stdio::null())
             .spawn()
             .with_context(|| {
                 format!(
@@ -250,6 +251,7 @@ impl LspDaemon {
     }
 
     pub async fn initialize(&mut self) -> Result<()> {
+        info!("calling iniailize");
         self.call_method::<Initialize>(
             // `root_path` is deprecated. We already use root_uri instead.
             #[allow(deprecated)]
@@ -278,11 +280,12 @@ impl LspDaemon {
 
     async fn send_message(&mut self, body: &str) -> Result<()> {
         use tokio::io::AsyncWriteExt;
+        info!("write into lsp stdin {}", body.len());
         self.lsp_stdin
             .write_all(format!("Content-Length: {}\r\n\r\n", body.len()).as_bytes())
             .await?;
         self.lsp_stdin.write_all(body.as_bytes()).await?;
-
+        info!("body={}", body);
         Ok(())
     }
 
@@ -290,8 +293,11 @@ impl LspDaemon {
         &mut self,
         params: T::Params,
     ) -> Result<LspResponse> {
+        info!("calling method");
         let (id, rx) = self.alloc_req_id(T::METHOD).await;
+        info!("calling method2");
         let req = serialize_lsp_request::<T>(id.clone(), params);
+        info!("calling method3");
         self.send_message(&req).await?;
         let resp = rx.await?;
         Ok(resp)

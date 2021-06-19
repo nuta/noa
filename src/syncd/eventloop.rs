@@ -31,6 +31,8 @@ pub async fn eventloop<D: Daemon + 'static>(
     daemon: D,
     mut noti_rx: UnboundedReceiver<Notification>,
 ) -> Result<()> {
+    trace!("entering eventloop");
+
     let _ = std::fs::remove_file(&sock_path);
     let listener = UnixListener::bind(sock_path).expect("failed to bind a unix domain socket");
 

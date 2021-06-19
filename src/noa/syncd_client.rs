@@ -149,10 +149,10 @@ fn spawn_syncd<A: AsRef<OsStr>>(
     sock_path: &Path,
     extra_args: &[A],
 ) -> Result<()> {
-    trace!("{:?}", std::env::current_dir().unwrap());
     if cfg!(debug_assertions) {
         Command::new("cargo")
             .args(&["run", "--bin", "noa-syncd", "--"])
+            .arg("-f") // FIXME: Something goes wrong in daemon mode
             .arg("--daemon-type")
             .arg(daemon_type)
             .arg("--workspace-dir")
@@ -167,6 +167,7 @@ fn spawn_syncd<A: AsRef<OsStr>>(
             .context("failed to spawn noa-syncd from cargo")?;
     } else {
         Command::new("noa-syncd")
+            .arg("-f") // FIXME: Something goes wrong in daemon mode
             .arg("--daemon-type")
             .arg(daemon_type)
             .arg("--workspace-dir")
@@ -186,15 +187,16 @@ fn spawn_syncd<A: AsRef<OsStr>>(
 
 async fn try_to_connect(sock_path: &Path) -> Result<UnixStream> {
     let mut last_err = None;
-    for i in 0..5 {
+    for i in 0..10 {
         match UnixStream::connect(sock_path).await {
             Ok(sock) => return Ok(sock),
             Err(err) => {
+                error!("cannot conenct: {:?}", err);
                 last_err = Some(err);
             }
         }
 
-        sleep(Duration::from_millis(50 * i)).await;
+        sleep(Duration::from_millis(1000 * i)).await;
     }
 
     return Err(last_err.unwrap().into());
