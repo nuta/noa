@@ -184,7 +184,6 @@ async fn main() {
     }
 
     trace!("exiting the editor");
-    // TODO: Cleanup LSP processes.
 }
 
 async fn on_file_change(
