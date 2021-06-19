@@ -128,13 +128,16 @@ async fn main() {
     ));
 
     let backup_dir = backup_dir();
+    let mut updated = false;
     while !editor.exited() {
         let mut ctx = Context {
             editor: &mut editor,
             event_tx: &event_tx,
         };
 
-        compositor.render_to_terminal(&mut ctx);
+        if updated {
+            compositor.render_to_terminal(&mut ctx);
+        }
 
         match timeout(Duration::from_millis(400), event_rx.recv()).await {
             Ok(Some(ev)) => {
@@ -157,6 +160,7 @@ async fn main() {
                     file_updated_tx.send(editor.current_buffer().clone()).ok();
                 }
 
+                updated = true;
                 trace!(
                     "event handling took {} us",
                     started_at.elapsed().as_micros()
@@ -165,12 +169,15 @@ async fn main() {
             Ok(None) => {
                 break;
             }
-            Err(_) => {
+            Err(_) if updated => {
                 // Timeout.
+                trace!("timeout saving backup...");
                 let mut buffer = editor.current_buffer().write();
                 buffer.update_backup(&backup_dir);
                 buffer.mark_undo_point();
+                updated = false;
             }
+            Err(_) => {}
         }
     }
 }

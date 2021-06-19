@@ -281,7 +281,11 @@ impl Rope {
     }
 
     pub fn save_into_file(&self, path: &Path) -> std::io::Result<()> {
-        let f = OpenOptions::new().write(true).truncate(true).open(path)?;
+        let f = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(path)?;
         self.inner.write_to(f)
     }
 

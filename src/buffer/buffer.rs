@@ -214,17 +214,6 @@ impl Buffer {
         self.path.is_none()
     }
 
-    fn backup_path(&self, backup_dir: &Path) -> PathBuf {
-        let base = self
-            .path
-            .as_ref()
-            .map(|path| path.to_str().unwrap())
-            .unwrap_or(self.name())
-            .replace('/', ".");
-
-        backup_dir.join(base)
-    }
-
     pub fn save(&mut self) -> std::io::Result<()> {
         if let Some(path) = &self.path {
             self.rope.save_into_file(path)?;
@@ -235,19 +224,26 @@ impl Buffer {
     }
 
     pub fn update_backup(&self, backup_dir: &Path) {
-        if let Err(err) = fs::create_dir_all(backup_dir) {
+        let backup_path = backup_dir.join(
+            self.path
+                .as_ref()
+                .map(|pathbuf| pathbuf.as_path().strip_prefix("/").unwrap())
+                .unwrap_or_else(|| Path::new(&self.name)),
+        );
+
+        let parent_dir = backup_path.parent().unwrap();
+        if let Err(err) = fs::create_dir_all(parent_dir) {
             error!(
                 "failed to create the backup_dir {}: {}",
-                backup_dir.display(),
+                parent_dir.display(),
                 err
             );
         }
 
-        let backup_file = self.backup_path(backup_dir);
-        if let Err(err) = self.rope.save_into_file(&backup_file) {
+        if let Err(err) = self.rope.save_into_file(&backup_path) {
             error!(
                 "failed to create the backup file {}: {}",
-                backup_file.display(),
+                backup_path.display(),
                 err
             );
         }

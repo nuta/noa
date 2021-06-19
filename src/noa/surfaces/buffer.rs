@@ -232,7 +232,7 @@ impl Surface for BufferSurface {
             (KeyCode::Char('y'), CTRL) => {
                 buffer.redo();
             }
-            (KeyCode::Char('d'), CTRL) => {
+            (KeyCode::Char('d'), CTRL) | (KeyCode::Delete, _) => {
                 buffer.delete();
             }
             (KeyCode::Char('k'), CTRL) => {
