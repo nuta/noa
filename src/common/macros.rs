@@ -6,10 +6,3 @@ macro_rules! warn_on_error {
         }
     };
 }
-
-#[macro_export]
-macro_rules! debug_feature_frag {
-    ($id:ident) => {
-        cfg!(debug_assertions) && ::std::env::var(concat!("NOA_", stringify!($id))).is_ok()
-    };
-}

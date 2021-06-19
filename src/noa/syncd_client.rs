@@ -2,13 +2,13 @@ use std::{
     collections::HashMap,
     ffi::OsStr,
     path::{Path, PathBuf},
+    process::Stdio,
     sync::Arc,
     time::Duration,
 };
 
 use anyhow::{Context, Result};
 use noa_common::{
-    debug_feature_frag,
     dirs::lsp_sock_path,
     syncd_protocol::{LspResponse, Notification, Request, ToClient, ToServer},
 };
@@ -146,7 +146,8 @@ fn spawn_syncd<A: AsRef<OsStr>>(
     sock_path: &Path,
     extra_args: &[A],
 ) -> Result<()> {
-    if debug_feature_frag!(LOCAL_SYNCD) {
+    trace!("{:?}", std::env::current_dir().unwrap());
+    if cfg!(debug_assertions) {
         Command::new("cargo")
             .args(&["run", "--bin", "syncd", "--"])
             .arg("--daemon-type")
@@ -156,6 +157,9 @@ fn spawn_syncd<A: AsRef<OsStr>>(
             .arg("--sock-path")
             .arg(&sock_path)
             .args(extra_args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .spawn()
             .context("failed to spawn noa-syncd from cargo")?;
     } else {
@@ -167,6 +171,9 @@ fn spawn_syncd<A: AsRef<OsStr>>(
             .arg("--sock-path")
             .arg(&sock_path)
             .args(extra_args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .spawn()
             .context("failed to spawn noa-syncd")?;
     }
