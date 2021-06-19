@@ -102,7 +102,7 @@ impl Surface for CompletionSurface {
 
             if active {
                 let attrs = [Attribute::Underlined, Attribute::Bold];
-                canvas.set_attrs(y, x, y + 1, canvas.width() - 1, (&attrs[..]).into());
+                canvas.set_attrs(y, x, canvas.width() - 1, (&attrs[..]).into());
             }
         }
     }

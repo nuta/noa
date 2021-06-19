@@ -224,16 +224,16 @@ impl<'a> CanvasViewMut<'a> {
         self.set_str_with_attrs(y, x, string, Color::Reset, Color::Reset, Default::default());
     }
 
-    pub fn _set_fg(&mut self, y: usize, x: usize, y_end: usize, x_end: usize, fg: Color) {
-        self.update_range(y, x, y_end, x_end, |graph| graph.fg = fg);
+    pub fn _set_fg(&mut self, y: usize, x: usize, x_end: usize, fg: Color) {
+        self.update_range(y, x, y + 1, x_end, |graph| graph.fg = fg);
     }
 
-    pub fn _set_bg(&mut self, y: usize, x: usize, y_end: usize, x_end: usize, bg: Color) {
-        self.update_range(y, x, y_end, x_end, |graph| graph.bg = bg);
+    pub fn _set_bg(&mut self, y: usize, x: usize, x_end: usize, bg: Color) {
+        self.update_range(y, x, y + 1, x_end, |graph| graph.bg = bg);
     }
 
-    pub fn set_attrs(&mut self, y: usize, x: usize, y_end: usize, x_end: usize, attrs: Attributes) {
-        self.update_range(y, x, y_end, x_end, |graph| graph.attrs.extend(attrs));
+    pub fn set_attrs(&mut self, y: usize, x: usize, x_end: usize, attrs: Attributes) {
+        self.update_range(y, x, y + 1, x_end, |graph| graph.attrs.extend(attrs));
     }
 
     pub fn update_range<F>(&mut self, y: usize, x: usize, y_end: usize, x_end: usize, f: F)

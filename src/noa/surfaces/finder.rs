@@ -77,6 +77,9 @@ impl Surface for FinderSurface {
 
     fn render<'a>(&mut self, _ctx: &mut Context, mut canvas: CanvasViewMut<'a>) {
         canvas.clear();
+        let mut inner = canvas.draw_borders(0, 0, canvas.height(), canvas.width());
+
+        inner.draw_str(0, 0, &self.input.text());
 
         let selector = self.selector.lock();
         for (i, (active, item)) in selector.items().enumerate() {
@@ -84,16 +87,12 @@ impl Surface for FinderSurface {
                 Item::File(path) => path.to_str().unwrap(),
             };
 
-            canvas.draw_str(2 + i, 1, &title);
+            inner.draw_str(1 + i, 0, &title);
             if active {
-                let y = 2 + i;
                 let attrs = [Attribute::Underlined, Attribute::Bold];
-                canvas.set_attrs(y, 1, y + 1, canvas.width() - 1, (&attrs[..]).into());
+                inner.set_attrs(1 + i, 1, inner.width(), (&attrs[..]).into());
             }
         }
-
-        canvas.draw_str(1, 1, &self.input.text());
-        canvas.draw_borders(0, 0, canvas.height() - 1, canvas.width() - 1);
     }
 
     fn handle_key_event(
