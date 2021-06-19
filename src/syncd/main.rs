@@ -7,7 +7,7 @@ mod lsp;
 use daemonize::Daemonize;
 use log::LevelFilter;
 use noa_common::{
-    dirs::{log_file_path, lsp_pid_path, lsp_sock_path},
+    dirs::{log_file_path, lsp_pid_path},
     syncd_protocol::Notification,
 };
 use simplelog::{CombinedLogger, Config, TermLogger, TerminalMode, WriteLogger};
@@ -25,6 +25,8 @@ struct Opt {
     workspace_dir: PathBuf,
     #[structopt(long, name = "type")]
     daemon_type: String,
+    #[structopt(long, parse(from_os_str))]
+    sock_path: PathBuf,
     #[structopt(long)]
     lang: String,
     #[structopt(long)]
@@ -93,8 +95,6 @@ async fn main() {
     match opt.daemon_type.as_str() {
         "lsp" => {
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Notification>();
-            let sock_path = lsp_sock_path(&opt.workspace_dir, &opt.lang);
-
             let mut daemon = LspDaemon::spawn(tx, &opt.workspace_dir, opt.lang)
                 .await
                 .expect("failed to start the LSP mode");
@@ -102,7 +102,7 @@ async fn main() {
                 .initialize()
                 .await
                 .expect("failed to initialize the LSP server");
-            eventloop(&sock_path, daemon, rx).await.unwrap();
+            eventloop(&opt.sock_path, daemon, rx).await.unwrap();
         }
         _ => unreachable!(),
     };

@@ -170,7 +170,7 @@ async fn main() {
                 break;
             }
             Err(_) if updated => {
-                // Timeout.
+                // Idle.
                 let mut buffer = editor.current_buffer().write();
                 buffer.update_backup(&backup_dir);
                 buffer.mark_undo_point();

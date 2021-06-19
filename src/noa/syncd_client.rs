@@ -2,9 +2,10 @@ use std::{
     collections::HashMap,
     path::{Path, PathBuf},
     sync::Arc,
+    time::Duration,
 };
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use noa_common::{
     dirs::lsp_sock_path,
     syncd_protocol::{LspResponse, Notification, Request, ToClient, ToServer},
@@ -14,7 +15,9 @@ use serde::Serialize;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     net::{unix::OwnedWriteHalf, UnixStream},
+    process::Command,
     sync::{oneshot, Mutex},
+    time::sleep,
 };
 
 pub struct SyncdClient {
@@ -73,10 +76,21 @@ impl SyncdClient {
         let sock_path = lsp_sock_path(&self.workspace_dir, lang.id);
         if !sock_path.exists() {
             // The syncd for the language is not running. Spawn it.
-            todo!("The syncd for the language is not running. Spawn it.")
+            trace!("spawning lsp syncd at {}", sock_path.display());
+            Command::new("noa-syncd")
+                .arg("--daemon-type")
+                .arg("lsp")
+                .arg("--lang")
+                .arg(lang.id)
+                .arg("--workspace-dir")
+                .arg(&self.workspace_dir)
+                .arg("--sock-path")
+                .arg(&sock_path)
+                .spawn()
+                .context("failed to spawn noa-syncd")?;
         }
 
-        let sock = UnixStream::connect(sock_path).await?;
+        let sock = try_to_connect(&sock_path).await?;
         let (read_end, write_end) = sock.into_split();
         self.lsp_daemons.insert(lang.id, write_end);
 
@@ -131,4 +145,20 @@ impl SyncdClient {
 
         Ok(())
     }
+}
+
+async fn try_to_connect(sock_path: &Path) -> Result<UnixStream> {
+    let mut last_err = None;
+    for i in 0..5 {
+        match UnixStream::connect(sock_path).await {
+            Ok(sock) => return Ok(sock),
+            Err(err) => {
+                last_err = Some(err);
+            }
+        }
+
+        sleep(Duration::from_millis(50 * i)).await;
+    }
+
+    return Err(last_err.unwrap().into());
 }
