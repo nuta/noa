@@ -29,7 +29,7 @@ pub struct Response<T> {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub enum Notification {
-    LspNotification,
+    Lsp(LspNotification),
 }
 
 #[derive(Deserialize, Serialize, Debug)]
