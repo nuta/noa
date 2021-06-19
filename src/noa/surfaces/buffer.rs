@@ -223,6 +223,7 @@ impl Surface for BufferSurface {
                 compositor.push_layer(ctx, finder);
             }
             (KeyCode::Char('s'), CTRL) => {
+                drop(buffer);
                 ctx.editor.save_current_buffer();
             }
             (KeyCode::Char('u'), CTRL) => {
