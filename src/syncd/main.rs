@@ -76,7 +76,7 @@ async fn main() {
 
             eventloop(&opt.sock_path, daemon, rx).await.unwrap();
         }
-        _ => unreachable!(),
+        _ => panic!("unknown daemon type: {}", opt.daemon_type),
     };
 
     trace!("exiting");
