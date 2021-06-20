@@ -1,4 +1,5 @@
-use crate::{rope::*, Snapshot};
+use crate::{cursor::*, rope::Rope, Snapshot};
+
 use noa_editorconfig::*;
 use noa_langs::Lang;
 use std::cmp::{max, min};

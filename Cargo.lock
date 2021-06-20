@@ -568,6 +568,7 @@ dependencies = [
  "log",
  "noa_editorconfig",
  "noa_langs",
+ "pretty_assertions",
  "ropey",
  "serde",
 ]
