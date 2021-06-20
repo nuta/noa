@@ -13,6 +13,7 @@ pretty_assertions = "0"
 [dependencies]
 log = "0"
 ropey = "1"
+regex = "1"
 serde = { version = "1", features = ["derive"] }
 
 noa_editorconfig = { path = "../editorconfig" }

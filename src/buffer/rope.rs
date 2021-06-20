@@ -1,6 +1,7 @@
 use std::fs::OpenOptions;
 use std::path::Path;
 
+use regex::Regex;
 use ropey::iter::Chunks;
 
 use crate::cursor::{Point, Range};
@@ -247,6 +248,26 @@ impl Rope {
             return None;
         }
 
+        self.find_with(|heystack| heystack.find(needle), after)
+    }
+
+    pub fn find_by_regex(
+        &self,
+        pattern: &str,
+        after: Option<Point>,
+    ) -> Result<Option<Point>, regex::Error> {
+        if pattern.is_empty() {
+            return Ok(None);
+        }
+
+        let re = Regex::new(pattern)?;
+        Ok(self.find_with(|heystack| re.find(heystack).map(|m| m.start()), after))
+    }
+
+    fn find_with<F>(&self, searcher: F, after: Option<Point>) -> Option<Point>
+    where
+        F: FnOnce(&str) -> Option<usize>,
+    {
         let start = match after {
             Some(Point { y, x }) => {
                 if y == self.num_lines() - 1 && x == self.line_len(y) {
@@ -261,9 +282,7 @@ impl Rope {
 
         // FIXME: Avoid using .text().
         let text = self.text();
-        text[start..]
-            .find(needle)
-            .map(|off| self.byte_off_to_point(start + off))
+        searcher(&text[start..]).map(|off| self.byte_off_to_point(start + off))
     }
 
     fn index_in_rope(&self, pos: Point) -> usize {
@@ -353,5 +372,38 @@ mod test {
         );
         assert_eq!(rope.find("ABC", Some(Point::new(2, 0))), None);
         assert_eq!(rope.find("ABC", Some(Point::new(2, 3))), None);
+    }
+
+    #[test]
+    fn find_by_regex() {
+        // It's ABC
+        // これはABCです
+        // ABC
+        //
+        // (あ and its friends occupy 3 bytes.)
+        let rope = Rope::from_str("It's ABC\nこれはABCです\nABC");
+        assert_eq!(rope.find_by_regex("", None), Ok(None));
+        assert_eq!(rope.find_by_regex("...", None), Ok(Some(Point::new(0, 0))));
+        assert_eq!(rope.find_by_regex("A.C", None), Ok(Some(Point::new(0, 5))));
+        assert_eq!(
+            rope.find_by_regex("A..", Some(Point::new(0, 4))),
+            Ok(Some(Point::new(0, 5)))
+        );
+        assert_eq!(
+            rope.find_by_regex("A.+", Some(Point::new(0, 5))),
+            Ok(Some(Point::new(1, 3)))
+        );
+        assert_eq!(
+            rope.find_by_regex(".B.", Some(Point::new(1, 3))),
+            Ok(Some(Point::new(2, 0)))
+        );
+        assert_eq!(
+            rope.find_by_regex("A[BC]{2}", Some(Point::new(2, 0))),
+            Ok(None)
+        );
+        assert_eq!(
+            rope.find_by_regex("A[BC]{2}", Some(Point::new(2, 3))),
+            Ok(None)
+        );
     }
 }
