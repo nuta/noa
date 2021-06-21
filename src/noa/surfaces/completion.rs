@@ -173,8 +173,7 @@ impl Surface for CompletionSurface {
         _compositor: &mut Compositor,
         _input: &str,
     ) -> HandledEvent {
-        // TODO:
-        HandledEvent::Consumed
+        HandledEvent::Ignored
     }
 }
 
