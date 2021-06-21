@@ -204,7 +204,7 @@ async fn update_completion(
     let mut selector = selector.lock();
     selector.clear();
     for results in iter {
-        for item in results.into_iter() {
+        for item in results.into_vec() {
             selector.push(item.value);
         }
     }

@@ -82,7 +82,7 @@ impl Surface for FinderSurface {
         inner.draw_str(0, 0, &self.input.text());
 
         let selector = self.selector.lock();
-        for (i, (active, item)) in selector.items().enumerate() {
+        for (i, (active, item)) in selector.items().take(inner.height() - 1).enumerate() {
             let title = match item {
                 Item::File(path) => path.to_str().unwrap(),
             };
@@ -170,15 +170,41 @@ async fn update_items(
         WalkBuilder::new(workspace_dir).build_parallel().run(|| {
             Box::new(|dirent| {
                 if let Ok(dirent) = dirent {
-                    if !dirent.metadata().unwrap().is_file() {
+                    let meta = dirent.metadata().unwrap();
+                    if !meta.is_file() {
                         return WalkState::Continue;
                     }
 
                     let path = dirent.path().to_str().unwrap();
+                    let mut score = 0;
+
+                    // Fuzzy match.
                     if let Some(m) = sublime_fuzzy::best_match(&query, path) {
+                        score += m.score();
+                    }
+
+                    // Recently used.
+                    if let Ok(atime) = meta.accessed() {
+                        if let Ok(elapsed) = atime.elapsed() {
+                            score += (100 / max(1, min(elapsed.as_secs(), 360))) as isize;
+                            score += (100 / max(1, elapsed.as_secs())) as isize;
+                        }
+                    }
+
+                    if let Ok(mtime) = meta.modified() {
+                        if let Ok(elapsed) = mtime.elapsed() {
+                            score += (10
+                                / max(1, min(elapsed.as_secs() / (3600 * 24 * 30), 3600 * 24 * 30)))
+                                as isize;
+                            score += (100 / max(1, min(elapsed.as_secs(), 360))) as isize;
+                            score += (100 / max(1, elapsed.as_secs())) as isize;
+                        }
+                    }
+
+                    if score != 0 {
                         results
                             .lock()
-                            .push(m.score(), Item::File(dirent.path().to_owned()));
+                            .push(score, Item::File(dirent.path().to_owned()));
                     }
                 }
                 WalkState::Continue
@@ -192,7 +218,7 @@ async fn update_items(
     let mut selector = selector.lock();
     selector.clear();
     for results in iter {
-        for item in results.into_inner().into_iter() {
+        for item in results.into_inner().into_vec() {
             selector.push(item.value);
         }
     }

@@ -1,6 +1,6 @@
 use std::{
-    cmp::Ordering,
-    collections::{binary_heap, BinaryHeap},
+    cmp::{max, Ordering},
+    collections::BinaryHeap,
 };
 
 pub struct FuzzyItem<T> {
@@ -42,13 +42,17 @@ impl<T> FuzzySet<T> {
     }
 
     pub fn push(&mut self, score: isize, value: T) {
-        self.items.push(FuzzyItem { score, value });
+        self.items.push(FuzzyItem {
+            score: isize::MAX - max(0, score),
+            value,
+        });
+
         if self.items.len() > self.capacity {
             self.items.pop();
         }
     }
 
-    pub fn into_iter(self) -> binary_heap::IntoIter<FuzzyItem<T>> {
-        self.items.into_iter()
+    pub fn into_vec(self) -> Vec<FuzzyItem<T>> {
+        self.items.into_sorted_vec()
     }
 }
