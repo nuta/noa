@@ -116,17 +116,30 @@ impl Buffer {
         let file = std::fs::File::open(path)?;
         let lang = guess_lang_from_path(path);
         let rope = Rope::from_reader(file)?;
+        let config = EditorConfig::resolve(&path);
+        let path = path.canonicalize()?;
+
+        let name = match (path.parent(), path.file_name()) {
+            (Some(parent), Some(name)) => {
+                format!("{}/{}", parent.display(), name.to_str().unwrap())
+            }
+            (None, Some(_)) => format!("{}", path.display()),
+            _ => {
+                panic!("invalid file path: {}", path.display());
+            }
+        };
+
         Ok(Buffer {
             id: BufferId::alloc(),
             rope: rope.clone(),
             saved_rope: rope.clone(),
-            name: String::new(),
-            path: Some(path.canonicalize()?),
+            name,
+            path: Some(path),
             cursors: vec![Cursor::new(0, 0)],
             undo_stack: vec![rope],
             redo_stack: Vec::new(),
             lang,
-            config: EditorConfig::resolve(path),
+            config,
             snapshot_cache: Mutex::new((0, Arc::new(Snapshot::empty()))),
         })
     }

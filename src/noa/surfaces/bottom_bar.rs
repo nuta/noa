@@ -62,6 +62,12 @@ impl Surface for BottomBarSurface {
             .width()
             .saturating_sub(marker_width + 1 + 1 + colno_width + num_cursors_width);
 
+        info!(
+            "truncate_to_width(buffer.name(), name_max_len)= '{}' '{}' {}",
+            truncate_to_width(buffer.name(), name_max_len),
+            buffer.name(),
+            name_max_len,
+        );
         canvas.draw_str(0, 0, marker);
         canvas.draw_str(
             0,

@@ -114,8 +114,8 @@ async fn main() {
     let terminal = Terminal::new(event_tx.clone());
     let mut compositor = Compositor::new(terminal);
     let completion = CompletionSurface::new(&mut ctx);
-    compositor.push_layer(&mut ctx, BottomBarSurface::new());
     compositor.push_layer(&mut ctx, BufferSurface::new());
+    compositor.push_layer(&mut ctx, BottomBarSurface::new());
     compositor.push_layer(&mut ctx, completion);
 
     // Open speicifed file or the workspace dir.

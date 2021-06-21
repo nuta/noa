@@ -11,9 +11,9 @@ pub const DEFAULT_THEME: &'static Theme = &Theme {
     bottom_bar_text: Style {
         fg: Color::Reset,
         bg: Color::Rgb {
-            r: 77,
-            g: 77,
-            b: 77,
+            r: 170,
+            g: 170,
+            b: 170,
         },
         attr: Attribute::Bold,
     },
