@@ -82,7 +82,7 @@ impl Surface for BufferSurface {
     }
 
     fn layout(&self, screen_size: RectSize) -> (Layout, RectSize) {
-        (Layout::Full, screen_size)
+        (Layout::Fixed { y: 0, x: 0 }, screen_size)
     }
 
     fn cursor_position(&self) -> Option<(usize, usize)> {

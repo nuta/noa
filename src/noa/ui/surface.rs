@@ -3,16 +3,17 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::editor::Editor;
 
-use super::{canvas::CanvasViewMut, Compositor, Event};
+use super::{canvas::CanvasViewMut, theme::Theme, Compositor, Event};
 
 pub struct Context<'a> {
     pub event_tx: &'a UnboundedSender<Event>,
     pub editor: &'a mut Editor,
+    pub theme: &'a Theme,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub enum Layout {
-    Full,
+    Fixed { y: usize, x: usize },
     Center,
     AroundCursor,
 }

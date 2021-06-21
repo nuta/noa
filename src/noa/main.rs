@@ -24,8 +24,11 @@ use tokio::{
 };
 
 use crate::{
-    surfaces::BufferSurface, syncd_client::SyncdClient, terminal::Terminal, ui::Compositor,
-    ui::Context,
+    surfaces::{BottomBarSurface, BufferSurface},
+    syncd_client::SyncdClient,
+    terminal::Terminal,
+    ui::Compositor,
+    ui::{Context, DEFAULT_THEME},
 };
 
 #[macro_use]
@@ -100,15 +103,18 @@ async fn main() {
     let mut editor = editor::Editor::new(workspace_dir);
     let (event_tx, mut event_rx) = unbounded_channel();
 
+    let theme = DEFAULT_THEME;
     let mut ctx = Context {
         editor: &mut editor,
         event_tx: &event_tx,
+        theme,
     };
 
     // Initialize UI.
     let terminal = Terminal::new(event_tx.clone());
     let mut compositor = Compositor::new(terminal);
     let completion = CompletionSurface::new(&mut ctx);
+    compositor.push_layer(&mut ctx, BottomBarSurface::new());
     compositor.push_layer(&mut ctx, BufferSurface::new());
     compositor.push_layer(&mut ctx, completion);
 
@@ -136,6 +142,7 @@ async fn main() {
         let mut ctx = Context {
             editor: &mut editor,
             event_tx: &event_tx,
+            theme,
         };
 
         if updated {
@@ -150,6 +157,7 @@ async fn main() {
                 let mut ctx = Context {
                     editor: &mut editor,
                     event_tx: &event_tx,
+                    theme,
                 };
                 compositor.handle_event(&mut ctx, ev);
                 while let Ok(Some(ev)) = timeout(Duration::from_micros(400), event_rx.recv()).await

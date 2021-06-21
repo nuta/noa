@@ -223,7 +223,7 @@ fn relayout_layers(
     let (layout, rect) = surface.layout(screen_size);
 
     let (screen_y, screen_x) = match layout {
-        Layout::Full => (0, 0),
+        Layout::Fixed { y, x } => (y, x),
         Layout::Center => (
             (screen_size.height / 2).saturating_sub(rect.height / 2),
             (screen_size.width / 2).saturating_sub(rect.width / 2),
@@ -270,7 +270,7 @@ impl Surface for TooSmallSurface {
     }
 
     fn layout(&self, screen_size: RectSize) -> (Layout, RectSize) {
-        (Layout::Full, screen_size)
+        (Layout::Fixed { x: 0, y: 0 }, screen_size)
     }
 
     fn cursor_position(&self) -> Option<(usize, usize)> {

@@ -26,7 +26,8 @@ fn main() {
 }
 ";
 
-enum UserMessage {
+#[derive(Debug, Clone)]
+pub enum UserMessage {
     Error(String),
 }
 
@@ -75,6 +76,10 @@ impl Editor {
 
     pub fn exit_editor(&mut self) {
         self.exited = true;
+    }
+
+    pub fn last_message(&self) -> Option<UserMessage> {
+        self.messages.lock().last().cloned()
     }
 
     pub fn workspace_dir(&self) -> &Path {

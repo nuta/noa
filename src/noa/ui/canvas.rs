@@ -1,5 +1,5 @@
 use arrayvec::ArrayString;
-use crossterm::style::{Attributes, Color};
+use crossterm::style::{Attribute, Attributes, Color};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum DrawOp<'a> {
@@ -9,6 +9,13 @@ pub enum DrawOp<'a> {
     BgColor(Color),
     Attributes(Attributes),
     Reset,
+}
+
+#[derive(Clone, Debug)]
+pub struct Style {
+    pub fg: Color,
+    pub bg: Color,
+    pub attr: Attribute,
 }
 
 /// A character in the terminal screen.
@@ -234,6 +241,14 @@ impl<'a> CanvasViewMut<'a> {
 
     pub fn set_attrs(&mut self, y: usize, x: usize, x_end: usize, attrs: Attributes) {
         self.update_range(y, x, y + 1, x_end, |graph| graph.attrs.extend(attrs));
+    }
+
+    pub fn set_style(&mut self, y: usize, x: usize, x_end: usize, style: &Style) {
+        self.update_range(y, x, y + 1, x_end, |graph| {
+            graph.fg = style.fg;
+            graph.bg = style.bg;
+            graph.attrs = style.attr.into();
+        });
     }
 
     pub fn update_range<F>(&mut self, y: usize, x: usize, y_end: usize, x_end: usize, f: F)
