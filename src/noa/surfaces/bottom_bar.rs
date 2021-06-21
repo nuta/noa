@@ -46,7 +46,6 @@ impl Surface for BottomBarSurface {
         let buffer = ctx.editor.current_buffer().read();
 
         canvas.clear();
-        canvas.set_style(0, 0, canvas.width(), &ctx.theme.bottom_bar_text);
 
         let marker = if buffer.is_dirty() { "[+]" } else { "" };
         let marker_width = marker.display_width();
@@ -62,12 +61,9 @@ impl Surface for BottomBarSurface {
             .width()
             .saturating_sub(marker_width + 1 + 1 + colno_width + num_cursors_width);
 
-        info!(
-            "truncate_to_width(buffer.name(), name_max_len)= '{}' '{}' {}",
-            truncate_to_width(buffer.name(), name_max_len),
-            buffer.name(),
-            name_max_len,
-        );
+        //
+        // Draw the first line.
+        //
         canvas.draw_str(0, 0, marker);
         canvas.draw_str(
             0,
@@ -88,6 +84,11 @@ impl Surface for BottomBarSurface {
             );
         }
 
+        canvas.set_style(0, 0, canvas.width(), &ctx.theme.bottom_bar_text);
+
+        //
+        // Draw the second line.
+        //
         if let Some(message) = ctx.editor.last_message() {
             match message {
                 UserMessage::Error(text) => {

@@ -116,8 +116,8 @@ impl Buffer {
         let file = std::fs::File::open(path)?;
         let lang = guess_lang_from_path(path);
         let rope = Rope::from_reader(file)?;
-        let config = EditorConfig::resolve(&path);
         let path = path.canonicalize()?;
+        let config = EditorConfig::resolve(&path);
 
         let name = match (path.parent(), path.file_name()) {
             (Some(parent), Some(name)) => {
