@@ -8,6 +8,7 @@ use noa_buffer::Cursor;
 
 use crate::{
     surfaces::{prompt::CallbackResult, yes_no::YesNoChoice, FinderSurface, YesNoSurface},
+    terminal::copy_to_clipboard,
     ui::{
         whitespaces, CanvasViewMut, Compositor, Context, DisplayWidth, HandledEvent, Layout,
         RectSize, Surface,
@@ -234,6 +235,12 @@ impl Surface for BufferSurface {
             }
             (KeyCode::Char('d'), CTRL) | (KeyCode::Delete, _) => {
                 buffer.delete();
+            }
+            (KeyCode::Char('c'), CTRL) => {
+                copy_to_clipboard(&buffer.copy_selection());
+            }
+            (KeyCode::Char('x'), CTRL) => {
+                copy_to_clipboard(&buffer.cut_selection());
             }
             (KeyCode::Char('k'), CTRL) => {
                 buffer.truncate();

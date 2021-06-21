@@ -8,8 +8,7 @@ use crossterm::{
     event::{Event as TermEvent, EventStream, KeyCode, KeyEvent, KeyModifiers},
     execute, queue,
     style::{
-        Attribute, Print, SetAttribute, SetAttributes, SetBackgroundColor,
-        SetForegroundColor,
+        Attribute, Print, SetAttribute, SetAttributes, SetBackgroundColor, SetForegroundColor,
     },
     terminal::*,
 };
@@ -194,4 +193,14 @@ impl Drop for Drawer {
     fn drop(&mut self) {
         self.flush();
     }
+}
+
+pub fn copy_to_clipboard(text: &str) {
+    trace!("copy to clipboard: {} bytes", text.len());
+    let mut stdout = stdout();
+
+    // OSC52
+    write!(stdout, "\x1b]52;c;{}\x07", base64::encode(text)).ok();
+
+    stdout.flush().ok();
 }
