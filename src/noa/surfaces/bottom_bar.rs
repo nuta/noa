@@ -1,4 +1,4 @@
-use crossterm::event::KeyEvent;
+use crossterm::{event::KeyEvent, style::Color};
 
 use crate::{
     editor::UserMessage,
@@ -90,12 +90,16 @@ impl Surface for BottomBarSurface {
         // Draw the second line.
         //
         if let Some(message) = ctx.editor.last_message() {
-            match message {
-                UserMessage::Error(text) => {
-                    let x = canvas.width() - text.display_width();
-                    canvas.draw_str(1, x, &text);
-                }
-            }
+            let (color, text) = match &message {
+                UserMessage::Info(text) => (Color::Cyan, text),
+                UserMessage::Error(text) => (Color::Red, text),
+            };
+
+            let text = truncate_to_width(text, canvas.width());
+            let text_width = text.display_width();
+            let x = canvas.width() - text_width;
+            canvas.draw_str(1, x, &text);
+            canvas.set_fg(1, x, x + text_width, color);
         }
     }
 

@@ -8,8 +8,9 @@ use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers},
     style::Attribute,
 };
+use once_cell::sync::Lazy;
 use parking_lot::Mutex;
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::{process::Command, sync::mpsc::UnboundedSender};
 
 use crate::{
     fuzzy_set::FuzzySet,
@@ -21,6 +22,16 @@ use crate::{
 #[derive(Debug)]
 enum Item {
     File(PathBuf),
+}
+
+static IN_TMUX: Lazy<bool> = Lazy::new(|| std::env::var("TMUX").is_ok());
+
+fn noa_bin_args() -> &'static [&'static str] {
+    if cfg!(debug_assertions) {
+        &["cargo", "run", "--bin", "noa", "--"]
+    } else {
+        &["noa"]
+    }
 }
 
 pub struct FinderSurface {
@@ -49,6 +60,27 @@ impl FinderSurface {
         match item {
             Item::File(path) => {
                 ctx.editor.open_file(&path);
+            }
+        }
+    }
+
+    fn select_in_new_pane(&self, ctx: &mut Context, item: &Item) {
+        if !*IN_TMUX {
+            ctx.editor.error("not in tmux");
+            return;
+        }
+
+        match item {
+            Item::File(path) => {
+                ctx.editor
+                    .info(format!("opening {} in new pane", path.display()));
+                ctx.editor.check_run_background(
+                    "tmux-splitw",
+                    Command::new("tmux")
+                        .args(&["splitw", "-h"])
+                        .args(noa_bin_args())
+                        .arg(path),
+                );
             }
         }
     }
@@ -108,6 +140,7 @@ impl Surface for FinderSurface {
 
         let prev_query = self.input.rope().clone();
         if !self.input.consume_key_event(key) {
+            info!("key: {:?} {:?}", key.modifiers, key.code);
             match (key.modifiers, key.code) {
                 (NONE, KeyCode::Esc) => {
                     compositor.pop_layer();
@@ -122,6 +155,14 @@ impl Surface for FinderSurface {
                 (NONE, KeyCode::Enter) => {
                     if let Some(item) = self.selector.lock().selected() {
                         self.select(ctx, item);
+                    }
+
+                    compositor.pop_layer();
+                    return HandledEvent::Consumed;
+                }
+                (KeyModifiers::ALT, KeyCode::Enter) => {
+                    if let Some(item) = self.selector.lock().selected() {
+                        self.select_in_new_pane(ctx, item);
                     }
 
                     compositor.pop_layer();

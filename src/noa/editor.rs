@@ -5,7 +5,9 @@ use anyhow::Context;
 
 use noa_common::syncd_protocol::LspRequest;
 use parking_lot::RwLock;
+use tokio::process::Command;
 
+use std::process::Stdio;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -28,6 +30,7 @@ fn main() {
 
 #[derive(Debug, Clone)]
 pub enum UserMessage {
+    Info(String),
     Error(String),
 }
 
@@ -39,7 +42,7 @@ pub struct Editor {
     path2id: HashMap<PathBuf, BufferId>,
     views: HashMap<BufferId, parking_lot::Mutex<View>>,
     syncd: Arc<Mutex<SyncdClient>>,
-    messages: parking_lot::Mutex<Vec<UserMessage>>,
+    messages: Arc<std::sync::Mutex<Vec<UserMessage>>>,
 }
 
 impl Editor {
@@ -66,7 +69,7 @@ impl Editor {
             path2id: HashMap::new(),
             views,
             syncd: Arc::new(Mutex::new(syncd)),
-            messages: parking_lot::Mutex::new(Vec::new()),
+            messages: Arc::new(std::sync::Mutex::new(Vec::new())),
         }
     }
 
@@ -79,7 +82,7 @@ impl Editor {
     }
 
     pub fn last_message(&self) -> Option<UserMessage> {
-        self.messages.lock().last().cloned()
+        self.messages.lock().unwrap().last().cloned()
     }
 
     pub fn workspace_dir(&self) -> &Path {
@@ -98,12 +101,22 @@ impl Editor {
         self.views[&buffer.id()].lock()
     }
 
+    pub fn log(&self, m: UserMessage) {
+        let mut messages = self.messages.lock().unwrap();
+        messages.push(m);
+        messages.truncate(128);
+    }
+
+    pub fn info<T: Into<String>>(&self, str: T) {
+        let string = str.into();
+        info!("info: {}", string);
+        self.log(UserMessage::Info(string));
+    }
+
     pub fn error<T: Into<String>>(&self, str: T) {
         let string = str.into();
         error!("error: {}", string);
-        let mut messages = self.messages.lock();
-        messages.push(UserMessage::Error(string));
-        messages.truncate(128);
+        self.log(UserMessage::Error(string));
     }
 
     pub fn compute_view(
@@ -195,5 +208,47 @@ impl Editor {
                 self.error(format!("{}", err));
             }
         }
+    }
+
+    pub fn check_run_background(&mut self, title: &str, cmd: &mut Command) {
+        let proc = match cmd
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+        {
+            Ok(proc) => proc,
+            Err(err) => {
+                error!("failed to execute {}: {}", title, err);
+                self.error(format!("{}: {}", title, err));
+                return;
+            }
+        };
+
+        let messages = self.messages.clone();
+        let title = title.to_owned();
+        tokio::spawn(async move {
+            match proc.wait_with_output().await {
+                Ok(result) => {
+                    let mut messages = messages.lock().unwrap();
+                    match std::str::from_utf8(&result.stderr) {
+                        Ok(stderr) => {
+                            warn!("stderr ({}): {}", title, stderr);
+                            messages.push(UserMessage::Error(stderr.to_owned()));
+                        }
+                        Err(err) => {
+                            error!("failed to execute {}: {}", title, err);
+                            messages
+                                .push(UserMessage::Error(format!("{}: non-utf8 stderr", title)));
+                        }
+                    };
+                }
+                Err(err) => {
+                    let mut messages = messages.lock().unwrap();
+                    error!("failed to execute {}: {}", title, err);
+                    messages.push(UserMessage::Error(format!("{}: {}", title, err)));
+                }
+            }
+        });
     }
 }

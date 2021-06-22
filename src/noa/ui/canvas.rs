@@ -231,7 +231,7 @@ impl<'a> CanvasViewMut<'a> {
         self.set_str_with_attrs(y, x, string, Color::Reset, Color::Reset, Default::default());
     }
 
-    pub fn _set_fg(&mut self, y: usize, x: usize, x_end: usize, fg: Color) {
+    pub fn set_fg(&mut self, y: usize, x: usize, x_end: usize, fg: Color) {
         self.update_range(y, x, y + 1, x_end, |graph| graph.fg = fg);
     }
 
