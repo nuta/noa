@@ -1,16 +1,18 @@
-use std::{cmp::max, sync::Arc};
+use std::{cmp::max, path::PathBuf, sync::Arc};
 
 use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers},
     style::Attribute,
 };
-use noa_buffer::Snapshot;
-use parking_lot::Mutex;
+use noa_buffer::{Buffer, Snapshot};
+use noa_common::syncd_protocol::{LspRequest, LspResponse};
+use parking_lot::{Mutex, RwLock};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     fuzzy_set::FuzzySet,
     selector::Selector,
+    syncd_client::SyncdClient,
     ui::{
         truncate_to_width, CanvasViewMut, Compositor, Context, Event, HandledEvent, Layout,
         RectSize, Surface,
@@ -38,7 +40,10 @@ impl CompletionSurface {
             ctx.event_tx.clone(),
             selector,
             current_word,
+            ctx.editor.syncd().clone(),
+            ctx.editor.current_buffer().clone(),
             snapshot,
+            ctx.editor.workspace_dir().to_owned(),
         ));
 
         CompletionSurface {
@@ -73,7 +78,6 @@ impl Surface for CompletionSurface {
 
         let width = max_width + 2 /* border */;
         let height = selector.len() + 2 /* border */;
-        info!("relayout {}", height);
         (Layout::AroundCursor, RectSize { height, width })
     }
 
@@ -125,7 +129,10 @@ impl Surface for CompletionSurface {
                 ctx.event_tx.clone(),
                 self.selector.clone(),
                 current_word,
+                ctx.editor.syncd().clone(),
+                ctx.editor.current_buffer().clone(),
                 snapshot,
+                ctx.editor.workspace_dir().to_owned(),
             ));
         }
 
@@ -181,7 +188,10 @@ async fn update_completion(
     event_tx: UnboundedSender<Event>,
     selector: Arc<Mutex<Selector<Item>>>,
     query: String,
+    syncd: Arc<tokio::sync::Mutex<SyncdClient>>,
+    buffer: Arc<RwLock<Buffer>>,
     snapshot: Arc<Snapshot>,
+    workspace_dir: PathBuf,
 ) {
     // Word completion.
     let word_comp = async move {
@@ -199,16 +209,55 @@ async fn update_completion(
         results
     };
 
+    // LSP completion.
+    let lsp_comp = async move {
+        let mut results = FuzzySet::with_capacity(32);
+
+        let (lang, req) = {
+            let buffer = buffer.read();
+            match buffer.path_for_lsp(&workspace_dir) {
+                Some(path) => (
+                    buffer.lang(),
+                    LspRequest::Completion {
+                        path,
+                        position: buffer.main_cursor_pos(),
+                    },
+                ),
+                None => return results,
+            }
+        };
+
+        trace!("sending completion message...");
+        match syncd.lock().await.call_lsp_method(lang, req).await {
+            Ok(resp) => match resp {
+                LspResponse::Completion(items) => {
+                    let mut score = items.len() as isize;
+                    for item in items {
+                        results.push(score, Item::Word(item.label));
+                        score -= 1;
+                    }
+                }
+                LspResponse::NoContent => {}
+            },
+            Err(err) => {
+                warn!("failed to call Completion request: {}", err);
+            }
+        }
+        results
+    };
+
     // Merge results.
-    let iter = futures::future::join_all(vec![word_comp]).await;
+    let (word_comp_iter, lsp_comp_iter) = futures::join!(word_comp, lsp_comp);
     let mut selector = selector.lock();
     selector.clear();
-    for results in iter {
-        for item in results.into_vec() {
-            selector.push(item.value);
-        }
+
+    for item in word_comp_iter.into_vec() {
+        selector.push(item.value);
     }
 
-    info!("update completion to {}", selector.len());
+    for item in lsp_comp_iter.into_vec() {
+        selector.push(item.value);
+    }
+
     event_tx.send(Event::ReDraw).unwrap();
 }

@@ -10,8 +10,8 @@ use async_trait::async_trait;
 use lsp_types::{
     notification::{DidChangeTextDocument, DidOpenTextDocument},
     request::{Completion, Initialize, Request},
-    CompletionParams, DidChangeTextDocumentParams, DidOpenTextDocumentParams, InitializeParams,
-    PartialResultParams, TextDocumentContentChangeEvent, TextDocumentIdentifier,
+    CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
+    InitializeParams, PartialResultParams, TextDocumentContentChangeEvent, TextDocumentIdentifier,
     TextDocumentPositionParams, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 use noa_buffer::Point;
@@ -150,11 +150,12 @@ async fn receive_responses(
 
                 let resp = match request_method {
                     Completion::METHOD => {
-                        // let _params: CompletionResponse =
-                        //     serde_json::from_value(json.result).unwrap();
-                        // TODO:
-
-                        LspResponse::NoContent
+                        let resp: CompletionResponse = serde_json::from_value(json.result).unwrap();
+                        let items = match resp {
+                            CompletionResponse::Array(items) => items,
+                            CompletionResponse::List(list) => list.items,
+                        };
+                        LspResponse::Completion(items)
                     }
                     _ => {
                         warn!("ignored unsupported response: {}", body);

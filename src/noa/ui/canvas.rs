@@ -77,6 +77,23 @@ impl Canvas {
     }
 
     pub fn copy_from_other(&mut self, y: usize, x: usize, other: &Canvas) {
+        if !(y < self.height) {
+            warn!("out of bound");
+            return;
+        }
+        if !(x < self.width) {
+            warn!("out of bound");
+            return;
+        }
+        if !(y + other.height <= self.height) {
+            warn!("out of bound");
+            return;
+        }
+        if !(x + other.width <= self.width) {
+            warn!("out of bound");
+            return;
+        }
+
         debug_assert!(y < self.height);
         debug_assert!(x < self.width);
         debug_assert!(y + other.height <= self.height);

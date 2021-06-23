@@ -589,6 +589,7 @@ dependencies = [
  "anyhow",
  "dirs",
  "log",
+ "lsp-types",
  "noa_buffer",
  "once_cell",
  "serde",

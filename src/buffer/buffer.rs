@@ -200,6 +200,19 @@ impl Buffer {
         self.path.as_deref()
     }
 
+    /// Returns the absolute (canonicalized) path for LSP request.
+    pub fn path_for_lsp(&self, workspace_dir: &Path) -> Option<PathBuf> {
+        match self.path() {
+            // Ignore files that're not under the workspace directory.
+            Some(path) if path.starts_with(&workspace_dir) => {
+                return Some(path.to_owned());
+            }
+            _ => {
+                return None;
+            }
+        }
+    }
+
     pub fn text(&self) -> String {
         self.rope.text()
     }

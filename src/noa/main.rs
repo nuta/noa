@@ -200,33 +200,19 @@ async fn on_file_change(
     syncd: Arc<Mutex<SyncdClient>>,
 ) {
     while let Some(buffer_lock) = rx.recv().await {
-        let (lang, file_modified_req, completion_req) = {
+        let (lang, file_modified_req) = {
             let buffer = buffer_lock.read();
-            let path = match buffer.path() {
-                Some(path) => path,
-                None => {
-                    continue;
-                }
-            };
-
-            // Ignore files that're not under the workspace directory.
-            if !path.starts_with(&workspace_dir) {
-                continue;
+            match buffer.path_for_lsp(&workspace_dir) {
+                Some(path) => (
+                    buffer.lang(),
+                    LspRequest::UpdateFile {
+                        path,
+                        version: buffer.version(),
+                        text: buffer.text(),
+                    },
+                ),
+                None => continue,
             }
-
-            let lang = buffer.lang();
-            let file_modified_req = LspRequest::UpdateFile {
-                path: path.to_owned(),
-                version: buffer.version(),
-                text: buffer.text(),
-            };
-
-            let completion_req = LspRequest::Completion {
-                path: path.to_owned(),
-                position: buffer.main_cursor_pos(),
-            };
-
-            (lang, file_modified_req, completion_req)
         };
 
         if let Err(err) = syncd
@@ -236,16 +222,6 @@ async fn on_file_change(
             .await
         {
             warn!("failed to send UpdateFile request: {}", err);
-        }
-
-        trace!("sending completion message...");
-        if let Err(err) = syncd
-            .lock()
-            .await
-            .call_lsp_method(lang, completion_req)
-            .await
-        {
-            warn!("failed to call Completion request: {}", err);
         }
     }
 

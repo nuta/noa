@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use lsp_types::CompletionItem;
 use serde::{Deserialize, Serialize};
 
 use noa_buffer::Point;
@@ -52,6 +53,7 @@ pub enum LspRequest {
 #[derive(Deserialize, Serialize, Debug)]
 pub enum LspResponse {
     NoContent,
+    Completion(Vec<CompletionItem>),
 }
 
 #[derive(Deserialize, Serialize, Debug)]
