@@ -77,6 +77,7 @@ impl Canvas {
     }
 
     pub fn copy_from_other(&mut self, y: usize, x: usize, other: &Canvas) {
+        // FIXME:
         if !(y < self.height) {
             warn!("out of bound");
             return;

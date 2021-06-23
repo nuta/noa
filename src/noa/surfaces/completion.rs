@@ -14,15 +14,18 @@ use crate::{
     selector::Selector,
     syncd_client::SyncdClient,
     ui::{
-        truncate_to_width, CanvasViewMut, Compositor, Context, Event, HandledEvent, Layout,
-        RectSize, Surface,
+        truncate_to_width, CanvasViewMut, Compositor, Context, DisplayWidth, Event, HandledEvent,
+        Layout, RectSize, Surface,
     },
 };
 
 const MIN_WIDTH: usize = 16;
 
 enum Item {
-    Word(String),
+    Word {
+        display_text: String,
+        insert_text: Option<String>,
+    },
 }
 
 pub struct CompletionSurface {
@@ -70,7 +73,7 @@ impl Surface for CompletionSurface {
             .take(16)
             .fold(MIN_WIDTH, |max_width, (_, item)| {
                 let width = match item {
-                    Item::Word(s) => s.len(),
+                    Item::Word { display_text, .. } => display_text.display_width(),
                 };
 
                 max(max_width, width)
@@ -96,11 +99,13 @@ impl Surface for CompletionSurface {
             .take(canvas.height().saturating_sub(2))
             .enumerate()
         {
-            let Item::Word(text) = item;
+            let text = match item {
+                Item::Word { display_text, .. } => display_text,
+            };
 
             let y = 1 + i;
             let x = 1;
-            canvas.draw_str(y, x, truncate_to_width(text, canvas.width() - 1));
+            canvas.draw_str(y, x, truncate_to_width(&text, canvas.width() - 1));
 
             if active {
                 let attrs = [Attribute::Underlined, Attribute::Bold];
@@ -157,11 +162,17 @@ impl Surface for CompletionSurface {
             (NONE, KeyCode::Enter) => {
                 if let Some(selected) = selector.selected() {
                     match selected {
-                        Item::Word(word) => {
+                        Item::Word {
+                            insert_text,
+                            display_text,
+                        } => {
                             let mut buffer = ctx.editor.current_buffer().write();
                             if let Some(range) = buffer.current_word_range() {
                                 buffer.select_by_ranges(&[range]);
-                                buffer.insert(word);
+                                buffer.insert(match insert_text {
+                                    Some(insert_text) => insert_text,
+                                    None => display_text,
+                                });
                             }
                         }
                     }
@@ -202,7 +213,13 @@ async fn update_completion(
             }
 
             if let Some(m) = sublime_fuzzy::best_match(&query, word) {
-                results.push(m.score(), Item::Word(word.to_owned()));
+                results.push(
+                    m.score(),
+                    Item::Word {
+                        display_text: word.to_owned(),
+                        insert_text: None,
+                    },
+                );
             }
         }
 
@@ -233,7 +250,13 @@ async fn update_completion(
                 LspResponse::Completion(items) => {
                     let mut score = items.len() as isize;
                     for item in items {
-                        results.push(score, Item::Word(item.label));
+                        results.push(
+                            score,
+                            Item::Word {
+                                display_text: item.label,
+                                insert_text: item.insert_text,
+                            },
+                        );
                         score -= 1;
                     }
                 }
