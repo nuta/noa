@@ -77,21 +77,22 @@ impl Canvas {
     }
 
     pub fn copy_from_other(&mut self, y: usize, x: usize, other: &Canvas) {
-        // FIXME:
-        if !(y < self.height) {
-            warn!("out of bound");
-            return;
-        }
-        if !(x < self.width) {
-            warn!("out of bound");
-            return;
-        }
-        if !(y + other.height <= self.height) {
-            warn!("out of bound");
-            return;
-        }
-        if !(x + other.width <= self.width) {
-            warn!("out of bound");
+        let in_bounds = y < self.height
+            && x < self.width
+            && y + other.height <= self.height
+            && x + other.width <= self.width;
+
+        if !in_bounds {
+            warn!(
+                "out of bounds copy: dst_size=({}, {}), dst_pos=({}, {}), src_size=({}, {})\n{:?}",
+                self.height,
+                self.width,
+                y,
+                x,
+                other.height,
+                other.width,
+                backtrace::Backtrace::new()
+            );
             return;
         }
 
@@ -283,7 +284,7 @@ impl<'a> CanvasViewMut<'a> {
     where
         F: Fn(&mut Grapheme),
     {
-        let in_bounds = y <= y_end || x <= x_end || y_end <= self.height || x_end <= self.width;
+        let in_bounds = y <= y_end && x <= x_end && y_end <= self.height && x_end <= self.width;
         if !in_bounds {
             warn!(
                 "out of bounds update_range: (y, x) = ({}-{}, {}-{}), (height, width) = ({}, {})\n{:?}",
