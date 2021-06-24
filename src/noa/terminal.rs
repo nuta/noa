@@ -127,6 +127,10 @@ impl Terminal {
         self.width
     }
 
+    pub fn clear(&mut self) {
+        execute!(stdout(), Clear(ClearType::All)).ok();
+    }
+
     pub fn drawer(&mut self) -> Drawer {
         let mut stdout = stdout();
 

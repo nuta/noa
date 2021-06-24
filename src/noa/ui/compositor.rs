@@ -88,6 +88,7 @@ impl Compositor {
     pub fn resize_screen(&mut self, _ctx: &mut Context, height: usize, width: usize) {
         self.screen_size = RectSize { height, width };
         self.screens = [Canvas::new(height, width), Canvas::new(height, width)];
+        self.terminal.clear();
     }
 
     pub fn render_to_terminal(&mut self, ctx: &mut Context) {
