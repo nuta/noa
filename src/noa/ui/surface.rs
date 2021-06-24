@@ -1,4 +1,4 @@
-use crossterm::event::KeyEvent;
+use crossterm::event::{KeyEvent, MouseEvent};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::editor::Editor;
@@ -46,6 +46,14 @@ pub trait Surface {
         compositor: &mut Compositor,
         key: KeyEvent,
     ) -> HandledEvent;
+    fn handle_mouse_event(
+        &mut self,
+        _ctx: &mut Context,
+        _compositor: &mut Compositor,
+        _ev: MouseEvent,
+    ) -> HandledEvent {
+        HandledEvent::Ignored
+    }
     fn handle_key_batch_event(
         &mut self,
         ctx: &mut Context,

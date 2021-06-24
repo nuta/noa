@@ -1,6 +1,6 @@
 use std::{slice, sync::Arc};
 
-use crossterm::event::KeyEvent;
+use crossterm::event::{KeyEvent, MouseEvent};
 use noa_buffer::Point;
 use noa_common::time_report::TimeReport;
 use parking_lot::Mutex;
@@ -15,6 +15,7 @@ use super::{truncate_to_width, Canvas, CanvasViewMut, HandledEvent, Layout, Rect
 pub enum Event {
     ReDraw,
     Key(KeyEvent),
+    Mouse(MouseEvent),
     KeyBatch(String),
     Resize {
         screen_height: usize,
@@ -152,6 +153,18 @@ impl Compositor {
                     if layer.active {
                         if let HandledEvent::Consumed =
                             layer.surface.handle_key_event(ctx, self, key)
+                        {
+                            return;
+                        }
+                    }
+                }
+            }
+            Event::Mouse(ev) => {
+                for layer_lock in self.layers.clone().iter().rev() {
+                    let mut layer = layer_lock.lock();
+                    if layer.active {
+                        if let HandledEvent::Consumed =
+                            layer.surface.handle_mouse_event(ctx, self, ev)
                         {
                             return;
                         }

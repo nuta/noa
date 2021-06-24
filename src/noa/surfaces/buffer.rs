@@ -1,7 +1,7 @@
 use std::cmp::{max, min};
 
 use crossterm::{
-    event::{KeyCode, KeyEvent, KeyModifiers},
+    event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind},
     style::Attribute,
 };
 use noa_buffer::Cursor;
@@ -18,12 +18,14 @@ use crate::{
 pub struct BufferSurface {
     // `(y, x)`.
     cursor_position: (usize, usize),
+    text_start_x: usize,
 }
 
 impl BufferSurface {
     pub fn new() -> BufferSurface {
         BufferSurface {
             cursor_position: (0, 0),
+            text_start_x: 0,
         }
     }
 
@@ -104,7 +106,7 @@ impl Surface for BufferSurface {
             .compute_view(&*buffer, canvas.height(), canvas.width());
 
         let max_lineno_width = buffer.num_lines().display_width() + 1;
-        let text_start = max_lineno_width + 1;
+        let text_start_x = max_lineno_width + 1;
 
         let mut y_end = 0;
         let mut lines_end_xs = Vec::new();
@@ -128,7 +130,7 @@ impl Surface for BufferSurface {
                 let chunk_str = rope_line.slice(chunk.clone());
                 for s in chunk_str.chunks() {
                     for ch in s.chars() {
-                        canvas.draw_char(y, text_start + x, ch);
+                        canvas.draw_char(y, text_start_x + x, ch);
                         x += 1;
                     }
                 }
@@ -136,8 +138,8 @@ impl Surface for BufferSurface {
 
             canvas.draw_str(
                 y,
-                text_start + x,
-                &whitespaces(canvas.width() - (text_start + x)),
+                text_start_x + x,
+                &whitespaces(canvas.width() - (text_start_x + x)),
             );
 
             lines_end_xs.push(x);
@@ -160,7 +162,7 @@ impl Surface for BufferSurface {
                     let (y, x) = view.point_to_display_pos(
                         main_cursor_pos,
                         y_end,
-                        text_start,
+                        text_start_x,
                         buffer.num_lines(),
                     );
                     canvas.set_attrs(y, x, x + 1, (&[Attribute::Reverse][..]).into());
@@ -169,23 +171,23 @@ impl Surface for BufferSurface {
                     let (start_y, start_x) = view.point_to_display_pos(
                         range.front(),
                         y_end,
-                        text_start,
+                        text_start_x,
                         buffer.num_lines(),
                     );
                     let (end_y, end_x) = view.point_to_display_pos(
                         range.back(),
                         y_end,
-                        text_start,
+                        text_start_x,
                         buffer.num_lines(),
                     );
 
                     for (y, _display_line) in view.visible_display_lines().iter().enumerate() {
                         if start_y <= y && y <= end_y {
-                            let x0 = if y == start_y { start_x } else { text_start };
+                            let x0 = if y == start_y { start_x } else { text_start_x };
                             let x1 = if y == end_y {
                                 end_x
                             } else {
-                                text_start + lines_end_xs[y] + 1
+                                text_start_x + lines_end_xs[y] + 1
                             };
                             canvas.set_attrs(
                                 y,
@@ -201,7 +203,9 @@ impl Surface for BufferSurface {
 
         // Determine the main cursor position.
         self.cursor_position =
-            view.point_to_display_pos(main_cursor_pos, y_end, text_start, buffer.num_lines());
+            view.point_to_display_pos(main_cursor_pos, y_end, text_start_x, buffer.num_lines());
+
+        self.text_start_x = text_start_x;
     }
 
     fn handle_key_event(
@@ -339,5 +343,41 @@ impl Surface for BufferSurface {
     ) -> HandledEvent {
         ctx.editor.current_buffer().write().insert(&input);
         HandledEvent::Consumed
+    }
+
+    fn handle_mouse_event(
+        &mut self,
+        ctx: &mut Context,
+        _compositor: &mut Compositor,
+        ev: MouseEvent,
+    ) -> HandledEvent {
+        const NONE: KeyModifiers = KeyModifiers::NONE;
+
+        let mut buffer = ctx.editor.current_buffer().write();
+        let view = ctx.editor.view(&*buffer);
+
+        let MouseEvent {
+            kind,
+            column: display_x,
+            row: display_y,
+            modifiers,
+        } = ev;
+
+        match (modifiers, kind) {
+            (NONE, MouseEventKind::Up(MouseButton::Left)) => {
+                let x = match (display_x as usize).checked_sub(self.text_start_x) {
+                    Some(x) => x,
+                    None => return HandledEvent::Ignored,
+                };
+
+                if let Some(pos) = view.display_pos_to_point(display_y as usize, x) {
+                    buffer.set_cursors(vec![Cursor::new(pos.y, pos.x)]);
+                    HandledEvent::Consumed
+                } else {
+                    HandledEvent::Ignored
+                }
+            }
+            _ => HandledEvent::Ignored,
+        }
     }
 }

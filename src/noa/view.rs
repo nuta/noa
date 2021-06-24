@@ -56,6 +56,14 @@ impl View {
             })
     }
 
+    pub fn display_pos_to_point(&self, display_y: usize, display_x: usize) -> Option<Point> {
+        self.lines.get(display_y).map(|line| {
+            let mut pos = line.range.front();
+            pos.x += min(display_x, line.range.end.x);
+            pos
+        })
+    }
+
     fn point_to_display_line(&self, pos: Point) -> Option<usize> {
         self.lines
             .binary_search_by(|line| {

@@ -5,7 +5,10 @@ use std::{
 
 use crossterm::{
     cursor::{self, MoveTo},
-    event::{Event as TermEvent, EventStream, KeyCode, KeyEvent, KeyModifiers},
+    event::{
+        DisableMouseCapture, EnableMouseCapture, Event as TermEvent, EventStream, KeyCode,
+        KeyEvent, KeyModifiers,
+    },
     execute, queue,
     style::{
         Attribute, Print, SetAttribute, SetAttributes, SetBackgroundColor, SetForegroundColor,
@@ -25,8 +28,8 @@ async fn terminal_input_handler(event_queue: UnboundedSender<Event>) {
             TermEvent::Key(key) => {
                 event_queue.send(Event::Key(key)).ok();
             }
-            TermEvent::Mouse(_) => {
-                unreachable!();
+            TermEvent::Mouse(ev) => {
+                event_queue.send(Event::Mouse(ev)).ok();
             }
             TermEvent::Resize(cols, rows) => {
                 event_queue
@@ -107,6 +110,7 @@ impl Terminal {
     pub fn new(event_queue: UnboundedSender<Event>) -> Terminal {
         enable_raw_mode().expect("failed to enable the raw mode");
         execute!(stdout(), EnterAlternateScreen).expect("failed to enter the alternative screen");
+        execute!(stdout(), EnableMouseCapture).expect("failed to enable mouse capture");
         tokio::spawn(terminal_input_handler(event_queue));
         let (cols, rows) = size().expect("failed to get the terminal size");
         Terminal {
@@ -141,6 +145,7 @@ impl Terminal {
 
 impl Drop for Terminal {
     fn drop(&mut self) {
+        execute!(stdout(), DisableMouseCapture).ok();
         execute!(stdout(), LeaveAlternateScreen).ok();
         execute!(stdout(), cursor::Show).ok();
         disable_raw_mode().ok();
