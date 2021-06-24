@@ -1,7 +1,4 @@
-use std::{
-    cmp::{max, min},
-    time::{Duration, Instant},
-};
+use std::cmp::{max, min};
 
 use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind},
@@ -22,7 +19,6 @@ pub struct BufferSurface {
     // `(y, x)`.
     cursor_position: (usize, usize),
     text_start_x: usize,
-    time_last_clicked: Instant,
     selection_start: Option<Point>,
 }
 
@@ -31,7 +27,6 @@ impl BufferSurface {
         BufferSurface {
             cursor_position: (0, 0),
             text_start_x: 0,
-            time_last_clicked: Instant::now(),
             selection_start: None,
         }
     }
@@ -400,7 +395,6 @@ impl Surface for BufferSurface {
                     buffer.set_cursors(vec![Cursor::new(buffer_pos.y, buffer_pos.x)]);
                 }
 
-                self.time_last_clicked = Instant::now();
                 self.selection_start = None;
                 HandledEvent::Consumed
             }
