@@ -1,10 +1,13 @@
-use std::cmp::{max, min};
+use std::{
+    cmp::{max, min},
+    time::{Duration, Instant},
+};
 
 use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind},
     style::Attribute,
 };
-use noa_buffer::Cursor;
+use noa_buffer::{Cursor, Point, Range};
 
 use crate::{
     surfaces::{prompt::CallbackResult, yes_no::YesNoChoice, FinderSurface, YesNoSurface},
@@ -19,6 +22,8 @@ pub struct BufferSurface {
     // `(y, x)`.
     cursor_position: (usize, usize),
     text_start_x: usize,
+    time_last_clicked: Instant,
+    selection_start: Option<Point>,
 }
 
 impl BufferSurface {
@@ -26,6 +31,8 @@ impl BufferSurface {
         BufferSurface {
             cursor_position: (0, 0),
             text_start_x: 0,
+            time_last_clicked: Instant::now(),
+            selection_start: None,
         }
     }
 
@@ -363,20 +370,41 @@ impl Surface for BufferSurface {
             modifiers,
         } = ev;
 
-        match (modifiers, kind) {
-            (NONE, MouseEventKind::Up(MouseButton::Left)) => {
-                let x = match (display_x as usize).checked_sub(self.text_start_x) {
-                    Some(x) => x,
-                    None => return HandledEvent::Ignored,
-                };
+        let buffer_pos = match (display_x as usize)
+            .checked_sub(self.text_start_x)
+            .and_then(|x| view.display_pos_to_point(display_y as usize, x))
+        {
+            Some(pos) => pos,
+            None => return HandledEvent::Ignored,
+        };
 
-                if let Some(pos) = view.display_pos_to_point(display_y as usize, x) {
-                    buffer.set_cursors(vec![Cursor::new(pos.y, pos.x)]);
-                    HandledEvent::Consumed
-                } else {
-                    HandledEvent::Ignored
-                }
+        match (modifiers, kind) {
+            (NONE, MouseEventKind::Down(MouseButton::Left)) => {
+                self.selection_start = Some(buffer_pos);
+                HandledEvent::Consumed
             }
+            (NONE, MouseEventKind::Drag(MouseButton::Left)) => {
+                match self.selection_start {
+                    Some(start) if start != buffer_pos => {
+                        buffer.set_cursors(vec![Cursor::Selection(Range::from_points(
+                            start, buffer_pos,
+                        ))]);
+                    }
+                    _ => {}
+                }
+
+                HandledEvent::Consumed
+            }
+            (NONE, MouseEventKind::Up(MouseButton::Left)) => {
+                if matches!(self.selection_start, Some(start) if start == buffer_pos) {
+                    buffer.set_cursors(vec![Cursor::new(buffer_pos.y, buffer_pos.x)]);
+                }
+
+                self.time_last_clicked = Instant::now();
+                self.selection_start = None;
+                HandledEvent::Consumed
+            }
+
             _ => HandledEvent::Ignored,
         }
     }
