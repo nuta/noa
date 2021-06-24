@@ -197,8 +197,18 @@ impl<'a> CanvasViewMut<'a> {
     }
 
     pub fn set_grapheme(&mut self, y: usize, x: usize, graph: Grapheme) {
-        debug_assert!(y < self.height);
-        debug_assert!(x < self.width);
+        let in_bounds = y < self.height && x < self.width;
+        if !in_bounds {
+            warn!(
+                "out of bounds draw: (y, x) = ({}, {}), (height, width) = ({}, {})\n{:?}",
+                y,
+                x,
+                self.height,
+                self.width,
+                backtrace::Backtrace::new()
+            );
+            return;
+        }
 
         self.graphs[(self.y + y) * self.canvas_width + self.x + x] = graph;
     }
@@ -273,10 +283,18 @@ impl<'a> CanvasViewMut<'a> {
     where
         F: Fn(&mut Grapheme),
     {
-        debug_assert!(y <= y_end);
-        debug_assert!(x <= x_end);
-        debug_assert!(y_end <= self.height);
-        debug_assert!(x_end <= self.width);
+        let in_bounds = y <= y_end || x <= x_end || y_end <= self.height || x_end <= self.width;
+        if !in_bounds {
+            warn!(
+                "out of bounds update_range: (y, x) = ({}-{}, {}-{}), (height, width) = ({}, {})\n{:?}",
+                y, y_end,
+                x, x_end,
+                self.height,
+                self.width,
+                backtrace::Backtrace::new()
+            );
+            return;
+        }
 
         for y in y..y_end {
             for x in x..x_end {
