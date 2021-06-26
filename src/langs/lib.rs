@@ -1,4 +1,10 @@
+#[allow(unused_imports)]
+#[macro_use]
+extern crate log;
+
 use std::hash::{Hash, Hasher};
+
+mod tree_sitter;
 
 pub struct Lsp {
     pub language_id: &'static str,
@@ -10,6 +16,22 @@ pub struct Lang {
     pub filenames: &'static [&'static str],
     pub extensions: &'static [&'static str],
     pub lsp: Option<Lsp>,
+    tree_sitter_lib: Option<unsafe extern "C" fn() -> ::tree_sitter::Language>,
+}
+
+impl Lang {
+    pub fn tree_sitter(&self) -> Option<::tree_sitter::Parser> {
+        self.tree_sitter_lib.as_ref().and_then(|lib| {
+            let mut parser = ::tree_sitter::Parser::new();
+            match parser.set_language(unsafe { lib() }) {
+                Ok(()) => Some(parser),
+                Err(err) => {
+                    error!("failed to load tree sitter for {}: {}", self.id, err);
+                    None
+                }
+            }
+        })
+    }
 }
 
 impl Hash for Lang {
@@ -33,6 +55,7 @@ pub const PLAIN: Lang = Lang {
     filenames: &[],
     extensions: &[],
     lsp: None,
+    tree_sitter_lib: None,
 };
 
 pub const C: Lang = Lang {
@@ -43,4 +66,5 @@ pub const C: Lang = Lang {
         language_id: "c",
         command: &["clangd", "-j=8", "--log=verbose", "--pretty"],
     }),
+    tree_sitter_lib: Some(tree_sitter::tree_sitter_c),
 };

@@ -8,3 +8,8 @@ edition = "2018"
 path = "lib.rs"
 
 [dependencies]
+log = "0"
+tree-sitter = "0"
+
+[build-dependencies]
+cc = "*"
