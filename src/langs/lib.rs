@@ -4,7 +4,7 @@ extern crate log;
 
 use std::hash::{Hash, Hasher};
 
-mod tree_sitter;
+pub mod tree_sitter;
 
 pub struct Lsp {
     pub language_id: &'static str,

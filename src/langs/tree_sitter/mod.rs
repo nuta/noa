@@ -1,4 +1,4 @@
-use tree_sitter::{Language, Parser};
+pub use tree_sitter::*;
 
 extern "C" {
     pub fn tree_sitter_c() -> Language;

@@ -41,6 +41,7 @@ impl BufferSurface {
         // If any files are not yet saved, show a dialog to ask what we should do.
         let first_buffer = dirty_buffers[0].read();
         let basename = first_buffer
+            .buffer
             .path()
             .unwrap()
             .file_name()
@@ -102,7 +103,9 @@ impl Surface for BufferSurface {
     fn render<'a>(&mut self, ctx: &mut Context, mut canvas: CanvasViewMut<'a>) {
         canvas.clear();
 
-        let buffer = ctx.editor.current_buffer().read();
+        let opened_file = ctx.editor.current_file().read();
+        let buffer = &opened_file.buffer;
+
         let view = ctx
             .editor
             .compute_view(&*buffer, canvas.height(), canvas.width());
@@ -221,22 +224,23 @@ impl Surface for BufferSurface {
         const ALT: KeyModifiers = KeyModifiers::ALT;
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
-        let mut buffer = ctx.editor.current_buffer().write();
-        let view = ctx.editor.view(&*buffer);
+        let mut opened_file = ctx.editor.current_file().write();
+        let buffer = &mut opened_file.buffer;
+        let view = ctx.editor.view(buffer);
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), CTRL) => {
-                drop(buffer);
+                drop(opened_file);
                 drop(view);
                 self.quit(ctx, compositor);
             }
             (KeyCode::Char('f'), CTRL) => {
-                drop(buffer);
+                drop(opened_file);
                 drop(view);
                 let finder = FinderSurface::new(ctx);
                 compositor.push_layer(ctx, finder);
             }
             (KeyCode::Char('s'), CTRL) => {
-                drop(buffer);
+                drop(opened_file);
                 ctx.editor.save_current_buffer();
             }
             (KeyCode::Char('u'), CTRL) => {
@@ -343,7 +347,7 @@ impl Surface for BufferSurface {
         _compositor: &mut Compositor,
         input: &str,
     ) -> HandledEvent {
-        ctx.editor.current_buffer().write().insert(&input);
+        ctx.editor.current_file().write().buffer.insert(&input);
         HandledEvent::Consumed
     }
 
@@ -355,8 +359,8 @@ impl Surface for BufferSurface {
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
 
-        let mut buffer = ctx.editor.current_buffer().write();
-        let view = ctx.editor.view(&*buffer);
+        let mut opened_file = ctx.editor.current_file().write();
+        let view = ctx.editor.view(&opened_file.buffer);
 
         let MouseEvent {
             kind,
@@ -381,9 +385,9 @@ impl Surface for BufferSurface {
             (NONE, MouseEventKind::Drag(MouseButton::Left)) => {
                 match self.selection_start {
                     Some(start) if start != buffer_pos => {
-                        buffer.set_cursors(vec![Cursor::Selection(Range::from_points(
-                            start, buffer_pos,
-                        ))]);
+                        opened_file.buffer.set_cursors(vec![Cursor::Selection(
+                            Range::from_points(start, buffer_pos),
+                        )]);
                     }
                     _ => {}
                 }
@@ -392,7 +396,9 @@ impl Surface for BufferSurface {
             }
             (NONE, MouseEventKind::Up(MouseButton::Left)) => {
                 if matches!(self.selection_start, Some(start) if start == buffer_pos) {
-                    buffer.set_cursors(vec![Cursor::new(buffer_pos.y, buffer_pos.x)]);
+                    opened_file
+                        .buffer
+                        .set_cursors(vec![Cursor::new(buffer_pos.y, buffer_pos.x)]);
                 }
 
                 self.selection_start = None;

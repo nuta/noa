@@ -43,15 +43,19 @@ impl Surface for BottomBarSurface {
     }
 
     fn render<'a>(&mut self, ctx: &mut Context, mut canvas: CanvasViewMut<'a>) {
-        let buffer = ctx.editor.current_buffer().read();
+        let opened_file = ctx.editor.current_file().read();
 
         canvas.clear();
 
-        let marker = if buffer.is_dirty() { "[+]" } else { "" };
+        let marker = if opened_file.buffer.is_dirty() {
+            "[+]"
+        } else {
+            ""
+        };
         let marker_width = marker.display_width();
-        let colno = buffer.main_cursor_pos().x;
+        let colno = opened_file.buffer.main_cursor_pos().x;
         let colno_width = colno.display_width();
-        let num_cursors = buffer.cursors().len();
+        let num_cursors = opened_file.buffer.cursors().len();
         let num_cursors_width = if num_cursors == 1 {
             0
         } else {
@@ -68,7 +72,7 @@ impl Surface for BottomBarSurface {
         canvas.draw_str(
             0,
             marker_width + 1,
-            truncate_to_width(buffer.name(), name_max_len),
+            truncate_to_width(opened_file.buffer.name(), name_max_len),
         );
         canvas.draw_str(
             0,

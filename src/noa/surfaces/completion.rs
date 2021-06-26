@@ -4,12 +4,13 @@ use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers},
     style::Attribute,
 };
-use noa_buffer::{Buffer, Snapshot};
+use noa_buffer::Snapshot;
 use noa_common::syncd_protocol::{LspRequest, LspResponse};
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
+    editor::OpenedFile,
     fuzzy_set::FuzzySet,
     selector::Selector,
     syncd_client::SyncdClient,
@@ -35,16 +36,19 @@ pub struct CompletionSurface {
 impl CompletionSurface {
     pub fn new(ctx: &mut Context) -> CompletionSurface {
         let selector = Arc::new(Mutex::new(Selector::new()));
-        let buffer = ctx.editor.current_buffer().read();
-        let current_word = buffer.current_word().unwrap_or_else(|| "".to_owned());
-        let snapshot = buffer.take_snapshot();
+        let opened_file = ctx.editor.current_file().read();
+        let current_word = opened_file
+            .buffer
+            .current_word()
+            .unwrap_or_else(|| "".to_owned());
+        let snapshot = opened_file.buffer.take_snapshot();
 
         tokio::spawn(update_completion(
             ctx.event_tx.clone(),
             selector,
             current_word,
             ctx.editor.syncd().clone(),
-            ctx.editor.current_buffer().clone(),
+            ctx.editor.current_file().clone(),
             snapshot,
             ctx.editor.workspace_dir().to_owned(),
         ));
@@ -126,16 +130,19 @@ impl Surface for CompletionSurface {
         // const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
         if matches!(key.code, KeyCode::Char(_)) {
-            let buffer = ctx.editor.current_buffer().read();
-            let current_word = buffer.current_word().unwrap_or_else(|| "".to_owned());
-            let snapshot = buffer.take_snapshot();
+            let opened_file = ctx.editor.current_file().read();
+            let current_word = opened_file
+                .buffer
+                .current_word()
+                .unwrap_or_else(|| "".to_owned());
+            let snapshot = opened_file.buffer.take_snapshot();
 
             tokio::spawn(update_completion(
                 ctx.event_tx.clone(),
                 self.selector.clone(),
                 current_word,
                 ctx.editor.syncd().clone(),
-                ctx.editor.current_buffer().clone(),
+                ctx.editor.current_file().clone(),
                 snapshot,
                 ctx.editor.workspace_dir().to_owned(),
             ));
@@ -166,10 +173,10 @@ impl Surface for CompletionSurface {
                             insert_text,
                             display_text,
                         } => {
-                            let mut buffer = ctx.editor.current_buffer().write();
-                            if let Some(range) = buffer.current_word_range() {
-                                buffer.select_by_ranges(&[range]);
-                                buffer.insert(match insert_text {
+                            let mut opened_file = ctx.editor.current_file().write();
+                            if let Some(range) = opened_file.buffer.current_word_range() {
+                                opened_file.buffer.select_by_ranges(&[range]);
+                                opened_file.buffer.insert(match insert_text {
                                     Some(insert_text) => insert_text,
                                     None => display_text,
                                 });
@@ -200,7 +207,7 @@ async fn update_completion(
     selector: Arc<Mutex<Selector<Item>>>,
     query: String,
     syncd: Arc<tokio::sync::Mutex<SyncdClient>>,
-    buffer: Arc<RwLock<Buffer>>,
+    opened_file: Arc<RwLock<OpenedFile>>,
     snapshot: Arc<Snapshot>,
     workspace_dir: PathBuf,
 ) {
@@ -231,13 +238,13 @@ async fn update_completion(
         let mut results = FuzzySet::with_capacity(32);
 
         let (lang, req) = {
-            let buffer = buffer.read();
-            match buffer.path_for_lsp(&workspace_dir) {
+            let opened_file = opened_file.read();
+            match opened_file.buffer.path_for_lsp(&workspace_dir) {
                 Some(path) => (
-                    buffer.lang(),
+                    opened_file.buffer.lang(),
                     LspRequest::Completion {
                         path,
-                        position: buffer.main_cursor_pos(),
+                        position: opened_file.buffer.main_cursor_pos(),
                     },
                 ),
                 None => return results,

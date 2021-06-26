@@ -17,6 +17,7 @@ use std::{
 use tokio::sync::Mutex;
 
 use noa_buffer::{Buffer, BufferId};
+use noa_langs::tree_sitter;
 
 const SCRATCH_TEXT: &str = "\
 ;; This is the scratch buffer: you can't save it into a file.
@@ -34,11 +35,16 @@ pub enum UserMessage {
     Error(String),
 }
 
+pub struct OpenedFile {
+    pub buffer: Buffer,
+    pub syntax_highlight: Option<tree_sitter::Tree>,
+}
+
 pub struct Editor {
     exited: bool,
     workspace_dir: PathBuf,
-    current_buffer: Arc<RwLock<Buffer>>,
-    buffers: Vec<Arc<RwLock<Buffer>>>,
+    current_buffer: Arc<RwLock<OpenedFile>>,
+    buffers: Vec<Arc<RwLock<OpenedFile>>>,
     path2id: HashMap<PathBuf, BufferId>,
     views: HashMap<BufferId, parking_lot::Mutex<View>>,
     syncd: Arc<Mutex<SyncdClient>>,
@@ -51,7 +57,10 @@ impl Editor {
         scratch.set_name("*scratch*");
         let mut views = HashMap::new();
         views.insert(scratch.id(), parking_lot::Mutex::new(View::new()));
-        let scratch_buffer = Arc::new(RwLock::new(scratch));
+        let scratch_buffer = Arc::new(RwLock::new(OpenedFile {
+            buffer: scratch,
+            syntax_highlight: None,
+        }));
 
         let buffers = vec![scratch_buffer.clone()];
         let workspace_dir = workspace_dir
@@ -93,7 +102,7 @@ impl Editor {
         &self.syncd
     }
 
-    pub fn current_buffer(&self) -> &Arc<RwLock<Buffer>> {
+    pub fn current_file(&self) -> &Arc<RwLock<OpenedFile>> {
         &self.current_buffer
     }
 
@@ -146,7 +155,7 @@ impl Editor {
         let (buffer, buffer_id) = match Buffer::open_file(&abspath) {
             Ok(buffer) => {
                 let id = buffer.id();
-                (Arc::new(RwLock::new(buffer)), id)
+                (buffer, id)
             }
             Err(err) => {
                 self.error(format!(
@@ -158,18 +167,22 @@ impl Editor {
             }
         };
 
-        self.buffers.push(buffer.clone());
+        let opened_file = Arc::new(RwLock::new(OpenedFile {
+            buffer,
+            syntax_highlight: None,
+        }));
+        self.buffers.push(opened_file.clone());
         self.path2id.insert(abspath, buffer_id);
         self.views
             .insert(buffer_id, parking_lot::Mutex::new(View::new()));
-        self.current_buffer = buffer.clone();
+        self.current_buffer = opened_file.clone();
 
         // Tell the LSP server about the newly opened file.
         let asyncd = self.syncd.clone();
-        let buffer = buffer.read();
-        let path = buffer.path().unwrap().to_path_buf();
-        let text = buffer.text();
-        let lang = buffer.lang();
+        let opened_file = opened_file.read();
+        let path = opened_file.buffer.path().unwrap().to_path_buf();
+        let text = opened_file.buffer.text();
+        let lang = opened_file.buffer.lang();
         tokio::spawn(async move {
             match asyncd
                 .lock()
@@ -186,25 +199,26 @@ impl Editor {
     }
 
     pub fn save_current_buffer(&self) {
-        if let Err(err) = self.current_buffer.write().save() {
+        if let Err(err) = self.current_buffer.write().buffer.save() {
             self.error(format!("{}", err));
         }
     }
 
-    pub fn dirty_buffers(&self) -> Vec<Arc<RwLock<Buffer>>> {
+    pub fn dirty_buffers(&self) -> Vec<Arc<RwLock<OpenedFile>>> {
         let mut buffers = Vec::new();
-        for buffer_lock in &self.buffers {
-            let buffer = buffer_lock.read();
+        for opened_file_lock in &self.buffers {
+            let opened_file = opened_file_lock.read();
+            let buffer = &opened_file.buffer;
             if buffer.is_dirty() && !buffer.is_virtual_file() {
-                buffers.push(buffer_lock.clone());
+                buffers.push(opened_file_lock.clone());
             }
         }
         buffers
     }
 
     pub fn save_all(&self) {
-        for buffer in self.dirty_buffers() {
-            if let Err(err) = buffer.write().save() {
+        for opened_file in self.dirty_buffers() {
+            if let Err(err) = opened_file.write().buffer.save() {
                 self.error(format!("{}", err));
             }
         }

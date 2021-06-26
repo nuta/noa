@@ -1,5 +1,4 @@
 use log::LevelFilter;
-use noa_buffer::Buffer;
 use noa_common::{
     dirs::{backup_dir, log_file_path},
     syncd_protocol::LspRequest,
@@ -24,6 +23,7 @@ use tokio::{
 };
 
 use crate::{
+    editor::OpenedFile,
     surfaces::{BottomBarSurface, BufferSurface},
     syncd_client::SyncdClient,
     terminal::Terminal,
@@ -128,7 +128,7 @@ async fn main() {
     }
 
     // Register the event handler on file updates.
-    let (file_updated_tx, file_updated_rx) = unbounded_channel::<Arc<RwLock<Buffer>>>();
+    let (file_updated_tx, file_updated_rx) = unbounded_channel::<Arc<RwLock<OpenedFile>>>();
     tokio::spawn(on_file_change(
         file_updated_rx,
         editor.workspace_dir().to_path_buf(),
@@ -152,7 +152,7 @@ async fn main() {
         match timeout(Duration::from_millis(400), event_rx.recv()).await {
             Ok(Some(ev)) => {
                 let started_at = Instant::now();
-                let prev_ver = editor.current_buffer().read().id_and_version();
+                let prev_ver = editor.current_file().read().buffer.id_and_version();
 
                 let mut ctx = Context {
                     editor: &mut editor,
@@ -165,10 +165,10 @@ async fn main() {
                     compositor.handle_event(&mut ctx, ev);
                 }
 
-                let new_ver = editor.current_buffer().read().id_and_version();
+                let new_ver = editor.current_file().read().buffer.id_and_version();
                 if prev_ver != new_ver {
                     // Switched or modified the current buffer.
-                    file_updated_tx.send(editor.current_buffer().clone()).ok();
+                    file_updated_tx.send(editor.current_file().clone()).ok();
                 }
 
                 updated = true;
@@ -182,9 +182,9 @@ async fn main() {
             }
             Err(_) if updated => {
                 // Idle.
-                let mut buffer = editor.current_buffer().write();
-                buffer.update_backup(&backup_dir);
-                buffer.mark_undo_point();
+                let mut opened_file = editor.current_file().write();
+                opened_file.buffer.update_backup(&backup_dir);
+                opened_file.buffer.mark_undo_point();
                 updated = false;
             }
             Err(_) => {}
@@ -195,20 +195,20 @@ async fn main() {
 }
 
 async fn on_file_change(
-    mut rx: UnboundedReceiver<Arc<RwLock<Buffer>>>,
+    mut rx: UnboundedReceiver<Arc<RwLock<OpenedFile>>>,
     workspace_dir: PathBuf,
     syncd: Arc<Mutex<SyncdClient>>,
 ) {
-    while let Some(buffer_lock) = rx.recv().await {
+    while let Some(opend_file) = rx.recv().await {
         let (lang, file_modified_req) = {
-            let buffer = buffer_lock.read();
-            match buffer.path_for_lsp(&workspace_dir) {
+            let opend_file = opend_file.read();
+            match opend_file.buffer.path_for_lsp(&workspace_dir) {
                 Some(path) => (
-                    buffer.lang(),
+                    opend_file.buffer.lang(),
                     LspRequest::UpdateFile {
                         path,
-                        version: buffer.version(),
-                        text: buffer.text(),
+                        version: opend_file.buffer.version(),
+                        text: opend_file.buffer.text(),
                     },
                 ),
                 None => continue,

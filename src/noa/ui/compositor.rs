@@ -93,7 +93,7 @@ impl Compositor {
 
     pub fn render_to_terminal(&mut self, ctx: &mut Context) {
         // Re-layout layers.
-        let cursor_pos = ctx.editor.current_buffer().read().main_cursor_pos();
+        let cursor_pos = ctx.editor.current_file().read().buffer.main_cursor_pos();
         for layer in &mut self.layers {
             let mut layer = layer.lock();
             let ((screen_y, screen_x), rect_size) =
