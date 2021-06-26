@@ -43,8 +43,8 @@ pub struct OpenedFile {
 pub struct Editor {
     exited: bool,
     workspace_dir: PathBuf,
-    current_buffer: Arc<RwLock<OpenedFile>>,
-    buffers: Vec<Arc<RwLock<OpenedFile>>>,
+    current_file: Arc<RwLock<OpenedFile>>,
+    files: Vec<Arc<RwLock<OpenedFile>>>,
     path2id: HashMap<PathBuf, BufferId>,
     views: HashMap<BufferId, parking_lot::Mutex<View>>,
     syncd: Arc<Mutex<SyncdClient>>,
@@ -62,7 +62,7 @@ impl Editor {
             syntax_highlight: None,
         }));
 
-        let buffers = vec![scratch_buffer.clone()];
+        let files = vec![scratch_buffer.clone()];
         let workspace_dir = workspace_dir
             .canonicalize()
             .with_context(|| format!("failed to resolve workdir: {}", workspace_dir.display()))
@@ -73,8 +73,8 @@ impl Editor {
         Editor {
             exited: false,
             workspace_dir,
-            current_buffer: scratch_buffer,
-            buffers,
+            current_file: scratch_buffer,
+            files,
             path2id: HashMap::new(),
             views,
             syncd: Arc::new(Mutex::new(syncd)),
@@ -103,7 +103,7 @@ impl Editor {
     }
 
     pub fn current_file(&self) -> &Arc<RwLock<OpenedFile>> {
-        &self.current_buffer
+        &self.current_file
     }
 
     pub fn view(&self, buffer: &Buffer) -> parking_lot::MutexGuard<'_, View> {
@@ -171,11 +171,11 @@ impl Editor {
             buffer,
             syntax_highlight: None,
         }));
-        self.buffers.push(opened_file.clone());
+        self.files.push(opened_file.clone());
         self.path2id.insert(abspath, buffer_id);
         self.views
             .insert(buffer_id, parking_lot::Mutex::new(View::new()));
-        self.current_buffer = opened_file.clone();
+        self.current_file = opened_file.clone();
 
         // Tell the LSP server about the newly opened file.
         let asyncd = self.syncd.clone();
@@ -199,14 +199,14 @@ impl Editor {
     }
 
     pub fn save_current_buffer(&self) {
-        if let Err(err) = self.current_buffer.write().buffer.save() {
+        if let Err(err) = self.current_file.write().buffer.save() {
             self.error(format!("{}", err));
         }
     }
 
     pub fn dirty_buffers(&self) -> Vec<Arc<RwLock<OpenedFile>>> {
         let mut buffers = Vec::new();
-        for opened_file_lock in &self.buffers {
+        for opened_file_lock in &self.files {
             let opened_file = opened_file_lock.read();
             let buffer = &opened_file.buffer;
             if buffer.is_dirty() && !buffer.is_virtual_file() {

@@ -16,13 +16,13 @@ pub struct Lang {
     pub filenames: &'static [&'static str],
     pub extensions: &'static [&'static str],
     pub lsp: Option<Lsp>,
-    tree_sitter_lib: Option<unsafe extern "C" fn() -> ::tree_sitter::Language>,
+    tree_sitter_lib: Option<unsafe extern "C" fn() -> tree_sitter::Language>,
 }
 
 impl Lang {
-    pub fn tree_sitter(&self) -> Option<::tree_sitter::Parser> {
+    pub fn parse_syntax_highlighting(&self) -> Option<tree_sitter::Parser> {
         self.tree_sitter_lib.as_ref().and_then(|lib| {
-            let mut parser = ::tree_sitter::Parser::new();
+            let mut parser = tree_sitter::Parser::new();
             match parser.set_language(unsafe { lib() }) {
                 Ok(()) => Some(parser),
                 Err(err) => {
