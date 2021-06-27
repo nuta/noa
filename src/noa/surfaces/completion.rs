@@ -109,7 +109,7 @@ impl Surface for CompletionSurface {
 
             let y = 1 + i;
             let x = 1;
-            canvas.draw_str(y, x, truncate_to_width(&text, canvas.width() - 1));
+            canvas.draw_str(y, x, truncate_to_width(text, canvas.width() - 1));
 
             if active {
                 let attrs = [Attribute::Underlined, Attribute::Bold];

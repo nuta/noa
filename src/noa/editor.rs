@@ -58,7 +58,7 @@ impl OpenedFile {
     pub fn highlight_from_tree_sitter(&mut self) {
         if let Some(ref tree) = self.syntax_highlight {
             self.view
-                .highlight_from_tree_sitter(self.buffer.lang(), &tree);
+                .highlight_from_tree_sitter(self.buffer.lang(), tree);
         }
     }
 }

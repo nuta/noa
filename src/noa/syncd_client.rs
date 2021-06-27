@@ -216,5 +216,5 @@ async fn try_to_connect(sock_path: &Path) -> Result<UnixStream> {
         sleep(Duration::from_millis(30 * i)).await;
     }
 
-    return Err(last_err.unwrap().into());
+    Err(last_err.unwrap().into())
 }

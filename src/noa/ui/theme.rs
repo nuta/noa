@@ -7,7 +7,7 @@ pub struct Theme {
     pub bottom_bar_text: Style,
 }
 
-pub const DEFAULT_THEME: &'static Theme = &Theme {
+pub const DEFAULT_THEME: &Theme = &Theme {
     bottom_bar_text: Style {
         fg: Color::White,
         bg: Color::Grey,

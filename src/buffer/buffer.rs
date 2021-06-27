@@ -17,7 +17,7 @@ fn remove_range(
     new_cursors: &mut Vec<Cursor>,
 ) {
     // Remove the text in the range.
-    buf.remove(&range);
+    buf.remove(range);
 
     // Move cursors after the current cursor.
     let front = range.front();
@@ -205,10 +205,10 @@ impl Buffer {
         match self.path() {
             // Ignore files that're not under the workspace directory.
             Some(path) if path.starts_with(&workspace_dir) => {
-                return Some(path.to_owned());
+                Some(path.to_owned())
             }
             _ => {
-                return None;
+                None
             }
         }
     }
@@ -230,7 +230,7 @@ impl Buffer {
     }
 
     pub fn modified_line(&self) -> &Option<usize> {
-        &self.rope.modified_line()
+        self.rope.modified_line()
     }
 
     pub fn version(&self) -> usize {
@@ -367,7 +367,7 @@ impl Buffer {
                 Cursor::Selection(Range { start, .. }) => start,
             };
 
-            let new_pos = self.rope.prev_word_end(&pos);
+            let new_pos = self.rope.prev_word_end(pos);
             *cursor = Cursor::new(new_pos.y, new_pos.x);
         }
 
@@ -381,7 +381,7 @@ impl Buffer {
                 Cursor::Selection(Range { start, .. }) => start,
             };
 
-            let new_pos = self.rope.next_word_end(&pos);
+            let new_pos = self.rope.next_word_end(pos);
             *cursor = Cursor::new(new_pos.y, new_pos.x);
         }
 
@@ -479,7 +479,7 @@ impl Buffer {
             };
 
             if let Some(remove) = remove {
-                self.rope.remove(&remove);
+                self.rope.remove(remove);
             }
 
             // Handle insertion at the end of file.

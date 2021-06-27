@@ -102,7 +102,7 @@ impl Surface for BottomBarSurface {
             let text = truncate_to_width(text, canvas.width());
             let text_width = text.display_width();
             let x = canvas.width() - text_width;
-            canvas.draw_str(1, x, &text);
+            canvas.draw_str(1, x, text);
             canvas.set_fg(1, x, x + text_width, color);
         }
     }

@@ -59,7 +59,7 @@ impl FinderSurface {
     fn select(&self, ctx: &mut Context, item: &Item) {
         match item {
             Item::File(path) => {
-                ctx.editor.open_file(&path);
+                ctx.editor.open_file(path);
             }
         }
     }
@@ -119,7 +119,7 @@ impl Surface for FinderSurface {
                 Item::File(path) => path.to_str().unwrap(),
             };
 
-            inner.draw_str(1 + i, 0, &title);
+            inner.draw_str(1 + i, 0, title);
             if active {
                 let attrs = [Attribute::Underlined, Attribute::Bold];
                 inner.set_attrs(1 + i, 1, inner.width(), (&attrs[..]).into());

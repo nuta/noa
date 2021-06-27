@@ -121,9 +121,7 @@ impl Surface for PromptSurface {
 
         // Message.
         if let Some(message) = &self.message {
-            let text = match message {
-                PromptMessage::Error(text) => (text),
-            };
+            let PromptMessage::Error(text) = message;
 
             canvas.draw_str(4, 0, text);
         }

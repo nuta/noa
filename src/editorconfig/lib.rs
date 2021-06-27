@@ -165,14 +165,14 @@ fn matches_pattern(pattern: &str, path: &str) -> bool {
     }
 
     if pattern.starts_with("**") {
-        return matches_pattern(&pattern, skip(path, 1))
+        return matches_pattern(pattern, skip(path, 1))
             || matches_pattern(skip(pattern, 2), skip(path, 1))
             || matches_pattern(skip(pattern, 2), path);
     } else if pattern.starts_with('*') {
         if path.starts_with('/') {
             return matches_pattern(skip(pattern, 1), path);
         } else {
-            return matches_pattern(&pattern, skip(path, 1))
+            return matches_pattern(pattern, skip(path, 1))
                 || matches_pattern(skip(pattern, 1), skip(path, 1))
                 || matches_pattern(skip(pattern, 1), path);
         }

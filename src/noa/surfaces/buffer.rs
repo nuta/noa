@@ -364,7 +364,7 @@ impl Surface for BufferSurface {
         _compositor: &mut Compositor,
         input: &str,
     ) -> HandledEvent {
-        ctx.editor.current_file().write().buffer.insert(&input);
+        ctx.editor.current_file().write().buffer.insert(input);
         HandledEvent::Consumed
     }
 
