@@ -52,7 +52,7 @@ impl View {
             trace!("\t: {} [{:?}]", node.kind(), node.range());
             let mut node_cursor = node.walk();
             if node.child_count() > 0 {
-                self.walk_tree_node(parent, &mut node_cursor);
+                self.walk_tree_node(node, &mut node_cursor);
             }
         }
     }
