@@ -16,11 +16,12 @@ use structopt::StructOpt;
 use surfaces::CompletionSurface;
 use tokio::{
     sync::{
-        mpsc::{unbounded_channel, UnboundedReceiver},
+        mpsc::{unbounded_channel, UnboundedSender},
         Mutex,
     },
     time::timeout,
 };
+use ui::Event;
 
 use crate::{
     editor::OpenedFile,
@@ -100,7 +101,7 @@ async fn main() {
     };
 
     // Initialize editor components.
-    let mut editor = editor::Editor::new(workspace_dir);
+    let mut editor = editor::Editor::new(&workspace_dir);
     let (event_tx, mut event_rx) = unbounded_channel();
 
     let theme = DEFAULT_THEME;
@@ -127,12 +128,9 @@ async fn main() {
         editor.open_file(file);
     }
 
-    // Register the event handler on file updates.
-    let (file_updated_tx, file_updated_rx) = unbounded_channel::<Arc<RwLock<OpenedFile>>>();
-    tokio::spawn(on_file_change(
-        file_updated_rx,
-        editor.workspace_dir().to_path_buf(),
-        editor.syncd().clone(),
+    tokio::spawn(update_highlight(
+        editor.current_file().clone(),
+        event_tx.clone(),
     ));
 
     // The main event loop.
@@ -168,7 +166,15 @@ async fn main() {
                 let new_ver = editor.current_file().read().buffer.id_and_version();
                 if prev_ver != new_ver {
                     // Switched or modified the current buffer.
-                    file_updated_tx.send(editor.current_file().clone()).ok();
+                    tokio::spawn(update_highlight(
+                        editor.current_file().clone(),
+                        event_tx.clone(),
+                    ));
+                    tokio::spawn(sync_file_with_lsp(
+                        editor.current_file().clone(),
+                        workspace_dir.clone(),
+                        editor.syncd().clone(),
+                    ));
                 }
 
                 updated = true;
@@ -182,9 +188,17 @@ async fn main() {
             }
             Err(_) if updated => {
                 // Idle.
-                let mut opened_file = editor.current_file().write();
-                opened_file.buffer.update_backup(&backup_dir);
-                opened_file.buffer.mark_undo_point();
+
+                {
+                    let f = editor.current_file().read();
+                    f.buffer.update_backup(&backup_dir);
+                }
+
+                {
+                    let mut f = editor.current_file().write();
+                    f.buffer.mark_undo_point();
+                }
+
                 updated = false;
             }
             Err(_) => {}
@@ -194,36 +208,50 @@ async fn main() {
     trace!("exiting the editor");
 }
 
-async fn on_file_change(
-    mut rx: UnboundedReceiver<Arc<RwLock<OpenedFile>>>,
+async fn update_highlight(switch_to: Arc<RwLock<OpenedFile>>, tx: UnboundedSender<Event>) {
+    let (rope, mut parser) = {
+        let f = switch_to.read();
+        let rope = f.buffer.rope().clone();
+        let parser = match f.buffer.lang().syntax_highlighting_parser() {
+            Some(parser) => parser,
+            None => return,
+        };
+        (rope, parser)
+    };
+
+    if let Some(tree) = parser.parse(rope.text(), None) {
+        switch_to.write().syntax_highlight = Some(tree);
+    }
+
+    tx.send(Event::ReDraw).ok();
+}
+
+async fn sync_file_with_lsp(
+    opened_file: Arc<RwLock<OpenedFile>>,
     workspace_dir: PathBuf,
     syncd: Arc<Mutex<SyncdClient>>,
 ) {
-    while let Some(opened_file) = rx.recv().await {
-        let (lang, file_modified_req) = {
-            let opend_file = opened_file.read();
-            match opend_file.buffer.path_for_lsp(&workspace_dir) {
-                Some(path) => (
-                    opend_file.buffer.lang(),
-                    LspRequest::UpdateFile {
-                        path,
-                        version: opend_file.buffer.version(),
-                        text: opend_file.buffer.text(),
-                    },
-                ),
-                None => continue,
-            }
-        };
-
-        if let Err(err) = syncd
-            .lock()
-            .await
-            .call_lsp_method(lang, file_modified_req)
-            .await
-        {
-            warn!("failed to send UpdateFile request: {}", err);
+    let (lang, file_modified_req) = {
+        let opend_file = opened_file.read();
+        match opend_file.buffer.path_for_lsp(&workspace_dir) {
+            Some(path) => (
+                opend_file.buffer.lang(),
+                LspRequest::UpdateFile {
+                    path,
+                    version: opend_file.buffer.version(),
+                    text: opend_file.buffer.text(),
+                },
+            ),
+            None => return,
         }
-    }
+    };
 
-    trace!("exiting file update handler");
+    if let Err(err) = syncd
+        .lock()
+        .await
+        .call_lsp_method(lang, file_modified_req)
+        .await
+    {
+        warn!("failed to send UpdateFile request: {}", err);
+    }
 }

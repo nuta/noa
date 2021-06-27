@@ -104,9 +104,13 @@ impl Surface for BufferSurface {
     fn render<'a>(&mut self, ctx: &mut Context, mut canvas: CanvasViewMut<'a>) {
         canvas.clear();
 
-        let mut f = ctx.editor.current_file().write();
-        f.layout_view(0, canvas.height(), canvas.width());
-        f.update_syntax_highlight();
+        {
+            let mut f = ctx.editor.current_file().write();
+            f.layout_view(0, canvas.height(), canvas.width());
+            f.highlight_from_tree_sitter();
+        }
+
+        let f = ctx.editor.current_file().read();
 
         let max_lineno_width = f.buffer.num_lines().display_width() + 1;
         let text_start_x = max_lineno_width + 1;
@@ -372,7 +376,7 @@ impl Surface for BufferSurface {
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
 
-        let mut opened_file = ctx.editor.current_file().write();
+        let mut f = ctx.editor.current_file().write();
 
         let MouseEvent {
             kind,
@@ -383,7 +387,7 @@ impl Surface for BufferSurface {
 
         let buffer_pos = match (display_x as usize)
             .checked_sub(self.text_start_x)
-            .and_then(|x| opened_file.view.display_pos_to_point(display_y as usize, x))
+            .and_then(|x| f.view.display_pos_to_point(display_y as usize, x))
         {
             Some(pos) => pos,
             None => return HandledEvent::Ignored,
@@ -397,9 +401,10 @@ impl Surface for BufferSurface {
             (NONE, MouseEventKind::Drag(MouseButton::Left)) => {
                 match self.selection_start {
                     Some(start) if start != buffer_pos => {
-                        opened_file.buffer.set_cursors(vec![Cursor::Selection(
-                            Range::from_points(start, buffer_pos),
-                        )]);
+                        f.buffer
+                            .set_cursors(vec![Cursor::Selection(Range::from_points(
+                                start, buffer_pos,
+                            ))]);
                     }
                     _ => {}
                 }
@@ -408,8 +413,7 @@ impl Surface for BufferSurface {
             }
             (NONE, MouseEventKind::Up(MouseButton::Left)) => {
                 if matches!(self.selection_start, Some(start) if start == buffer_pos) {
-                    opened_file
-                        .buffer
+                    f.buffer
                         .set_cursors(vec![Cursor::new(buffer_pos.y, buffer_pos.x)]);
                 }
 

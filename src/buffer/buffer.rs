@@ -213,6 +213,10 @@ impl Buffer {
         }
     }
 
+    pub fn rope(&self) -> &Rope {
+        &self.rope
+    }
+
     pub fn text(&self) -> String {
         self.rope.text()
     }

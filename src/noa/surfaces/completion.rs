@@ -173,10 +173,10 @@ impl Surface for CompletionSurface {
                             insert_text,
                             display_text,
                         } => {
-                            let mut opened_file = ctx.editor.current_file().write();
-                            if let Some(range) = opened_file.buffer.current_word_range() {
-                                opened_file.buffer.select_by_ranges(&[range]);
-                                opened_file.buffer.insert(match insert_text {
+                            let mut f = ctx.editor.current_file().write();
+                            if let Some(range) = f.buffer.current_word_range() {
+                                f.buffer.select_by_ranges(&[range]);
+                                f.buffer.insert(match insert_text {
                                     Some(insert_text) => insert_text,
                                     None => display_text,
                                 });

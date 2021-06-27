@@ -55,12 +55,10 @@ impl OpenedFile {
             .expand_selections(&mut self.buffer, y_diff, x_diff);
     }
 
-    pub fn update_syntax_highlight(&mut self) {
-        if let Some(mut parser) = self.buffer.lang().syntax_highlighting_parser() {
-            let snapshot = self.buffer.take_snapshot();
-            if let Some(tree) = parser.parse(snapshot.text(), None) {
-                self.view.consume_tree(self.buffer.lang(), &tree);
-            }
+    pub fn highlight_from_tree_sitter(&mut self) {
+        if let Some(ref tree) = self.syntax_highlight {
+            self.view
+                .highlight_from_tree_sitter(self.buffer.lang(), &tree);
         }
     }
 }
@@ -76,7 +74,7 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn new(workspace_dir: PathBuf) -> Editor {
+    pub fn new(workspace_dir: &Path) -> Editor {
         let mut scratch = Buffer::from_str(SCRATCH_TEXT);
         scratch.set_name("*scratch*");
         let scratch_buffer = Arc::new(RwLock::new(OpenedFile {

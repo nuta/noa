@@ -38,51 +38,6 @@ impl View {
         }
     }
 
-    pub fn walk_tree_node<'a, 'b, 'tree>(
-        &'a mut self,
-        lang: &'static Lang,
-        parent: tree_sitter::Node<'tree>,
-        cursor: &'b mut tree_sitter::TreeCursor<'tree>,
-    ) {
-        for node in parent.children(cursor) {
-            let start_position = node.start_position();
-            let end_position = node.end_position();
-            if end_position.row == start_position.row {
-                let start = Point::new(start_position.row, start_position.column);
-                let end = Point::new(end_position.row, end_position.column);
-
-                for line in &mut self.lines {
-                    if line.range.contains(start) && line.range.contains(end) {
-                        if let Some(highlight_type) =
-                            lang.tree_sitter_mapping.get(node.kind()).copied()
-                        {
-                            let range =
-                                (start.x - line.range.start.x)..(end.x - line.range.start.x);
-                            line.highlights.push(Highlight {
-                                range,
-                                highlight_type,
-                            });
-                        }
-                    }
-                }
-            }
-
-            let mut node_cursor = node.walk();
-            if node.child_count() > 0 {
-                self.walk_tree_node(lang, node, &mut node_cursor);
-            }
-        }
-    }
-
-    pub fn consume_tree<'tree>(
-        &mut self,
-        lang: &'static Lang,
-        tree: &'tree noa_langs::tree_sitter::Tree,
-    ) {
-        let root = tree.root_node();
-        self.walk_tree_node(lang, root, &mut root.walk());
-    }
-
     /// Returns `(screen_y, screen_x)`.
     pub fn point_to_display_pos(
         &self,
@@ -288,6 +243,51 @@ impl View {
         }
 
         new_pos
+    }
+
+    fn walk_ts_node<'a, 'b, 'tree>(
+        &'a mut self,
+        lang: &'static Lang,
+        parent: tree_sitter::Node<'tree>,
+        cursor: &'b mut tree_sitter::TreeCursor<'tree>,
+    ) {
+        for node in parent.children(cursor) {
+            let start_position = node.start_position();
+            let end_position = node.end_position();
+            if end_position.row == start_position.row {
+                let start = Point::new(start_position.row, start_position.column);
+                let end = Point::new(end_position.row, end_position.column);
+
+                for line in &mut self.lines {
+                    if line.range.contains(start) && line.range.contains(end) {
+                        if let Some(highlight_type) =
+                            lang.tree_sitter_mapping.get(node.kind()).copied()
+                        {
+                            let range =
+                                (start.x - line.range.start.x)..(end.x - line.range.start.x);
+                            line.highlights.push(Highlight {
+                                range,
+                                highlight_type,
+                            });
+                        }
+                    }
+                }
+            }
+
+            let mut node_cursor = node.walk();
+            if node.child_count() > 0 {
+                self.walk_ts_node(lang, node, &mut node_cursor);
+            }
+        }
+    }
+
+    pub fn highlight_from_tree_sitter<'tree>(
+        &mut self,
+        lang: &'static Lang,
+        tree: &'tree tree_sitter::Tree,
+    ) {
+        let root = tree.root_node();
+        self.walk_ts_node(lang, root, &mut root.walk());
     }
 }
 
