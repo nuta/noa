@@ -33,7 +33,7 @@ pub struct Lang {
 }
 
 impl Lang {
-    pub fn parse_syntax_highlighting(&self) -> Option<tree_sitter::Parser> {
+    pub fn syntax_highlighting_parser(&self) -> Option<tree_sitter::Parser> {
         self.tree_sitter_lib.as_ref().and_then(|lib| {
             let mut parser = tree_sitter::Parser::new();
             match parser.set_language(unsafe { lib() }) {

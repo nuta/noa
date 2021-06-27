@@ -56,7 +56,7 @@ impl OpenedFile {
     }
 
     pub fn update_syntax_highlight(&mut self) {
-        if let Some(mut parser) = self.buffer.lang().parse_syntax_highlighting() {
+        if let Some(mut parser) = self.buffer.lang().syntax_highlighting_parser() {
             let snapshot = self.buffer.take_snapshot();
             if let Some(tree) = parser.parse(snapshot.text(), None) {
                 self.view.consume_tree(self.buffer.lang(), &tree);
@@ -179,6 +179,7 @@ impl Editor {
             view: View::new(),
             syntax_highlight: None,
         }));
+
         self.files.push(opened_file.clone());
         self.path2id.insert(abspath, buffer_id);
         self.current_file = opened_file.clone();
@@ -188,7 +189,6 @@ impl Editor {
         let opened_file = opened_file.read();
         let path = opened_file.buffer.path().unwrap().to_path_buf();
         let text = opened_file.buffer.text();
-        let lang = opened_file.buffer.lang();
         tokio::spawn(async move {
             match asyncd
                 .lock()
