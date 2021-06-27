@@ -45,13 +45,6 @@ impl View {
         cursor: &'b mut tree_sitter::TreeCursor<'tree>,
     ) {
         for node in parent.children(cursor) {
-            trace!(
-                "[{:?} {:?}]: {}",
-                node.start_position(),
-                node.end_position(),
-                node.kind(),
-            );
-
             let start_position = node.start_position();
             let end_position = node.end_position();
             if end_position.row == start_position.row {
