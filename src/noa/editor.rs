@@ -189,6 +189,7 @@ impl Editor {
         let opened_file = opened_file.read();
         let path = opened_file.buffer.path().unwrap().to_path_buf();
         let text = opened_file.buffer.text();
+        let lang = opened_file.buffer.lang();
         tokio::spawn(async move {
             match asyncd
                 .lock()
