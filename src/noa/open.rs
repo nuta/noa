@@ -57,7 +57,6 @@ fn extract_path_and_point(
     }
 
     let cursor_i = cursor_i.expect("invalid mouse cursor position");
-
     let mut start = cursor_i + mouse_x;
     while start > 0 {
         match heystack.get(start) {
