@@ -10,9 +10,7 @@ use crossterm::{
         KeyEvent, KeyModifiers,
     },
     execute, queue,
-    style::{
-        Attribute, Print, SetAttribute, SetAttributes, SetBackgroundColor, SetForegroundColor,
-    },
+    style::{Attribute, Print, SetAttribute, SetBackgroundColor, SetForegroundColor},
     terminal::*,
 };
 use futures::StreamExt;
@@ -175,11 +173,11 @@ impl Drawer {
             DrawOp::BgColor(color) => {
                 queue!(self.stdout, SetBackgroundColor(*color)).ok();
             }
-            DrawOp::Reset => {
-                queue!(self.stdout, SetAttribute(Attribute::Reset)).ok();
+            DrawOp::Bold => {
+                queue!(self.stdout, SetAttribute(Attribute::Bold)).ok();
             }
-            DrawOp::Attributes(attrs) => {
-                queue!(self.stdout, SetAttributes(*attrs)).ok();
+            DrawOp::NoBold => {
+                queue!(self.stdout, SetAttribute(Attribute::NoBold)).ok();
             }
         }
     }

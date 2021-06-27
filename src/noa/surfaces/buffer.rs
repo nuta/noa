@@ -2,7 +2,7 @@ use std::cmp::{max, min};
 
 use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind},
-    style::{Attribute, Color},
+    style::Color,
 };
 use noa_buffer::{Cursor, Point, Range};
 use noa_langs::HighlightType;
@@ -11,8 +11,8 @@ use crate::{
     surfaces::{prompt::CallbackResult, yes_no::YesNoChoice, FinderSurface, YesNoSurface},
     terminal::copy_to_clipboard,
     ui::{
-        whitespaces, CanvasViewMut, Compositor, Context, DisplayWidth, HandledEvent, Layout,
-        RectSize, Surface,
+        whitespaces, CanvasViewMut, Compositor, Context, Decoration, DisplayWidth, HandledEvent,
+        Layout, RectSize, Surface,
     },
 };
 
@@ -189,7 +189,7 @@ impl Surface for BufferSurface {
                         text_start_x,
                         f.buffer.num_lines(),
                     );
-                    canvas.set_attrs(y, x, x + 1, (&[Attribute::Reverse][..]).into());
+                    canvas.set_deco(y, x, x + 1, Decoration::inverted());
                 }
                 Cursor::Selection(range) => {
                     let (start_y, start_x) = f.view.point_to_display_pos(
@@ -213,12 +213,7 @@ impl Surface for BufferSurface {
                             } else {
                                 text_start_x + lines_end_xs[y] + 1
                             };
-                            canvas.set_attrs(
-                                y,
-                                min(x0, x1),
-                                max(x0, x1),
-                                (&[Attribute::Reverse][..]).into(),
-                            );
+                            canvas.set_deco(y, min(x0, x1), max(x0, x1), Decoration::inverted());
                         }
                     }
                 }

@@ -6,7 +6,7 @@ mod theme;
 
 use std::cmp::min;
 
-pub use canvas::{Canvas, CanvasViewMut, DrawOp};
+pub use canvas::{Canvas, CanvasViewMut, Decoration, DrawOp};
 pub use compositor::{Compositor, Event};
 pub use display_width::DisplayWidth;
 pub use surface::{Context, HandledEvent, Layout, RectSize, Surface};

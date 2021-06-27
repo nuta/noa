@@ -563,7 +563,6 @@ dependencies = [
  "ropey",
  "serde",
  "serde_json",
- "simplelog",
  "structopt",
  "sublime_fuzzy",
  "tokio",

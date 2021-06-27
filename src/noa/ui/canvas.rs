@@ -1,5 +1,5 @@
 use arrayvec::ArrayString;
-use crossterm::style::{Attribute, Attributes, Color};
+use crossterm::style::Color;
 use noa_common::logger::backtrace;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -8,15 +8,40 @@ pub enum DrawOp<'a> {
     Grapheme(&'a str),
     FgColor(Color),
     BgColor(Color),
-    Attributes(Attributes),
-    Reset,
+    Bold,
+    NoBold,
 }
 
 #[derive(Clone, Debug)]
 pub struct Style {
     pub fg: Color,
     pub bg: Color,
-    pub attr: Attribute,
+    pub deco: Decoration,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
+pub struct Decoration {
+    pub bold: bool,
+    pub inverted: bool,
+    pub underline: bool,
+}
+
+impl Decoration {
+    pub const fn bold() -> Decoration {
+        Decoration {
+            bold: true,
+            inverted: false,
+            underline: false,
+        }
+    }
+
+    pub const fn inverted() -> Decoration {
+        Decoration {
+            bold: false,
+            inverted: true,
+            underline: false,
+        }
+    }
 }
 
 /// A character in the terminal screen.
@@ -27,7 +52,7 @@ pub struct Grapheme {
     grapheme: ArrayString<4>,
     fg: Color,
     bg: Color,
-    attrs: Attributes,
+    deco: Decoration,
 }
 
 impl Grapheme {
@@ -36,7 +61,7 @@ impl Grapheme {
             grapheme: ArrayString::from(grapheme).unwrap(),
             fg: Color::Reset,
             bg: Color::Reset,
-            attrs: Default::default(),
+            deco: Default::default(),
         }
     }
 
@@ -115,7 +140,7 @@ impl Canvas {
         let mut x = 0;
         let mut fg = Color::Reset;
         let mut bg = Color::Reset;
-        let mut attrs = Attributes::default();
+        let mut deco = Decoration::default();
         let mut needs_move = false;
         let mut ops = Vec::with_capacity(self.width() * self.height());
         for (new, old) in self.graphs.iter().zip(&other.graphs) {
@@ -137,10 +162,15 @@ impl Canvas {
                     bg = new.bg;
                 }
 
-                if new.attrs != attrs {
-                    ops.push(DrawOp::Reset);
-                    ops.push(DrawOp::Attributes(new.attrs));
-                    attrs = new.attrs;
+                if new.deco != deco {
+                    if new.deco.bold != deco.bold {
+                        ops.push(if new.deco.bold {
+                            DrawOp::Bold
+                        } else {
+                            DrawOp::NoBold
+                        });
+                    }
+                    deco = new.deco;
                 }
 
                 ops.push(DrawOp::Grapheme(&new.grapheme));
@@ -214,7 +244,7 @@ impl<'a> CanvasViewMut<'a> {
         ch: char,
         fg: Color,
         bg: Color,
-        attrs: Attributes,
+        deco: Decoration,
     ) {
         let mut grapheme = ArrayString::new();
         grapheme.push(ch);
@@ -226,7 +256,7 @@ impl<'a> CanvasViewMut<'a> {
                 grapheme,
                 fg,
                 bg,
-                attrs,
+                deco,
             },
         )
     }
@@ -238,10 +268,10 @@ impl<'a> CanvasViewMut<'a> {
         string: &str,
         fg: Color,
         bg: Color,
-        attrs: Attributes,
+        deco: Decoration,
     ) {
         for (i, ch) in string.chars().enumerate() {
-            self.set_char_with_attrs(y, x + i, ch, fg, bg, attrs);
+            self.set_char_with_attrs(y, x + i, ch, fg, bg, deco);
         }
     }
 
@@ -261,15 +291,15 @@ impl<'a> CanvasViewMut<'a> {
         self.update_range(y, x, y + 1, x_end, |graph| graph.bg = bg);
     }
 
-    pub fn set_attrs(&mut self, y: usize, x: usize, x_end: usize, attrs: Attributes) {
-        self.update_range(y, x, y + 1, x_end, |graph| graph.attrs.extend(attrs));
+    pub fn set_deco(&mut self, y: usize, x: usize, x_end: usize, deco: Decoration) {
+        self.update_range(y, x, y + 1, x_end, |graph| graph.deco = deco);
     }
 
     pub fn set_style(&mut self, y: usize, x: usize, x_end: usize, style: &Style) {
         self.update_range(y, x, y + 1, x_end, |graph| {
             graph.fg = style.fg;
             graph.bg = style.bg;
-            graph.attrs = style.attr.into();
+            graph.deco = style.deco;
         });
     }
 

@@ -1,6 +1,6 @@
-use crossterm::style::{Attribute, Color};
+use crossterm::style::Color;
 
-use super::canvas::Style;
+use super::{canvas::Style, Decoration};
 
 #[derive(Clone, Debug)]
 pub struct Theme {
@@ -11,6 +11,6 @@ pub const DEFAULT_THEME: &Theme = &Theme {
     bottom_bar_text: Style {
         fg: Color::White,
         bg: Color::Grey,
-        attr: Attribute::Reset,
+        deco: Decoration::inverted(),
     },
 };

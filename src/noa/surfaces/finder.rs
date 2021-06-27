@@ -4,10 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use crossterm::{
-    event::{KeyCode, KeyEvent, KeyModifiers},
-    style::Attribute,
-};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use tokio::{process::Command, sync::mpsc::UnboundedSender};
@@ -16,7 +13,10 @@ use crate::{
     fuzzy_set::FuzzySet,
     line_edit::LineEdit,
     selector::Selector,
-    ui::{CanvasViewMut, Compositor, Context, Event, HandledEvent, Layout, RectSize, Surface},
+    ui::{
+        CanvasViewMut, Compositor, Context, Decoration, Event, HandledEvent, Layout, RectSize,
+        Surface,
+    },
 };
 
 #[derive(Debug)]
@@ -121,8 +121,16 @@ impl Surface for FinderSurface {
 
             inner.draw_str(1 + i, 0, title);
             if active {
-                let attrs = [Attribute::Underlined, Attribute::Bold];
-                inner.set_attrs(1 + i, 1, inner.width(), (&attrs[..]).into());
+                inner.set_deco(
+                    1 + i,
+                    1,
+                    inner.width(),
+                    Decoration {
+                        bold: true,
+                        underline: true,
+                        ..Default::default()
+                    },
+                );
             }
         }
     }

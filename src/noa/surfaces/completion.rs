@@ -1,9 +1,6 @@
 use std::{cmp::max, path::PathBuf, sync::Arc};
 
-use crossterm::{
-    event::{KeyCode, KeyEvent, KeyModifiers},
-    style::Attribute,
-};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use noa_buffer::Snapshot;
 use noa_common::syncd_protocol::{LspRequest, LspResponse};
 use parking_lot::{Mutex, RwLock};
@@ -15,8 +12,8 @@ use crate::{
     selector::Selector,
     syncd_client::SyncdClient,
     ui::{
-        truncate_to_width, CanvasViewMut, Compositor, Context, DisplayWidth, Event, HandledEvent,
-        Layout, RectSize, Surface,
+        truncate_to_width, CanvasViewMut, Compositor, Context, Decoration, DisplayWidth, Event,
+        HandledEvent, Layout, RectSize, Surface,
     },
 };
 
@@ -112,8 +109,16 @@ impl Surface for CompletionSurface {
             canvas.draw_str(y, x, truncate_to_width(text, canvas.width() - 1));
 
             if active {
-                let attrs = [Attribute::Underlined, Attribute::Bold];
-                canvas.set_attrs(y, x, canvas.width() - 1, (&attrs[..]).into());
+                canvas.set_deco(
+                    y,
+                    x,
+                    canvas.width() - 1,
+                    Decoration {
+                        bold: true,
+                        underline: true,
+                        ..Default::default()
+                    },
+                );
             }
         }
     }

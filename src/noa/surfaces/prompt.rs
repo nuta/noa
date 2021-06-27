@@ -1,15 +1,12 @@
 use std::cmp::{max, min};
 
-use crossterm::{
-    event::{KeyCode, KeyEvent, KeyModifiers},
-    style::Attribute,
-};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::{
     line_edit::LineEdit,
     ui::{
-        truncate_to_width, CanvasViewMut, Compositor, Context, DisplayWidth, HandledEvent, Layout,
-        RectSize, Surface,
+        truncate_to_width, CanvasViewMut, Compositor, Context, Decoration, DisplayWidth,
+        HandledEvent, Layout, RectSize, Surface,
     },
 };
 
@@ -112,7 +109,7 @@ impl Surface for PromptSurface {
 
         // Title.
         inner.draw_str(0, 0, truncate_to_width(&self.title, inner.width()));
-        inner.set_attrs(0, 0, inner.width(), (&[Attribute::Bold][..]).into());
+        inner.set_deco(0, 0, inner.width(), Decoration::bold());
 
         // Prompt.
         inner.draw_str(2, 0, &self.prompt);
