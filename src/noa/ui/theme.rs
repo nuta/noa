@@ -11,6 +11,6 @@ pub const DEFAULT_THEME: &Theme = &Theme {
     bottom_bar_text: Style {
         fg: Color::White,
         bg: Color::Grey,
-        deco: Decoration::inverted(),
+        deco: Decoration::empty(),
     },
 };

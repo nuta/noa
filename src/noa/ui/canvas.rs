@@ -27,6 +27,14 @@ pub struct Decoration {
 }
 
 impl Decoration {
+    pub const fn empty() -> Decoration {
+        Decoration {
+            bold: false,
+            inverted: false,
+            underline: false,
+        }
+    }
+
     pub const fn bold() -> Decoration {
         Decoration {
             bold: true,
