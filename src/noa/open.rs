@@ -98,6 +98,18 @@ fn extract_path_and_point(
                 _ => {}
             }
         }
+        (Some(path), Some(lineno), None) => match (Path::new(path), lineno.parse::<usize>()) {
+            (path, Ok(lineno)) if path.exists() && lineno > 0 => {
+                return Some((path.to_owned(), Point::new(lineno - 1, 0)));
+            }
+            _ => {}
+        },
+        (Some(path), None, None) => {
+            let path = Path::new(path);
+            if path.exists() {
+                return Some((path.to_owned(), Point::new(0, 0)));
+            }
+        }
         _ => {}
     }
 
