@@ -36,6 +36,7 @@ extern crate pretty_assertions;
 mod editor;
 mod fuzzy_set;
 mod line_edit;
+mod open;
 mod selector;
 mod surfaces;
 mod syncd_client;
@@ -47,13 +48,31 @@ mod view;
 struct Opt {
     #[structopt(name = "FILE", parse(from_os_str))]
     files: Vec<PathBuf>,
+    #[structopt(long)]
+    open_path_in_tmux: bool,
+    #[structopt(long)]
+    tmux_pane: Option<String>,
+    #[structopt(long)]
+    tmux_mouse_y: Option<usize>,
+    #[structopt(long)]
+    tmux_mouse_x: Option<usize>,
 }
 
 #[tokio::main]
 async fn main() {
+    let opt = Opt::from_args();
+
+    if opt.open_path_in_tmux {
+        open::open_path_in_tmux(
+            opt.tmux_pane.expect("--tmux-pane is required").as_str(),
+            opt.tmux_mouse_y.expect("--tmux-mouse-y is required"),
+            opt.tmux_mouse_x.expect("--tmux-mouse-x is required"),
+        );
+        return;
+    }
+
     install_logger();
 
-    let opt = Opt::from_args();
     let workspace_dir = match opt.files.get(0) {
         Some(file_or_dir) if file_or_dir.is_dir() => file_or_dir.clone(),
         _ => current_dir().unwrap(),
