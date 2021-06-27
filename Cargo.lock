@@ -621,7 +621,6 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "backtrace",
  "futures",
  "jsonrpc-core",
  "libc",
@@ -633,7 +632,6 @@ dependencies = [
  "pretty_assertions",
  "serde",
  "serde_json",
- "simplelog",
  "structopt",
  "tokio",
 ]

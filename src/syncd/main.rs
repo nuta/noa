@@ -4,10 +4,8 @@ extern crate log;
 mod eventloop;
 mod lsp;
 
-use log::LevelFilter;
-use noa_common::{dirs::log_file_path, syncd_protocol::Notification};
-use simplelog::{CombinedLogger, Config, TermLogger, TerminalMode, WriteLogger};
-use std::{fs::OpenOptions, path::PathBuf};
+use noa_common::{logger::install_logger, syncd_protocol::Notification};
+use std::path::PathBuf;
 use structopt::StructOpt;
 use tokio::net::UnixStream;
 
@@ -27,30 +25,7 @@ struct Opt {
 
 #[tokio::main]
 async fn main() {
-    CombinedLogger::init(vec![
-        TermLogger::new(
-            LevelFilter::Trace,
-            Config::default(),
-            TerminalMode::Mixed,
-            simplelog::ColorChoice::Auto,
-        ),
-        WriteLogger::new(
-            LevelFilter::Trace,
-            Config::default(),
-            OpenOptions::new()
-                .append(true)
-                .create(true)
-                .open(log_file_path("syncd"))
-                .unwrap(),
-        ),
-    ])
-    .unwrap();
-
-    std::panic::set_hook(Box::new(move |info| {
-        error!("{}", info);
-        error!("{:#?}", backtrace::Backtrace::new());
-    }));
-
+    install_logger();
     trace!("starting");
 
     let opt = Opt::from_args();
