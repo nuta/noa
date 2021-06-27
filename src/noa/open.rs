@@ -90,6 +90,7 @@ fn extract_path_and_point(
     let lineno = words.next().map(|s| s.trim());
     let colno = words.next().map(|s| s.trim());
     match (path, lineno, colno) {
+        // foo.rs:10:5
         (Some(path), Some(lineno), Some(colno)) => {
             match (Path::new(path), lineno.parse::<usize>(), colno.parse()) {
                 (path, Ok(lineno), Ok(colno)) if path.exists() && lineno > 0 => {
@@ -98,12 +99,14 @@ fn extract_path_and_point(
                 _ => {}
             }
         }
+        // foo.rs:10
         (Some(path), Some(lineno), None) => match (Path::new(path), lineno.parse::<usize>()) {
             (path, Ok(lineno)) if path.exists() && lineno > 0 => {
                 return Some((path.to_owned(), Point::new(lineno - 1, 0)));
             }
             _ => {}
         },
+        // foo.rs
         (Some(path), None, None) => {
             let path = Path::new(path);
             if path.exists() {
