@@ -3,14 +3,9 @@ use std::cmp::{self, min};
 use std::ops;
 
 use noa_buffer::{Buffer, Cursor, Point, Range};
-use noa_langs::tree_sitter::{self};
+use noa_langs::{tree_sitter, HighlightType, Lang};
 
 use crate::ui::DisplayWidth;
-
-#[derive(Debug, Clone, Copy)]
-pub enum HighlightType {
-    Keyword,
-}
 
 #[derive(Debug, Clone)]
 pub struct Highlight {
@@ -24,7 +19,7 @@ pub struct DisplayLine {
     pub chunks: Vec<ops::Range<usize>>,
     /// The char indices in the whole buffer rope.
     pub range: Range,
-    pub highlight: Vec<Highlight>,
+    pub highlights: Vec<Highlight>,
 }
 
 pub struct View {
@@ -45,21 +40,54 @@ impl View {
 
     pub fn walk_tree_node<'a, 'b, 'tree>(
         &'a mut self,
+        lang: &'static Lang,
         parent: tree_sitter::Node<'tree>,
         cursor: &'b mut tree_sitter::TreeCursor<'tree>,
     ) {
         for node in parent.children(cursor) {
-            trace!("\t: {} [{:?}]", node.kind(), node.range());
+            trace!(
+                "[{:?} {:?}]: {}",
+                node.start_position(),
+                node.end_position(),
+                node.kind(),
+            );
+
+            let start_position = node.start_position();
+            let end_position = node.end_position();
+            if end_position.row == start_position.row {
+                let start = Point::new(start_position.row, start_position.column);
+                let end = Point::new(end_position.row, end_position.column);
+
+                for line in &mut self.lines {
+                    if line.range.contains(start) && line.range.contains(end) {
+                        if let Some(highlight_type) =
+                            lang.tree_sitter_mapping.get(node.kind()).copied()
+                        {
+                            let range =
+                                (start.x - line.range.start.x)..(end.x - line.range.start.x);
+                            line.highlights.push(Highlight {
+                                range,
+                                highlight_type,
+                            });
+                        }
+                    }
+                }
+            }
+
             let mut node_cursor = node.walk();
             if node.child_count() > 0 {
-                self.walk_tree_node(node, &mut node_cursor);
+                self.walk_tree_node(lang, node, &mut node_cursor);
             }
         }
     }
 
-    pub fn consume_tree<'tree>(&mut self, tree: &'tree noa_langs::tree_sitter::Tree) {
+    pub fn consume_tree<'tree>(
+        &mut self,
+        lang: &'static Lang,
+        tree: &'tree noa_langs::tree_sitter::Tree,
+    ) {
         let root = tree.root_node();
-        self.walk_tree_node(root, &mut root.walk());
+        self.walk_tree_node(lang, root, &mut root.walk());
     }
 
     /// Returns `(screen_y, screen_x)`.
@@ -134,7 +162,7 @@ impl View {
                 self.lines.push(DisplayLine {
                     chunks: vec![],
                     range: Range::from_points(Point::new(text_y, 0), Point::new(text_y, 0)),
-                    highlight: vec![],
+                    highlights: vec![],
                 });
             } else {
                 for mut chunk in line_rope.chunks() {
@@ -165,7 +193,7 @@ impl View {
                             self.lines.push(DisplayLine {
                                 chunks: spans,
                                 range: Range::from_points(front, Point::new(text_y, text_x)),
-                                highlight: vec![],
+                                highlights: vec![],
                             });
 
                             spans = Vec::new();
@@ -180,7 +208,7 @@ impl View {
                     self.lines.push(DisplayLine {
                         chunks: spans,
                         range: Range::from_points(front, Point::new(text_y, text_x)),
-                        highlight: vec![],
+                        highlights: vec![],
                     });
                 }
             }

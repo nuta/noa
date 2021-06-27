@@ -4,6 +4,8 @@ extern crate log;
 
 use std::hash::{Hash, Hasher};
 
+use phf::phf_map;
+
 pub mod tree_sitter;
 
 pub struct Lsp {
@@ -11,11 +13,22 @@ pub struct Lsp {
     pub command: &'static [&'static str],
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HighlightType {
+    Ident,
+    StringLiteral,
+    EscapeSequence,
+    PrimitiveType,
+    CMacro,
+    CIncludeArg,
+}
+
 pub struct Lang {
     pub id: &'static str,
     pub filenames: &'static [&'static str],
     pub extensions: &'static [&'static str],
     pub lsp: Option<Lsp>,
+    pub tree_sitter_mapping: phf::Map<&'static str, HighlightType>,
     tree_sitter_lib: Option<unsafe extern "C" fn() -> tree_sitter::Language>,
 }
 
@@ -56,6 +69,7 @@ pub const PLAIN: Lang = Lang {
     extensions: &[],
     lsp: None,
     tree_sitter_lib: None,
+    tree_sitter_mapping: phf_map! {},
 };
 
 pub const C: Lang = Lang {
@@ -67,4 +81,12 @@ pub const C: Lang = Lang {
         command: &["clangd", "-j=8", "--log=verbose", "--pretty"],
     }),
     tree_sitter_lib: Some(tree_sitter::tree_sitter_c),
+    tree_sitter_mapping: phf_map! {
+        "identifier" => HighlightType::Ident,
+        "string_literal" => HighlightType::StringLiteral,
+        "primitive_type" => HighlightType::PrimitiveType,
+        "escape_sequence" => HighlightType::EscapeSequence,
+        "preproc_include" => HighlightType::CMacro,
+        "system_lib_string" => HighlightType::CIncludeArg,
+    },
 };

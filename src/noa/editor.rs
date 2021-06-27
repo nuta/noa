@@ -59,7 +59,7 @@ impl OpenedFile {
         if let Some(mut parser) = self.buffer.lang().parse_syntax_highlighting() {
             let snapshot = self.buffer.take_snapshot();
             if let Some(tree) = parser.parse(snapshot.text(), None) {
-                self.view.consume_tree(&tree);
+                self.view.consume_tree(self.buffer.lang(), &tree);
             }
         }
     }

@@ -2,9 +2,10 @@ use std::cmp::{max, min};
 
 use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind},
-    style::Attribute,
+    style::{Attribute, Color},
 };
 use noa_buffer::{Cursor, Point, Range};
+use noa_langs::HighlightType;
 
 use crate::{
     surfaces::{prompt::CallbackResult, yes_no::YesNoChoice, FinderSurface, YesNoSurface},
@@ -105,6 +106,7 @@ impl Surface for BufferSurface {
 
         let mut f = ctx.editor.current_file().write();
         f.layout_view(0, canvas.height(), canvas.width());
+        f.update_syntax_highlight();
 
         let max_lineno_width = f.buffer.num_lines().display_width() + 1;
         let text_start_x = max_lineno_width + 1;
@@ -137,6 +139,23 @@ impl Surface for BufferSurface {
                 }
             }
 
+            // Highlights.
+            for h in &display_line.highlights {
+                let x_start = text_start_x + h.range.start;
+                let x_end = text_start_x + h.range.end;
+                let color = match h.highlight_type {
+                    HighlightType::Ident => Color::Magenta,
+                    HighlightType::StringLiteral => Color::Green,
+                    HighlightType::EscapeSequence => Color::Cyan,
+                    HighlightType::PrimitiveType => Color::Cyan,
+                    HighlightType::CMacro => Color::Magenta,
+                    HighlightType::CIncludeArg => Color::Green,
+                };
+
+                canvas.set_fg(y, x_start, x_end, color);
+            }
+
+            // Whitespaces after the line.
             canvas.draw_str(
                 y,
                 text_start_x + x,

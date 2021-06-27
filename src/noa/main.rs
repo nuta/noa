@@ -139,8 +139,6 @@ async fn main() {
     let backup_dir = backup_dir();
     let mut updated = false;
     while !editor.exited() {
-        editor.current_file().write().update_syntax_highlight();
-
         let mut ctx = Context {
             editor: &mut editor,
             event_tx: &event_tx,
