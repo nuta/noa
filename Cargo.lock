@@ -548,7 +548,6 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "arrayvec",
- "backtrace",
  "base64",
  "crossterm",
  "futures",
@@ -589,12 +588,14 @@ name = "noa_common"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "backtrace",
  "dirs",
  "log",
  "lsp-types",
  "noa_buffer",
  "once_cell",
  "serde",
+ "simplelog",
 ]
 
 [[package]]

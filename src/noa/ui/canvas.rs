@@ -1,5 +1,6 @@
 use arrayvec::ArrayString;
 use crossterm::style::{Attribute, Attributes, Color};
+use noa_common::logger::backtrace;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum DrawOp<'a> {
@@ -84,15 +85,10 @@ impl Canvas {
 
         if !in_bounds {
             warn!(
-                "out of bounds copy: dst_size=({}, {}), dst_pos=({}, {}), src_size=({}, {})\n{:?}",
-                self.height,
-                self.width,
-                y,
-                x,
-                other.height,
-                other.width,
-                backtrace::Backtrace::new()
+                "out of bounds copy: dst_size=({}, {}), dst_pos=({}, {}), src_size=({}, {})",
+                self.height, self.width, y, x, other.height, other.width,
             );
+            backtrace();
             return;
         }
 
@@ -201,13 +197,10 @@ impl<'a> CanvasViewMut<'a> {
         let in_bounds = y < self.height && x < self.width;
         if !in_bounds {
             warn!(
-                "out of bounds draw: (y, x) = ({}, {}), (height, width) = ({}, {})\n{:?}",
-                y,
-                x,
-                self.height,
-                self.width,
-                backtrace::Backtrace::new()
+                "out of bounds draw: (y, x) = ({}, {}), (height, width) = ({}, {})",
+                y, x, self.height, self.width,
             );
+            backtrace();
             return;
         }
 
@@ -287,13 +280,10 @@ impl<'a> CanvasViewMut<'a> {
         let in_bounds = y <= y_end && x <= x_end && y_end <= self.height && x_end <= self.width;
         if !in_bounds {
             warn!(
-                "out of bounds update_range: (y, x) = ({}-{}, {}-{}), (height, width) = ({}, {})\n{:?}",
-                y, y_end,
-                x, x_end,
-                self.height,
-                self.width,
-                backtrace::Backtrace::new()
+                "out of bounds update_range: (y, x) = ({}-{}, {}-{}), (height, width) = ({}, {})",
+                y, y_end, x, x_end, self.height, self.width,
             );
+            backtrace();
             return;
         }
 
