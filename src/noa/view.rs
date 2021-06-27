@@ -3,8 +3,20 @@ use std::cmp::{self, min};
 use std::ops;
 
 use noa_buffer::{Buffer, Cursor, Point, Range};
+use noa_langs::tree_sitter::{self};
 
 use crate::ui::DisplayWidth;
+
+#[derive(Debug, Clone, Copy)]
+pub enum HighlightType {
+    Keyword,
+}
+
+#[derive(Debug, Clone)]
+pub struct Highlight {
+    pub range: ops::Range<usize>,
+    pub highlight_type: HighlightType,
+}
 
 #[derive(Debug, Clone)]
 pub struct DisplayLine {
@@ -12,6 +24,7 @@ pub struct DisplayLine {
     pub chunks: Vec<ops::Range<usize>>,
     /// The char indices in the whole buffer rope.
     pub range: Range,
+    pub highlight: Vec<Highlight>,
 }
 
 pub struct View {
@@ -28,6 +41,25 @@ impl View {
             top_left: 0,
             height: 0,
         }
+    }
+
+    pub fn walk_tree_node<'a, 'b, 'tree>(
+        &'a mut self,
+        parent: tree_sitter::Node<'tree>,
+        cursor: &'b mut tree_sitter::TreeCursor<'tree>,
+    ) {
+        for node in parent.children(cursor) {
+            trace!("\t: {} [{:?}]", node.kind(), node.range());
+            let mut node_cursor = node.walk();
+            if node.child_count() > 0 {
+                self.walk_tree_node(parent, &mut node_cursor);
+            }
+        }
+    }
+
+    pub fn consume_tree<'tree>(&mut self, tree: &'tree noa_langs::tree_sitter::Tree) {
+        let root = tree.root_node();
+        self.walk_tree_node(root, &mut root.walk());
     }
 
     /// Returns `(screen_y, screen_x)`.
@@ -102,6 +134,7 @@ impl View {
                 self.lines.push(DisplayLine {
                     chunks: vec![],
                     range: Range::from_points(Point::new(text_y, 0), Point::new(text_y, 0)),
+                    highlight: vec![],
                 });
             } else {
                 for mut chunk in line_rope.chunks() {
@@ -132,6 +165,7 @@ impl View {
                             self.lines.push(DisplayLine {
                                 chunks: spans,
                                 range: Range::from_points(front, Point::new(text_y, text_x)),
+                                highlight: vec![],
                             });
 
                             spans = Vec::new();
@@ -146,6 +180,7 @@ impl View {
                     self.lines.push(DisplayLine {
                         chunks: spans,
                         range: Range::from_points(front, Point::new(text_y, text_x)),
+                        highlight: vec![],
                     });
                 }
             }

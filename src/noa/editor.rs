@@ -37,7 +37,32 @@ pub enum UserMessage {
 
 pub struct OpenedFile {
     pub buffer: Buffer,
+    pub view: View,
     pub syntax_highlight: Option<tree_sitter::Tree>,
+}
+
+impl OpenedFile {
+    pub fn layout_view(&mut self, y_from: usize, height: usize, width: usize) {
+        self.view.layout(&self.buffer, y_from, height, width);
+    }
+
+    pub fn move_cursors(&mut self, y_diff: isize, x_diff: isize) {
+        self.view.move_cursors(&mut self.buffer, y_diff, x_diff);
+    }
+
+    pub fn expand_selections(&mut self, y_diff: isize, x_diff: isize) {
+        self.view
+            .expand_selections(&mut self.buffer, y_diff, x_diff);
+    }
+
+    pub fn update_syntax_highlight(&mut self) {
+        if let Some(mut parser) = self.buffer.lang().parse_syntax_highlighting() {
+            let snapshot = self.buffer.take_snapshot();
+            if let Some(tree) = parser.parse(snapshot.text(), None) {
+                self.view.consume_tree(&tree);
+            }
+        }
+    }
 }
 
 pub struct Editor {
@@ -46,7 +71,6 @@ pub struct Editor {
     current_file: Arc<RwLock<OpenedFile>>,
     files: Vec<Arc<RwLock<OpenedFile>>>,
     path2id: HashMap<PathBuf, BufferId>,
-    views: HashMap<BufferId, parking_lot::Mutex<View>>,
     syncd: Arc<Mutex<SyncdClient>>,
     messages: Arc<std::sync::Mutex<Vec<UserMessage>>>,
 }
@@ -55,10 +79,9 @@ impl Editor {
     pub fn new(workspace_dir: PathBuf) -> Editor {
         let mut scratch = Buffer::from_str(SCRATCH_TEXT);
         scratch.set_name("*scratch*");
-        let mut views = HashMap::new();
-        views.insert(scratch.id(), parking_lot::Mutex::new(View::new()));
         let scratch_buffer = Arc::new(RwLock::new(OpenedFile {
             buffer: scratch,
+            view: View::new(),
             syntax_highlight: None,
         }));
 
@@ -76,7 +99,6 @@ impl Editor {
             current_file: scratch_buffer,
             files,
             path2id: HashMap::new(),
-            views,
             syncd: Arc::new(Mutex::new(syncd)),
             messages: Arc::new(std::sync::Mutex::new(Vec::new())),
         }
@@ -106,10 +128,6 @@ impl Editor {
         &self.current_file
     }
 
-    pub fn view(&self, buffer: &Buffer) -> parking_lot::MutexGuard<'_, View> {
-        self.views[&buffer.id()].lock()
-    }
-
     pub fn log(&self, m: UserMessage) {
         let mut messages = self.messages.lock().unwrap();
         messages.push(m);
@@ -126,17 +144,6 @@ impl Editor {
         let string = str.into();
         error!("error: {}", string);
         self.log(UserMessage::Error(string));
-    }
-
-    pub fn compute_view(
-        &self,
-        buffer: &Buffer,
-        height: usize,
-        width: usize,
-    ) -> parking_lot::MutexGuard<'_, View> {
-        let mut view = self.views[&buffer.id()].lock();
-        view.layout(buffer, 0, height, width);
-        view
     }
 
     pub fn open_file(&mut self, path: &Path) {
@@ -169,12 +176,11 @@ impl Editor {
 
         let opened_file = Arc::new(RwLock::new(OpenedFile {
             buffer,
+            view: View::new(),
             syntax_highlight: None,
         }));
         self.files.push(opened_file.clone());
         self.path2id.insert(abspath, buffer_id);
-        self.views
-            .insert(buffer_id, parking_lot::Mutex::new(View::new()));
         self.current_file = opened_file.clone();
 
         // Tell the LSP server about the newly opened file.

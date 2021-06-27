@@ -103,19 +103,15 @@ impl Surface for BufferSurface {
     fn render<'a>(&mut self, ctx: &mut Context, mut canvas: CanvasViewMut<'a>) {
         canvas.clear();
 
-        let opened_file = ctx.editor.current_file().read();
-        let buffer = &opened_file.buffer;
+        let mut f = ctx.editor.current_file().write();
+        f.layout_view(0, canvas.height(), canvas.width());
 
-        let view = ctx
-            .editor
-            .compute_view(&*buffer, canvas.height(), canvas.width());
-
-        let max_lineno_width = buffer.num_lines().display_width() + 1;
+        let max_lineno_width = f.buffer.num_lines().display_width() + 1;
         let text_start_x = max_lineno_width + 1;
 
         let mut y_end = 0;
         let mut lines_end_xs = Vec::new();
-        for (y, display_line) in view.visible_display_lines().iter().enumerate() {
+        for (y, display_line) in f.view.visible_display_lines().iter().enumerate() {
             // Draw the line number.
             let lineno = display_line.range.front().y + 1;
             let lineno_width = lineno.display_width();
@@ -129,7 +125,7 @@ impl Surface for BufferSurface {
             );
 
             // Draw buffer contents.
-            let rope_line = buffer.line(lineno - 1);
+            let rope_line = f.buffer.line(lineno - 1);
             let mut x = 0;
             for chunk in &display_line.chunks {
                 let chunk_str = rope_line.slice(chunk.clone());
@@ -157,36 +153,36 @@ impl Surface for BufferSurface {
         }
 
         // Draw cursors / selections.
-        let main_cursor_pos = buffer.main_cursor_pos();
-        for cursor in buffer.cursors() {
+        let main_cursor_pos = f.buffer.main_cursor_pos();
+        for cursor in f.buffer.cursors() {
             match cursor {
                 Cursor::Normal { pos, .. } if *pos == main_cursor_pos => {
                     // Do nothing. We use the native cursor through `self.cursor_position`.
                 }
                 Cursor::Normal { pos: _, .. } => {
-                    let (y, x) = view.point_to_display_pos(
+                    let (y, x) = f.view.point_to_display_pos(
                         main_cursor_pos,
                         y_end,
                         text_start_x,
-                        buffer.num_lines(),
+                        f.buffer.num_lines(),
                     );
                     canvas.set_attrs(y, x, x + 1, (&[Attribute::Reverse][..]).into());
                 }
                 Cursor::Selection(range) => {
-                    let (start_y, start_x) = view.point_to_display_pos(
+                    let (start_y, start_x) = f.view.point_to_display_pos(
                         range.front(),
                         y_end,
                         text_start_x,
-                        buffer.num_lines(),
+                        f.buffer.num_lines(),
                     );
-                    let (end_y, end_x) = view.point_to_display_pos(
+                    let (end_y, end_x) = f.view.point_to_display_pos(
                         range.back(),
                         y_end,
                         text_start_x,
-                        buffer.num_lines(),
+                        f.buffer.num_lines(),
                     );
 
-                    for (y, _display_line) in view.visible_display_lines().iter().enumerate() {
+                    for (y, _display_line) in f.view.visible_display_lines().iter().enumerate() {
                         if start_y <= y && y <= end_y {
                             let x0 = if y == start_y { start_x } else { text_start_x };
                             let x1 = if y == end_y {
@@ -208,7 +204,8 @@ impl Surface for BufferSurface {
 
         // Determine the main cursor position.
         self.cursor_position =
-            view.point_to_display_pos(main_cursor_pos, y_end, text_start_x, buffer.num_lines());
+            f.view
+                .point_to_display_pos(main_cursor_pos, y_end, text_start_x, f.buffer.num_lines());
 
         self.text_start_x = text_start_x;
     }
@@ -224,114 +221,111 @@ impl Surface for BufferSurface {
         const ALT: KeyModifiers = KeyModifiers::ALT;
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
-        let mut opened_file = ctx.editor.current_file().write();
-        let buffer = &mut opened_file.buffer;
-        let view = ctx.editor.view(buffer);
+        let mut f = ctx.editor.current_file().write();
+
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), CTRL) => {
-                drop(opened_file);
-                drop(view);
+                drop(f);
                 self.quit(ctx, compositor);
             }
             (KeyCode::Char('f'), CTRL) => {
-                drop(opened_file);
-                drop(view);
+                drop(f);
                 let finder = FinderSurface::new(ctx);
                 compositor.push_layer(ctx, finder);
             }
             (KeyCode::Char('s'), CTRL) => {
-                drop(opened_file);
+                drop(f);
                 ctx.editor.save_current_buffer();
             }
             (KeyCode::Char('u'), CTRL) => {
-                buffer.undo();
+                f.buffer.undo();
             }
             (KeyCode::Char('y'), CTRL) => {
-                buffer.redo();
+                f.buffer.redo();
             }
             (KeyCode::Char('d'), CTRL) | (KeyCode::Delete, _) => {
-                buffer.delete();
+                f.buffer.delete();
             }
             (KeyCode::Char('c'), CTRL) => {
-                copy_to_clipboard(&buffer.copy_selection());
+                copy_to_clipboard(&f.buffer.copy_selection());
             }
             (KeyCode::Char('x'), CTRL) => {
-                copy_to_clipboard(&buffer.cut_selection());
+                copy_to_clipboard(&f.buffer.cut_selection());
             }
             (KeyCode::Char('k'), CTRL) => {
-                buffer.truncate();
+                f.buffer.truncate();
             }
             (KeyCode::Char('a'), CTRL) => {
-                buffer.move_to_beginning_of_line();
+                f.buffer.move_to_beginning_of_line();
             }
             (KeyCode::Char('e'), CTRL) => {
-                buffer.move_to_end_of_line();
+                f.buffer.move_to_end_of_line();
             }
             (KeyCode::Char('f'), ALT) => {
-                buffer.move_to_next_word();
+                f.buffer.move_to_next_word();
             }
             (KeyCode::Char('b'), ALT) => {
-                buffer.move_to_prev_word();
+                f.buffer.move_to_prev_word();
             }
             (KeyCode::Up, ALT) => {
-                buffer.move_current_line_above();
+                f.buffer.move_current_line_above();
             }
             (KeyCode::Down, ALT) => {
-                buffer.move_current_line_below();
+                f.buffer.move_current_line_below();
             }
             (KeyCode::Up, modifiers) if modifiers == (CTRL | ALT) => {
-                buffer.add_cursor_above();
+                f.buffer.add_cursor_above();
             }
             (KeyCode::Down, modifiers) if modifiers == (CTRL | ALT) => {
-                buffer.add_cursor_below();
+                f.buffer.add_cursor_below();
             }
             (KeyCode::Up, modifiers) if modifiers == (SHIFT | ALT) => {
-                buffer.duplicate_line_above();
+                f.buffer.duplicate_line_above();
             }
             (KeyCode::Down, modifiers) if modifiers == (SHIFT | ALT) => {
-                buffer.duplicate_line_below();
+                f.buffer.duplicate_line_below();
             }
             (KeyCode::Backspace, NONE) => {
-                buffer.backspace();
+                f.buffer.backspace();
             }
             (KeyCode::Up, NONE) => {
-                view.move_cursors(&mut *buffer, -1, 0);
+                f.move_cursors(-1, 0);
             }
             (KeyCode::Down, NONE) => {
-                view.move_cursors(&mut *buffer, 1, 0);
+                f.move_cursors(1, 0);
             }
             (KeyCode::Left, NONE) => {
-                view.move_cursors(&mut *buffer, 0, -1);
+                f.move_cursors(0, -1);
             }
             (KeyCode::Right, NONE) => {
-                view.move_cursors(&mut *buffer, 0, 1);
+                f.move_cursors(0, 1);
             }
             (KeyCode::Up, SHIFT) => {
-                view.expand_selections(&mut *buffer, -1, 0);
+                f.expand_selections(-1, 0);
             }
             (KeyCode::Down, SHIFT) => {
-                view.expand_selections(&mut *buffer, 1, 0);
+                f.expand_selections(1, 0);
             }
             (KeyCode::Left, SHIFT) => {
-                view.expand_selections(&mut *buffer, 0, -1);
+                f.expand_selections(0, -1);
             }
             (KeyCode::Right, SHIFT) => {
-                view.expand_selections(&mut *buffer, 0, 1);
+                f.expand_selections(0, 1);
             }
             (KeyCode::Enter, NONE) => {
-                buffer.insert_char('\n');
+                f.buffer.insert_char('\n');
             }
             (KeyCode::Tab, NONE) => {
-                buffer.tab();
+                f.buffer.tab();
             }
             (KeyCode::BackTab, NONE) => {
-                buffer.back_tab();
+                f.buffer.back_tab();
             }
             (KeyCode::Char(ch), NONE) => {
-                buffer.insert_char(ch);
+                f.buffer.insert_char(ch);
             }
             (KeyCode::Char(ch), SHIFT) => {
-                buffer.insert_char(ch);
+                f.buffer.insert_char(ch);
             }
             _ => {
                 trace!("unhandled key = {:?}", key);
@@ -360,7 +354,6 @@ impl Surface for BufferSurface {
         const NONE: KeyModifiers = KeyModifiers::NONE;
 
         let mut opened_file = ctx.editor.current_file().write();
-        let view = ctx.editor.view(&opened_file.buffer);
 
         let MouseEvent {
             kind,
@@ -371,7 +364,7 @@ impl Surface for BufferSurface {
 
         let buffer_pos = match (display_x as usize)
             .checked_sub(self.text_start_x)
-            .and_then(|x| view.display_pos_to_point(display_y as usize, x))
+            .and_then(|x| opened_file.view.display_pos_to_point(display_y as usize, x))
         {
             Some(pos) => pos,
             None => return HandledEvent::Ignored,

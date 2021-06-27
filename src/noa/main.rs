@@ -139,6 +139,8 @@ async fn main() {
     let backup_dir = backup_dir();
     let mut updated = false;
     while !editor.exited() {
+        editor.current_file().write().update_syntax_highlight();
+
         let mut ctx = Context {
             editor: &mut editor,
             event_tx: &event_tx,
@@ -199,9 +201,9 @@ async fn on_file_change(
     workspace_dir: PathBuf,
     syncd: Arc<Mutex<SyncdClient>>,
 ) {
-    while let Some(opend_file) = rx.recv().await {
+    while let Some(opened_file) = rx.recv().await {
         let (lang, file_modified_req) = {
-            let opend_file = opend_file.read();
+            let opend_file = opened_file.read();
             match opend_file.buffer.path_for_lsp(&workspace_dir) {
                 Some(path) => (
                     opend_file.buffer.lang(),
