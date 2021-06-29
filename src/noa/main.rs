@@ -60,6 +60,7 @@ struct Opt {
 
 #[tokio::main]
 async fn main() {
+    install_logger();
     let opt = Opt::from_args();
 
     if opt.open_path_in_tmux {
@@ -70,8 +71,6 @@ async fn main() {
         );
         return;
     }
-
-    install_logger();
 
     let workspace_dir = match opt.files.get(0) {
         Some(file_or_dir) if file_or_dir.is_dir() => file_or_dir.clone(),

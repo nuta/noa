@@ -25,7 +25,7 @@ pub fn open_path_in_tmux(pane: &str, mouse_y: usize, mouse_x: usize) {
         .expect("failed to dump the pane contents from tmux");
 
     if let Some((path, point)) = extract_path_and_point(&output.stdout, mouse_y, mouse_x) {
-        println!("opening {:?} {:?}", path, point);
+        trace!("open_path_in_tmux: opening {:?} {:?}", path, point);
     }
 }
 
@@ -116,5 +116,6 @@ fn extract_path_and_point(
         _ => {}
     }
 
+    warn!("failed to parse a clicked path: '{}'", matched_substr);
     None
 }
