@@ -35,6 +35,7 @@ extern crate pretty_assertions;
 
 mod editor;
 mod fuzzy_set;
+mod git;
 mod line_edit;
 mod open;
 mod selector;
@@ -87,6 +88,9 @@ async fn main() {
         event_tx: &event_tx,
         theme,
     };
+
+    git::compute_line_diff_status().unwrap();
+    return;
 
     // Initialize UI.
     let terminal = Terminal::new(event_tx.clone());

@@ -28,6 +28,7 @@ arrayvec = "0"
 ignore = "0"
 sublime_fuzzy = "0"
 base64 = "0"
+git2 = "0"
 
 noa_common = { path = "../common" }
 noa_buffer = { path = "../buffer" }
