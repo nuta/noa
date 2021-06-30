@@ -10,7 +10,7 @@ pub struct Theme {
 pub const DEFAULT_THEME: &Theme = &Theme {
     bottom_bar_text: Style {
         fg: Color::White,
-        bg: Color::Grey,
+        bg: Color::DarkGrey,
         deco: Decoration::empty(),
     },
 };
