@@ -1,4 +1,7 @@
-use std::cmp::{max, min};
+use std::{
+    cmp::{max, min},
+    sync::Arc,
+};
 
 use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind},
@@ -6,8 +9,10 @@ use crossterm::{
 };
 use noa_buffer::{Cursor, Point, Range};
 use noa_langs::HighlightType;
+use parking_lot::Mutex;
 
 use crate::{
+    minimap::{LineStatus, MiniMap, MiniMapCategory},
     surfaces::{prompt::CallbackResult, yes_no::YesNoChoice, FinderSurface, YesNoSurface},
     terminal::copy_to_clipboard,
     ui::{
@@ -21,6 +26,7 @@ pub struct BufferSurface {
     cursor_position: (usize, usize),
     text_start_x: usize,
     selection_start: Option<Point>,
+    minimap: Arc<Mutex<MiniMap>>,
 }
 
 impl BufferSurface {
@@ -29,7 +35,12 @@ impl BufferSurface {
             cursor_position: (0, 0),
             text_start_x: 0,
             selection_start: None,
+            minimap: Arc::new(Mutex::new(MiniMap::new())),
         }
+    }
+
+    pub fn minimap(&self) -> &Arc<Mutex<MiniMap>> {
+        &self.minimap
     }
 
     fn quit(&mut self, ctx: &mut Context, compositor: &mut Compositor) {
@@ -104,31 +115,60 @@ impl Surface for BufferSurface {
     fn render<'a>(&mut self, ctx: &mut Context, mut canvas: CanvasViewMut<'a>) {
         canvas.clear();
 
-        {
+        let (max_lineno_width, text_width, text_start_x) = {
             let mut f = ctx.editor.current_file().write();
-            f.layout_view(0, canvas.height(), canvas.width());
+            let max_lineno_width = f.buffer.num_lines().display_width() + 1;
+            let text_start_x = max_lineno_width + 2;
+            let text_width = canvas.width() - (text_start_x + 1);
+
+            f.layout_view(0, canvas.height(), text_width);
             f.highlight_from_tree_sitter();
-        }
+
+            (max_lineno_width, text_width, text_start_x)
+        };
 
         let f = ctx.editor.current_file().read();
 
-        let max_lineno_width = f.buffer.num_lines().display_width() + 1;
-        let text_start_x = max_lineno_width + 1;
+        // Update the minimap.
+        let mut minimap = self.minimap.lock();
+        minimap.clear(MiniMapCategory::Cursor);
+        for c in f.buffer.cursors() {
+            minimap.insert(
+                MiniMapCategory::Cursor,
+                c.front().y..(c.back().y + 1),
+                LineStatus::Cursor,
+            );
+        }
 
         let mut y_end = 0;
         let mut lines_end_xs = Vec::new();
         for (y, display_line) in f.view.visible_display_lines().iter().enumerate() {
             // Draw the line number.
-            let lineno = display_line.range.front().y + 1;
+            let buffer_y = display_line.range.front().y;
+            let lineno = buffer_y + 1;
             let lineno_width = lineno.display_width();
             let pad_len = max_lineno_width - lineno_width;
             canvas.draw_str(y, 0, &whitespaces(pad_len));
             canvas.draw_str(y, pad_len, &lineno.to_string());
-            canvas.draw_char(
-                y,
-                max_lineno_width,
-                '\u{2502}', /* "Box Drawing Light Veritical" */
-            );
+
+            // Draw the minimap.
+            let category = MiniMapCategory::Cursor;
+            if let Some(e) = minimap.get_containing(category, buffer_y) {
+                let style = match &e.value {
+                    LineStatus::Cursor => &ctx.theme.line_status_cursor,
+                    LineStatus::Warning => &ctx.theme.line_status_warning,
+                    LineStatus::Error => &ctx.theme.line_status_error,
+                };
+
+                canvas.draw_char(y, max_lineno_width, ' ');
+                canvas.set_style(y, max_lineno_width, max_lineno_width + 1, &style);
+            } else {
+                canvas.draw_char(
+                    y,
+                    max_lineno_width,
+                    '\u{2502}', /* "Box Drawing Light Veritical" */
+                );
+            }
 
             // Draw buffer contents.
             let rope_line = f.buffer.line(lineno - 1);
@@ -160,11 +200,7 @@ impl Surface for BufferSurface {
             }
 
             // Whitespaces after the line.
-            canvas.draw_str(
-                y,
-                text_start_x + x,
-                &whitespaces(canvas.width() - (text_start_x + x)),
-            );
+            canvas.draw_str(y, text_start_x + x, &whitespaces(text_width - x));
 
             lines_end_xs.push(x);
             y_end = y + 1;

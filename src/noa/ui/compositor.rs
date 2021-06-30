@@ -5,6 +5,7 @@ use noa_buffer::Point;
 use noa_common::time_report::TimeReport;
 use parking_lot::Mutex;
 
+use crate::minimap::{LineStatus, MiniMap, MiniMapCategory};
 use crate::ui::{Context, Surface};
 
 use crate::terminal::Terminal;

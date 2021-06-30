@@ -37,6 +37,7 @@ mod editor;
 mod fuzzy_set;
 mod git;
 mod line_edit;
+mod minimap;
 mod open;
 mod selector;
 mod surfaces;
@@ -61,7 +62,7 @@ struct Opt {
 
 #[tokio::main]
 async fn main() {
-    install_logger();
+    // install_logger();
     let opt = Opt::from_args();
 
     if opt.open_path_in_tmux {
@@ -89,8 +90,8 @@ async fn main() {
         theme,
     };
 
-    git::compute_line_diff_status().unwrap();
-    return;
+    // git::compute_line_diff_status().unwrap();
+    // return;
 
     // Initialize UI.
     let terminal = Terminal::new(event_tx.clone());

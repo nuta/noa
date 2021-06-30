@@ -171,6 +171,13 @@ impl Cursor {
         }
     }
 
+    pub fn back(&self) -> Point {
+        match self {
+            Cursor::Normal { pos, .. } => *pos,
+            Cursor::Selection(range) => range.back(),
+        }
+    }
+
     pub fn anchor(&self) -> Point {
         match self {
             Cursor::Normal { pos, .. } => *pos,
