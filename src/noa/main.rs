@@ -133,8 +133,8 @@ async fn main() {
                     minimap.clear(MiniMapCategory::Diagnosis);
                     for diag in diags {
                         trace!("diagnostic: {:?}", diag);
-                        let interval = (diag.range.start.line.saturating_sub(1) as usize)
-                            ..(diag.range.end.line as usize);
+                        let interval =
+                            (diag.range.start.line as usize)..(diag.range.end.line as usize + 1);
                         match diag.severity {
                             Some(DiagnosticSeverity::Error) => {
                                 minimap.insert(
