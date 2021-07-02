@@ -2,7 +2,6 @@ use std::{slice, sync::Arc};
 
 use crossterm::event::{KeyEvent, MouseEvent};
 use noa_buffer::Point;
-use noa_common::syncd_protocol::Notification;
 use noa_common::time_report::TimeReport;
 use parking_lot::Mutex;
 

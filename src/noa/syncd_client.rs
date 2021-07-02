@@ -23,8 +23,6 @@ use tokio::{
     time::sleep,
 };
 
-use crate::ui::Event;
-
 pub struct SyncdClient {
     workspace_dir: PathBuf,
     lsp_daemons: HashMap<&'static str /* lang id */, OwnedWriteHalf>,

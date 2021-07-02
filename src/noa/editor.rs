@@ -1,6 +1,5 @@
 use crate::syncd_client::SyncdClient;
 
-use crate::ui::Event;
 use crate::view::View;
 use anyhow::Context;
 
