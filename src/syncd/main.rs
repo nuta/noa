@@ -25,7 +25,7 @@ struct Opt {
 
 #[tokio::main]
 async fn main() {
-    install_logger();
+    install_logger("syncd");
     trace!("starting");
 
     let opt = Opt::from_args();
@@ -36,10 +36,10 @@ async fn main() {
 
     match opt.daemon_type.as_str() {
         "lsp" => {
-            let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Notification>();
+            let (noti_tx, noti_rx) = tokio::sync::mpsc::unbounded_channel::<Notification>();
 
             trace!("starting the LSP server");
-            let mut daemon = LspDaemon::spawn(tx, &opt.workspace_dir, opt.lang)
+            let mut daemon = LspDaemon::spawn(noti_tx, &opt.workspace_dir, opt.lang)
                 .await
                 .expect("failed to start the LSP mode");
 
@@ -49,7 +49,7 @@ async fn main() {
                 .await
                 .expect("failed to initialize the LSP server");
 
-            eventloop(&opt.sock_path, daemon, rx).await.unwrap();
+            eventloop(&opt.sock_path, daemon, noti_rx).await.unwrap();
         }
         _ => panic!("unknown daemon type: {}", opt.daemon_type),
     };

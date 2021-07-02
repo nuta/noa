@@ -186,7 +186,9 @@ async fn receive_responses(
                                     .send(Notification::Diagnostics(resp.diagnostics))
                                     .unwrap();
                             }
-                            _ => {}
+                            _ => {
+                                trace!("ignored notification: {}", noti.method);
+                            }
                         }
                         continue;
                     }
@@ -195,7 +197,7 @@ async fn receive_responses(
                         continue;
                     }
                     Ok(jsonrpc_core::Request::Batch(reqs)) => {
-                        trace!("notification from server = {:?}", reqs);
+                        trace!("batch from server = {:?}", reqs);
                         continue;
                     }
                     Err(err) => {
@@ -237,7 +239,7 @@ impl LspDaemon {
         lang: String,
     ) -> Result<LspDaemon> {
         trace!("workspace_dir={}", workspace_dir.display());
-        let mut lsp_server = Command::new("/usr/bin/clangd")
+        let mut lsp_server = Command::new("clangd")
             .args(&["-j=8", "--log=verbose", "--pretty"])
             .current_dir(workspace_dir)
             .stdin(Stdio::piped())

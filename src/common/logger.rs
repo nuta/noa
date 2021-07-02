@@ -6,14 +6,14 @@ use simplelog::{Config, WriteLogger};
 
 use crate::dirs::log_file_path;
 
-pub fn install_logger() {
+pub fn install_logger(name: &str) {
     WriteLogger::init(
         LevelFilter::Trace,
         Config::default(),
         OpenOptions::new()
             .append(true)
             .create(true)
-            .open(log_file_path("noa"))
+            .open(log_file_path(name))
             .unwrap(),
     )
     .unwrap();

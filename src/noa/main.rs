@@ -67,7 +67,7 @@ struct Opt {
 
 #[tokio::main]
 async fn main() {
-    install_logger();
+    install_logger("main");
     let opt = Opt::from_args();
 
     if opt.open_path_in_tmux {
@@ -133,8 +133,8 @@ async fn main() {
                     minimap.clear(MiniMapCategory::Diagnosis);
                     for diag in diags {
                         trace!("diagnostic: {:?}", diag);
-                        let interval =
-                            (diag.range.start.line as usize)..(diag.range.end.line as usize + 1);
+                        let interval = (diag.range.start.line.saturating_sub(1) as usize)
+                            ..(diag.range.end.line as usize);
                         match diag.severity {
                             Some(DiagnosticSeverity::Error) => {
                                 minimap.insert(

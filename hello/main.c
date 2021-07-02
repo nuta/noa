@@ -3,4 +3,5 @@
 
 void main() {
   printf("hello!\n");
+  foo bar;
 }

@@ -152,17 +152,23 @@ impl Surface for BufferSurface {
             canvas.draw_str(y, pad_len, &lineno.to_string());
 
             // Draw the minimap.
-            let category = MiniMapCategory::Cursor;
-            if let Some(e) = minimap.get_containing(category, buffer_y) {
-                let style = match &e.value {
-                    LineStatus::Cursor => &ctx.theme.line_status_cursor,
-                    LineStatus::Warning => &ctx.theme.line_status_warning,
-                    LineStatus::Error => &ctx.theme.line_status_error,
-                };
+            let categories = [MiniMapCategory::Diagnosis, MiniMapCategory::Cursor];
+            let mut drew_line_status = false;
+            for category in categories {
+                if let Some(e) = minimap.get_containing(category, buffer_y) {
+                    let style = match &e.value {
+                        LineStatus::Cursor => &ctx.theme.line_status_cursor,
+                        LineStatus::Warning => &ctx.theme.line_status_warning,
+                        LineStatus::Error => &ctx.theme.line_status_error,
+                    };
 
-                canvas.draw_char(y, max_lineno_width, ' ');
-                canvas.set_style(y, max_lineno_width, max_lineno_width + 1, &style);
-            } else {
+                    canvas.draw_char(y, max_lineno_width, ' ');
+                    canvas.set_style(y, max_lineno_width, max_lineno_width + 1, &style);
+                    drew_line_status = true;
+                }
+            }
+
+            if !drew_line_status {
                 canvas.draw_char(
                     y,
                     max_lineno_width,

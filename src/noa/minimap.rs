@@ -23,23 +23,21 @@ pub struct MiniMap {
 
 impl MiniMap {
     pub fn new() -> MiniMap {
-        MiniMap {
-            maps: BTreeMap::new(),
-        }
+        let mut maps = BTreeMap::new();
+        maps.insert(MiniMapCategory::Cursor, IntervalMap::new());
+        maps.insert(MiniMapCategory::Diagnosis, IntervalMap::new());
+        MiniMap { maps }
     }
 
     pub fn insert(&mut self, category: MiniMapCategory, interval: Range<usize>, value: LineStatus) {
         self.maps
-            .entry(category)
-            .or_insert_with(|| IntervalMap::new())
+            .get_mut(&category)
+            .unwrap()
             .insert(interval, value);
     }
 
     pub fn clear(&mut self, category: MiniMapCategory) {
-        self.maps
-            .entry(category)
-            .or_insert_with(|| IntervalMap::new())
-            .clear();
+        self.maps.get_mut(&category).unwrap().clear();
     }
 
     pub fn get_containing(

@@ -49,6 +49,7 @@ pub async fn eventloop<D: Daemon + 'static>(
         let clients = clients.clone();
         spawn(async move {
             while let Some(noti) = noti_rx.recv().await {
+                trace!("sending a notification to noa: {:?}", noti);
                 let mut json =
                     serde_json::to_string(&ToClient::<D::Response>::Notification(noti)).unwrap();
 

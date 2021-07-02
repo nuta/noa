@@ -99,6 +99,7 @@ impl SyncdClient {
         }
 
         let sock_path = lsp_sock_path(&self.workspace_dir, lang.id);
+        trace!("connecting to syncd {}", sock_path.display());
         if UnixStream::connect(&sock_path).await.is_err() {
             // The syncd for the language is not running. Spawn it.
             trace!("spawning lsp syncd at {}", sock_path.display());
