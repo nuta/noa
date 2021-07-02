@@ -232,7 +232,7 @@ pub struct LspDaemon {
 
 impl LspDaemon {
     pub async fn spawn(
-        clients: UnboundedSender<Notification>,
+        noti_tx: UnboundedSender<Notification>,
         workspace_dir: &Path,
         lang: String,
     ) -> Result<LspDaemon> {
@@ -258,7 +258,7 @@ impl LspDaemon {
         {
             let req_id_tx_map = req_id_tx_map.clone();
             tokio::spawn(
-                async move { receive_responses(req_id_tx_map, clients, lsp_stdout).await },
+                async move { receive_responses(req_id_tx_map, noti_tx, lsp_stdout).await },
             );
         }
 

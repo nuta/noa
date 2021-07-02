@@ -62,7 +62,7 @@ struct Opt {
 
 #[tokio::main]
 async fn main() {
-    // install_logger();
+    install_logger();
     let opt = Opt::from_args();
 
     if opt.open_path_in_tmux {
@@ -80,8 +80,8 @@ async fn main() {
     };
 
     // Initialize editor components.
-    let mut editor = editor::Editor::new(&workspace_dir);
     let (event_tx, mut event_rx) = unbounded_channel();
+    let mut editor = editor::Editor::new(&workspace_dir, event_tx.clone());
 
     let theme = DEFAULT_THEME;
     let mut ctx = Context {

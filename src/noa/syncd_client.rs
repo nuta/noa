@@ -11,7 +11,7 @@ use std::{
 use anyhow::{Context, Result};
 use noa_common::{
     dirs::lsp_sock_path,
-    syncd_protocol::{LspResponse, Notification, Request, ToClient, ToServer},
+    syncd_protocol::{LspResponse, Request, ToClient, ToServer},
 };
 use noa_langs::Lang;
 use serde::Serialize;
@@ -19,27 +19,28 @@ use tokio::{
     io::{AsyncBufReadExt, BufReader},
     net::{unix::OwnedWriteHalf, UnixStream},
     process::Command,
-    sync::{oneshot, Mutex},
+    sync::{mpsc::UnboundedSender, oneshot, Mutex},
     time::sleep,
 };
+
+use crate::ui::Event;
 
 pub struct SyncdClient {
     workspace_dir: PathBuf,
     lsp_daemons: HashMap<&'static str /* lang id */, OwnedWriteHalf>,
     sent_requests: Arc<Mutex<HashMap<usize /* request id */, oneshot::Sender<LspResponse>>>>,
     next_request_id: usize,
+    event_tx: UnboundedSender<Event>,
 }
 
 impl SyncdClient {
-    pub fn new<F>(workspace_dir: &Path, _notification_callback: F) -> SyncdClient
-    where
-        F: FnMut(Notification),
-    {
+    pub fn new(workspace_dir: &Path, event_tx: UnboundedSender<Event>) -> SyncdClient {
         SyncdClient {
             workspace_dir: workspace_dir.to_owned(),
             lsp_daemons: HashMap::new(),
             sent_requests: Arc::new(Mutex::new(HashMap::new())),
             next_request_id: 10000,
+            event_tx,
         }
     }
 
@@ -112,6 +113,7 @@ impl SyncdClient {
 
         // Handle responses from the server.
         let sent_requests = self.sent_requests.clone();
+        let event_tx = self.event_tx.clone();
         tokio::spawn(async move {
             let mut reader = BufReader::new(read_end);
             let mut buf = String::with_capacity(128 * 1024);
@@ -133,8 +135,8 @@ impl SyncdClient {
                         };
 
                         match to_client {
-                            ToClient::Notification(_noti) => {
-                                // TODO:
+                            ToClient::Notification(noti) => {
+                                event_tx.send(Event::Notification(noti)).unwrap();
                             }
                             ToClient::Response(resp) => {
                                 match sent_requests.lock().await.remove(&resp.id) {

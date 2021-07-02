@@ -2,10 +2,10 @@ use std::{slice, sync::Arc};
 
 use crossterm::event::{KeyEvent, MouseEvent};
 use noa_buffer::Point;
+use noa_common::syncd_protocol::Notification;
 use noa_common::time_report::TimeReport;
 use parking_lot::Mutex;
 
-use crate::minimap::{LineStatus, MiniMap, MiniMapCategory};
 use crate::ui::{Context, Surface};
 
 use crate::terminal::Terminal;
@@ -22,6 +22,7 @@ pub enum Event {
         screen_height: usize,
         screen_width: usize,
     },
+    Notification(Notification),
 }
 
 pub struct Layer {
