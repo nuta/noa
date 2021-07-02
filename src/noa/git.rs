@@ -1,3 +1,4 @@
+/*
 use anyhow::Result;
 use git2::{Diff, DiffOptions, Repository};
 
@@ -66,3 +67,4 @@ pub fn compute_line_diff_status() -> Result<()> {
 
     Ok(())
 }
+*/

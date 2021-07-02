@@ -295,7 +295,7 @@ impl<'a> CanvasViewMut<'a> {
         self.update_range(y, x, y + 1, x_end, |graph| graph.fg = fg);
     }
 
-    pub fn set_bg(&mut self, y: usize, x: usize, x_end: usize, bg: Color) {
+    pub fn _set_bg(&mut self, y: usize, x: usize, x_end: usize, bg: Color) {
         self.update_range(y, x, y + 1, x_end, |graph| graph.bg = bg);
     }
 
