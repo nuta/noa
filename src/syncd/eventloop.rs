@@ -26,7 +26,6 @@ const IDLE_STATE_MAX_SECS: u64 = 60 * 5;
 pub trait Daemon: Send {
     type Request: DeserializeOwned + Send;
     type Response: Serialize + Send;
-    type Notification: Serialize + Send;
     async fn process_request(&mut self, request: Self::Request) -> Result<Self::Response>;
 }
 

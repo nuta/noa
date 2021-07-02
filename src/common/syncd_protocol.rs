@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use lsp_types::CompletionItem;
+use lsp_types::{CompletionItem, Diagnostic};
 use serde::{Deserialize, Serialize};
 
 use noa_buffer::Point;
@@ -30,7 +30,7 @@ pub struct Response<T> {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub enum Notification {
-    Lsp(LspNotification),
+    Diagnostics(Vec<Diagnostic>),
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -56,12 +56,8 @@ pub enum LspResponse {
     Completion(Vec<CompletionItem>),
 }
 
-#[derive(Deserialize, Serialize, Debug)]
-pub enum LspNotification {}
-
 unsafe impl<T: Send> Send for Request<T> {}
 unsafe impl<T: Send> Send for Response<T> {}
 unsafe impl Send for Notification {}
 unsafe impl Send for LspRequest {}
 unsafe impl Send for LspResponse {}
-unsafe impl Send for LspNotification {}

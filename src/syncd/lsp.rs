@@ -7,15 +7,20 @@ use std::{
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
+use jsonrpc_core::Call;
 use lsp_types::{
-    notification::{DidChangeTextDocument, DidOpenTextDocument},
+    notification::{
+        DidChangeTextDocument, DidOpenTextDocument, Notification as LspNotificationTrait,
+        PublishDiagnostics,
+    },
     request::{Completion, Initialize, Request},
     CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
-    InitializeParams, PartialResultParams, TextDocumentContentChangeEvent, TextDocumentIdentifier,
-    TextDocumentPositionParams, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
+    InitializeParams, PartialResultParams, PublishDiagnosticsParams,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams,
+    VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 use noa_buffer::Point;
-use noa_common::syncd_protocol::{LspNotification, LspRequest, LspResponse, Notification};
+use noa_common::syncd_protocol::{LspRequest, LspResponse, Notification};
 use tokio::{
     io::BufReader,
     process::{Child, ChildStdin, ChildStdout, Command},
@@ -79,7 +84,7 @@ type ReqIdTxMap = Arc<
 
 async fn receive_responses(
     req_id_tx_map: ReqIdTxMap,
-    _clients: UnboundedSender<Notification>,
+    noti_tx: UnboundedSender<Notification>,
     stdout: ChildStdout,
 ) {
     use tokio::io::{AsyncBufReadExt, AsyncReadExt};
@@ -172,8 +177,21 @@ async fn receive_responses(
             Err(_) => {
                 // Perhaps it is a notification from the server.
                 match serde_json::from_str::<jsonrpc_core::Request>(&body) {
-                    Ok(jsonrpc_core::Request::Single(req)) => {
-                        trace!("notification from server = {:?}", req);
+                    Ok(jsonrpc_core::Request::Single(Call::Notification(noti))) => {
+                        trace!("notification from server = {:?}", noti);
+                        match noti.method.as_str() {
+                            PublishDiagnostics::METHOD => {
+                                let resp: PublishDiagnosticsParams = noti.params.parse().unwrap();
+                                noti_tx
+                                    .send(Notification::Diagnostics(resp.diagnostics))
+                                    .unwrap();
+                            }
+                            _ => {}
+                        }
+                        continue;
+                    }
+                    Ok(jsonrpc_core::Request::Single(call)) => {
+                        trace!("RPC from server = {:?}", call);
                         continue;
                     }
                     Ok(jsonrpc_core::Request::Batch(reqs)) => {
@@ -323,7 +341,6 @@ impl LspDaemon {
 impl Daemon for LspDaemon {
     type Request = LspRequest;
     type Response = LspResponse;
-    type Notification = LspNotification;
 
     async fn process_request(&mut self, request: Self::Request) -> Result<Self::Response> {
         match request {
