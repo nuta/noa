@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use noa_buffer::Point;
 
+pub use lsp_types;
+
 #[derive(Deserialize, Serialize, Debug)]
 pub enum ToServer<R> {
     Request(Request<R>),

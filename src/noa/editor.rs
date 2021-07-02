@@ -4,7 +4,7 @@ use crate::ui::Event;
 use crate::view::View;
 use anyhow::Context;
 
-use noa_common::syncd_protocol::LspRequest;
+use noa_common::syncd_protocol::{LspRequest, Notification};
 use parking_lot::RwLock;
 use tokio::process::Command;
 use tokio::sync::mpsc::UnboundedSender;
@@ -76,7 +76,7 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn new(workspace_dir: &Path, event_tx: UnboundedSender<Event>) -> Editor {
+    pub fn new(workspace_dir: &Path, noti_tx: UnboundedSender<Notification>) -> Editor {
         let mut scratch = Buffer::from_str(SCRATCH_TEXT);
         scratch.set_name("*scratch*");
         let scratch_buffer = Arc::new(RwLock::new(OpenedFile {
@@ -91,7 +91,7 @@ impl Editor {
             .with_context(|| format!("failed to resolve workdir: {}", workspace_dir.display()))
             .unwrap();
 
-        let syncd = SyncdClient::new(&workspace_dir, event_tx);
+        let syncd = SyncdClient::new(&workspace_dir, noti_tx);
 
         Editor {
             exited: false,

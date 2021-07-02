@@ -1,4 +1,8 @@
-use noa_common::{dirs::backup_dir, logger::install_logger, syncd_protocol::LspRequest};
+use noa_common::{
+    dirs::backup_dir,
+    logger::install_logger,
+    syncd_protocol::{lsp_types::DiagnosticSeverity, LspRequest, Notification},
+};
 use parking_lot::RwLock;
 use std::{
     env::current_dir,
@@ -19,6 +23,7 @@ use ui::Event;
 
 use crate::{
     editor::OpenedFile,
+    minimap::{LineStatus, MiniMapCategory},
     surfaces::{BottomBarSurface, BufferSurface},
     syncd_client::SyncdClient,
     terminal::Terminal,
@@ -81,7 +86,8 @@ async fn main() {
 
     // Initialize editor components.
     let (event_tx, mut event_rx) = unbounded_channel();
-    let mut editor = editor::Editor::new(&workspace_dir, event_tx.clone());
+    let (noti_tx, mut noti_rx) = unbounded_channel();
+    let mut editor = editor::Editor::new(&workspace_dir, noti_tx.clone());
 
     let theme = DEFAULT_THEME;
     let mut ctx = Context {
@@ -97,7 +103,9 @@ async fn main() {
     let terminal = Terminal::new(event_tx.clone());
     let mut compositor = Compositor::new(terminal);
     let completion = CompletionSurface::new(&mut ctx);
-    compositor.push_layer(&mut ctx, BufferSurface::new());
+    let buffer = BufferSurface::new();
+    let minimap = buffer.minimap().clone();
+    compositor.push_layer(&mut ctx, buffer);
     compositor.push_layer(&mut ctx, BottomBarSurface::new());
     compositor.push_layer(&mut ctx, completion);
 
@@ -110,10 +118,45 @@ async fn main() {
         editor.open_file(file);
     }
 
+    // Fill syntax highlighting.
     tokio::spawn(update_highlight(
         editor.current_file().clone(),
         event_tx.clone(),
     ));
+
+    // Handle notifications.
+    tokio::spawn(async move {
+        while let Some(noti) = noti_rx.recv().await {
+            match noti {
+                Notification::Diagnostics(diags) => {
+                    let mut minimap = minimap.lock();
+                    minimap.clear(MiniMapCategory::Diagnosis);
+                    for diag in diags {
+                        trace!("diagnostic: {:?}", diag);
+                        let interval =
+                            (diag.range.start.line as usize)..(diag.range.end.line as usize + 1);
+                        match diag.severity {
+                            Some(DiagnosticSeverity::Error) => {
+                                minimap.insert(
+                                    MiniMapCategory::Diagnosis,
+                                    interval,
+                                    LineStatus::Error,
+                                );
+                            }
+                            Some(DiagnosticSeverity::Warning) => {
+                                minimap.insert(
+                                    MiniMapCategory::Diagnosis,
+                                    interval,
+                                    LineStatus::Warning,
+                                );
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+    });
 
     // The main event loop.
     let backup_dir = backup_dir();

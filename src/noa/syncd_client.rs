@@ -11,7 +11,7 @@ use std::{
 use anyhow::{Context, Result};
 use noa_common::{
     dirs::lsp_sock_path,
-    syncd_protocol::{LspResponse, Request, ToClient, ToServer},
+    syncd_protocol::{LspResponse, Notification, Request, ToClient, ToServer},
 };
 use noa_langs::Lang;
 use serde::Serialize;
@@ -30,17 +30,17 @@ pub struct SyncdClient {
     lsp_daemons: HashMap<&'static str /* lang id */, OwnedWriteHalf>,
     sent_requests: Arc<Mutex<HashMap<usize /* request id */, oneshot::Sender<LspResponse>>>>,
     next_request_id: usize,
-    event_tx: UnboundedSender<Event>,
+    noti_tx: UnboundedSender<Notification>,
 }
 
 impl SyncdClient {
-    pub fn new(workspace_dir: &Path, event_tx: UnboundedSender<Event>) -> SyncdClient {
+    pub fn new(workspace_dir: &Path, noti_tx: UnboundedSender<Notification>) -> SyncdClient {
         SyncdClient {
             workspace_dir: workspace_dir.to_owned(),
             lsp_daemons: HashMap::new(),
             sent_requests: Arc::new(Mutex::new(HashMap::new())),
             next_request_id: 10000,
-            event_tx,
+            noti_tx,
         }
     }
 
@@ -113,7 +113,7 @@ impl SyncdClient {
 
         // Handle responses from the server.
         let sent_requests = self.sent_requests.clone();
-        let event_tx = self.event_tx.clone();
+        let event_tx = self.noti_tx.clone();
         tokio::spawn(async move {
             let mut reader = BufReader::new(read_end);
             let mut buf = String::with_capacity(128 * 1024);
@@ -136,7 +136,7 @@ impl SyncdClient {
 
                         match to_client {
                             ToClient::Notification(noti) => {
-                                event_tx.send(Event::Notification(noti)).unwrap();
+                                event_tx.send(noti).unwrap();
                             }
                             ToClient::Response(resp) => {
                                 match sent_requests.lock().await.remove(&resp.id) {

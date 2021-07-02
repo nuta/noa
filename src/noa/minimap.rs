@@ -13,7 +13,7 @@ pub enum LineStatus {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MiniMapCategory {
     // Diff,
-    // Diagnosis,
+    Diagnosis,
     Cursor,
 }
 

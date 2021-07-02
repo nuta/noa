@@ -22,7 +22,6 @@ pub enum Event {
         screen_height: usize,
         screen_width: usize,
     },
-    Notification(Notification),
 }
 
 pub struct Layer {
