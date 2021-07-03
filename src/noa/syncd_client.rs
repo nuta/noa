@@ -31,7 +31,7 @@ use crate::editor::OpenedFile;
 pub struct SyncdClient {
     workspace_dir: PathBuf,
     daemon_connections: HashMap<&'static str /* lang id */, OwnedWriteHalf>,
-    sent_requests: Arc<Mutex<HashMap<usize /* request id */, oneshot::Sender<LspResponse>>>>,
+    sent_requests: Arc<Mutex<HashMap<usize /* request id */, oneshot::Sender<String>>>>,
     next_request_id: usize,
     noti_tx: UnboundedSender<Notification>,
 }
@@ -50,6 +50,7 @@ impl SyncdClient {
     pub async fn call_buffer_open_file(&mut self, path: &Path) -> Result<()> {
         self.call(
             "buffer_sync",
+            None,
             BufferSyncRequest::OpenFile {
                 path: path.to_path_buf(),
             },
@@ -61,6 +62,7 @@ impl SyncdClient {
     pub async fn call_buffer_update_file(&mut self, path: &Path, text: String) -> Result<()> {
         self.call(
             "buffer_sync",
+            None,
             BufferSyncRequest::UpdateFile {
                 path: path.to_path_buf(),
                 text,
@@ -118,25 +120,32 @@ impl SyncdClient {
     where
         F: FnOnce(PathBuf, &OpenedFile) -> I,
     {
-        let (lang, req) = {
+        let (lang_id, req) = {
             let opened_file = opened_file.read();
-            match opened_file.buffer.path_for_lsp(&self.workspace_dir) {
-                Some(path) => (opened_file.buffer.lang(), build_req(path, &*opened_file)),
-                None => bail!("not in workspace dir"),
+            match (
+                opened_file.buffer.lang().lsp.as_ref(),
+                opened_file.buffer.path_for_lsp(&self.workspace_dir),
+            ) {
+                (Some(lsp), Some(path)) => (lsp.language_id, build_req(path, &*opened_file)),
+                (Some(_), None) => bail!("not in workspace dir"),
+                (None, _) => bail!("lsp not supported"),
             }
         };
 
-        self.call(lang.id, req).await
+        let resp_body = self.call("lsp", Some(lang_id), req).await?;
+        let resp = serde_json::from_str(&resp_body)?;
+        Ok(resp)
     }
 
     pub async fn call<I: Serialize>(
         &mut self,
         daemon_type: &'static str,
+        lang: Option<&'static str>,
         request: I,
-    ) -> Result<LspResponse> {
+    ) -> Result<String> {
         use tokio::io::AsyncWriteExt;
 
-        let (tx, rx) = oneshot::channel::<LspResponse>();
+        let (tx, rx) = oneshot::channel::<String>();
         let id = self.next_request_id;
         self.next_request_id += 1;
         self.sent_requests.lock().await.insert(id, tx);
@@ -146,7 +155,7 @@ impl SyncdClient {
         body.push('\n');
 
         for _ in 0..2 {
-            self.ensure_daemon_is_spawned(daemon_type).await?;
+            self.ensure_daemon_is_spawned(daemon_type, lang).await?;
 
             // Send the request.
             match self
@@ -177,7 +186,11 @@ impl SyncdClient {
         Ok(rx.await?)
     }
 
-    async fn ensure_daemon_is_spawned(&mut self, daemon_type: &'static str) -> Result<()> {
+    async fn ensure_daemon_is_spawned(
+        &mut self,
+        daemon_type: &'static str,
+        lang: Option<&'static str>,
+    ) -> Result<()> {
         static SPAWN_LOCK: Mutex<()> = Mutex::const_new(());
         let _spawn_lock = SPAWN_LOCK.lock().await;
 
@@ -190,12 +203,14 @@ impl SyncdClient {
         if UnixStream::connect(&sock_path).await.is_err() {
             // The syncd for the language is not running. Spawn it.
             trace!("spawning lsp syncd at {}", sock_path.display());
-            spawn_syncd(
-                "lsp",
-                &self.workspace_dir,
-                &sock_path,
-                &["--lang", daemon_type],
-            )?;
+
+            let mut extra_args = Vec::new();
+            if let Some(lang) = lang {
+                extra_args.push("--lang");
+                extra_args.push(lang);
+            }
+
+            spawn_syncd(daemon_type, &self.workspace_dir, &sock_path, &extra_args)?;
         }
 
         let sock = try_to_connect(&sock_path).await?;
@@ -217,7 +232,7 @@ impl SyncdClient {
                         break;
                     }
                     Ok(_) => {
-                        let to_client: ToClient<LspResponse> = match serde_json::from_str(&buf) {
+                        let to_client: ToClient<String> = match serde_json::from_str(&buf) {
                             Ok(resp) => resp,
                             Err(err) => {
                                 warn!("invalid packet from a syncd socket: {}", err);

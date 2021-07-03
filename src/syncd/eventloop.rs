@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use noa_common::{
     syncd_protocol::{Notification, RawRequest, RawResponse, ToClient, ToServer},
@@ -100,8 +100,9 @@ pub async fn eventloop<D: Daemon + 'static>(
                             Ok(_) => {
                                 *progress.lock() = true;
 
-                                let packet: ToServer<D::Request> =
-                                    serde_json::from_str(&buf).expect("invalid request");
+                                let packet: ToServer<D::Request> = serde_json::from_str(&buf)
+                                    .with_context(|| format!("invalid request body: {}", buf))
+                                    .unwrap();
                                 match packet {
                                     ToServer::Request(RawRequest { id, body: params }) => {
                                         match daemon_lock.lock().await.process_request(params).await
