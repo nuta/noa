@@ -7,7 +7,9 @@ use noa_common::{
     warn_on_error,
 };
 use notify::{watcher, DebouncedEvent, RecommendedWatcher, Watcher};
-use tokio::{fs::read_to_string, sync::mpsc::UnboundedSender};
+use tokio::sync::mpsc::UnboundedSender;
+
+use std::fs::read_to_string;
 
 use crate::eventloop::Daemon;
 
@@ -65,7 +67,7 @@ async fn handle_fs_changes(
     while let Ok(ev) = rx.recv() {
         trace!("fs change detected: {:?}", ev);
         match ev {
-            DebouncedEvent::Write(path) => match read_to_string(&path).await {
+            DebouncedEvent::Write(path) => match read_to_string(&path) {
                 Ok(text) => {
                     broadcast_tx.send(Notification::FileModified { path, text });
                 }
