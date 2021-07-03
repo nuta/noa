@@ -12,10 +12,10 @@ use anyhow::{bail, Context, Result};
 use noa_common::{
     dirs::lsp_sock_path,
     syncd_protocol::{
-        lsp_types, FileLocation, LspRequest, LspResponse, Notification, Request, ToClient, ToServer,
+        lsp_types, BufferSyncRequest, FileLocation, LspRequest, LspResponse, Notification, Request,
+        ToClient, ToServer,
     },
 };
-use noa_langs::Lang;
 use parking_lot::RwLock;
 use serde::Serialize;
 use tokio::{
@@ -30,7 +30,7 @@ use crate::editor::OpenedFile;
 
 pub struct SyncdClient {
     workspace_dir: PathBuf,
-    lsp_daemons: HashMap<&'static str /* lang id */, OwnedWriteHalf>,
+    daemon_connections: HashMap<&'static str /* lang id */, OwnedWriteHalf>,
     sent_requests: Arc<Mutex<HashMap<usize /* request id */, oneshot::Sender<LspResponse>>>>,
     next_request_id: usize,
     noti_tx: UnboundedSender<Notification>,
@@ -40,11 +40,21 @@ impl SyncdClient {
     pub fn new(workspace_dir: &Path, noti_tx: UnboundedSender<Notification>) -> SyncdClient {
         SyncdClient {
             workspace_dir: workspace_dir.to_owned(),
-            lsp_daemons: HashMap::new(),
+            daemon_connections: HashMap::new(),
             sent_requests: Arc::new(Mutex::new(HashMap::new())),
             next_request_id: 10000,
             noti_tx,
         }
+    }
+
+    pub async fn call_buffer_update_file(&mut self, path: &Path, text: String) {
+        self.call(
+            "buffer_sync",
+            BufferSyncRequest::UpdateFile {
+                path: path.to_path_buf(),
+                text,
+            },
+        );
     }
 
     pub async fn call_goto_definition(
@@ -67,6 +77,7 @@ impl SyncdClient {
             }
         }
     }
+
     pub async fn call_completion(
         &mut self,
         opened_file: &Arc<RwLock<OpenedFile>>,
@@ -102,12 +113,12 @@ impl SyncdClient {
             }
         };
 
-        self.call_lsp_method(lang, req).await
+        self.call(lang.id, req).await
     }
 
-    pub async fn call_lsp_method<I: Serialize>(
+    pub async fn call<I: Serialize>(
         &mut self,
-        lang: &'static Lang,
+        daemon_type: &'static str,
         request: I,
     ) -> Result<LspResponse> {
         use tokio::io::AsyncWriteExt;
@@ -122,12 +133,12 @@ impl SyncdClient {
         body.push('\n');
 
         for _ in 0..2 {
-            self.ensure_lsp_server_is_spawned(lang).await?;
+            self.ensure_daemon_is_spawned(daemon_type).await?;
 
             // Send the request.
             match self
-                .lsp_daemons
-                .get_mut(lang.id)
+                .daemon_connections
+                .get_mut(daemon_type)
                 .unwrap()
                 .write_all(body.as_bytes())
                 .await
@@ -140,7 +151,7 @@ impl SyncdClient {
                     // Perhaps the LSP server has been exited due to the idle timeout.
                     // Try again.
                     trace!("syncd is not available, respawning...");
-                    self.lsp_daemons.remove(lang.id);
+                    self.daemon_connections.remove(daemon_type);
                     continue;
                 }
                 Err(err) => {
@@ -153,25 +164,30 @@ impl SyncdClient {
         Ok(rx.await?)
     }
 
-    async fn ensure_lsp_server_is_spawned(&mut self, lang: &'static Lang) -> Result<()> {
+    async fn ensure_daemon_is_spawned(&mut self, daemon_type: &'static str) -> Result<()> {
         static SPAWN_LOCK: Mutex<()> = Mutex::const_new(());
         let _spawn_lock = SPAWN_LOCK.lock().await;
 
-        if self.lsp_daemons.contains_key(lang.id) {
+        if self.daemon_connections.contains_key(daemon_type) {
             return Ok(());
         }
 
-        let sock_path = lsp_sock_path(&self.workspace_dir, lang.id);
+        let sock_path = lsp_sock_path(&self.workspace_dir, daemon_type);
         trace!("connecting to syncd {}", sock_path.display());
         if UnixStream::connect(&sock_path).await.is_err() {
             // The syncd for the language is not running. Spawn it.
             trace!("spawning lsp syncd at {}", sock_path.display());
-            spawn_syncd("lsp", &self.workspace_dir, &sock_path, &["--lang", lang.id])?;
+            spawn_syncd(
+                "lsp",
+                &self.workspace_dir,
+                &sock_path,
+                &["--lang", daemon_type],
+            )?;
         }
 
         let sock = try_to_connect(&sock_path).await?;
         let (read_end, write_end) = sock.into_split();
-        self.lsp_daemons.insert(lang.id, write_end);
+        self.daemon_connections.insert(daemon_type, write_end);
 
         // Handle responses from the server.
         let sent_requests = self.sent_requests.clone();

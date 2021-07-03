@@ -206,7 +206,7 @@ impl Editor {
                     match asyncd
                         .lock()
                         .await
-                        .call_lsp_method::<LspRequest>(lang, LspRequest::OpenFile { path, text })
+                        .call::<LspRequest>(lang.id, LspRequest::OpenFile { path, text })
                         .await
                     {
                         Ok(_) => {}

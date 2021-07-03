@@ -36,7 +36,7 @@ async fn main() {
     }
 
     match opt.daemon_type.as_str() {
-        "syncd" => {
+        "buffer_sync" => {
             trace!("starting the buffer_sync server");
             let (noti_tx, noti_rx) = tokio::sync::mpsc::unbounded_channel::<Notification>();
 

@@ -277,12 +277,7 @@ async fn sync_file_with_lsp(
         }
     };
 
-    if let Err(err) = syncd
-        .lock()
-        .await
-        .call_lsp_method(lang, file_modified_req)
-        .await
-    {
+    if let Err(err) = syncd.lock().await.call(lang.id, file_modified_req).await {
         warn!("failed to send UpdateFile request: {}", err);
     }
 }
