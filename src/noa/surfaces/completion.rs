@@ -241,39 +241,22 @@ async fn update_completion(
     // LSP completion.
     let lsp_comp = async move {
         let mut results = FuzzySet::with_capacity(32);
-
-        let (lang, req) = {
-            let opened_file = opened_file.read();
-            match opened_file.buffer.path_for_lsp(&workspace_dir) {
-                Some(path) => (
-                    opened_file.buffer.lang(),
-                    LspRequest::Completion {
-                        path,
-                        position: opened_file.buffer.main_cursor_pos(),
-                    },
-                ),
-                None => return results,
-            }
-        };
-
         trace!("sending completion message...");
-        match syncd.lock().await.call_lsp_method(lang, req).await {
-            Ok(resp) => match resp {
-                LspResponse::Completion(items) => {
-                    let mut score = items.len() as isize;
-                    for item in items {
-                        results.push(
-                            score,
-                            Item::Word {
-                                display_text: item.label,
-                                insert_text: item.insert_text,
-                            },
-                        );
-                        score -= 1;
-                    }
+
+        match syncd.lock().await.call_completion(&opened_file).await {
+            Ok(items) => {
+                let mut score = items.len() as isize;
+                for item in items {
+                    results.push(
+                        score,
+                        Item::Word {
+                            display_text: item.label,
+                            insert_text: item.insert_text,
+                        },
+                    );
+                    score -= 1;
                 }
-                LspResponse::NoContent => {}
-            },
+            }
             Err(err) => {
                 warn!("failed to call Completion request: {}", err);
             }

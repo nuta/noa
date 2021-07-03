@@ -13,11 +13,11 @@ use lsp_types::{
         DidChangeTextDocument, DidOpenTextDocument, Notification as LspNotificationTrait,
         PublishDiagnostics,
     },
-    request::{Completion, Initialize, Request},
+    request::{Completion, GotoDefinition, Initialize, Request},
     CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
-    InitializeParams, PartialResultParams, PublishDiagnosticsParams,
-    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams,
-    VersionedTextDocumentIdentifier, WorkDoneProgressParams,
+    GotoDefinitionParams, GotoDefinitionResponse, InitializeParams, PartialResultParams,
+    PublishDiagnosticsParams, TextDocumentContentChangeEvent, TextDocumentIdentifier,
+    TextDocumentPositionParams, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 use noa_buffer::Point;
 use noa_common::syncd_protocol::{LspRequest, LspResponse, Notification};
@@ -161,6 +161,19 @@ async fn receive_responses(
                             CompletionResponse::List(list) => list.items,
                         };
                         LspResponse::Completion(items)
+                    }
+                    GotoDefinition::METHOD => {
+                        let resp: GotoDefinitionResponse =
+                            serde_json::from_value(json.result).unwrap();
+                        let items = match resp {
+                            GotoDefinitionResponse::Array(items) => items,
+                            GotoDefinitionResponse::Scalar(item) => vec![item],
+                            GotoDefinitionResponse::Link(links) => {
+                                warn!("GotoDefinitionResponse::Link is not supported: {:?}", links);
+                                continue;
+                            }
+                        };
+                        LspResponse::GoToDefinition(items)
                     }
                     _ => {
                         warn!("ignored unsupported response: {}", body);
@@ -394,6 +407,28 @@ impl Daemon for LspDaemon {
                         },
                     },
                     context: None,
+                    partial_result_params: PartialResultParams {
+                        partial_result_token: None,
+                    },
+                    work_done_progress_params: WorkDoneProgressParams {
+                        work_done_token: None,
+                    },
+                })
+                .await
+            }
+            LspRequest::GoToDefinition { path, position } => {
+                trace!(
+                    "GoToDefinition(path={}, position={})",
+                    path.display(),
+                    position
+                );
+                self.call_method::<GotoDefinition>(GotoDefinitionParams {
+                    text_document_position_params: TextDocumentPositionParams {
+                        position: position.into_position(),
+                        text_document: TextDocumentIdentifier {
+                            uri: parse_path_as_uri(&path),
+                        },
+                    },
                     partial_result_params: PartialResultParams {
                         partial_result_token: None,
                     },

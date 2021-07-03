@@ -8,12 +8,15 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use noa_common::{
     dirs::lsp_sock_path,
-    syncd_protocol::{LspResponse, Notification, Request, ToClient, ToServer},
+    syncd_protocol::{
+        lsp_types, LspRequest, LspResponse, Notification, Request, ToClient, ToServer,
+    },
 };
 use noa_langs::Lang;
+use parking_lot::RwLock;
 use serde::Serialize;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
@@ -22,6 +25,8 @@ use tokio::{
     sync::{mpsc::UnboundedSender, oneshot, Mutex},
     time::sleep,
 };
+
+use crate::editor::OpenedFile;
 
 pub struct SyncdClient {
     workspace_dir: PathBuf,
@@ -40,6 +45,64 @@ impl SyncdClient {
             next_request_id: 10000,
             noti_tx,
         }
+    }
+
+    pub async fn call_goto_definition(
+        &mut self,
+        opened_file: &Arc<RwLock<OpenedFile>>,
+    ) -> Result<Vec<lsp_types::Location>> {
+        let resp = self
+            .call_lsp_method_for_file(opened_file, |path, opened_file| {
+                LspRequest::GoToDefinition {
+                    path,
+                    position: opened_file.buffer.main_cursor_pos(),
+                }
+            })
+            .await;
+
+        match resp {
+            Ok(LspResponse::GoToDefinition(locs)) => return Ok(locs),
+            _ => {
+                bail!("unexpected goto_definition response: {:?}", resp);
+            }
+        }
+    }
+    pub async fn call_completion(
+        &mut self,
+        opened_file: &Arc<RwLock<OpenedFile>>,
+    ) -> Result<Vec<lsp_types::CompletionItem>> {
+        let resp = self
+            .call_lsp_method_for_file(opened_file, |path, opened_file| LspRequest::Completion {
+                path,
+                position: opened_file.buffer.main_cursor_pos(),
+            })
+            .await;
+
+        match resp {
+            Ok(LspResponse::Completion(items)) => return Ok(items),
+            _ => {
+                bail!("unexpected goto_definition response: {:?}", resp);
+            }
+        }
+    }
+
+    pub async fn call_lsp_method_for_file<F, I: Serialize>(
+        &mut self,
+        opened_file: &Arc<RwLock<OpenedFile>>,
+        build_req: F,
+    ) -> Result<LspResponse>
+    where
+        F: FnOnce(PathBuf, &OpenedFile) -> I,
+    {
+        let (lang, req) = {
+            let opened_file = opened_file.read();
+            match opened_file.buffer.path_for_lsp(&self.workspace_dir) {
+                Some(path) => (opened_file.buffer.lang(), build_req(path, &*opened_file)),
+                None => bail!("not in workspace dir"),
+            }
+        };
+
+        self.call_lsp_method(lang, req).await
     }
 
     pub async fn call_lsp_method<I: Serialize>(

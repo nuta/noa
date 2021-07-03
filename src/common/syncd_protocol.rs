@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use lsp_types::{CompletionItem, Diagnostic};
+use lsp_types::{CompletionItem, Diagnostic, Location};
 use serde::{Deserialize, Serialize};
 
 use noa_buffer::Point;
@@ -50,12 +50,17 @@ pub enum LspRequest {
         path: PathBuf,
         position: Point,
     },
+    GoToDefinition {
+        path: PathBuf,
+        position: Point,
+    },
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub enum LspResponse {
     NoContent,
     Completion(Vec<CompletionItem>),
+    GoToDefinition(Vec<Location>),
 }
 
 unsafe impl<T: Send> Send for Request<T> {}

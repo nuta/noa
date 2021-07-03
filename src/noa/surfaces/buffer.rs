@@ -411,6 +411,7 @@ impl Surface for BufferSurface {
         _compositor: &mut Compositor,
         ev: MouseEvent,
     ) -> HandledEvent {
+        const CTRL: KeyModifiers = KeyModifiers::CONTROL;
         const NONE: KeyModifiers = KeyModifiers::NONE;
 
         let mut f = ctx.editor.current_file().write();
@@ -433,6 +434,19 @@ impl Surface for BufferSurface {
         match (modifiers, kind) {
             (NONE, MouseEventKind::Down(MouseButton::Left)) => {
                 self.selection_start = Some(buffer_pos);
+                HandledEvent::Consumed
+            }
+            (CTRL, MouseEventKind::Down(MouseButton::Left)) => {
+                let syncd = ctx.editor.syncd().clone();
+                let file = ctx.editor.current_file().clone();
+                tokio::spawn(async move {
+                    match syncd.lock().await.call_goto_definition(&file).await {
+                        Ok(pos) => {}
+                        Err(err) => {
+                            error!("goto_definition failed: {:?}", err);
+                        }
+                    }
+                });
                 HandledEvent::Consumed
             }
             (NONE, MouseEventKind::Drag(MouseButton::Left)) => {
