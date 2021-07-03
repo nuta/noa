@@ -12,8 +12,8 @@ use anyhow::{bail, Context, Result};
 use noa_common::{
     dirs::lsp_sock_path,
     syncd_protocol::{
-        lsp_types, BufferSyncRequest, FileLocation, LspRequest, LspResponse, Notification, Request,
-        ToClient, ToServer,
+        lsp_types, BufferSyncRequest, FileLocation, LspRequest, LspResponse, Notification,
+        RawRequest, ToClient, ToServer,
     },
 };
 use parking_lot::RwLock;
@@ -47,14 +47,27 @@ impl SyncdClient {
         }
     }
 
-    pub async fn call_buffer_update_file(&mut self, path: &Path, text: String) {
+    pub async fn call_buffer_open_file(&mut self, path: &Path) -> Result<()> {
+        self.call(
+            "buffer_sync",
+            BufferSyncRequest::OpenFile {
+                path: path.to_path_buf(),
+            },
+        )
+        .await?;
+        Ok(())
+    }
+
+    pub async fn call_buffer_update_file(&mut self, path: &Path, text: String) -> Result<()> {
         self.call(
             "buffer_sync",
             BufferSyncRequest::UpdateFile {
                 path: path.to_path_buf(),
                 text,
             },
-        );
+        )
+        .await?;
+        Ok(())
     }
 
     pub async fn call_goto_definition(
@@ -129,7 +142,7 @@ impl SyncdClient {
         self.sent_requests.lock().await.insert(id, tx);
 
         // Construct a request.
-        let mut body = serde_json::to_string(&ToServer::Request(Request { id, body: request }))?;
+        let mut body = serde_json::to_string(&ToServer::Request(RawRequest { id, body: request }))?;
         body.push('\n');
 
         for _ in 0..2 {

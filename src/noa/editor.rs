@@ -3,6 +3,7 @@ use crate::syncd_client::SyncdClient;
 use crate::view::View;
 use anyhow::Context;
 
+use noa_common::oops::OopsExt;
 use noa_common::syncd_protocol::{FileLocation, LspRequest, Notification};
 use parking_lot::RwLock;
 use tokio::process::Command;
@@ -197,23 +198,29 @@ impl Editor {
 
             {
                 // Tell the LSP server about the newly opened file.
-                let asyncd = self.syncd.clone();
-                let opened_file = opened_file.read();
-                let path = opened_file.buffer.path().unwrap().to_path_buf();
-                let text = opened_file.buffer.text();
-                let lang = opened_file.buffer.lang();
+                let syncd = self.syncd.clone();
+                let opened_file = opened_file.clone();
                 tokio::spawn(async move {
-                    match asyncd
+                    syncd
                         .lock()
                         .await
-                        .call::<LspRequest>(lang.id, LspRequest::OpenFile { path, text })
+                        .call_lsp_method_for_file(&opened_file, |path, opened_file| {
+                            LspRequest::OpenFile {
+                                path,
+                                text: opened_file.buffer.text(),
+                            }
+                        })
                         .await
-                    {
-                        Ok(_) => {}
-                        Err(err) => {
-                            warn!("failed to send a syncd request: {}", err);
-                        }
-                    };
+                        .oops();
+                });
+            }
+
+            {
+                // Tell the buffer-sync server about the newly opened file.
+                let path = abspath.clone();
+                let syncd = self.syncd.clone();
+                tokio::spawn(async move {
+                    syncd.lock().await.call_buffer_open_file(&path).await.oops();
                 });
             }
 

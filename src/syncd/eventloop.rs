@@ -8,7 +8,7 @@ use std::{
 use anyhow::Result;
 use async_trait::async_trait;
 use noa_common::{
-    syncd_protocol::{Notification, Request, Response, ToClient, ToServer},
+    syncd_protocol::{Notification, RawRequest, RawResponse, ToClient, ToServer},
     warn_on_error,
 };
 use serde::{de::DeserializeOwned, Serialize};
@@ -103,15 +103,13 @@ pub async fn eventloop<D: Daemon + 'static>(
                                 let packet: ToServer<D::Request> =
                                     serde_json::from_str(&buf).expect("invalid request");
                                 match packet {
-                                    ToServer::Request(Request { id, body: params }) => {
+                                    ToServer::Request(RawRequest { id, body: params }) => {
                                         match daemon_lock.lock().await.process_request(params).await
                                         {
                                             Ok(body) => {
-                                                let resp =
-                                                    ToClient::<D::Response>::Response(Response {
-                                                        id,
-                                                        body,
-                                                    });
+                                                let resp = ToClient::<D::Response>::Response(
+                                                    RawResponse { id, body },
+                                                );
                                                 let mut json =
                                                     serde_json::to_string(&resp).unwrap();
 

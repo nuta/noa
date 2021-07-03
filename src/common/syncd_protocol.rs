@@ -9,23 +9,23 @@ pub use lsp_types;
 
 #[derive(Deserialize, Serialize, Debug)]
 pub enum ToServer<R> {
-    Request(Request<R>),
+    Request(RawRequest<R>),
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub enum ToClient<R> {
-    Response(Response<R>),
+    Response(RawResponse<R>),
     Notification(Notification),
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct Request<T> {
+pub struct RawRequest<T> {
     pub id: usize,
     pub body: T,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct Response<T> {
+pub struct RawResponse<T> {
     pub id: usize,
     pub body: T,
 }
@@ -72,7 +72,7 @@ pub enum LspResponse {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub enum BufferSyncRequest {
-    OpenFile { path: PathBuf, },
+    OpenFile { path: PathBuf },
     UpdateFile { path: PathBuf, text: String },
 }
 
@@ -81,8 +81,8 @@ pub enum BufferSyncResponse {
     NoContent,
 }
 
-unsafe impl<T: Send> Send for Request<T> {}
-unsafe impl<T: Send> Send for Response<T> {}
+unsafe impl<T: Send> Send for RawRequest<T> {}
+unsafe impl<T: Send> Send for RawResponse<T> {}
 unsafe impl Send for Notification {}
 unsafe impl Send for LspRequest {}
 unsafe impl Send for LspResponse {}

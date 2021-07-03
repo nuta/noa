@@ -1,6 +1,7 @@
 use noa_common::{
     dirs::backup_dir,
     logger::install_logger,
+    oops::OopsExt,
     syncd_protocol::{lsp_types::DiagnosticSeverity, LspRequest, Notification},
 };
 use parking_lot::RwLock;
@@ -13,10 +14,7 @@ use std::{
 use structopt::StructOpt;
 use surfaces::CompletionSurface;
 use tokio::{
-    sync::{
-        mpsc::{unbounded_channel, UnboundedSender},
-        Mutex,
-    },
+    sync::mpsc::{unbounded_channel, UnboundedSender},
     time::timeout,
 };
 use ui::Event;
@@ -25,7 +23,6 @@ use crate::{
     editor::OpenedFile,
     minimap::{LineStatus, MiniMapCategory},
     surfaces::{BottomBarSurface, BufferSurface},
-    syncd_client::SyncdClient,
     terminal::Terminal,
     ui::Compositor,
     ui::{Context, DEFAULT_THEME},
@@ -196,16 +193,59 @@ async fn main() {
 
                 let new_ver = editor.current_file().read().buffer.id_and_version();
                 if prev_ver != new_ver {
+                    //
                     // Switched or modified the current buffer.
+                    //
+
+                    // Update the syntax highlighting.
                     tokio::spawn(update_highlight(
                         editor.current_file().clone(),
                         event_tx.clone(),
                     ));
-                    tokio::spawn(sync_file_with_lsp(
-                        editor.current_file().clone(),
-                        workspace_dir.clone(),
-                        editor.syncd().clone(),
-                    ));
+
+                    // Sync updated file contents with LSP.
+                    {
+                        let syncd = editor.syncd().clone();
+                        let current_file = editor.current_file().clone();
+                        tokio::spawn(async move {
+                            syncd
+                                .lock()
+                                .await
+                                .call_lsp_method_for_file(&current_file, |path, f| {
+                                    LspRequest::UpdateFile {
+                                        path,
+                                        text: f.buffer.text(),
+                                        version: f.buffer.version(),
+                                    }
+                                })
+                                .await
+                                .oops();
+                        });
+                    }
+
+                    // Sync updated file contents with buffer-sync.
+                    {
+                        let syncd = editor.syncd().clone();
+                        let current_file = editor.current_file().clone();
+                        tokio::spawn(async move {
+                            let (path, text) = {
+                                let f = current_file.read();
+                                let path = match f.buffer.path() {
+                                    Some(path) => path.to_owned(),
+                                    None => return,
+                                };
+
+                                (path, f.buffer.text())
+                            };
+
+                            syncd
+                                .lock()
+                                .await
+                                .call_buffer_update_file(&path, text)
+                                .await
+                                .oops();
+                        });
+                    }
                 }
 
                 updated = true;
@@ -255,29 +295,4 @@ async fn update_highlight(switch_to: Arc<RwLock<OpenedFile>>, tx: UnboundedSende
     }
 
     tx.send(Event::ReDraw).ok();
-}
-
-async fn sync_file_with_lsp(
-    opened_file: Arc<RwLock<OpenedFile>>,
-    workspace_dir: PathBuf,
-    syncd: Arc<Mutex<SyncdClient>>,
-) {
-    let (lang, file_modified_req) = {
-        let opend_file = opened_file.read();
-        match opend_file.buffer.path_for_lsp(&workspace_dir) {
-            Some(path) => (
-                opend_file.buffer.lang(),
-                LspRequest::UpdateFile {
-                    path,
-                    version: opend_file.buffer.version(),
-                    text: opend_file.buffer.text(),
-                },
-            ),
-            None => return,
-        }
-    };
-
-    if let Err(err) = syncd.lock().await.call(lang.id, file_modified_req).await {
-        warn!("failed to send UpdateFile request: {}", err);
-    }
 }
