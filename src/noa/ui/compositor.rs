@@ -2,7 +2,7 @@ use std::{slice, sync::Arc};
 
 use crossterm::event::{KeyEvent, MouseEvent};
 use noa_buffer::Point;
-use noa_common::syncd_protocol::FileLocation;
+use noa_common::syncd_protocol::{FileLocation, Notification};
 use noa_common::time_report::TimeReport;
 use parking_lot::Mutex;
 
@@ -23,6 +23,7 @@ pub enum Event {
         screen_width: usize,
     },
     OpenFile(FileLocation),
+    Notification(Notification),
 }
 
 pub struct Layer {
@@ -194,6 +195,9 @@ impl Compositor {
             }
             Event::OpenFile(loc) => {
                 ctx.editor.open_file(&loc.path, Some(loc.pos));
+            }
+            Event::Notification(noti) => {
+                ctx.editor.handle_sync_notification(noti);
             }
             Event::ReDraw => {
                 // We have to do nothing here.

@@ -30,17 +30,13 @@ pub struct BufferSurface {
 }
 
 impl BufferSurface {
-    pub fn new() -> BufferSurface {
+    pub fn new(minimap: Arc<Mutex<MiniMap>>) -> BufferSurface {
         BufferSurface {
             cursor_position: (0, 0),
             text_start_x: 0,
             selection_start: None,
-            minimap: Arc::new(Mutex::new(MiniMap::new())),
+            minimap,
         }
-    }
-
-    pub fn minimap(&self) -> &Arc<Mutex<MiniMap>> {
-        &self.minimap
     }
 
     fn quit(&mut self, ctx: &mut Context, compositor: &mut Compositor) {

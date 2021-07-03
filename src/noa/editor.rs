@@ -1,9 +1,12 @@
+use crate::minimap::{LineStatus, MiniMap, MiniMapCategory};
 use crate::syncd_client::SyncdClient;
 
 use crate::view::View;
 use anyhow::Context;
 
+use noa_common::fast_hash::compute_fast_hash;
 use noa_common::oops::OopsExt;
+use noa_common::syncd_protocol::lsp_types::DiagnosticSeverity;
 use noa_common::syncd_protocol::{FileLocation, LspRequest, Notification};
 use parking_lot::RwLock;
 use tokio::process::Command;
@@ -74,6 +77,7 @@ pub struct Editor {
     syncd: Arc<Mutex<SyncdClient>>,
     messages: Arc<std::sync::Mutex<Vec<UserMessage>>>,
     jump_list: Vec<FileLocation>,
+    minimap: Arc<parking_lot::Mutex<MiniMap>>,
 }
 
 impl Editor {
@@ -103,7 +107,12 @@ impl Editor {
             syncd: Arc::new(Mutex::new(syncd)),
             messages: Arc::new(std::sync::Mutex::new(Vec::new())),
             jump_list: Vec::new(),
+            minimap: Arc::new(parking_lot::Mutex::new(MiniMap::new())),
         }
+    }
+
+    pub fn minimap(&self) -> &Arc<parking_lot::Mutex<MiniMap>> {
+        &self.minimap
     }
 
     pub fn exited(&self) -> bool {
@@ -148,6 +157,12 @@ impl Editor {
         self.log(UserMessage::Error(string));
     }
 
+    pub fn get_opened_file_by_path(&mut self, path: &Path) -> Option<&Arc<RwLock<OpenedFile>>> {
+        self.files
+            .iter()
+            .find(|o| o.read().buffer.path().map(|p| p == path).unwrap_or(false))
+    }
+
     pub fn open_file(&mut self, path: &Path, cursor_pos: Option<Point>) {
         let abspath = match path.canonicalize() {
             Ok(abspath) => abspath,
@@ -161,13 +176,7 @@ impl Editor {
             }
         };
 
-        let opened_file = if let Some(opened_file) = self.files.iter().find(|o| {
-            o.read()
-                .buffer
-                .path()
-                .map(|path| path == abspath)
-                .unwrap_or(false)
-        }) {
+        let opened_file = if let Some(opened_file) = self.get_opened_file_by_path(&abspath) {
             // The path is already opened.
             opened_file.clone()
         } else {
@@ -304,5 +313,47 @@ impl Editor {
                 }
             }
         });
+    }
+
+    pub fn handle_sync_notification(&mut self, noti: Notification) {
+        match noti {
+            Notification::FileModified {
+                path,
+                text,
+                hash: fast_hash,
+            } => {
+                // TODO:
+                trace!("file modified: {}\n{}", path.display(), text);
+                if let Some(opened_file) = self.get_opened_file_by_path(&path) {
+                    let mut f = opened_file.write();
+                    if compute_fast_hash(f.buffer.text().as_bytes()) != fast_hash {
+                        f.buffer.set_text(&text);
+                    }
+                }
+            }
+            Notification::Diagnostics(diags) => {
+                // TODO: Check if the path is current one.
+                let mut minimap = self.minimap.lock();
+                minimap.clear(MiniMapCategory::Diagnosis);
+                for diag in diags {
+                    trace!("diagnostic: {:?}", diag);
+                    let interval =
+                        (diag.range.start.line as usize)..(diag.range.end.line as usize + 1);
+                    match diag.severity {
+                        Some(DiagnosticSeverity::Error) => {
+                            minimap.insert(MiniMapCategory::Diagnosis, interval, LineStatus::Error);
+                        }
+                        Some(DiagnosticSeverity::Warning) => {
+                            minimap.insert(
+                                MiniMapCategory::Diagnosis,
+                                interval,
+                                LineStatus::Warning,
+                            );
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
     }
 }

@@ -3,6 +3,7 @@
 extern crate log;
 
 pub mod dirs;
+pub mod fast_hash;
 pub mod logger;
 pub mod macros;
 pub mod oops;

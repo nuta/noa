@@ -47,7 +47,11 @@ impl Daemon for BufferSyncDaemon {
             }
             BufferSyncRequest::UpdateFile { path, text } => {
                 self.broadcast_tx
-                    .send(Notification::FileModified { path, text })
+                    .send(Notification::FileModified {
+                        path,
+                        text,
+                        hash: compute_fast_hash(text),
+                    })
                     .ok();
                 Ok(BufferSyncResponse::NoContent)
             }
@@ -67,7 +71,11 @@ async fn handle_fs_changes(
             DebouncedEvent::Write(path) => match read_to_string(&path) {
                 Ok(text) => {
                     broadcast_tx
-                        .send(Notification::FileModified { path, text })
+                        .send(Notification::FileModified {
+                            path,
+                            text,
+                            hash: compute_fast_hash(text),
+                        })
                         .unwrap();
                 }
                 Err(err) => {

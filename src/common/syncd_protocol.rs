@@ -7,6 +7,8 @@ use noa_buffer::Point;
 
 pub use lsp_types;
 
+use crate::fast_hash::FastHash;
+
 #[derive(Deserialize, Serialize, Debug)]
 pub enum ToServer<R> {
     Request(RawRequest<R>),
@@ -33,7 +35,11 @@ pub struct RawResponse<T> {
 #[derive(Deserialize, Serialize, Debug)]
 pub enum Notification {
     Diagnostics(Vec<Diagnostic>),
-    FileModified { path: PathBuf, text: String },
+    FileModified {
+        path: PathBuf,
+        text: String,
+        hash: FastHash,
+    },
 }
 
 #[derive(Deserialize, Serialize, Debug)]
