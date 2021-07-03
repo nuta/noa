@@ -1,13 +1,13 @@
 use crate::minimap::{LineStatus, MiniMap, MiniMapCategory};
-use crate::syncd_client::SyncdClient;
+use crate::sync_client::SyncClient;
 
 use crate::view::View;
 use anyhow::Context;
 
 use noa_common::fast_hash::compute_fast_hash;
 use noa_common::oops::OopsExt;
-use noa_common::syncd_protocol::lsp_types::DiagnosticSeverity;
-use noa_common::syncd_protocol::{FileLocation, LspRequest, Notification};
+use noa_common::sync_protocol::lsp_types::DiagnosticSeverity;
+use noa_common::sync_protocol::{FileLocation, LspRequest, Notification};
 use parking_lot::RwLock;
 use tokio::process::Command;
 use tokio::sync::mpsc::UnboundedSender;
@@ -74,7 +74,7 @@ pub struct Editor {
     current_file: Arc<RwLock<OpenedFile>>,
     files: Vec<Arc<RwLock<OpenedFile>>>,
     path2id: HashMap<PathBuf, BufferId>,
-    syncd: Arc<Mutex<SyncdClient>>,
+    sync: Arc<Mutex<SyncClient>>,
     messages: Arc<std::sync::Mutex<Vec<UserMessage>>>,
     jump_list: Vec<FileLocation>,
     minimap: Arc<parking_lot::Mutex<MiniMap>>,
@@ -96,7 +96,7 @@ impl Editor {
             .with_context(|| format!("failed to resolve workdir: {}", workspace_dir.display()))
             .unwrap();
 
-        let syncd = SyncdClient::new(&workspace_dir, noti_tx);
+        let sync = SyncClient::new(&workspace_dir, noti_tx);
 
         Editor {
             exited: false,
@@ -104,7 +104,7 @@ impl Editor {
             current_file: scratch_buffer,
             files,
             path2id: HashMap::new(),
-            syncd: Arc::new(Mutex::new(syncd)),
+            sync: Arc::new(Mutex::new(sync)),
             messages: Arc::new(std::sync::Mutex::new(Vec::new())),
             jump_list: Vec::new(),
             minimap: Arc::new(parking_lot::Mutex::new(MiniMap::new())),
@@ -131,8 +131,8 @@ impl Editor {
         &self.workspace_dir
     }
 
-    pub fn syncd(&self) -> &Arc<Mutex<SyncdClient>> {
-        &self.syncd
+    pub fn sync(&self) -> &Arc<Mutex<SyncClient>> {
+        &self.sync
     }
 
     pub fn current_file(&self) -> &Arc<RwLock<OpenedFile>> {
@@ -207,11 +207,10 @@ impl Editor {
 
             {
                 // Tell the LSP server about the newly opened file.
-                let syncd = self.syncd.clone();
+                let sync = self.sync.clone();
                 let opened_file = opened_file.clone();
                 tokio::spawn(async move {
-                    syncd
-                        .lock()
+                    sync.lock()
                         .await
                         .call_lsp_method_for_file(&opened_file, |path, opened_file| {
                             LspRequest::OpenFile {
@@ -227,9 +226,9 @@ impl Editor {
             {
                 // Tell the buffer-sync server about the newly opened file.
                 let path = abspath.clone();
-                let syncd = self.syncd.clone();
+                let sync = self.sync.clone();
                 tokio::spawn(async move {
-                    syncd.lock().await.call_buffer_open_file(&path).await.oops();
+                    sync.lock().await.call_buffer_open_file(&path).await.oops();
                 });
             }
 

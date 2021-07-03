@@ -7,5 +7,5 @@ pub mod fast_hash;
 pub mod logger;
 pub mod macros;
 pub mod oops;
-pub mod syncd_protocol;
+pub mod sync_protocol;
 pub mod time_report;

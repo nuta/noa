@@ -20,7 +20,7 @@ use lsp_types::{
     TextDocumentPositionParams, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 use noa_buffer::Point;
-use noa_common::syncd_protocol::{FileLocation, LspRequest, LspResponse, Notification};
+use noa_common::sync_protocol::{FileLocation, LspRequest, LspResponse, Notification};
 use tokio::{
     io::BufReader,
     process::{Child, ChildStdin, ChildStdout, Command},

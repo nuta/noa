@@ -5,12 +5,12 @@ mod buffer_sync;
 mod eventloop;
 mod lsp;
 
-use noa_common::{logger::install_logger, syncd_protocol::Notification};
+use noa_common::{logger::install_logger, sync_protocol::Notification};
 use std::path::PathBuf;
 use structopt::StructOpt;
 use tokio::net::UnixStream;
 
-use crate::{buffer_sync::BufferSyncDaemon, eventloop::eventloop, lsp::LspDaemon};
+use crate::{buffer_sync::BufferSyncaemon, eventloop::eventloop, lsp::LspDaemon};
 
 #[derive(StructOpt)]
 struct Opt {
@@ -26,13 +26,13 @@ struct Opt {
 
 #[tokio::main]
 async fn main() {
-    install_logger("syncd");
+    install_logger("sync");
     trace!("starting");
 
     let opt = Opt::from_args();
 
     if UnixStream::connect(&opt.sock_path).await.is_ok() {
-        panic!("syncd already running at {}", opt.sock_path.display());
+        panic!("sync already running at {}", opt.sock_path.display());
     }
 
     match opt.daemon_type.as_str() {
@@ -41,7 +41,7 @@ async fn main() {
             let (noti_tx, noti_rx) = tokio::sync::mpsc::unbounded_channel::<Notification>();
 
             trace!("starting the LSP server");
-            let daemon = BufferSyncDaemon::spawn(noti_tx)
+            let daemon = BufferSyncaemon::spawn(noti_tx)
                 .await
                 .expect("failed to start the LSP mode");
 

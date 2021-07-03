@@ -433,11 +433,11 @@ impl Surface for BufferSurface {
                 HandledEvent::Consumed
             }
             (CTRL, MouseEventKind::Down(MouseButton::Left)) => {
-                let syncd = ctx.editor.syncd().clone();
+                let sync = ctx.editor.sync().clone();
                 let file = ctx.editor.current_file().clone();
                 let event_tx = ctx.event_tx.clone();
                 tokio::spawn(async move {
-                    match syncd.lock().await.call_goto_definition(&file).await {
+                    match sync.lock().await.call_goto_definition(&file).await {
                         Ok(locs) => {
                             trace!("goto_definition: {:?}", locs);
                             if !locs.is_empty() {

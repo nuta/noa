@@ -11,7 +11,7 @@ use std::{
 use anyhow::{bail, Context, Result};
 use noa_common::{
     dirs::lsp_sock_path,
-    syncd_protocol::{
+    sync_protocol::{
         lsp_types, BufferSyncRequest, FileLocation, LspRequest, LspResponse, Notification,
         RawRequest, ToClient, ToServer,
     },
@@ -28,7 +28,7 @@ use tokio::{
 
 use crate::editor::OpenedFile;
 
-pub struct SyncdClient {
+pub struct SyncClient {
     workspace_dir: PathBuf,
     daemon_connections: HashMap<&'static str /* lang id */, OwnedWriteHalf>,
     sent_requests: Arc<Mutex<HashMap<usize /* request id */, oneshot::Sender<String>>>>,
@@ -36,9 +36,9 @@ pub struct SyncdClient {
     noti_tx: UnboundedSender<Notification>,
 }
 
-impl SyncdClient {
-    pub fn new(workspace_dir: &Path, noti_tx: UnboundedSender<Notification>) -> SyncdClient {
-        SyncdClient {
+impl SyncClient {
+    pub fn new(workspace_dir: &Path, noti_tx: UnboundedSender<Notification>) -> SyncClient {
+        SyncClient {
             workspace_dir: workspace_dir.to_owned(),
             daemon_connections: HashMap::new(),
             sent_requests: Arc::new(Mutex::new(HashMap::new())),
@@ -172,7 +172,7 @@ impl SyncdClient {
                 {
                     // Perhaps the LSP server has been exited due to the idle timeout.
                     // Try again.
-                    trace!("syncd is not available, respawning...");
+                    trace!("sync is not available, respawning...");
                     self.daemon_connections.remove(daemon_type);
                     continue;
                 }
@@ -199,10 +199,10 @@ impl SyncdClient {
         }
 
         let sock_path = lsp_sock_path(&self.workspace_dir, daemon_type);
-        trace!("connecting to syncd {}", sock_path.display());
+        trace!("connecting to sync {}", sock_path.display());
         if UnixStream::connect(&sock_path).await.is_err() {
-            // The syncd for the language is not running. Spawn it.
-            trace!("spawning lsp syncd at {}", sock_path.display());
+            // The sync for the language is not running. Spawn it.
+            trace!("spawning lsp sync at {}", sock_path.display());
 
             let mut extra_args = Vec::new();
             if let Some(lang) = lsp_lang {
@@ -210,7 +210,7 @@ impl SyncdClient {
                 extra_args.push(lang);
             }
 
-            spawn_syncd(daemon_type, &self.workspace_dir, &sock_path, &extra_args)?;
+            spawn_sync(daemon_type, &self.workspace_dir, &sock_path, &extra_args)?;
         }
 
         let sock = try_to_connect(&sock_path).await?;
@@ -228,14 +228,14 @@ impl SyncdClient {
                 match reader.read_line(&mut buf).await {
                     Ok(0) => {
                         // TODO:
-                        trace!("EOF returned from syncd");
+                        trace!("EOF returned from sync");
                         break;
                     }
                     Ok(_) => {
                         let to_client: ToClient<String> = match serde_json::from_str(&buf) {
                             Ok(resp) => resp,
                             Err(err) => {
-                                warn!("invalid packet from a syncd socket: {}", err);
+                                warn!("invalid packet from a sync socket: {}", err);
                                 break;
                             }
                         };
@@ -250,7 +250,7 @@ impl SyncdClient {
                                         tx.send(resp.body).unwrap();
                                     }
                                     None => {
-                                        warn!("unknown response id from syncd: {:#?}", resp);
+                                        warn!("unknown response id from sync: {:#?}", resp);
                                         break;
                                     }
                                 }
@@ -258,20 +258,20 @@ impl SyncdClient {
                         }
                     }
                     Err(err) => {
-                        warn!("failed to read from a syncd socket: {}", err);
+                        warn!("failed to read from a sync socket: {}", err);
                         break;
                     }
                 }
             }
 
-            trace!("exiting syncd receive loop");
+            trace!("exiting sync receive loop");
         });
 
         Ok(())
     }
 }
 
-fn spawn_syncd<A: AsRef<OsStr>>(
+fn spawn_sync<A: AsRef<OsStr>>(
     daemon_type: &str,
     workspace_dir: &Path,
     sock_path: &Path,
@@ -279,7 +279,7 @@ fn spawn_syncd<A: AsRef<OsStr>>(
 ) -> Result<()> {
     if cfg!(debug_assertions) {
         Command::new("cargo")
-            .args(&["run", "--bin", "noa-syncd", "--"])
+            .args(&["run", "--bin", "noa-sync", "--"])
             .arg("--daemon-type")
             .arg(daemon_type)
             .arg("--workspace-dir")
@@ -291,9 +291,9 @@ fn spawn_syncd<A: AsRef<OsStr>>(
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
-            .context("failed to spawn noa-syncd from cargo")?;
+            .context("failed to spawn noa-sync from cargo")?;
     } else {
-        Command::new("noa-syncd")
+        Command::new("noa-sync")
             .arg("--daemon-type")
             .arg(daemon_type)
             .arg("--workspace-dir")
@@ -305,7 +305,7 @@ fn spawn_syncd<A: AsRef<OsStr>>(
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
-            .context("failed to spawn noa-syncd")?;
+            .context("failed to spawn noa-sync")?;
     }
 
     Ok(())

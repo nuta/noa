@@ -8,7 +8,7 @@ use std::{
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use noa_common::{
-    syncd_protocol::{Notification, RawRequest, RawResponse, ToClient, ToServer},
+    sync_protocol::{Notification, RawRequest, RawResponse, ToClient, ToServer},
     warn_on_error,
 };
 use serde::{de::DeserializeOwned, Serialize};

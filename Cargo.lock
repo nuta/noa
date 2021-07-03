@@ -833,7 +833,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "noa_syncd"
+name = "noa_sync"
 version = "0.0.0"
 dependencies = [
  "anyhow",

@@ -1,11 +1,11 @@
 [package]
-name = "noa_syncd"
+name = "noa_sync"
 version = "0.0.0"
 authors = ["Seiya Nuta <nuta@seiya.me>"]
 edition = "2018"
 
 [[bin]]
-name = "noa-syncd"
+name = "noa-sync"
 path = "main.rs"
 
 [dev-dependencies]

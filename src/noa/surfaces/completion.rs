@@ -9,7 +9,7 @@ use crate::{
     editor::OpenedFile,
     fuzzy_set::FuzzySet,
     selector::Selector,
-    syncd_client::SyncdClient,
+    sync_client::SyncClient,
     ui::{
         truncate_to_width, CanvasViewMut, Compositor, Context, Decoration, DisplayWidth, Event,
         HandledEvent, Layout, RectSize, Surface,
@@ -43,7 +43,7 @@ impl CompletionSurface {
             ctx.event_tx.clone(),
             selector,
             current_word,
-            ctx.editor.syncd().clone(),
+            ctx.editor.sync().clone(),
             ctx.editor.current_file().clone(),
             snapshot,
         ));
@@ -144,7 +144,7 @@ impl Surface for CompletionSurface {
                 ctx.event_tx.clone(),
                 self.selector.clone(),
                 current_word,
-                ctx.editor.syncd().clone(),
+                ctx.editor.sync().clone(),
                 ctx.editor.current_file().clone(),
                 snapshot,
             ));
@@ -208,7 +208,7 @@ async fn update_completion(
     event_tx: UnboundedSender<Event>,
     selector: Arc<Mutex<Selector<Item>>>,
     query: String,
-    syncd: Arc<tokio::sync::Mutex<SyncdClient>>,
+    sync: Arc<tokio::sync::Mutex<SyncClient>>,
     opened_file: Arc<RwLock<OpenedFile>>,
     snapshot: Arc<Snapshot>,
 ) {
@@ -239,7 +239,7 @@ async fn update_completion(
         let mut results = FuzzySet::with_capacity(32);
         trace!("sending completion message...");
 
-        match syncd.lock().await.call_completion(&opened_file).await {
+        match sync.lock().await.call_completion(&opened_file).await {
             Ok(items) => {
                 let mut score = items.len() as isize;
                 for item in items {

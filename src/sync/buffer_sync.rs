@@ -4,7 +4,7 @@ use anyhow::{bail, Result};
 use async_trait::async_trait;
 use noa_common::{
     fast_hash::compute_fast_hash,
-    syncd_protocol::{BufferSyncRequest, BufferSyncResponse, Notification},
+    sync_protocol::{BufferSyncRequest, BufferSyncResponse, Notification},
 };
 use notify::{watcher, DebouncedEvent, RecommendedWatcher, Watcher};
 use tokio::sync::mpsc::UnboundedSender;
@@ -13,18 +13,18 @@ use std::fs::read_to_string;
 
 use crate::eventloop::Daemon;
 
-pub struct BufferSyncDaemon {
+pub struct BufferSyncaemon {
     broadcast_tx: UnboundedSender<Notification>,
     fs_watcher: RecommendedWatcher,
 }
 
-impl BufferSyncDaemon {
-    pub async fn spawn(broadcast_tx: UnboundedSender<Notification>) -> Result<BufferSyncDaemon> {
+impl BufferSyncaemon {
+    pub async fn spawn(broadcast_tx: UnboundedSender<Notification>) -> Result<BufferSyncaemon> {
         let (tx, rx) = std::sync::mpsc::channel();
 
         tokio::spawn(handle_fs_changes(rx, broadcast_tx.clone()));
 
-        Ok(BufferSyncDaemon {
+        Ok(BufferSyncaemon {
             broadcast_tx,
             fs_watcher: watcher(tx, Duration::from_millis(20))?,
         })
@@ -32,7 +32,7 @@ impl BufferSyncDaemon {
 }
 
 #[async_trait]
-impl Daemon for BufferSyncDaemon {
+impl Daemon for BufferSyncaemon {
     type Request = BufferSyncRequest;
     type Response = BufferSyncResponse;
 
@@ -59,7 +59,7 @@ impl Daemon for BufferSyncDaemon {
     }
 }
 
-unsafe impl Send for BufferSyncDaemon {}
+unsafe impl Send for BufferSyncaemon {}
 
 async fn handle_fs_changes(
     rx: Receiver<DebouncedEvent>,

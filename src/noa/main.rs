@@ -1,5 +1,5 @@
 use noa_common::{
-    dirs::backup_dir, logger::install_logger, oops::OopsExt, syncd_protocol::LspRequest,
+    dirs::backup_dir, logger::install_logger, oops::OopsExt, sync_protocol::LspRequest,
 };
 use parking_lot::RwLock;
 use std::{
@@ -39,7 +39,7 @@ mod minimap;
 mod open;
 mod selector;
 mod surfaces;
-mod syncd_client;
+mod sync_client;
 mod terminal;
 mod ui;
 mod view;
@@ -171,11 +171,10 @@ async fn main() {
 
                     // Sync updated file contents with LSP.
                     {
-                        let syncd = editor.syncd().clone();
+                        let sync = editor.sync().clone();
                         let current_file = editor.current_file().clone();
                         tokio::spawn(async move {
-                            syncd
-                                .lock()
+                            sync.lock()
                                 .await
                                 .call_lsp_method_for_file(&current_file, |path, f| {
                                     LspRequest::UpdateFile {
@@ -191,7 +190,7 @@ async fn main() {
 
                     // Sync updated file contents with buffer-sync.
                     {
-                        let syncd = editor.syncd().clone();
+                        let sync = editor.sync().clone();
                         let current_file = editor.current_file().clone();
                         tokio::spawn(async move {
                             let (path, text) = {
@@ -204,8 +203,7 @@ async fn main() {
                                 (path, f.buffer.text())
                             };
 
-                            syncd
-                                .lock()
+                            sync.lock()
                                 .await
                                 .call_buffer_update_file(&path, text)
                                 .await
