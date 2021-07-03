@@ -2,7 +2,10 @@ use std::{sync::mpsc::Receiver, time::Duration};
 
 use anyhow::{bail, Result};
 use async_trait::async_trait;
-use noa_common::syncd_protocol::{BufferSyncRequest, BufferSyncResponse, Notification};
+use noa_common::{
+    fast_hash::compute_fast_hash,
+    syncd_protocol::{BufferSyncRequest, BufferSyncResponse, Notification},
+};
 use notify::{watcher, DebouncedEvent, RecommendedWatcher, Watcher};
 use tokio::sync::mpsc::UnboundedSender;
 
