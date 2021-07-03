@@ -115,7 +115,7 @@ async fn main() {
             continue;
         }
 
-        editor.open_file(file);
+        editor.open_file(file, None);
     }
 
     // Fill syntax highlighting.

@@ -17,7 +17,7 @@ use std::{
 
 use tokio::sync::Mutex;
 
-use noa_buffer::{Buffer, BufferId};
+use noa_buffer::{Buffer, BufferId, Point};
 use noa_langs::tree_sitter;
 
 const SCRATCH_TEXT: &str = "\
@@ -64,6 +64,11 @@ impl OpenedFile {
     }
 }
 
+pub struct FileLocation {
+    path: PathBuf,
+    pos: Point,
+}
+
 pub struct Editor {
     exited: bool,
     workspace_dir: PathBuf,
@@ -72,6 +77,7 @@ pub struct Editor {
     path2id: HashMap<PathBuf, BufferId>,
     syncd: Arc<Mutex<SyncdClient>>,
     messages: Arc<std::sync::Mutex<Vec<UserMessage>>>,
+    jump_list: Vec<FileLocation>,
 }
 
 impl Editor {
@@ -100,6 +106,7 @@ impl Editor {
             path2id: HashMap::new(),
             syncd: Arc::new(Mutex::new(syncd)),
             messages: Arc::new(std::sync::Mutex::new(Vec::new())),
+            jump_list: Vec::new(),
         }
     }
 
@@ -145,7 +152,7 @@ impl Editor {
         self.log(UserMessage::Error(string));
     }
 
-    pub fn open_file(&mut self, path: &Path) {
+    pub fn open_file(&mut self, path: &Path, cursor_pos: Option<Point>) {
         let abspath = match path.canonicalize() {
             Ok(abspath) => abspath,
             Err(err) => {
@@ -158,49 +165,74 @@ impl Editor {
             }
         };
 
-        let (buffer, buffer_id) = match Buffer::open_file(&abspath) {
-            Ok(buffer) => {
-                let id = buffer.id();
-                (buffer, id)
-            }
-            Err(err) => {
-                self.error(format!(
-                    "failed to open file: {} ({})",
-                    abspath.display(),
-                    err
-                ));
-                return;
-            }
-        };
-
-        let opened_file = Arc::new(RwLock::new(OpenedFile {
-            buffer,
-            view: View::new(),
-            syntax_highlight: None,
-        }));
-
-        self.files.push(opened_file.clone());
-        self.path2id.insert(abspath, buffer_id);
-        self.current_file = opened_file.clone();
-
-        // Tell the LSP server about the newly opened file.
-        let asyncd = self.syncd.clone();
-        let opened_file = opened_file.read();
-        let path = opened_file.buffer.path().unwrap().to_path_buf();
-        let text = opened_file.buffer.text();
-        let lang = opened_file.buffer.lang();
-        tokio::spawn(async move {
-            match asyncd
-                .lock()
-                .await
-                .call_lsp_method::<LspRequest>(lang, LspRequest::OpenFile { path, text })
-                .await
-            {
-                Ok(_) => {}
+        let opened_file = if let Some(opened_file) = self.files.iter().find(|o| {
+            o.read()
+                .buffer
+                .path()
+                .map(|path| path == abspath)
+                .unwrap_or(false)
+        }) {
+            // The path is already opened.
+            opened_file.clone()
+        } else {
+            // The file is not yet opened.
+            let (buffer, buffer_id) = match Buffer::open_file(&abspath) {
+                Ok(buffer) => {
+                    let id = buffer.id();
+                    (buffer, id)
+                }
                 Err(err) => {
-                    warn!("failed to send a syncd request: {}", err);
+                    self.error(format!(
+                        "failed to open file: {} ({})",
+                        abspath.display(),
+                        err
+                    ));
+                    return;
                 }
             };
+
+            let opened_file = Arc::new(RwLock::new(OpenedFile {
+                buffer,
+                view: View::new(),
+                syntax_highlight: None,
+            }));
+
+            self.files.push(opened_file.clone());
+            self.path2id.insert(abspath.clone(), buffer_id);
+
+            {
+                // Tell the LSP server about the newly opened file.
+                let asyncd = self.syncd.clone();
+                let opened_file = opened_file.read();
+                let path = opened_file.buffer.path().unwrap().to_path_buf();
+                let text = opened_file.buffer.text();
+                let lang = opened_file.buffer.lang();
+                tokio::spawn(async move {
+                    match asyncd
+                        .lock()
+                        .await
+                        .call_lsp_method::<LspRequest>(lang, LspRequest::OpenFile { path, text })
+                        .await
+                    {
+                        Ok(_) => {}
+                        Err(err) => {
+                            warn!("failed to send a syncd request: {}", err);
+                        }
+                    };
+                });
+            }
+
+            opened_file
+        };
+
+        self.current_file = opened_file.clone();
+
+        // Move the cursor to the specified position.
+        let cursor_pos = cursor_pos.unwrap_or(Point::new(0, 0));
+        opened_file.write().buffer.move_cursor_to(cursor_pos);
+        self.jump_list.push(FileLocation {
+            path: abspath,
+            pos: cursor_pos,
         });
     }
 

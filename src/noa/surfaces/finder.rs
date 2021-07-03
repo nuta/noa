@@ -59,7 +59,7 @@ impl FinderSurface {
     fn select(&self, ctx: &mut Context, item: &Item) {
         match item {
             Item::File(path) => {
-                ctx.editor.open_file(path);
+                ctx.editor.open_file(path, None);
             }
         }
     }

@@ -204,12 +204,8 @@ impl Buffer {
     pub fn path_for_lsp(&self, workspace_dir: &Path) -> Option<PathBuf> {
         match self.path() {
             // Ignore files that're not under the workspace directory.
-            Some(path) if path.starts_with(&workspace_dir) => {
-                Some(path.to_owned())
-            }
-            _ => {
-                None
-            }
+            Some(path) if path.starts_with(&workspace_dir) => Some(path.to_owned()),
+            _ => None,
         }
     }
 
@@ -299,6 +295,16 @@ impl Buffer {
             Cursor::Normal { pos, .. } => *pos,
             Cursor::Selection(range) => range.end,
         }
+    }
+
+    pub fn move_cursor_to(&mut self, pos: Point) {
+        let valid = (pos.y == self.num_lines() && pos.x == 0)
+            || (pos.y < self.num_lines() && pos.x <= self.line_len(pos.y));
+        if !valid {
+            return;
+        }
+
+        self.set_cursors(vec![Cursor::new(pos.y, pos.x)]);
     }
 
     pub fn set_cursors(&mut self, cursors: Vec<Cursor>) {
