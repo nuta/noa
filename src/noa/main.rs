@@ -128,7 +128,13 @@ async fn main() {
     tokio::spawn(async move {
         while let Some(noti) = noti_rx.recv().await {
             match noti {
+                Notification::FileModified { path, text } => {
+                    // TODO:
+                    trace!("file modified: {}\n{}", path.display(), text);
+                }
                 Notification::Diagnostics(diags) => {
+                    // TODO: Check if the path is current one.
+
                     let mut minimap = minimap.lock();
                     minimap.clear(MiniMapCategory::Diagnosis);
                     for diag in diags {

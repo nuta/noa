@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate log;
 
+mod buffer_sync;
 mod eventloop;
 mod lsp;
 
@@ -9,7 +10,7 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 use tokio::net::UnixStream;
 
-use crate::{eventloop::eventloop, lsp::LspDaemon};
+use crate::{buffer_sync::BufferSyncDaemon, eventloop::eventloop, lsp::LspDaemon};
 
 #[derive(StructOpt)]
 struct Opt {
@@ -35,6 +36,17 @@ async fn main() {
     }
 
     match opt.daemon_type.as_str() {
+        "syncd" => {
+            trace!("starting the buffer_sync server");
+            let (noti_tx, noti_rx) = tokio::sync::mpsc::unbounded_channel::<Notification>();
+
+            trace!("starting the LSP server");
+            let daemon = BufferSyncDaemon::spawn(noti_tx)
+                .await
+                .expect("failed to start the LSP mode");
+
+            eventloop(&opt.sock_path, daemon, noti_rx).await.unwrap();
+        }
         "lsp" => {
             let (noti_tx, noti_rx) = tokio::sync::mpsc::unbounded_channel::<Notification>();
 

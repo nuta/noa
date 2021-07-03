@@ -33,6 +33,7 @@ pub struct Response<T> {
 #[derive(Deserialize, Serialize, Debug)]
 pub enum Notification {
     Diagnostics(Vec<Diagnostic>),
+    FileModified { path: PathBuf, text: String },
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -67,6 +68,17 @@ pub enum LspResponse {
     NoContent,
     Completion(Vec<CompletionItem>),
     GoToDefinition(Vec<FileLocation>),
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub enum BufferSyncRequest {
+    OpenFile { path: PathBuf, },
+    UpdateFile { path: PathBuf, text: String },
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub enum BufferSyncResponse {
+    NoContent,
 }
 
 unsafe impl<T: Send> Send for Request<T> {}
