@@ -247,10 +247,62 @@ impl Editor {
         });
     }
 
-    pub fn save_current_buffer(&self) {
-        if let Err(err) = self.current_file.write().buffer.save() {
+    fn format_and_save(&self, buffer: &mut Buffer) {
+        // Format the file.
+        if let Some(argv) = buffer.lang().formatter {
+            trace!("formatting with {:?}", argv);
+            let child = std::process::Command::new(argv[0])
+                .args(&argv[1..])
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn();
+
+            match child {
+                Ok(mut child) => {
+                    use std::io::Write;
+
+                    let mut stdin = child.stdin.take().unwrap();
+                    stdin.write(buffer.text().as_bytes()).ok();
+                    drop(stdin);
+
+                    match child.wait_with_output() {
+                        Ok(output) if output.status.success() => {
+                            match std::str::from_utf8(&output.stdout) {
+                                Ok(text) => {
+                                    buffer.set_text(text);
+                                }
+                                Err(err) => {
+                                    error!("{} generated non-UTF8 text: {:?}", argv[0], err);
+                                }
+                            }
+                        }
+                        Ok(output) => {
+                            self.error("formatting error (ignored)");
+                            error!(
+                                "formatter error: {}:\nstdout: {}",
+                                argv[0],
+                                std::str::from_utf8(&output.stderr).unwrap()
+                            );
+                        }
+                        Err(err) => {
+                            error!("formatter error: {}: {:?}", argv[0], err);
+                        }
+                    }
+                }
+                Err(err) => {
+                    error!("failed to execute {:?}: {:?}", argv, err);
+                }
+            }
+        }
+
+        if let Err(err) = buffer.save() {
             self.error(format!("{}", err));
         }
+    }
+
+    pub fn save_current_buffer(&self) {
+        self.format_and_save(&mut self.current_file.write().buffer);
     }
 
     pub fn dirty_buffers(&self) -> Vec<Arc<RwLock<OpenedFile>>> {
@@ -267,9 +319,7 @@ impl Editor {
 
     pub fn save_all(&self) {
         for opened_file in self.dirty_buffers() {
-            if let Err(err) = opened_file.write().buffer.save() {
-                self.error(format!("{}", err));
-            }
+            self.format_and_save(&mut opened_file.write().buffer);
         }
     }
 
@@ -317,16 +367,12 @@ impl Editor {
 
     pub fn handle_sync_notification(&mut self, noti: Notification) {
         match noti {
-            Notification::FileModified {
-                path,
-                text,
-                hash: fast_hash,
-            } => {
+            Notification::FileModified { path, text, hash } => {
                 // TODO:
                 trace!("file modified: {}\n{}", path.display(), text);
                 if let Some(opened_file) = self.get_opened_file_by_path(&path) {
                     let mut f = opened_file.write();
-                    if compute_fast_hash(f.buffer.text().as_bytes()) != fast_hash {
+                    if compute_fast_hash(f.buffer.text().as_bytes()) != hash {
                         f.buffer.set_text(&text);
                     }
                 }

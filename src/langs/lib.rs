@@ -27,6 +27,7 @@ pub struct Lang {
     pub id: &'static str,
     pub filenames: &'static [&'static str],
     pub extensions: &'static [&'static str],
+    pub formatter: Option<&'static [&'static str]>,
     pub lsp: Option<Lsp>,
     pub tree_sitter_mapping: phf::Map<&'static str, HighlightType>,
     tree_sitter_lib: Option<unsafe extern "C" fn() -> tree_sitter::Language>,
@@ -67,6 +68,7 @@ pub const PLAIN: Lang = Lang {
     id: "plain",
     filenames: &[],
     extensions: &[],
+    formatter: None,
     lsp: None,
     tree_sitter_lib: None,
     tree_sitter_mapping: phf_map! {},
@@ -76,6 +78,7 @@ pub const C: Lang = Lang {
     id: "c",
     filenames: &[],
     extensions: &["c", "h"],
+    formatter: Some(&["clang-format"]),
     lsp: Some(Lsp {
         language_id: "c",
         command: &["clangd", "-j=8", "--log=verbose", "--pretty"],

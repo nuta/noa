@@ -3,5 +3,9 @@
 
 void main() {
   printf("hello!\n");
-  foo bar;
+  if (1) {
+    printf("");
+  } else {
+    i += 3;
+  }
 }
