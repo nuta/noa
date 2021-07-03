@@ -140,7 +140,7 @@ impl SyncdClient {
     pub async fn call<I: Serialize>(
         &mut self,
         daemon_type: &'static str,
-        lang: Option<&'static str>,
+        lsp_lang: Option<&'static str>,
         request: I,
     ) -> Result<String> {
         use tokio::io::AsyncWriteExt;
@@ -155,7 +155,7 @@ impl SyncdClient {
         body.push('\n');
 
         for _ in 0..2 {
-            self.ensure_daemon_is_spawned(daemon_type, lang).await?;
+            self.ensure_daemon_is_spawned(daemon_type, lsp_lang).await?;
 
             // Send the request.
             match self
@@ -189,7 +189,7 @@ impl SyncdClient {
     async fn ensure_daemon_is_spawned(
         &mut self,
         daemon_type: &'static str,
-        lang: Option<&'static str>,
+        lsp_lang: Option<&'static str>,
     ) -> Result<()> {
         static SPAWN_LOCK: Mutex<()> = Mutex::const_new(());
         let _spawn_lock = SPAWN_LOCK.lock().await;
@@ -205,8 +205,8 @@ impl SyncdClient {
             trace!("spawning lsp syncd at {}", sock_path.display());
 
             let mut extra_args = Vec::new();
-            if let Some(lang) = lang {
-                extra_args.push("--lang");
+            if let Some(lang) = lsp_lang {
+                extra_args.push("--lsp-lang");
                 extra_args.push(lang);
             }
 

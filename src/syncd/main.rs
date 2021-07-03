@@ -21,7 +21,7 @@ struct Opt {
     #[structopt(long, name = "type")]
     daemon_type: String,
     #[structopt(long)]
-    lang: String,
+    lsp_lang: Option<String>,
 }
 
 #[tokio::main]
@@ -51,9 +51,13 @@ async fn main() {
             let (noti_tx, noti_rx) = tokio::sync::mpsc::unbounded_channel::<Notification>();
 
             trace!("starting the LSP server");
-            let mut daemon = LspDaemon::spawn(noti_tx, &opt.workspace_dir, opt.lang)
-                .await
-                .expect("failed to start the LSP mode");
+            let mut daemon = LspDaemon::spawn(
+                noti_tx,
+                &opt.workspace_dir,
+                opt.lsp_lang.expect("--lsp-lang is required"),
+            )
+            .await
+            .expect("failed to start the LSP mode");
 
             trace!("sending initialize request to LSP");
             daemon
