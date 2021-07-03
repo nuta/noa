@@ -1,11 +1,8 @@
 use std::{sync::mpsc::Receiver, time::Duration};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
 use async_trait::async_trait;
-use noa_common::{
-    syncd_protocol::{BufferSyncRequest, BufferSyncResponse, Notification},
-    warn_on_error,
-};
+use noa_common::syncd_protocol::{BufferSyncRequest, BufferSyncResponse, Notification};
 use notify::{watcher, DebouncedEvent, RecommendedWatcher, Watcher};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -69,7 +66,9 @@ async fn handle_fs_changes(
         match ev {
             DebouncedEvent::Write(path) => match read_to_string(&path) {
                 Ok(text) => {
-                    broadcast_tx.send(Notification::FileModified { path, text });
+                    broadcast_tx
+                        .send(Notification::FileModified { path, text })
+                        .unwrap();
                 }
                 Err(err) => {
                     warn!("failed to read {}: {:?}", path.display(), err);
