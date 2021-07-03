@@ -28,3 +28,4 @@ notify = "4"
 
 noa_buffer = { path = "../buffer" }
 noa_common = { path = "../common" }
+noa_langs = { path = "../langs" }

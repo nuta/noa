@@ -21,6 +21,7 @@ use lsp_types::{
 };
 use noa_buffer::Point;
 use noa_common::sync_protocol::{FileLocation, LspRequest, LspResponse, Notification};
+use noa_langs::{get_lsp_config_by_lsp_lang_id, Lsp};
 use tokio::{
     io::BufReader,
     process::{Child, ChildStdin, ChildStdout, Command},
@@ -251,7 +252,7 @@ pub struct LspDaemon {
     workspace_dir: PathBuf,
     lsp_stdin: ChildStdin,
     _lsp_server: Child,
-    lang: String,
+    lsp_config: &'static Lsp,
     next_req_id: usize,
     req_id_tx_map: ReqIdTxMap,
 }
@@ -260,11 +261,12 @@ impl LspDaemon {
     pub async fn spawn(
         noti_tx: UnboundedSender<Notification>,
         workspace_dir: &Path,
-        lang: String,
+        lang_id: String,
     ) -> Result<LspDaemon> {
         trace!("workspace_dir={}", workspace_dir.display());
-        let mut lsp_server = Command::new("clangd")
-            .args(&["-j=8", "--log=verbose", "--pretty"])
+        let lsp_config = get_lsp_config_by_lsp_lang_id(&lang_id).expect("invalid lang id");
+        let mut lsp_server = Command::new(lsp_config.command[0])
+            .args(&lsp_config.command[1..])
             .current_dir(workspace_dir)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -274,7 +276,7 @@ impl LspDaemon {
             .with_context(|| {
                 format!(
                     "failed to spawn LSP server for {} (have you installed required packages?)",
-                    lang
+                    lang_id
                 )
             })?;
 
@@ -292,7 +294,7 @@ impl LspDaemon {
             workspace_dir: workspace_dir.to_path_buf(),
             lsp_stdin,
             _lsp_server: lsp_server,
-            lang,
+            lsp_config,
             next_req_id: 1,
             req_id_tx_map,
         })
@@ -376,7 +378,7 @@ impl Daemon for LspDaemon {
                     serialize_lsp_notification::<DidOpenTextDocument>(DidOpenTextDocumentParams {
                         text_document: lsp_types::TextDocumentItem {
                             uri: parse_path_as_uri(&path),
-                            language_id: self.lang.clone(),
+                            language_id: self.lsp_config.language_id.to_string(),
                             version: 0,
                             text,
                         },

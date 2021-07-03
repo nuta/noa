@@ -845,6 +845,7 @@ dependencies = [
  "lsp-types",
  "noa_buffer",
  "noa_common",
+ "noa_langs",
  "notify",
  "parking_lot",
  "pretty_assertions",
