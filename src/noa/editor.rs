@@ -3,7 +3,7 @@ use crate::syncd_client::SyncdClient;
 use crate::view::View;
 use anyhow::Context;
 
-use noa_common::syncd_protocol::{LspRequest, Notification};
+use noa_common::syncd_protocol::{FileLocation, LspRequest, Notification};
 use parking_lot::RwLock;
 use tokio::process::Command;
 use tokio::sync::mpsc::UnboundedSender;
@@ -62,11 +62,6 @@ impl OpenedFile {
                 .highlight_from_tree_sitter(self.buffer.lang(), tree);
         }
     }
-}
-
-pub struct FileLocation {
-    path: PathBuf,
-    pos: Point,
 }
 
 pub struct Editor {

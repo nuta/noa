@@ -12,7 +12,7 @@ use anyhow::{bail, Context, Result};
 use noa_common::{
     dirs::lsp_sock_path,
     syncd_protocol::{
-        lsp_types, LspRequest, LspResponse, Notification, Request, ToClient, ToServer,
+        lsp_types, FileLocation, LspRequest, LspResponse, Notification, Request, ToClient, ToServer,
     },
 };
 use noa_langs::Lang;
@@ -50,7 +50,7 @@ impl SyncdClient {
     pub async fn call_goto_definition(
         &mut self,
         opened_file: &Arc<RwLock<OpenedFile>>,
-    ) -> Result<Vec<lsp_types::Location>> {
+    ) -> Result<Vec<FileLocation>> {
         let resp = self
             .call_lsp_method_for_file(opened_file, |path, opened_file| {
                 LspRequest::GoToDefinition {

@@ -16,8 +16,8 @@ use crate::{
     surfaces::{prompt::CallbackResult, yes_no::YesNoChoice, FinderSurface, YesNoSurface},
     terminal::copy_to_clipboard,
     ui::{
-        whitespaces, CanvasViewMut, Compositor, Context, Decoration, DisplayWidth, HandledEvent,
-        Layout, RectSize, Surface,
+        whitespaces, CanvasViewMut, Compositor, Context, Decoration, DisplayWidth, Event,
+        HandledEvent, Layout, RectSize, Surface,
     },
 };
 
@@ -439,9 +439,15 @@ impl Surface for BufferSurface {
             (CTRL, MouseEventKind::Down(MouseButton::Left)) => {
                 let syncd = ctx.editor.syncd().clone();
                 let file = ctx.editor.current_file().clone();
+                let event_tx = ctx.event_tx.clone();
                 tokio::spawn(async move {
                     match syncd.lock().await.call_goto_definition(&file).await {
-                        Ok(pos) => {}
+                        Ok(locs) => {
+                            trace!("goto_definition: {:?}", locs);
+                            if !locs.is_empty() {
+                                event_tx.send(Event::OpenFile(locs[0].clone())).ok();
+                            }
+                        }
                         Err(err) => {
                             error!("goto_definition failed: {:?}", err);
                         }

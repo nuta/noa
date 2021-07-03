@@ -2,6 +2,7 @@ use std::{slice, sync::Arc};
 
 use crossterm::event::{KeyEvent, MouseEvent};
 use noa_buffer::Point;
+use noa_common::syncd_protocol::FileLocation;
 use noa_common::time_report::TimeReport;
 use parking_lot::Mutex;
 
@@ -21,6 +22,7 @@ pub enum Event {
         screen_height: usize,
         screen_width: usize,
     },
+    OpenFile(FileLocation),
 }
 
 pub struct Layer {
@@ -189,6 +191,9 @@ impl Compositor {
                 screen_width,
             } => {
                 self.resize_screen(ctx, screen_height, screen_width);
+            }
+            Event::OpenFile(loc) => {
+                ctx.editor.open_file(&loc.path, Some(loc.pos));
             }
             Event::ReDraw => {
                 // We have to do nothing here.

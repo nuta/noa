@@ -1,8 +1,7 @@
-use std::{cmp::max, path::PathBuf, sync::Arc};
+use std::{cmp::max, sync::Arc};
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use noa_buffer::Snapshot;
-use noa_common::syncd_protocol::{LspRequest, LspResponse};
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -47,7 +46,6 @@ impl CompletionSurface {
             ctx.editor.syncd().clone(),
             ctx.editor.current_file().clone(),
             snapshot,
-            ctx.editor.workspace_dir().to_owned(),
         ));
 
         CompletionSurface {
@@ -149,7 +147,6 @@ impl Surface for CompletionSurface {
                 ctx.editor.syncd().clone(),
                 ctx.editor.current_file().clone(),
                 snapshot,
-                ctx.editor.workspace_dir().to_owned(),
             ));
         }
 
@@ -214,7 +211,6 @@ async fn update_completion(
     syncd: Arc<tokio::sync::Mutex<SyncdClient>>,
     opened_file: Arc<RwLock<OpenedFile>>,
     snapshot: Arc<Snapshot>,
-    workspace_dir: PathBuf,
 ) {
     // Word completion.
     let word_comp = async move {
