@@ -5,9 +5,10 @@ use std::{
 };
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use noa_buffer::Point;
-use noa_common::tmux;
-use once_cell::sync::Lazy;
+use noa_common::{
+    oops::OopsExt,
+    tmux::{self, in_tmux},
+};
 use parking_lot::Mutex;
 use tokio::{process::Command, sync::mpsc::UnboundedSender};
 
@@ -25,8 +26,6 @@ use crate::{
 enum Item {
     File(PathBuf),
 }
-
-static IN_TMUX: Lazy<bool> = Lazy::new(|| std::env::var("TMUX").is_ok());
 
 fn noa_bin_args() -> &'static [&'static str] {
     if cfg!(debug_assertions) {
@@ -67,7 +66,7 @@ impl FinderSurface {
     }
 
     fn select_in_new_pane(&self, ctx: &mut Context, item: &Item) {
-        if !*IN_TMUX {
+        if !in_tmux() {
             ctx.editor.error("not in tmux");
             return;
         }
@@ -88,34 +87,33 @@ impl FinderSurface {
     }
 
     fn select_in_other_pane(&self, ctx: &mut Context, item: &Item) {
-        if !*IN_TMUX {
+        if !in_tmux() {
             ctx.editor.error("not in tmux");
             return;
         }
 
         match item {
             Item::File(path) => {
-                let pid = match tmux::get_existing_noa_pid_in_tmux() {
-                    Ok(pid) => pid,
+                let pane_id = match tmux::get_existing_noa_pane_id_in_tmux() {
+                    Ok(pane_id) => pane_id,
                     Err(err) => {
                         warn!("failed to open in other pane: {:?}", err);
                         return;
                     }
                 };
 
-                ctx.editor.info(format!(
-                    "opening {} in other pane ({})",
-                    path.display(),
-                    pid
-                ));
+                ctx.editor
+                    .info(format!("opening {} in other pane", path.display(),));
 
                 let sync = ctx.editor.sync().clone();
                 let path = path.to_owned();
                 tokio::spawn(async move {
                     sync.lock()
                         .await
-                        .call_buffer_open_file_in_other(pid, &path, None)
-                        .await;
+                        .sync
+                        .call_buffer_open_file_in_other(&pane_id, &path, None)
+                        .await
+                        .oops();
                 });
             }
         }

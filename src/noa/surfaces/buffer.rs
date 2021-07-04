@@ -253,13 +253,6 @@ impl Surface for BufferSurface {
             let end = (((num_lines as f64) / (canvas.height() as f64)) * ((i + 1) as f64)) as usize;
             for category in categories {
                 let y_range = (start)..(end);
-                trace!(
-                    "range={:?}, n={}, diff={}",
-                    y_range,
-                    num_lines,
-                    ((canvas.height() as f64) / (num_lines as f64))
-                );
-
                 if let Some(e) = minimap.iter_overlapping(category, y_range.clone()).next() {
                     draw_minimap_char(&mut canvas, i, self.scroll_bar_x, &e.value);
                 }

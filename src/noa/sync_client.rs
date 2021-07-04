@@ -62,7 +62,7 @@ impl SyncClient {
 
     pub async fn call_buffer_open_file_in_other(
         &mut self,
-        pid: u32,
+        pane_id: &str,
         path: &Path,
         position: Option<Point>,
     ) -> Result<()> {
@@ -70,7 +70,7 @@ impl SyncClient {
             "buffer_sync",
             None,
             BufferSyncRequest::OpenFileInOther {
-                pid,
+                pane_id: pane_id.to_string(),
                 position,
                 path: path.to_path_buf(),
             },

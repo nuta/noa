@@ -5,6 +5,17 @@ use std::{
 
 use anyhow::{bail, Context, Result};
 use noa_buffer::Point;
+use once_cell::sync::Lazy;
+
+pub fn in_tmux() -> bool {
+    static IN_TMUX: Lazy<bool> = Lazy::new(|| std::env::var("TMUX").is_ok());
+    *IN_TMUX
+}
+
+pub fn get_this_tmux_pane_id() -> Option<&'static str> {
+    static TMUX_PANE: Lazy<Option<String>> = Lazy::new(|| std::env::var("TMUX_PANE").ok());
+    (*TMUX_PANE).as_deref()
+}
 
 pub fn open_path_in_tmux(pane: &str, mouse_y: usize, mouse_x: usize) {
     let output = Command::new("tmux")
@@ -30,9 +41,9 @@ pub fn open_path_in_tmux(pane: &str, mouse_y: usize, mouse_x: usize) {
     }
 }
 
-pub fn get_existing_noa_pid_in_tmux() -> Result<u32> {
+pub fn get_existing_noa_pane_id_in_tmux() -> Result<String> {
     let output = Command::new("tmux")
-        .args(&["list-panes", "-F", "#{pane_pid} #{pane_current_command}"])
+        .args(&["list-panes", "-F", "#{pane_id} #{pane_current_command}"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -41,14 +52,19 @@ pub fn get_existing_noa_pid_in_tmux() -> Result<u32> {
         .expect("failed to dump the pane contents from tmux");
 
     let stdout = std::str::from_utf8(&output.stdout)?;
-    let current_pid = std::process::id();
+    let current_pane_id = match get_this_tmux_pane_id() {
+        Some(pane) => pane,
+        None => bail!("not in tmux"),
+    };
+
     for pane in stdout.split('\n') {
+        info!("pane: {}", pane);
         let mut word = pane.split(' ');
-        let pid: u32 = word.next().context("invalid list-panes output")?.parse()?;
+        let pane_id = word.next().context("invalid list-panes output")?;
         let program = word.next().context("invalid list-panes output")?;
 
-        if program == "noa" && pid != current_pid {
-            return Ok(pid);
+        if program == "noa" && pane_id != current_pane_id {
+            return Ok(pane_id.to_owned());
         }
     }
 

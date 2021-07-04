@@ -44,7 +44,7 @@ pub enum Notification {
         hash: FastHash,
     },
     OpenFileInOther {
-        pid: u32,
+        pane_id: String,
         path: PathBuf,
         position: Option<Point>,
     },
@@ -94,7 +94,7 @@ pub enum BufferSyncRequest {
         text: String,
     },
     OpenFileInOther {
-        pid: u32,
+        pane_id: String,
         path: PathBuf,
         position: Option<Point>,
     },

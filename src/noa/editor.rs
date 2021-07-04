@@ -9,6 +9,7 @@ use noa_common::fast_hash::compute_fast_hash;
 use noa_common::oops::OopsExt;
 use noa_common::sync_protocol::lsp_types::DiagnosticSeverity;
 use noa_common::sync_protocol::{FileLocation, LspRequest, Notification};
+use noa_common::tmux::{self};
 use parking_lot::RwLock;
 use tokio::process::Command;
 use tokio::sync::mpsc::UnboundedSender;
@@ -272,6 +273,7 @@ impl Editor {
                         Ok(output) if output.status.success() => {
                             match std::str::from_utf8(&output.stdout) {
                                 Ok(text) => {
+                                    buffer.mark_undo_point();
                                     buffer.set_text(text);
                                 }
                                 Err(err) => {
@@ -407,14 +409,16 @@ impl Editor {
                 }
             }
             Notification::OpenFileInOther {
-                pid,
+                pane_id,
                 path,
                 position,
-            } => {
-                if std::process::id() == pid {
+            } => match tmux::get_this_tmux_pane_id() {
+                Some(our_pane_id) if our_pane_id == pane_id => {
+                    self.info("opened a file");
                     self.open_file(&path, position);
                 }
-            }
+                _ => {}
+            },
         }
     }
 

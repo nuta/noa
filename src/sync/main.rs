@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 use tokio::net::UnixStream;
 
-use crate::{buffer_sync::BufferSyncaemon, eventloop::eventloop, lsp::LspDaemon};
+use crate::{buffer_sync::BufferSyncDaemon, eventloop::eventloop, lsp::LspDaemon};
 
 #[derive(StructOpt)]
 struct Opt {
@@ -41,7 +41,7 @@ async fn main() {
             let (noti_tx, noti_rx) = tokio::sync::mpsc::unbounded_channel::<Notification>();
 
             trace!("starting the LSP server");
-            let daemon = BufferSyncaemon::spawn(noti_tx)
+            let daemon = BufferSyncDaemon::spawn(noti_tx)
                 .await
                 .expect("failed to start the LSP mode");
 

@@ -231,8 +231,6 @@ fn compose_layers<'a, 'b, 'c>(
             _ => continue,
         }
 
-        trace!("rendering {} layer", layer.surface.name());
-
         layer.surface.render(ctx, layer.canvas.view_mut());
         screen.copy_from_other(layer.screen_y, layer.screen_x, &layer.canvas);
     }

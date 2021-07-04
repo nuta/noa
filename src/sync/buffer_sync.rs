@@ -13,18 +13,18 @@ use std::fs::read_to_string;
 
 use crate::eventloop::Daemon;
 
-pub struct BufferSyncaemon {
+pub struct BufferSyncDaemon {
     broadcast_tx: UnboundedSender<Notification>,
     fs_watcher: RecommendedWatcher,
 }
 
-impl BufferSyncaemon {
-    pub async fn spawn(broadcast_tx: UnboundedSender<Notification>) -> Result<BufferSyncaemon> {
+impl BufferSyncDaemon {
+    pub async fn spawn(broadcast_tx: UnboundedSender<Notification>) -> Result<BufferSyncDaemon> {
         let (tx, rx) = std::sync::mpsc::channel();
 
         tokio::spawn(handle_fs_changes(rx, broadcast_tx.clone()));
 
-        Ok(BufferSyncaemon {
+        Ok(BufferSyncDaemon {
             broadcast_tx,
             fs_watcher: watcher(tx, Duration::from_millis(20))?,
         })
@@ -32,7 +32,7 @@ impl BufferSyncaemon {
 }
 
 #[async_trait]
-impl Daemon for BufferSyncaemon {
+impl Daemon for BufferSyncDaemon {
     type Request = BufferSyncRequest;
     type Response = BufferSyncResponse;
 
@@ -56,13 +56,13 @@ impl Daemon for BufferSyncaemon {
                 Ok(BufferSyncResponse::NoContent)
             }
             BufferSyncRequest::OpenFileInOther {
-                pid,
+                pane_id,
                 path,
                 position,
             } => {
                 self.broadcast_tx
                     .send(Notification::OpenFileInOther {
-                        pid,
+                        pane_id,
                         path,
                         position,
                     })
@@ -73,7 +73,7 @@ impl Daemon for BufferSyncaemon {
     }
 }
 
-unsafe impl Send for BufferSyncaemon {}
+unsafe impl Send for BufferSyncDaemon {}
 
 async fn handle_fs_changes(
     rx: Receiver<DebouncedEvent>,
