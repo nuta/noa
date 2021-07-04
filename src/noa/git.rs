@@ -1,3 +1,5 @@
+use std;
+
 use anyhow::Result;
 use git2::DiffOptions;
 use libgit2_sys::{
@@ -26,7 +28,9 @@ pub struct LineRangeDiff {
     range: ops::Range<usize>,
 }
 
-struct DiffCallbackContext {}
+struct DiffCallbackContext {
+    diffs: Vec<LineRangeDiff>,
+}
 
 macro_rules! try_libgit_func {
     ($summary:expr, $expr:expr) => {{
@@ -61,22 +65,23 @@ extern "C" fn diff_callback(
         println!("hunk.new_start={}", hunk.new_start);
         println!("hunk.new_lines={}", hunk.new_lines);
 
+        // Resolve hunks into LineRanegDiff. Ported from the Atom editor.
         let start_y = hunk.new_start - 1;
         let end_y = hunk.new_start + hunk.new_lines - 1;
-
         let (range, diff_type) = if hunk.old_lines == 0 && hunk.new_lines > 0 {
-            (start_y..end_y, DiffType::Added)
+            ((start_y as usize)..(end_y as usize), DiffType::Added)
         } else if hunk.new_lines == 0 && hunk.old_lines > 0 {
             if start_y < 0 {
                 (0..0, DiffType::Removed)
             } else {
-                (start_y..end_y, DiffType::Removed)
+                ((start_y as usize)..(end_y as usize), DiffType::Removed)
             }
         } else {
-            (start_y..end_y, DiffType::Modified)
+            ((start_y as usize)..(end_y as usize), DiffType::Modified)
         };
 
         println!("[{:?}] {:?}", range, diff_type);
+        ctx.diffs.push(LineRangeDiff { diff_type, range });
     }
 
     GIT_OK
@@ -87,7 +92,7 @@ pub fn compute_line_diff_status() -> Result<()> {
     unsafe {
         let repo_path = CString::new("/Users/seiya/dev/noa").unwrap();
         let spec = CString::new(format!("HEAD:src/noa/git.rs")).unwrap();
-        let mut ctx = DiffCallbackContext {};
+        let mut ctx = DiffCallbackContext { diffs: Vec::new() };
 
         let mut opts = DiffOptions::default();
         opts.context_lines(0);
