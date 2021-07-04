@@ -243,8 +243,8 @@ impl Surface for BufferSurface {
             .unwrap_or(0);
         let visible_range = visible_start..visible_end;
         for i in 0..canvas.height() {
-            let start = (((canvas.height() as f64) / (num_lines as f64)) * (i as f64)) as usize;
-            let end = (((canvas.height() as f64) / (num_lines as f64)) * ((i + 1) as f64)) as usize;
+            let start = (((num_lines as f64) / (canvas.height() as f64)) * (i as f64)) as usize;
+            let end = (((num_lines as f64) / (canvas.height() as f64)) * ((i + 1) as f64)) as usize;
             for category in categories {
                 let y_range = (start)..(end);
                 trace!(
