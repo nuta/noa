@@ -1,8 +1,9 @@
 use anyhow::Result;
 use git2::DiffOptions;
 use libgit2_sys::{
-    git_blob, git_diff_blob_to_buffer, git_diff_delta, git_diff_hunk, git_libgit2_init,
-    git_object_peel, git_repository_open, git_revparse_single, GIT_OBJECT_BLOB, GIT_OK,
+    git_blob, git_blob_free, git_diff_blob_to_buffer, git_diff_delta, git_diff_hunk,
+    git_libgit2_init, git_object_peel, git_repository_open, git_revparse_single, GIT_OBJECT_BLOB,
+    GIT_OK,
 };
 
 use std::{
@@ -27,7 +28,6 @@ struct DiffCallbackContext {}
 
 macro_rules! try_libgit_func {
     ($summary:expr, $expr:expr) => {{
-        println!("$summary = {}", $summary);
         let ret = $expr;
         if ret < 0 {
             let error = ::libgit2_sys::git_error_last();
@@ -109,6 +109,8 @@ pub fn compute_line_diff_status() -> Result<()> {
                 /* payload */ &mut ctx as *mut _ as *mut c_void,
             )
         );
+
+        git_blob_free(blob as *mut git_blob);
     }
 
     println!("Done!");
