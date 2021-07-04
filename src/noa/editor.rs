@@ -406,6 +406,15 @@ impl Editor {
                     }
                 }
             }
+            Notification::OpenFileInOther {
+                pid,
+                path,
+                position,
+            } => {
+                if std::process::id() == pid {
+                    self.open_file(&path, position);
+                }
+            }
         }
     }
 

@@ -9,6 +9,7 @@ use std::{
 };
 
 use anyhow::{bail, Context, Result};
+use noa_buffer::Point;
 use noa_common::{
     dirs::lsp_sock_path,
     sync_protocol::{
@@ -52,6 +53,25 @@ impl SyncClient {
             "buffer_sync",
             None,
             BufferSyncRequest::OpenFile {
+                path: path.to_path_buf(),
+            },
+        )
+        .await?;
+        Ok(())
+    }
+
+    pub async fn call_buffer_open_file_in_other(
+        &mut self,
+        pid: u32,
+        path: &Path,
+        position: Option<Point>,
+    ) -> Result<()> {
+        self.call(
+            "buffer_sync",
+            None,
+            BufferSyncRequest::OpenFileInOther {
+                pid,
+                position,
                 path: path.to_path_buf(),
             },
         )

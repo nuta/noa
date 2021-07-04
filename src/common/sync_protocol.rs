@@ -43,6 +43,11 @@ pub enum Notification {
         text: String,
         hash: FastHash,
     },
+    OpenFileInOther {
+        pid: u32,
+        path: PathBuf,
+        position: Option<Point>,
+    },
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -81,8 +86,18 @@ pub enum LspResponse {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub enum BufferSyncRequest {
-    OpenFile { path: PathBuf },
-    UpdateFile { path: PathBuf, text: String },
+    OpenFile {
+        path: PathBuf,
+    },
+    UpdateFile {
+        path: PathBuf,
+        text: String,
+    },
+    OpenFileInOther {
+        pid: u32,
+        path: PathBuf,
+        position: Option<Point>,
+    },
 }
 
 #[derive(Deserialize, Serialize, Debug)]

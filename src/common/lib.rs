@@ -9,3 +9,4 @@ pub mod macros;
 pub mod oops;
 pub mod sync_protocol;
 pub mod time_report;
+pub mod tmux;

@@ -3,6 +3,7 @@ use std::{
     process::{Command, Stdio},
 };
 
+use anyhow::{bail, Context, Result};
 use noa_buffer::Point;
 
 pub fn open_path_in_tmux(pane: &str, mouse_y: usize, mouse_x: usize) {
@@ -27,6 +28,31 @@ pub fn open_path_in_tmux(pane: &str, mouse_y: usize, mouse_x: usize) {
     if let Some((path, point)) = extract_path_and_point(&output.stdout, mouse_y, mouse_x) {
         trace!("open_path_in_tmux: opening {:?} {:?}", path, point);
     }
+}
+
+pub fn get_existing_noa_pid_in_tmux() -> Result<u32> {
+    let output = Command::new("tmux")
+        .args(&["list-panes", "-F", "#{pane_pid} #{pane_current_command}"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("failed to execve tmux")
+        .wait_with_output()
+        .expect("failed to dump the pane contents from tmux");
+
+    let stdout = std::str::from_utf8(&output.stdout)?;
+    let current_pid = std::process::id();
+    for pane in stdout.split('\n') {
+        let mut word = pane.split(' ');
+        let pid: u32 = word.next().context("invalid list-panes output")?.parse()?;
+        let program = word.next().context("invalid list-panes output")?;
+
+        if program == "noa" && pid != current_pid {
+            return Ok(pid);
+        }
+    }
+
+    bail!("no noa panes");
 }
 
 fn is_valid_path_char(byte: u8) -> bool {

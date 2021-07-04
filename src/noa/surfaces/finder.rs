@@ -5,6 +5,8 @@ use std::{
 };
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use noa_buffer::Point;
+use noa_common::tmux;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use tokio::{process::Command, sync::mpsc::UnboundedSender};
@@ -81,6 +83,40 @@ impl FinderSurface {
                         .args(noa_bin_args())
                         .arg(path),
                 );
+            }
+        }
+    }
+
+    fn select_in_other_pane(&self, ctx: &mut Context, item: &Item) {
+        if !*IN_TMUX {
+            ctx.editor.error("not in tmux");
+            return;
+        }
+
+        match item {
+            Item::File(path) => {
+                let pid = match tmux::get_existing_noa_pid_in_tmux() {
+                    Ok(pid) => pid,
+                    Err(err) => {
+                        warn!("failed to open in other pane: {:?}", err);
+                        return;
+                    }
+                };
+
+                ctx.editor.info(format!(
+                    "opening {} in other pane ({})",
+                    path.display(),
+                    pid
+                ));
+
+                let sync = ctx.editor.sync().clone();
+                let path = path.to_owned();
+                tokio::spawn(async move {
+                    sync.lock()
+                        .await
+                        .call_buffer_open_file_in_other(pid, &path, None)
+                        .await;
+                });
             }
         }
     }
@@ -171,6 +207,14 @@ impl Surface for FinderSurface {
                 (KeyModifiers::ALT, KeyCode::Enter) => {
                     if let Some(item) = self.selector.lock().selected() {
                         self.select_in_new_pane(ctx, item);
+                    }
+
+                    compositor.pop_layer();
+                    return HandledEvent::Consumed;
+                }
+                (KeyModifiers::CONTROL, KeyCode::Char('o')) => {
+                    if let Some(item) = self.selector.lock().selected() {
+                        self.select_in_other_pane(ctx, item);
                     }
 
                     compositor.pop_layer();

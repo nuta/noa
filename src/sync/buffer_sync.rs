@@ -55,6 +55,20 @@ impl Daemon for BufferSyncaemon {
                     .ok();
                 Ok(BufferSyncResponse::NoContent)
             }
+            BufferSyncRequest::OpenFileInOther {
+                pid,
+                path,
+                position,
+            } => {
+                self.broadcast_tx
+                    .send(Notification::OpenFileInOther {
+                        pid,
+                        path,
+                        position,
+                    })
+                    .ok();
+                Ok(BufferSyncResponse::NoContent)
+            }
         }
     }
 }

@@ -1,5 +1,5 @@
 use noa_common::{
-    dirs::backup_dir, logger::install_logger, oops::OopsExt, sync_protocol::LspRequest,
+    dirs::backup_dir, logger::install_logger, oops::OopsExt, sync_protocol::LspRequest, tmux,
 };
 use parking_lot::RwLock;
 use std::{
@@ -36,7 +36,6 @@ mod fuzzy_set;
 mod git;
 mod line_edit;
 mod minimap;
-mod open;
 mod selector;
 mod surfaces;
 mod sync_client;
@@ -64,7 +63,7 @@ async fn main() {
     let opt = Opt::from_args();
 
     if opt.open_path_in_tmux {
-        open::open_path_in_tmux(
+        tmux::open_path_in_tmux(
             opt.tmux_pane.expect("--tmux-pane is required").as_str(),
             opt.tmux_mouse_y.expect("--tmux-mouse-y is required"),
             opt.tmux_mouse_x.expect("--tmux-mouse-x is required"),
