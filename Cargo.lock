@@ -777,7 +777,6 @@ dependencies = [
  "once_cell",
  "parking_lot",
  "pretty_assertions",
- "ropey",
  "serde",
  "serde_json",
  "structopt",
@@ -830,6 +829,22 @@ dependencies = [
  "log",
  "phf",
  "tree-sitter",
+]
+
+[[package]]
+name = "noa_replace"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "crossterm",
+ "futures",
+ "log",
+ "noa_buffer",
+ "noa_common",
+ "parking_lot",
+ "pretty_assertions",
+ "structopt",
+ "tokio",
 ]
 
 [[package]]
