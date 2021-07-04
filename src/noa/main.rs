@@ -92,7 +92,7 @@ async fn main() {
 
     git::compute_line_diffs(
         std::path::Path::new("/Users/seiya/dev/noa"),
-        std::path::Path::new("src/noa/git.rs"),
+        std::path::Path::new("/Users/seiya/dev/noa/src/noa/git.rs"),
         include_str!("git.rs"),
     )
     .unwrap();

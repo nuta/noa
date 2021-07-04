@@ -58,12 +58,6 @@ extern "C" fn diff_callback(
         let ctx = &mut *(ctx as *mut DiffCallbackContext);
         let hunk = &*(hunk);
 
-        println!("-------------------------------------------");
-        println!("hunk.old_start={}", hunk.old_start);
-        println!("hunk.old_lines={}", hunk.old_lines);
-        println!("hunk.new_start={}", hunk.new_start);
-        println!("hunk.new_lines={}", hunk.new_lines);
-
         // Resolve hunks into LineRanegDiff. Ported from the Atom editor.
         let start_y = hunk.new_start - 1;
         let end_y = hunk.new_start + hunk.new_lines - 1;
@@ -87,6 +81,9 @@ extern "C" fn diff_callback(
 }
 
 pub fn compute_line_diffs(repo_path: &Path, path: &Path, text: &str) -> Result<Vec<LineRangeDiff>> {
+    debug_assert!(repo_path.is_absolute());
+    debug_assert!(path.is_absolute());
+
     let mut ctx = DiffCallbackContext { diffs: Vec::new() };
     unsafe {
         let spec =
