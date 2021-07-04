@@ -504,9 +504,7 @@ impl Surface for BufferSurface {
                         let goto = Point::new(min(buffer_y, f.buffer.num_lines()), 0);
                         f.buffer.move_cursor_to(goto);
                     }
-                    _ => {
-                        trace!("{:?} {:?}", modifiers, kind);
-                    }
+                    _ => {}
                 }
             }
 
