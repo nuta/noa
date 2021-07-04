@@ -367,8 +367,7 @@ impl Editor {
     pub fn handle_sync_notification(&mut self, noti: Notification) {
         match noti {
             Notification::FileModified { path, text, hash } => {
-                // TODO:
-                trace!("file modified: {}\n{}", path.display(), text);
+                trace!("file change detected: {}", path.display());
                 if let Some(opened_file) = self.get_opened_file_by_path(&path) {
                     let mut f = opened_file.write();
                     if compute_fast_hash(f.buffer.text().as_bytes()) != hash {
@@ -377,12 +376,6 @@ impl Editor {
                 }
             }
             Notification::Diagnostics { path, diags } => {
-                trace!(
-                    "@@@@@@@@@@: {:?} {:?}",
-                    Some(path.as_path()),
-                    self.current_file.read().buffer.path()
-                );
-
                 if Some(path.as_path()) == self.current_file.read().buffer.path() {
                     let mut minimap = self.minimap.lock();
                     minimap.clear(MiniMapCategory::Diagnosis);

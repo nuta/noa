@@ -769,6 +769,7 @@ dependencies = [
  "futures",
  "git2",
  "ignore",
+ "libgit2-sys",
  "log",
  "noa_buffer",
  "noa_common",
