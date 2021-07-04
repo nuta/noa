@@ -13,12 +13,14 @@ use std::{
     ptr,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DiffType {
     Added,
     Modified,
     Removed,
 }
 
+#[derive(Debug, Clone)]
 pub struct LineRangeDiff {
     diff_type: DiffType,
     range: ops::Range<usize>,
@@ -49,6 +51,7 @@ extern "C" fn diff_callback(
     hunk: *const git_diff_hunk,
     ctx: *mut c_void,
 ) -> c_int {
+    use std::process;
     unsafe {
         let ctx = &mut *(ctx as *mut DiffCallbackContext);
         let hunk = &*(hunk);
@@ -58,6 +61,23 @@ extern "C" fn diff_callback(
         println!("hunk.old_lines={}", hunk.old_lines);
         println!("hunk.new_start={}", hunk.new_start);
         println!("hunk.new_lines={}", hunk.new_lines);
+
+        let start_y = hunk.new_start - 1;
+        let end_y = hunk.new_start + hunk.new_lines - 1;
+
+        let (range, diff_type) = if hunk.old_lines == 0 && hunk.new_lines > 0 {
+            (start_y..end_y, DiffType::Added)
+        } else if hunk.new_lines == 0 && hunk.old_lines > 0 {
+            if start_y < 0 {
+                (0..0, DiffType::Removed)
+            } else {
+                (start_y..end_y, DiffType::Removed)
+            }
+        } else {
+            (start_y..end_y, DiffType::Modified)
+        };
+
+        println!("[{:?}] {:?}", range, diff_type);
     }
 
     GIT_OK
