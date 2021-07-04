@@ -49,12 +49,12 @@ impl MiniMap {
         self.maps[&category].get_containing(key)
     }
 
-    pub fn _iter_overlapping(
+    pub fn iter_overlapping(
         &self,
         category: MiniMapCategory,
         interval: Range<usize>,
     ) -> impl Iterator<Item = &Entry<usize, LineStatus>> {
-        self.maps[&category]._iter_overlapping(interval)
+        self.maps[&category].iter_overlapping(interval)
     }
 }
 
@@ -86,7 +86,7 @@ impl<I: PartialOrd + Copy, V> IntervalMap<I, V> {
             .find(|e| e.interval.start <= key && key < e.interval.end)
     }
 
-    pub fn _iter_overlapping(&self, interval: Range<I>) -> impl Iterator<Item = &Entry<I, V>> {
+    pub fn iter_overlapping(&self, interval: Range<I>) -> impl Iterator<Item = &Entry<I, V>> {
         let start = interval.start;
         let end = interval.end;
         self.inner

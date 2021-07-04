@@ -117,6 +117,12 @@ impl Surface for BufferSurface {
     fn render<'a>(&mut self, ctx: &mut Context, mut canvas: CanvasViewMut<'a>) {
         canvas.clear();
 
+        let categories = [
+            MiniMapCategory::Diagnosis,
+            MiniMapCategory::Cursor,
+            MiniMapCategory::Diff,
+        ];
+
         let (max_lineno_width, text_width, text_start_x) = {
             let mut f = ctx.editor.current_file().write();
             let max_lineno_width = f.buffer.num_lines().display_width() + 1;
@@ -142,6 +148,21 @@ impl Surface for BufferSurface {
             );
         }
 
+        let draw_minimap_char =
+            |canvas: &mut CanvasViewMut<'a>, y: usize, x: usize, status: &LineStatus| {
+                let style = match status {
+                    LineStatus::Cursor => &ctx.theme.line_status_cursor,
+                    LineStatus::Warning => &ctx.theme.line_status_warning,
+                    LineStatus::Error => &ctx.theme.line_status_error,
+                    LineStatus::AddedLine => &ctx.theme.line_status_added,
+                    LineStatus::RemovedLine => &ctx.theme.line_status_removed,
+                    LineStatus::ModifiedLine => &ctx.theme.line_status_modified,
+                };
+
+                canvas.draw_char(y, x, '\u{2590}' /* Right Half Block */);
+                canvas.set_style(y, x, x + 1, &style);
+            };
+
         let mut y_end = 0;
         let mut lines_end_xs = Vec::new();
         for (y, display_line) in f.view.visible_display_lines().iter().enumerate() {
@@ -153,26 +174,11 @@ impl Surface for BufferSurface {
             canvas.draw_str(y, 0, &whitespaces(pad_len));
             canvas.draw_str(y, pad_len, &lineno.to_string());
 
-            // Draw the minimap.
-            let categories = [
-                MiniMapCategory::Diagnosis,
-                MiniMapCategory::Cursor,
-                MiniMapCategory::Diff,
-            ];
+            // Draw the minimap (left-side).
             let mut drew_line_status = false;
             for category in categories {
                 if let Some(e) = minimap.get_containing(category, buffer_y) {
-                    let style = match &e.value {
-                        LineStatus::Cursor => &ctx.theme.line_status_cursor,
-                        LineStatus::Warning => &ctx.theme.line_status_warning,
-                        LineStatus::Error => &ctx.theme.line_status_error,
-                        LineStatus::AddedLine => &ctx.theme.line_status_added,
-                        LineStatus::RemovedLine => &ctx.theme.line_status_removed,
-                        LineStatus::ModifiedLine => &ctx.theme.line_status_modified,
-                    };
-
-                    canvas.draw_char(y, max_lineno_width, ' ');
-                    canvas.set_style(y, max_lineno_width, max_lineno_width + 1, &style);
+                    draw_minimap_char(&mut canvas, y, max_lineno_width, &e.value);
                     drew_line_status = true;
                 }
             }
@@ -221,7 +227,27 @@ impl Surface for BufferSurface {
             y_end = y + 1;
         }
 
-        // Clear the remaining out of the buffer area.
+        // Draw the minimap (right-side).
+        let num_lines = f.buffer.num_lines();
+        for i in 0..canvas.height() {
+            let start = ((canvas.height() as f64) / (num_lines as f64)) * (i as f64);
+            let end = ((canvas.height() as f64) / (num_lines as f64)) * ((i + 1) as f64);
+            for category in categories {
+                let y_range = (start as usize)..(end as usize);
+                trace!(
+                    "range={:?}, n={}, diff={}",
+                    y_range,
+                    num_lines,
+                    ((canvas.height() as f64) / (num_lines as f64))
+                );
+                if let Some(e) = minimap.iter_overlapping(category, y_range).next() {
+                    let x = canvas.width() - 1;
+                    draw_minimap_char(&mut canvas, i, x, &e.value);
+                }
+            }
+        }
+
+        // Clear the remaining lines out of the buffer area.
         for y in y_end..canvas.height() {
             canvas.draw_str(y, 0, &whitespaces(canvas.width()));
         }
