@@ -220,16 +220,13 @@ async fn main() {
             }
             Err(_) if updated => {
                 // Idle.
-
-                {
-                    let f = editor.current_file().read();
+                let current_file = editor.current_file().clone();
+                let backup_dir = backup_dir.clone();
+                tokio::spawn(async move {
+                    let mut f = current_file.write();
                     f.buffer.update_backup(&backup_dir);
-                }
-
-                {
-                    let mut f = editor.current_file().write();
                     f.buffer.mark_undo_point();
-                }
+                });
 
                 editor.update_git_line_statuses();
 
