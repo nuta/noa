@@ -90,7 +90,12 @@ async fn main() {
         theme,
     };
 
-    git::compute_line_diff_status().unwrap();
+    git::compute_line_diffs(
+        std::path::Path::new("/Users/seiya/dev/noa"),
+        std::path::Path::new("src/noa/git.rs"),
+        include_str!("git.rs"),
+    )
+    .unwrap();
     return;
 
     // Initialize UI.

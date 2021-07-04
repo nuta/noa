@@ -1,4 +1,4 @@
-gsuse anyhow::Result;
+use anyhow::Result;
 use git2::DiffOptions;
 use libgit2_sys::{
     git_blob, git_blob_free, git_diff_blob_to_buffer, git_diff_delta, git_diff_hunk,
@@ -10,6 +10,7 @@ use std::{
     ffi::{c_void, CString},
     ops,
     os::raw::{c_char, c_int},
+    path::Path,
     ptr,
 };
 
@@ -49,7 +50,7 @@ macro_rules! try_libgit_func {
 }
 
 extern "C" fn diff_callback(
-    delta: *const git_diff_delta,
+    _delta: *const git_diff_delta,
     hunk: *const git_diff_hunk,
     ctx: *mut c_void,
 ) -> c_int {
@@ -85,12 +86,12 @@ extern "C" fn diff_callback(
     GIT_OK
 }
 
-pub fn compute_line_diff_status() -> Result<()> {
-    let buffer = include_str!("git.rs");
+pub fn compute_line_diffs(repo_path: &Path, path: &Path, text: &str) -> Result<Vec<LineRangeDiff>> {
+    let mut ctx = DiffCallbackContext { diffs: Vec::new() };
     unsafe {
-        let repo_path = CString::new("/Users/seiya/dev/noa").unwrap();
-        let spec = CString::new(format!("HEAD:src/noa/git.rs")).unwrap();
-        let mut ctx = DiffCallbackContext { diffs: Vec::new() };
+        let spec =
+            CString::new(format!("HEAD:{}", path.strip_prefix(repo_path)?.display())).unwrap();
+        let repo_path = CString::new(repo_path.as_os_str().to_str().unwrap()).unwrap();
 
         let mut opts = DiffOptions::default();
         opts.context_lines(0);
@@ -119,8 +120,8 @@ pub fn compute_line_diff_status() -> Result<()> {
             git_diff_blob_to_buffer(
                 /* old_blob */ blob as *const git_blob,
                 /* old_as_path */ ptr::null(),
-                /* buffer */ buffer.as_bytes().as_ptr() as *const c_char,
-                /* buffer_len */ buffer.as_bytes().len(),
+                /* buffer */ text.as_bytes().as_ptr() as *const c_char,
+                /* buffer_len */ text.as_bytes().len(),
                 /* buffer_as_path */ ptr::null(),
                 /* options */ opts.raw(),
                 /* file_cb */ None,
@@ -135,5 +136,5 @@ pub fn compute_line_diff_status() -> Result<()> {
     }
 
     println!("Done!");
-    Ok(())
+    Ok(ctx.diffs)
 }
