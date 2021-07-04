@@ -290,8 +290,12 @@ impl Buffer {
         &self.cursors
     }
 
+    pub fn main_cursor(&self) -> &Cursor {
+        &self.cursors[0]
+    }
+
     pub fn main_cursor_pos(&self) -> Point {
-        match &self.cursors[0] {
+        match self.main_cursor() {
             Cursor::Normal { pos, .. } => *pos,
             Cursor::Selection(range) => range.end,
         }

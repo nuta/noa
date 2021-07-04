@@ -141,6 +141,10 @@ impl Surface for BufferSurface {
         let mut minimap = self.minimap.lock();
         minimap.clear(MiniMapCategory::Cursor);
         for c in f.buffer.cursors() {
+            if c == f.buffer.main_cursor() {
+                continue;
+            }
+
             minimap.insert(
                 MiniMapCategory::Cursor,
                 c.front().y..(c.back().y + 1),
