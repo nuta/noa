@@ -70,6 +70,7 @@ impl OpenedFile {
 
 pub struct Editor {
     exited: bool,
+    git_dir: PathBuf,
     workspace_dir: PathBuf,
     current_file: Arc<RwLock<OpenedFile>>,
     files: Vec<Arc<RwLock<OpenedFile>>>,
