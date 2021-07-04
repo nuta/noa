@@ -544,7 +544,6 @@ impl Surface for BufferSurface {
                 HandledEvent::Consumed
             }
             (NONE, MouseEventKind::Drag(MouseButton::Left)) => {
-                trace!("drag = {} {:?}", buffer_pos, self.selection_start);
                 match self.selection_start {
                     Some(start) if start != buffer_pos => {
                         f.buffer
