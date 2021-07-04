@@ -31,6 +31,8 @@ pub struct BufferSurface {
     minimap: Arc<Mutex<MiniMap>>,
     time_last_clicked: Instant,
     num_clicked: usize,
+    scroll_ys: Vec<usize>,
+    scroll_bar_x: usize,
 }
 
 impl BufferSurface {
@@ -42,6 +44,8 @@ impl BufferSurface {
             minimap,
             time_last_clicked: Instant::now().sub(Duration::from_secs(100)),
             num_clicked: 0,
+            scroll_ys: Vec::new(),
+            scroll_bar_x: 0,
         }
     }
 
@@ -242,6 +246,8 @@ impl Surface for BufferSurface {
             .map(|l| l.buffer_y)
             .unwrap_or(0);
         let visible_range = visible_start..visible_end;
+        self.scroll_ys.clear();
+        self.scroll_bar_x = canvas.width() - 1;
         for i in 0..canvas.height() {
             let start = (((num_lines as f64) / (canvas.height() as f64)) * (i as f64)) as usize;
             let end = (((num_lines as f64) / (canvas.height() as f64)) * ((i + 1) as f64)) as usize;
@@ -254,16 +260,22 @@ impl Surface for BufferSurface {
                     ((canvas.height() as f64) / (num_lines as f64))
                 );
 
-                let x = canvas.width() - 1;
                 if let Some(e) = minimap.iter_overlapping(category, y_range.clone()).next() {
-                    draw_minimap_char(&mut canvas, i, x, &e.value);
-                }
-
-                let visible = visible_range.contains(&start);
-                if visible {
-                    canvas.set_bg(i, x, x + 1, ctx.theme.line_status_visible);
+                    draw_minimap_char(&mut canvas, i, self.scroll_bar_x, &e.value);
                 }
             }
+
+            let visible = visible_range.contains(&start);
+            if visible {
+                canvas.set_bg(
+                    i,
+                    self.scroll_bar_x,
+                    self.scroll_bar_x + 1,
+                    ctx.theme.line_status_visible,
+                );
+            }
+
+            self.scroll_ys.push(start);
         }
 
         // Clear the remaining lines out of the buffer area.
@@ -483,6 +495,22 @@ impl Surface for BufferSurface {
             row: display_y,
             modifiers,
         } = ev;
+
+        // Clicking the scroll bar.
+        if display_x as usize == self.scroll_bar_x {
+            if let Some(&buffer_y) = self.scroll_ys.get(display_y as usize) {
+                match (modifiers, kind) {
+                    (NONE, MouseEventKind::Down(MouseButton::Left)) => {
+                        f.buffer.move_cursor_to(Point::new(buffer_y, 0));
+                    }
+                    _ => {
+                        trace!("{:?} {:?}", modifiers, kind);
+                    }
+                }
+            }
+
+            return HandledEvent::Consumed;
+        }
 
         let buffer_pos = match (display_x as usize)
             .checked_sub(self.text_start_x)
