@@ -80,7 +80,7 @@ async fn open_path_in_tmux(opt: Opt) -> Result<()> {
         }
         Err(err) => {
             trace!(
-                "failed to open in other panes, spawning a new noa: {:?}",
+                "failed to open in other panes, spawning a new noa: error={:?}",
                 err
             );
             std::process::Command::new("tmux")
