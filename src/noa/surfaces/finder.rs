@@ -94,7 +94,7 @@ impl FinderSurface {
 
         match item {
             Item::File(path) => {
-                let pane_id = match tmux::get_existing_noa_pane_id_in_tmux() {
+                let pane_id = match tmux::get_other_noa_pane_id() {
                     Ok(pane_id) => pane_id,
                     Err(err) => {
                         warn!("failed to open in other pane: {:?}", err);
@@ -110,7 +110,6 @@ impl FinderSurface {
                 tokio::spawn(async move {
                     sync.lock()
                         .await
-                        .sync
                         .call_buffer_open_file_in_other(&pane_id, &path, None)
                         .await
                         .oops();

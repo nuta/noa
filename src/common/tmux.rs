@@ -17,7 +17,11 @@ pub fn get_this_tmux_pane_id() -> Option<&'static str> {
     (*TMUX_PANE).as_deref()
 }
 
-pub fn open_path_in_tmux(pane: &str, mouse_y: usize, mouse_x: usize) {
+pub fn resolve_path_on_cursor(
+    pane: &str,
+    mouse_y: usize,
+    mouse_x: usize,
+) -> Result<(PathBuf, Point)> {
     let output = Command::new("tmux")
         .args(&[
             "capture-pane",
@@ -36,18 +40,25 @@ pub fn open_path_in_tmux(pane: &str, mouse_y: usize, mouse_x: usize) {
         .wait_with_output()
         .expect("failed to dump the pane contents from tmux");
 
-    if let Some((path, point)) = extract_path_and_point(&output.stdout, mouse_y, mouse_x) {
-        trace!("open_path_in_tmux: opening {:?} {:?}", path, point);
-    }
+    extract_path_and_point(&output.stdout, mouse_y, mouse_x).context("failed to extract a path")
 }
 
-pub fn get_existing_noa_pane_id_in_tmux() -> Result<String> {
+pub fn select_pane(pane_id: &str) -> Result<()> {
+    Command::new("tmux")
+        .args(&["select-pane", "-t", pane_id])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()?;
+    Ok(())
+}
+
+pub fn get_other_noa_pane_id() -> Result<String> {
     let output = Command::new("tmux")
         .args(&["list-panes", "-F", "#{pane_id} #{pane_current_command}"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .spawn()
-        .expect("failed to execve tmux")
+        .spawn()?
         .wait_with_output()
         .expect("failed to dump the pane contents from tmux");
 
@@ -58,7 +69,6 @@ pub fn get_existing_noa_pane_id_in_tmux() -> Result<String> {
     };
 
     for pane in stdout.split('\n') {
-        info!("pane: {}", pane);
         let mut word = pane.split(' ');
         let pane_id = word.next().context("invalid list-panes output")?;
         let program = word.next().context("invalid list-panes output")?;

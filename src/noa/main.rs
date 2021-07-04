@@ -63,7 +63,7 @@ async fn main() {
     let opt = Opt::from_args();
 
     if opt.open_path_in_tmux {
-        tmux::open_path_in_tmux(
+        tmux::resolve_path_on_cursor(
             opt.tmux_pane.expect("--tmux-pane is required").as_str(),
             opt.tmux_mouse_y.expect("--tmux-mouse-y is required"),
             opt.tmux_mouse_x.expect("--tmux-mouse-x is required"),

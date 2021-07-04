@@ -416,6 +416,7 @@ impl Editor {
                 Some(our_pane_id) if our_pane_id == pane_id => {
                     self.info("opened a file");
                     self.open_file(&path, position);
+                    tmux::select_pane(our_pane_id).oops();
                 }
                 _ => {}
             },
