@@ -51,7 +51,6 @@ extern "C" fn diff_callback(
     hunk: *const git_diff_hunk,
     ctx: *mut c_void,
 ) -> c_int {
-    use std::process;
     unsafe {
         let ctx = &mut *(ctx as *mut DiffCallbackContext);
         let hunk = &*(hunk);
