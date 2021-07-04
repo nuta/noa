@@ -841,7 +841,7 @@ impl Buffer {
         self.rope.word_at(pos).map(|(range, _)| range)
     }
 
-    pub fn prev_words_range(&self) -> Option<Range> {
+    pub fn prev_word_range(&self) -> Option<Range> {
         let pos = match &self.cursors[0] {
             Cursor::Normal { pos, .. } => pos,
             Cursor::Selection(Range { start, .. }) => start,
