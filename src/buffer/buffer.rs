@@ -837,13 +837,32 @@ impl Buffer {
         self.rope.word_at(pos).map(|(range, _)| range)
     }
 
-    pub fn prev_word_range(&self) -> Option<Range> {
+    pub fn prev_words_range(&self) -> Option<Range> {
         let pos = match &self.cursors[0] {
             Cursor::Normal { pos, .. } => pos,
             Cursor::Selection(Range { start, .. }) => start,
         };
 
         self.rope.prev_word_at(pos)
+    }
+
+    pub fn prev_word_ranges(&self) -> Vec<Range> {
+        let mut ranges = Vec::with_capacity(self.cursors.len());
+        for c in &self.cursors {
+            let pos = match c {
+                Cursor::Normal { pos, .. } => pos,
+                Cursor::Selection(Range { start, .. }) => start,
+            };
+
+            let range = self
+                .rope
+                .prev_word_at(pos)
+                .unwrap_or_else(|| Range::from_points(*pos, *pos));
+
+            ranges.push(range);
+        }
+
+        ranges
     }
 
     pub fn current_line_range(&self) -> Range {

@@ -354,6 +354,13 @@ impl Surface for BufferSurface {
             (KeyCode::Down, modifiers) if modifiers == (SHIFT | ALT) => {
                 f.buffer.duplicate_line_below();
             }
+
+            (KeyCode::Char('w'), CTRL) => {
+                let selections = f.buffer.prev_word_ranges();
+                trace!("BACKSPACE ALT: {:?}", selections);
+                f.buffer.select_by_ranges(&selections);
+                f.buffer.backspace();
+            }
             (KeyCode::Backspace, NONE) => {
                 f.buffer.backspace();
             }
