@@ -501,7 +501,8 @@ impl Surface for BufferSurface {
             if let Some(&buffer_y) = self.scroll_ys.get(display_y as usize) {
                 match (modifiers, kind) {
                     (NONE, MouseEventKind::Down(MouseButton::Left)) => {
-                        f.buffer.move_cursor_to(Point::new(buffer_y, 0));
+                        let goto = Point::new(min(buffer_y, f.buffer.num_lines()), 0);
+                        f.buffer.move_cursor_to(goto);
                     }
                     _ => {
                         trace!("{:?} {:?}", modifiers, kind);
