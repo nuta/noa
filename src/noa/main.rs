@@ -1,4 +1,5 @@
 use anyhow::Result;
+use noa_buffer::Point;
 use noa_common::{
     dirs::{backup_dir, noa_bin_args},
     logger::install_logger,
@@ -53,6 +54,10 @@ mod view;
 struct Opt {
     #[structopt(name = "FILE", parse(from_os_str))]
     files: Vec<PathBuf>,
+    #[structopt(long)]
+    lineno: Option<usize>,
+    #[structopt(long)]
+    column: Option<usize>,
     #[structopt(long)]
     open_path_in_tmux: bool,
     #[structopt(long)]
@@ -138,13 +143,22 @@ async fn main() {
     compositor.push_layer(&mut ctx, BottomBarSurface::new());
     compositor.push_layer(&mut ctx, completion);
 
+    let mut cursor_pos = opt.lineno.map(|lineno| {
+        Point::new(
+            lineno.saturating_sub(1),
+            opt.column
+                .map(|column| column.saturating_sub(1))
+                .unwrap_or(0),
+        )
+    });
+
     // Open speicifed file or the workspace dir.
     for file in opt.files.iter() {
         if !file.is_file() {
             continue;
         }
 
-        editor.open_file(file, None);
+        editor.open_file(file, cursor_pos.take());
     }
 
     // Fill syntax highlighting.
