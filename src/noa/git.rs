@@ -1,6 +1,4 @@
-use std;
-
-use anyhow::Result;
+gsuse anyhow::Result;
 use git2::DiffOptions;
 use libgit2_sys::{
     git_blob, git_blob_free, git_diff_blob_to_buffer, git_diff_delta, git_diff_hunk,
