@@ -1,14 +1,14 @@
 use anyhow::Result;
 use git2::DiffOptions;
 use libgit2_sys::{
-    git_blob, git_diff_blob_to_buffer, git_libgit2_init, git_object_peel, git_repository_open,
-    git_revparse_single, GIT_OBJECT_BLOB,
+    git_blob, git_diff_blob_to_buffer, git_diff_delta, git_diff_hunk, git_libgit2_init,
+    git_object_peel, git_repository_open, git_revparse_single, GIT_OBJECT_BLOB, GIT_OK,
 };
 
 use std::{
     ffi::{c_void, CString},
     ops,
-    os::raw::c_char,
+    os::raw::{c_char, c_int},
     ptr,
 };
 
@@ -41,6 +41,25 @@ macro_rules! try_libgit_func {
             ::anyhow::bail!(format!("libgit: failed to {}: {}", $summary, message));
         }
     }};
+}
+
+extern "C" fn diff_callback(
+    delta: *const git_diff_delta,
+    hunk: *const git_diff_hunk,
+    ctx: *mut c_void,
+) -> c_int {
+    unsafe {
+        let ctx = &mut *(ctx as *mut DiffCallbackContext);
+        let hunk = &*(hunk);
+
+        trace!("-------------------------------------------");
+        trace!("hunk.old_start={}", hunk.old_start);
+        trace!("hunk.old_lines={}", hunk.old_lines);
+        trace!("hunk.new_start={}", hunk.new_start);
+        trace!("hunk.new_lines={}", hunk.new_lines);
+    }
+
+    GIT_OK
 }
 
 pub fn compute_line_diff_status() -> Result<()> {
@@ -82,7 +101,7 @@ pub fn compute_line_diff_status() -> Result<()> {
             /* options */ opts.raw(),
             /* file_cb */ None,
             /* binary_cb */ None,
-            /* hunk_cb */ None,
+            /* hunk_cb */ Some(diff_callback),
             /* line_cb */ None,
             /* payload */ &mut ctx as *mut _ as *mut c_void,
         );
