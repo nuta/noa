@@ -27,6 +27,7 @@ struct DiffCallbackContext {}
 
 macro_rules! try_libgit_func {
     ($summary:expr, $expr:expr) => {{
+        println!("$summary = {}", $summary);
         let ret = $expr;
         if ret < 0 {
             let error = ::libgit2_sys::git_error_last();
@@ -52,11 +53,11 @@ extern "C" fn diff_callback(
         let ctx = &mut *(ctx as *mut DiffCallbackContext);
         let hunk = &*(hunk);
 
-        trace!("-------------------------------------------");
-        trace!("hunk.old_start={}", hunk.old_start);
-        trace!("hunk.old_lines={}", hunk.old_lines);
-        trace!("hunk.new_start={}", hunk.new_start);
-        trace!("hunk.new_lines={}", hunk.new_lines);
+        println!("-------------------------------------------");
+        println!("hunk.old_start={}", hunk.old_start);
+        println!("hunk.old_lines={}", hunk.old_lines);
+        println!("hunk.new_start={}", hunk.new_start);
+        println!("hunk.new_lines={}", hunk.new_lines);
     }
 
     GIT_OK
@@ -92,57 +93,24 @@ pub fn compute_line_diff_status() -> Result<()> {
 
         let old_as_path = std::ffi::CString::new("in_blob").unwrap();
         let buffer_as_path = std::ffi::CString::new("in_buf").unwrap();
-        git_diff_blob_to_buffer(
-            /* old_blob */ blob as *const git_blob,
-            /* old_as_path */ old_as_path.as_ptr(),
-            /* buffer */ buffer.as_bytes().as_ptr() as *const c_char,
-            /* buffer_len */ buffer.as_bytes().len(),
-            /* buffer_as_path */ buffer_as_path.as_ptr(),
-            /* options */ opts.raw(),
-            /* file_cb */ None,
-            /* binary_cb */ None,
-            /* hunk_cb */ Some(diff_callback),
-            /* line_cb */ None,
-            /* payload */ &mut ctx as *mut _ as *mut c_void,
+        try_libgit_func!(
+            "compute diff",
+            git_diff_blob_to_buffer(
+                /* old_blob */ blob as *const git_blob,
+                /* old_as_path */ old_as_path.as_ptr(),
+                /* buffer */ buffer.as_bytes().as_ptr() as *const c_char,
+                /* buffer_len */ buffer.as_bytes().len(),
+                /* buffer_as_path */ buffer_as_path.as_ptr(),
+                /* options */ opts.raw(),
+                /* file_cb */ None,
+                /* binary_cb */ None,
+                /* hunk_cb */ Some(diff_callback),
+                /* line_cb */ None,
+                /* payload */ &mut ctx as *mut _ as *mut c_void,
+            )
         );
     }
 
-    // let diff = repo.diff_tree_to_workdir(/*Some(&blob)*/ None, None)?;
-    // let diff = repo.diff_index_to_workdir(None, None)?;
-    // repo.diff_blobs(
-    //     Some(&blob),
-    //     None,
-    //     None,
-    //     None,
-    //     None,
-    //     None,
-    //     None,
-    //     Some(&mut |delta, hunk| {
-    //         println!(">>> hunk = {:#?}", hunk);
-    //         true
-    //     }),
-    //     Some(&mut |delta, hunk, line| {
-    //         // println!(">>> line = {:#?}", line);
-    //         true
-    //     }),
-    // )?;
-
-    // println!(">>> computing git diff...");
-
-    // diff.foreach(
-    //     &mut |_, _| true,
-    //     None,
-    //     Some(&mut |delta, hunk| {
-    //         // println!(">>> delta = {:?}", hunk);
-    //         println!(">>> hunk = {:?}", std::str::from_utf8(hunk.header()));
-    //         true
-    //     }),
-    //     Some(&mut |delta, hunk, line| {
-    //         // println!(">>> line = {:#?}", line);
-    //         true
-    //     }),
-    // )
-    // .unwrap();
-
+    println!("Done!");
     Ok(())
 }
