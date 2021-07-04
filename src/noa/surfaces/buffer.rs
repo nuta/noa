@@ -1,6 +1,8 @@
 use std::{
     cmp::{max, min},
+    ops::Sub,
     sync::Arc,
+    time::{Duration, Instant},
 };
 
 use crossterm::{
@@ -27,6 +29,8 @@ pub struct BufferSurface {
     text_start_x: usize,
     selection_start: Option<Point>,
     minimap: Arc<Mutex<MiniMap>>,
+    time_last_clicked: Instant,
+    num_clicked: usize,
 }
 
 impl BufferSurface {
@@ -36,6 +40,8 @@ impl BufferSurface {
             text_start_x: 0,
             selection_start: None,
             minimap,
+            time_last_clicked: Instant::now().sub(Duration::from_secs(100)),
+            num_clicked: 0,
         }
     }
 
@@ -452,6 +458,7 @@ impl Surface for BufferSurface {
                 HandledEvent::Consumed
             }
             (NONE, MouseEventKind::Drag(MouseButton::Left)) => {
+                trace!("drag = {} {:?}", buffer_pos, self.selection_start);
                 match self.selection_start {
                     Some(start) if start != buffer_pos => {
                         f.buffer
@@ -464,12 +471,42 @@ impl Surface for BufferSurface {
 
                 HandledEvent::Consumed
             }
+            // Triple click.
+            (NONE, MouseEventKind::Up(MouseButton::Left))
+                if self.num_clicked == 2
+                    && self.time_last_clicked.elapsed() < Duration::from_millis(300) =>
+            {
+                // Select a line.
+                let current_line = f.buffer.current_line_range();
+                f.buffer.select_by_ranges(&[current_line]);
+
+                self.time_last_clicked = Instant::now();
+                self.num_clicked += 1;
+                HandledEvent::Consumed
+            }
+            // Double click.
+            (NONE, MouseEventKind::Up(MouseButton::Left))
+                if self.num_clicked == 1
+                    && self.time_last_clicked.elapsed() < Duration::from_millis(300) =>
+            {
+                // Select a word.
+                if let Some(current_word) = f.buffer.current_word_range() {
+                    f.buffer.select_by_ranges(&[current_word]);
+                }
+                self.time_last_clicked = Instant::now();
+                self.num_clicked += 1;
+                HandledEvent::Consumed
+            }
+            // Single click.
             (NONE, MouseEventKind::Up(MouseButton::Left)) => {
+                // Move cursor.
                 if matches!(self.selection_start, Some(start) if start == buffer_pos) {
                     f.buffer
                         .set_cursors(vec![Cursor::new(buffer_pos.y, buffer_pos.x)]);
                 }
 
+                self.time_last_clicked = Instant::now();
+                self.num_clicked = 1;
                 self.selection_start = None;
                 HandledEvent::Consumed
             }

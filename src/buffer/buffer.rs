@@ -846,6 +846,11 @@ impl Buffer {
         self.rope.prev_word_at(pos)
     }
 
+    pub fn current_line_range(&self) -> Range {
+        let cursor = self.main_cursor_pos();
+        Range::new(cursor.y, 0, cursor.y, self.line_len(cursor.y))
+    }
+
     pub fn select_by_ranges(&mut self, selections: &[Range]) {
         self.cursors.clear();
         for selection in selections {
