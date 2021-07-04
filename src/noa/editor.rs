@@ -1,3 +1,4 @@
+use crate::git::{compute_line_diffs, resolve_git_dir, DiffType};
 use crate::minimap::{LineStatus, MiniMap, MiniMapCategory};
 use crate::sync_client::SyncClient;
 
@@ -70,7 +71,7 @@ impl OpenedFile {
 
 pub struct Editor {
     exited: bool,
-    git_dir: PathBuf,
+    git_dir: Option<PathBuf>,
     workspace_dir: PathBuf,
     current_file: Arc<RwLock<OpenedFile>>,
     files: Vec<Arc<RwLock<OpenedFile>>>,
@@ -101,6 +102,7 @@ impl Editor {
 
         Editor {
             exited: false,
+            git_dir: resolve_git_dir(&workspace_dir),
             workspace_dir,
             current_file: scratch_buffer,
             files,
@@ -130,6 +132,10 @@ impl Editor {
 
     pub fn workspace_dir(&self) -> &Path {
         &self.workspace_dir
+    }
+
+    pub fn git_dir(&self) -> Option<&Path> {
+        self.git_dir.as_ref().map(PathBuf::as_path)
     }
 
     pub fn sync(&self) -> &Arc<Mutex<SyncClient>> {
@@ -404,6 +410,42 @@ impl Editor {
                     }
                 }
             }
+        }
+    }
+
+    pub fn update_git_line_statuses(&mut self) {
+        let (git_dir, path, text) = {
+            let f = self.current_file.read();
+            match (self.git_dir(), f.buffer.path()) {
+                (Some(dir), Some(path)) => (dir, path.to_owned(), f.buffer.text()),
+                _ => return,
+            }
+        };
+
+        let diffs = match compute_line_diffs(git_dir, &path, &text) {
+            Ok(diffs) => diffs,
+            Err(err) => {
+                trace!("failed to get git diff: {:?}", err);
+                return;
+            }
+        };
+
+        let mut minimap = self.minimap.lock();
+        minimap.clear(MiniMapCategory::Diff);
+        for diff in diffs {
+            trace!(
+                "git diff: range={:?}, type={:?}",
+                diff.range,
+                diff.diff_type
+            );
+
+            let value = match diff.diff_type {
+                DiffType::Added => LineStatus::AddedLine,
+                DiffType::Removed => LineStatus::RemovedLine,
+                DiffType::Modified => LineStatus::ModifiedLine,
+            };
+
+            minimap.insert(MiniMapCategory::Diff, diff.range, value);
         }
     }
 }

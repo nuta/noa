@@ -10,7 +10,7 @@ use std::{
     ffi::{c_void, CString},
     ops,
     os::raw::{c_char, c_int},
-    path::Path,
+    path::{Path, PathBuf},
     ptr,
 };
 
@@ -23,8 +23,8 @@ pub enum DiffType {
 
 #[derive(Debug, Clone)]
 pub struct LineRangeDiff {
-    diff_type: DiffType,
-    range: ops::Range<usize>,
+    pub diff_type: DiffType,
+    pub range: ops::Range<usize>,
 }
 
 struct DiffCallbackContext {
@@ -73,11 +73,20 @@ extern "C" fn diff_callback(
             ((start_y as usize)..(end_y as usize), DiffType::Modified)
         };
 
-        println!("[{:?}] {:?}", range, diff_type);
         ctx.diffs.push(LineRangeDiff { diff_type, range });
     }
 
     GIT_OK
+}
+
+pub fn resolve_git_dir(dir: &Path) -> Option<PathBuf> {
+    for dir in dir.ancestors() {
+        if dir.join(".git").exists() {
+            return Some(dir.to_path_buf());
+        }
+    }
+
+    None
 }
 
 pub fn compute_line_diffs(repo_path: &Path, path: &Path, text: &str) -> Result<Vec<LineRangeDiff>> {
@@ -132,6 +141,5 @@ pub fn compute_line_diffs(repo_path: &Path, path: &Path, text: &str) -> Result<V
         git_blob_free(blob as *mut git_blob);
     }
 
-    println!("Done!");
     Ok(ctx.diffs)
 }

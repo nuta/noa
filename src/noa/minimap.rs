@@ -2,9 +2,9 @@ use std::{collections::BTreeMap, ops::Range};
 
 #[derive(Debug, Clone, Copy)]
 pub enum LineStatus {
-    // AddedLine,
-    // RemovedLine,
-    // ModifiedLine,
+    AddedLine,
+    RemovedLine,
+    ModifiedLine,
     Error,
     Warning,
     Cursor,
@@ -12,7 +12,7 @@ pub enum LineStatus {
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MiniMapCategory {
-    // Diff,
+    Diff,
     Diagnosis,
     Cursor,
 }
@@ -24,6 +24,7 @@ pub struct MiniMap {
 impl MiniMap {
     pub fn new() -> MiniMap {
         let mut maps = BTreeMap::new();
+        maps.insert(MiniMapCategory::Diff, IntervalMap::new());
         maps.insert(MiniMapCategory::Cursor, IntervalMap::new());
         maps.insert(MiniMapCategory::Diagnosis, IntervalMap::new());
         MiniMap { maps }

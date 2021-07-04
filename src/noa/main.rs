@@ -60,7 +60,7 @@ struct Opt {
 
 #[tokio::main]
 async fn main() {
-    // install_logger("main");
+    install_logger("main");
     let opt = Opt::from_args();
 
     if opt.open_path_in_tmux {
@@ -230,6 +230,8 @@ async fn main() {
                     let mut f = editor.current_file().write();
                     f.buffer.mark_undo_point();
                 }
+
+                editor.update_git_line_statuses();
 
                 updated = false;
             }

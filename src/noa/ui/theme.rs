@@ -8,6 +8,9 @@ pub struct Theme {
     pub line_status_cursor: Style,
     pub line_status_warning: Style,
     pub line_status_error: Style,
+    pub line_status_added: Style,
+    pub line_status_removed: Style,
+    pub line_status_modified: Style,
 }
 
 pub const DEFAULT_THEME: &Theme = &Theme {
@@ -29,6 +32,21 @@ pub const DEFAULT_THEME: &Theme = &Theme {
     line_status_error: Style {
         fg: Color::Reset,
         bg: Color::DarkRed,
+        deco: Decoration::empty(),
+    },
+    line_status_added: Style {
+        fg: Color::Reset,
+        bg: Color::Green,
+        deco: Decoration::empty(),
+    },
+    line_status_removed: Style {
+        fg: Color::Reset,
+        bg: Color::Red,
+        deco: Decoration::empty(),
+    },
+    line_status_modified: Style {
+        fg: Color::Reset,
+        bg: Color::Yellow,
         deco: Decoration::empty(),
     },
 };
