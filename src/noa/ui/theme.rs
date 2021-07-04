@@ -5,6 +5,7 @@ use super::{canvas::Style, Decoration};
 #[derive(Clone, Debug)]
 pub struct Theme {
     pub bottom_bar_text: Style,
+    pub line_status_visible: Color,
     pub line_status_cursor: Style,
     pub line_status_warning: Style,
     pub line_status_error: Style,
@@ -19,8 +20,9 @@ pub const DEFAULT_THEME: &Theme = &Theme {
         bg: Color::DarkGrey,
         deco: Decoration::empty(),
     },
+    line_status_visible: Color::DarkGrey,
     line_status_cursor: Style {
-        fg: Color::DarkGrey,
+        fg: Color::Magenta,
         bg: Color::Reset,
         deco: Decoration::empty(),
     },

@@ -15,6 +15,7 @@ pub struct Highlight {
 
 #[derive(Debug, Clone)]
 pub struct DisplayLine {
+    pub buffer_y: usize,
     /// The char indices in a line rope.
     pub chunks: Vec<ops::Range<usize>>,
     /// The char indices in the whole buffer rope.
@@ -108,6 +109,7 @@ impl View {
 
             if line_rope.len_chars() == 0 {
                 self.lines.push(DisplayLine {
+                    buffer_y: text_y,
                     chunks: vec![],
                     range: Range::from_points(Point::new(text_y, 0), Point::new(text_y, 0)),
                     highlights: vec![],
@@ -139,6 +141,7 @@ impl View {
 
                             text_x += wrap_char_at;
                             self.lines.push(DisplayLine {
+                                buffer_y: text_y,
                                 chunks: spans,
                                 range: Range::from_points(front, Point::new(text_y, text_x)),
                                 highlights: vec![],
@@ -154,6 +157,7 @@ impl View {
 
                 if front.x != text_x {
                     self.lines.push(DisplayLine {
+                        buffer_y: text_y,
                         chunks: spans,
                         range: Range::from_points(front, Point::new(text_y, text_x)),
                         highlights: vec![],

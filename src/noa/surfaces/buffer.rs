@@ -165,7 +165,8 @@ impl Surface for BufferSurface {
 
         let mut y_end = 0;
         let mut lines_end_xs = Vec::new();
-        for (y, display_line) in f.view.visible_display_lines().iter().enumerate() {
+        let display_lines = f.view.visible_display_lines();
+        for (y, display_line) in display_lines.iter().enumerate() {
             // Draw the line number.
             let buffer_y = display_line.range.front().y;
             let lineno = buffer_y + 1;
@@ -229,20 +230,34 @@ impl Surface for BufferSurface {
 
         // Draw the minimap (right-side).
         let num_lines = f.buffer.num_lines();
+        let visible_start = display_lines.iter().next().map(|l| l.buffer_y).unwrap_or(0);
+        let visible_end = display_lines
+            .iter()
+            .rev()
+            .next()
+            .map(|l| l.buffer_y)
+            .unwrap_or(0);
+        let visible_range = visible_start..visible_end;
         for i in 0..canvas.height() {
-            let start = ((canvas.height() as f64) / (num_lines as f64)) * (i as f64);
-            let end = ((canvas.height() as f64) / (num_lines as f64)) * ((i + 1) as f64);
+            let start = (((canvas.height() as f64) / (num_lines as f64)) * (i as f64)) as usize;
+            let end = (((canvas.height() as f64) / (num_lines as f64)) * ((i + 1) as f64)) as usize;
             for category in categories {
-                let y_range = (start as usize)..(end as usize);
+                let y_range = (start)..(end);
                 trace!(
                     "range={:?}, n={}, diff={}",
                     y_range,
                     num_lines,
                     ((canvas.height() as f64) / (num_lines as f64))
                 );
-                if let Some(e) = minimap.iter_overlapping(category, y_range).next() {
-                    let x = canvas.width() - 1;
+
+                let x = canvas.width() - 1;
+                if let Some(e) = minimap.iter_overlapping(category, y_range.clone()).next() {
                     draw_minimap_char(&mut canvas, i, x, &e.value);
+                }
+
+                let visible = visible_range.contains(&start);
+                if visible {
+                    canvas.set_bg(i, x, x + 1, ctx.theme.line_status_visible);
                 }
             }
         }
