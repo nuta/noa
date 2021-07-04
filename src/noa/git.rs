@@ -51,7 +51,6 @@ extern "C" fn diff_callback(
     hunk: *const git_diff_hunk,
     ctx: *mut c_void,
 ) -> c_int {
-    use std::process;
     unsafe {
         let ctx = &mut *(ctx as *mut DiffCallbackContext);
         let hunk = &*(hunk);
@@ -86,11 +85,12 @@ extern "C" fn diff_callback(
 pub fn compute_line_diff_status() -> Result<()> {
     let buffer = include_str!("git.rs");
     unsafe {
-        let mut opts = DiffOptions::new();
-        let mut ctx = DiffCallbackContext {};
-
         let repo_path = CString::new("/Users/seiya/dev/noa").unwrap();
         let spec = CString::new(format!("HEAD:src/noa/git.rs")).unwrap();
+        let mut ctx = DiffCallbackContext {};
+
+        let mut opts = DiffOptions::default();
+        opts.context_lines(0);
 
         try_libgit_func!("init libgit2", git_libgit2_init());
 
@@ -111,16 +111,14 @@ pub fn compute_line_diff_status() -> Result<()> {
             git_object_peel(&mut blob, obj, GIT_OBJECT_BLOB)
         );
 
-        let old_as_path = std::ffi::CString::new("in_blob").unwrap();
-        let buffer_as_path = std::ffi::CString::new("in_buf").unwrap();
         try_libgit_func!(
             "compute diff",
             git_diff_blob_to_buffer(
                 /* old_blob */ blob as *const git_blob,
-                /* old_as_path */ old_as_path.as_ptr(),
+                /* old_as_path */ ptr::null(),
                 /* buffer */ buffer.as_bytes().as_ptr() as *const c_char,
                 /* buffer_len */ buffer.as_bytes().len(),
-                /* buffer_as_path */ buffer_as_path.as_ptr(),
+                /* buffer_as_path */ ptr::null(),
                 /* options */ opts.raw(),
                 /* file_cb */ None,
                 /* binary_cb */ None,
