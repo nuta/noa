@@ -376,26 +376,37 @@ impl Editor {
                     }
                 }
             }
-            Notification::Diagnostics(diags) => {
-                // TODO: Check if the path is current one.
-                let mut minimap = self.minimap.lock();
-                minimap.clear(MiniMapCategory::Diagnosis);
-                for diag in diags {
-                    trace!("diagnostic: {:?}", diag);
-                    let interval =
-                        (diag.range.start.line as usize)..(diag.range.end.line as usize + 1);
-                    match diag.severity {
-                        Some(DiagnosticSeverity::Error) => {
-                            minimap.insert(MiniMapCategory::Diagnosis, interval, LineStatus::Error);
+            Notification::Diagnostics { path, diags } => {
+                trace!(
+                    "@@@@@@@@@@: {:?} {:?}",
+                    Some(path.as_path()),
+                    self.current_file.read().buffer.path()
+                );
+
+                if Some(path.as_path()) == self.current_file.read().buffer.path() {
+                    let mut minimap = self.minimap.lock();
+                    minimap.clear(MiniMapCategory::Diagnosis);
+                    for diag in diags {
+                        trace!("diagnostic: {:?}", diag);
+                        let interval =
+                            (diag.range.start.line as usize)..(diag.range.end.line as usize + 1);
+                        match diag.severity {
+                            Some(DiagnosticSeverity::Error) => {
+                                minimap.insert(
+                                    MiniMapCategory::Diagnosis,
+                                    interval,
+                                    LineStatus::Error,
+                                );
+                            }
+                            Some(DiagnosticSeverity::Warning) => {
+                                minimap.insert(
+                                    MiniMapCategory::Diagnosis,
+                                    interval,
+                                    LineStatus::Warning,
+                                );
+                            }
+                            _ => {}
                         }
-                        Some(DiagnosticSeverity::Warning) => {
-                            minimap.insert(
-                                MiniMapCategory::Diagnosis,
-                                interval,
-                                LineStatus::Warning,
-                            );
-                        }
-                        _ => {}
                     }
                 }
             }

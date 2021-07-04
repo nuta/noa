@@ -208,7 +208,10 @@ async fn receive_responses(
                             PublishDiagnostics::METHOD => {
                                 let resp: PublishDiagnosticsParams = noti.params.parse().unwrap();
                                 noti_tx
-                                    .send(Notification::Diagnostics(resp.diagnostics))
+                                    .send(Notification::Diagnostics {
+                                        path: PathBuf::from(resp.uri.path()),
+                                        diags: resp.diagnostics,
+                                    })
                                     .unwrap();
                             }
                             _ => {

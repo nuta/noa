@@ -34,7 +34,10 @@ pub struct RawResponse<T> {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub enum Notification {
-    Diagnostics(Vec<Diagnostic>),
+    Diagnostics {
+        diags: Vec<Diagnostic>,
+        path: PathBuf,
+    },
     FileModified {
         path: PathBuf,
         text: String,
