@@ -50,3 +50,11 @@ pub fn backup_dir() -> PathBuf {
     create_dir_all(&backup_dir).expect("failed to create dir");
     backup_dir
 }
+
+pub fn noa_bin_args() -> &'static [&'static str] {
+    if cfg!(debug_assertions) {
+        &["cargo", "run", "--bin", "noa", "--"]
+    } else {
+        &["noa"]
+    }
+}

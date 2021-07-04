@@ -6,6 +6,7 @@ use std::{
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use noa_common::{
+    dirs::noa_bin_args,
     oops::OopsExt,
     tmux::{self, in_tmux},
 };
@@ -25,14 +26,6 @@ use crate::{
 #[derive(Debug)]
 enum Item {
     File(PathBuf),
-}
-
-fn noa_bin_args() -> &'static [&'static str] {
-    if cfg!(debug_assertions) {
-        &["cargo", "run", "--bin", "noa", "--"]
-    } else {
-        &["noa"]
-    }
 }
 
 pub struct FinderSurface {

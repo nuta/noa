@@ -1,10 +1,15 @@
+use anyhow::Result;
 use noa_common::{
-    dirs::backup_dir, logger::install_logger, oops::OopsExt, sync_protocol::LspRequest, tmux,
+    dirs::{backup_dir, noa_bin_args},
+    logger::install_logger,
+    oops::OopsExt,
+    sync_protocol::LspRequest,
+    tmux,
 };
 use parking_lot::RwLock;
 use std::{
     env::current_dir,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -19,6 +24,7 @@ use ui::Event;
 use crate::{
     editor::OpenedFile,
     surfaces::{BottomBarSurface, BufferSurface},
+    sync_client::SyncClient,
     terminal::Terminal,
     ui::Compositor,
     ui::{Context, DEFAULT_THEME},
@@ -57,17 +63,51 @@ struct Opt {
     tmux_mouse_x: Option<usize>,
 }
 
+async fn open_path_in_tmux(opt: Opt) -> Result<()> {
+    let (path, pos) = tmux::resolve_path_on_cursor(
+        opt.tmux_pane.expect("--tmux-pane is required").as_str(),
+        opt.tmux_mouse_y.expect("--tmux-mouse-y is required"),
+        opt.tmux_mouse_x.expect("--tmux-mouse-x is required"),
+    )?;
+
+    let (tx, _) = unbounded_channel();
+    let mut sync = SyncClient::new(Path::new("/"), tx);
+
+    match tmux::get_other_noa_pane_id() {
+        Ok(pane_id) => {
+            sync.call_buffer_open_file_in_other(&pane_id, &path, Some(pos))
+                .await?;
+        }
+        Err(err) => {
+            trace!(
+                "failed to open in other panes, spawning a new noa: {:?}",
+                err
+            );
+            std::process::Command::new("tmux")
+                .args(&["splitw", "-h"])
+                .args(noa_bin_args())
+                .arg("--lineno")
+                .arg(format!("{}", pos.y))
+                .arg("--column")
+                .arg(format!("{}", pos.x))
+                .arg(path)
+                .spawn()?
+                .wait()?;
+        }
+    }
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() {
     install_logger("main");
     let opt = Opt::from_args();
 
     if opt.open_path_in_tmux {
-        tmux::resolve_path_on_cursor(
-            opt.tmux_pane.expect("--tmux-pane is required").as_str(),
-            opt.tmux_mouse_y.expect("--tmux-mouse-y is required"),
-            opt.tmux_mouse_x.expect("--tmux-mouse-x is required"),
-        );
+        if let Err(err) = open_path_in_tmux(opt).await {
+            error!("failed to open a path in tmux: {:?}", err);
+        }
         return;
     }
 
