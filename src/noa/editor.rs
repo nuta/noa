@@ -134,10 +134,6 @@ impl Editor {
         &self.workspace_dir
     }
 
-    pub fn git_dir(&self) -> Option<&Path> {
-        self.git_dir.as_ref().map(PathBuf::as_path)
-    }
-
     pub fn sync(&self) -> &Arc<Mutex<SyncClient>> {
         &self.sync
     }
@@ -413,39 +409,44 @@ impl Editor {
         }
     }
 
-    pub fn update_git_line_statuses(&mut self) {
-        let (git_dir, path, text) = {
-            let f = self.current_file.read();
-            match (self.git_dir(), f.buffer.path()) {
-                (Some(dir), Some(path)) => (dir, path.to_owned(), f.buffer.text()),
-                _ => return,
-            }
-        };
-
-        let diffs = match compute_line_diffs(git_dir, &path, &text) {
-            Ok(diffs) => diffs,
-            Err(err) => {
-                trace!("failed to get git diff: {:?}", err);
-                return;
-            }
-        };
-
-        let mut minimap = self.minimap.lock();
-        minimap.clear(MiniMapCategory::Diff);
-        for diff in diffs {
-            trace!(
-                "git diff: range={:?}, type={:?}",
-                diff.range,
-                diff.diff_type
-            );
-
-            let value = match diff.diff_type {
-                DiffType::Added => LineStatus::AddedLine,
-                DiffType::Removed => LineStatus::RemovedLine,
-                DiffType::Modified => LineStatus::ModifiedLine,
+    pub fn update_git_line_statuses(&self) {
+        let git_dir = self.git_dir.to_owned();
+        let minimap = self.minimap.clone();
+        let current_file = self.current_file.clone();
+        tokio::spawn(async move {
+            let (git_dir, path, text) = {
+                let f = current_file.read();
+                match (git_dir, f.buffer.path()) {
+                    (Some(dir), Some(path)) => (dir, path.to_owned(), f.buffer.text()),
+                    _ => return,
+                }
             };
 
-            minimap.insert(MiniMapCategory::Diff, diff.range, value);
-        }
+            let diffs = match compute_line_diffs(&git_dir, &path, &text) {
+                Ok(diffs) => diffs,
+                Err(err) => {
+                    trace!("failed to get git diff: {:?}", err);
+                    return;
+                }
+            };
+
+            let mut minimap = minimap.lock();
+            minimap.clear(MiniMapCategory::Diff);
+            for diff in diffs {
+                trace!(
+                    "git diff: range={:?}, type={:?}",
+                    diff.range,
+                    diff.diff_type
+                );
+
+                let value = match diff.diff_type {
+                    DiffType::Added => LineStatus::AddedLine,
+                    DiffType::Removed => LineStatus::RemovedLine,
+                    DiffType::Modified => LineStatus::ModifiedLine,
+                };
+
+                minimap.insert(MiniMapCategory::Diff, diff.range, value);
+            }
+        });
     }
 }
