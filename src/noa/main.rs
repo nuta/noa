@@ -24,7 +24,7 @@ use ui::Event;
 
 use crate::{
     editor::OpenedFile,
-    surfaces::{BottomBarSurface, BufferSurface},
+    surfaces::BufferSurface,
     sync_client::SyncClient,
     terminal::Terminal,
     ui::Compositor,
@@ -140,7 +140,6 @@ async fn main() {
     let completion = CompletionSurface::new(&mut ctx);
     let buffer = BufferSurface::new(minimap);
     compositor.push_layer(&mut ctx, buffer);
-    compositor.push_layer(&mut ctx, BottomBarSurface::new());
     compositor.push_layer(&mut ctx, completion);
 
     let mut cursor_pos = opt.lineno.map(|lineno| {

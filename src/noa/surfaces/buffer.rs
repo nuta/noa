@@ -14,16 +14,25 @@ use noa_langs::HighlightType;
 use parking_lot::Mutex;
 
 use crate::{
+    editor::UserMessage,
+    line_edit::LineEdit,
     minimap::{LineStatus, MiniMap, MiniMapCategory},
     surfaces::{prompt::CallbackResult, yes_no::YesNoChoice, FinderSurface, YesNoSurface},
     terminal::copy_to_clipboard,
     ui::{
-        whitespaces, CanvasViewMut, Compositor, Context, Decoration, DisplayWidth, Event,
-        HandledEvent, Layout, RectSize, Surface,
+        truncate_to_width, whitespaces, CanvasViewMut, Compositor, Context, Decoration,
+        DisplayWidth, Event, HandledEvent, Layout, RectSize, Surface,
     },
 };
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum BufferSurfaceMode {
+    Normal,
+    Search,
+}
+
 pub struct BufferSurface {
+    mode: BufferSurfaceMode,
     // `(y, x)`.
     cursor_position: (usize, usize),
     text_start_x: usize,
@@ -33,11 +42,13 @@ pub struct BufferSurface {
     num_clicked: usize,
     scroll_ys: Vec<usize>,
     scroll_bar_x: usize,
+    search_query: LineEdit,
 }
 
 impl BufferSurface {
     pub fn new(minimap: Arc<Mutex<MiniMap>>) -> BufferSurface {
         BufferSurface {
+            mode: BufferSurfaceMode::Normal,
             cursor_position: (0, 0),
             text_start_x: 0,
             selection_start: None,
@@ -46,6 +57,7 @@ impl BufferSurface {
             num_clicked: 0,
             scroll_ys: Vec::new(),
             scroll_bar_x: 0,
+            search_query: LineEdit::new(),
         }
     }
 
@@ -93,6 +105,176 @@ impl BufferSurface {
         );
         compositor.push_layer(ctx, prompt);
     }
+
+    fn handle_key_event_in_buffer(
+        &mut self,
+        ctx: &mut Context,
+        compositor: &mut Compositor,
+        key: KeyEvent,
+    ) -> HandledEvent {
+        const NONE: KeyModifiers = KeyModifiers::NONE;
+        const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        const ALT: KeyModifiers = KeyModifiers::ALT;
+        const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
+
+        let mut f = ctx.editor.current_file().write();
+
+        match (key.code, key.modifiers) {
+            (KeyCode::Char('q'), CTRL) => {
+                drop(f);
+                self.quit(ctx, compositor);
+            }
+            (KeyCode::Esc, NONE) => {
+                self.search_query.clear();
+            }
+            (KeyCode::Char('/'), ALT) => {
+                self.mode = BufferSurfaceMode::Search;
+            }
+            (KeyCode::Char('f'), CTRL) => {
+                drop(f);
+                let finder = FinderSurface::new(ctx);
+                compositor.push_layer(ctx, finder);
+            }
+            (KeyCode::Char('s'), CTRL) => {
+                drop(f);
+                ctx.editor.save_current_buffer();
+            }
+            (KeyCode::Char('u'), CTRL) => {
+                f.buffer.undo();
+            }
+            (KeyCode::Char('y'), CTRL) => {
+                f.buffer.redo();
+            }
+            (KeyCode::Char('d'), CTRL) | (KeyCode::Delete, _) => {
+                f.buffer.delete();
+            }
+            (KeyCode::Char('c'), CTRL) => {
+                copy_to_clipboard(&f.buffer.copy_selection());
+            }
+            (KeyCode::Char('x'), CTRL) => {
+                copy_to_clipboard(&f.buffer.cut_selection());
+            }
+            (KeyCode::Char('k'), CTRL) => {
+                f.buffer.truncate();
+            }
+            (KeyCode::Char('a'), CTRL) => {
+                f.buffer.move_to_beginning_of_line();
+            }
+            (KeyCode::Char('e'), CTRL) => {
+                f.buffer.move_to_end_of_line();
+            }
+            (KeyCode::Char('f'), ALT) => {
+                f.buffer.move_to_next_word();
+            }
+            (KeyCode::Char('b'), ALT) => {
+                f.buffer.move_to_prev_word();
+            }
+            (KeyCode::Up, ALT) => {
+                f.buffer.move_current_line_above();
+            }
+            (KeyCode::Down, ALT) => {
+                f.buffer.move_current_line_below();
+            }
+            (KeyCode::Up, modifiers) if modifiers == (CTRL | ALT) => {
+                f.buffer.add_cursor_above();
+            }
+            (KeyCode::Down, modifiers) if modifiers == (CTRL | ALT) => {
+                f.buffer.add_cursor_below();
+            }
+            (KeyCode::Up, modifiers) if modifiers == (SHIFT | ALT) => {
+                f.buffer.duplicate_line_above();
+            }
+            (KeyCode::Down, modifiers) if modifiers == (SHIFT | ALT) => {
+                f.buffer.duplicate_line_below();
+            }
+
+            (KeyCode::Char('w'), CTRL) => {
+                let selections = f.buffer.prev_word_ranges();
+                f.buffer.select_by_ranges(&selections);
+                f.buffer.backspace();
+            }
+            (KeyCode::Backspace, NONE) => {
+                f.buffer.backspace();
+            }
+            (KeyCode::Up, NONE) => {
+                f.move_cursors(-1, 0);
+            }
+            (KeyCode::Down, NONE) => {
+                f.move_cursors(1, 0);
+            }
+            (KeyCode::Left, NONE) => {
+                f.move_cursors(0, -1);
+            }
+            (KeyCode::Right, NONE) => {
+                f.move_cursors(0, 1);
+            }
+            (KeyCode::Up, SHIFT) => {
+                f.expand_selections(-1, 0);
+            }
+            (KeyCode::Down, SHIFT) => {
+                f.expand_selections(1, 0);
+            }
+            (KeyCode::Left, SHIFT) => {
+                f.expand_selections(0, -1);
+            }
+            (KeyCode::Right, SHIFT) => {
+                f.expand_selections(0, 1);
+            }
+            (KeyCode::Enter, NONE) => {
+                f.buffer.insert_char('\n');
+            }
+            (KeyCode::Tab, NONE) => {
+                f.buffer.tab();
+            }
+            (KeyCode::BackTab, NONE) => {
+                f.buffer.back_tab();
+            }
+            (KeyCode::Char(ch), NONE) => {
+                f.buffer.insert_char(ch);
+            }
+            (KeyCode::Char(ch), SHIFT) => {
+                f.buffer.insert_char(ch);
+            }
+            _ => {
+                trace!("unhandled key = {:?}", key);
+            }
+        }
+
+        HandledEvent::Consumed
+    }
+
+    fn handle_key_event_in_search(
+        &mut self,
+        ctx: &mut Context,
+        _compositor: &mut Compositor,
+        key: KeyEvent,
+    ) -> HandledEvent {
+        const NONE: KeyModifiers = KeyModifiers::NONE;
+        const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        const ALT: KeyModifiers = KeyModifiers::ALT;
+        const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
+
+        let mut f = ctx.editor.current_file().write();
+
+        match (key.code, key.modifiers) {
+            (KeyCode::Esc, NONE) => {
+                self.mode = BufferSurfaceMode::Normal;
+            }
+            (KeyCode::Up, NONE) => {
+                // TODO:
+            }
+            (KeyCode::Down, NONE) => {
+                // TODO:
+            }
+            _ => {
+                if !self.search_query.consume_key_event(key) {
+                    return HandledEvent::Ignored;
+                }
+            }
+        }
+
+        HandledEvent::Consumed
+    }
 }
 
 impl Surface for BufferSurface {
@@ -105,13 +287,7 @@ impl Surface for BufferSurface {
     }
 
     fn layout(&self, screen_size: RectSize) -> (Layout, RectSize) {
-        (
-            Layout::Fixed { y: 0, x: 0 },
-            RectSize {
-                width: screen_size.width,
-                height: screen_size.height.saturating_sub(2 /* bottom bar */),
-            },
-        )
+        (Layout::Fixed { y: 0, x: 0 }, screen_size)
     }
 
     fn cursor_position(&self) -> Option<(usize, usize)> {
@@ -321,6 +497,60 @@ impl Surface for BufferSurface {
             }
         }
 
+        // Bottom bar.
+        let marker = if f.buffer.is_dirty() { "[+]" } else { "" };
+        let marker_width = marker.display_width();
+        let colno = f.buffer.main_cursor_pos().x;
+        let colno_width = colno.display_width();
+        let num_cursors = f.buffer.cursors().len();
+        let num_cursors_width = if num_cursors == 1 {
+            0
+        } else {
+            3 + num_cursors.display_width()
+        };
+        let name_max_len = canvas
+            .width()
+            .saturating_sub(marker_width + 1 + 1 + colno_width + num_cursors_width);
+
+        // Draw the first line.
+        let bottom_bar_y0 = canvas.height() - 2;
+        canvas.draw_str(bottom_bar_y0, 0, marker);
+        canvas.draw_str(
+            bottom_bar_y0,
+            marker_width + 1,
+            truncate_to_width(f.buffer.name(), name_max_len),
+        );
+        canvas.draw_str(
+            bottom_bar_y0,
+            canvas.width() - num_cursors_width - colno_width,
+            &format!("{}", colno),
+        );
+
+        if num_cursors_width > 0 {
+            canvas.draw_str(
+                bottom_bar_y0,
+                canvas.width() - num_cursors_width,
+                &format!(" ({})", num_cursors),
+            );
+        }
+
+        canvas.set_style(bottom_bar_y0, 0, canvas.width(), &ctx.theme.bottom_bar_text);
+
+        // Draw the second line.
+        let bottom_bar_y1 = canvas.height() - 1;
+        if let Some(message) = ctx.editor.last_message() {
+            let (color, text) = match &message {
+                UserMessage::Info(text) => (Color::Cyan, text),
+                UserMessage::Error(text) => (Color::Red, text),
+            };
+
+            let text = truncate_to_width(text, canvas.width());
+            let text_width = text.display_width();
+            let x = canvas.width() - text_width;
+            canvas.draw_str(bottom_bar_y1, x, text);
+            canvas.set_fg(bottom_bar_y1, x, x + text_width, color);
+        }
+
         // Determine the main cursor position.
         self.cursor_position =
             f.view
@@ -335,130 +565,10 @@ impl Surface for BufferSurface {
         compositor: &mut Compositor,
         key: KeyEvent,
     ) -> HandledEvent {
-        const NONE: KeyModifiers = KeyModifiers::NONE;
-        const CTRL: KeyModifiers = KeyModifiers::CONTROL;
-        const ALT: KeyModifiers = KeyModifiers::ALT;
-        const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
-
-        let mut f = ctx.editor.current_file().write();
-
-        match (key.code, key.modifiers) {
-            (KeyCode::Char('q'), CTRL) => {
-                drop(f);
-                self.quit(ctx, compositor);
-            }
-            (KeyCode::Char('f'), CTRL) => {
-                drop(f);
-                let finder = FinderSurface::new(ctx);
-                compositor.push_layer(ctx, finder);
-            }
-            (KeyCode::Char('s'), CTRL) => {
-                drop(f);
-                ctx.editor.save_current_buffer();
-            }
-            (KeyCode::Char('u'), CTRL) => {
-                f.buffer.undo();
-            }
-            (KeyCode::Char('y'), CTRL) => {
-                f.buffer.redo();
-            }
-            (KeyCode::Char('d'), CTRL) | (KeyCode::Delete, _) => {
-                f.buffer.delete();
-            }
-            (KeyCode::Char('c'), CTRL) => {
-                copy_to_clipboard(&f.buffer.copy_selection());
-            }
-            (KeyCode::Char('x'), CTRL) => {
-                copy_to_clipboard(&f.buffer.cut_selection());
-            }
-            (KeyCode::Char('k'), CTRL) => {
-                f.buffer.truncate();
-            }
-            (KeyCode::Char('a'), CTRL) => {
-                f.buffer.move_to_beginning_of_line();
-            }
-            (KeyCode::Char('e'), CTRL) => {
-                f.buffer.move_to_end_of_line();
-            }
-            (KeyCode::Char('f'), ALT) => {
-                f.buffer.move_to_next_word();
-            }
-            (KeyCode::Char('b'), ALT) => {
-                f.buffer.move_to_prev_word();
-            }
-            (KeyCode::Up, ALT) => {
-                f.buffer.move_current_line_above();
-            }
-            (KeyCode::Down, ALT) => {
-                f.buffer.move_current_line_below();
-            }
-            (KeyCode::Up, modifiers) if modifiers == (CTRL | ALT) => {
-                f.buffer.add_cursor_above();
-            }
-            (KeyCode::Down, modifiers) if modifiers == (CTRL | ALT) => {
-                f.buffer.add_cursor_below();
-            }
-            (KeyCode::Up, modifiers) if modifiers == (SHIFT | ALT) => {
-                f.buffer.duplicate_line_above();
-            }
-            (KeyCode::Down, modifiers) if modifiers == (SHIFT | ALT) => {
-                f.buffer.duplicate_line_below();
-            }
-
-            (KeyCode::Char('w'), CTRL) => {
-                let selections = f.buffer.prev_word_ranges();
-                trace!("BACKSPACE ALT: {:?}", selections);
-                f.buffer.select_by_ranges(&selections);
-                f.buffer.backspace();
-            }
-            (KeyCode::Backspace, NONE) => {
-                f.buffer.backspace();
-            }
-            (KeyCode::Up, NONE) => {
-                f.move_cursors(-1, 0);
-            }
-            (KeyCode::Down, NONE) => {
-                f.move_cursors(1, 0);
-            }
-            (KeyCode::Left, NONE) => {
-                f.move_cursors(0, -1);
-            }
-            (KeyCode::Right, NONE) => {
-                f.move_cursors(0, 1);
-            }
-            (KeyCode::Up, SHIFT) => {
-                f.expand_selections(-1, 0);
-            }
-            (KeyCode::Down, SHIFT) => {
-                f.expand_selections(1, 0);
-            }
-            (KeyCode::Left, SHIFT) => {
-                f.expand_selections(0, -1);
-            }
-            (KeyCode::Right, SHIFT) => {
-                f.expand_selections(0, 1);
-            }
-            (KeyCode::Enter, NONE) => {
-                f.buffer.insert_char('\n');
-            }
-            (KeyCode::Tab, NONE) => {
-                f.buffer.tab();
-            }
-            (KeyCode::BackTab, NONE) => {
-                f.buffer.back_tab();
-            }
-            (KeyCode::Char(ch), NONE) => {
-                f.buffer.insert_char(ch);
-            }
-            (KeyCode::Char(ch), SHIFT) => {
-                f.buffer.insert_char(ch);
-            }
-            _ => {
-                trace!("unhandled key = {:?}", key);
-            }
+        match self.mode {
+            BufferSurfaceMode::Normal => self.handle_key_event_in_buffer(ctx, compositor, key),
+            BufferSurfaceMode::Search => self.handle_key_event_in_search(ctx, compositor, key),
         }
-
-        HandledEvent::Consumed
     }
 
     fn handle_key_batch_event(
