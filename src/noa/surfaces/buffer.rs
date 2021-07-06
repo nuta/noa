@@ -538,13 +538,18 @@ impl Surface for BufferSurface {
 
         // Bottom bar: draw the second line.
         let bottom_bar_y1 = canvas.height() - 1;
+        let query = self.search_query.text();
+        let query_width = query.display_width();
+        let log_max_width = canvas.width().saturating_sub(query_width);
+        canvas.draw_str(bottom_bar_y1, 0, &query);
+
         if let Some(message) = ctx.editor.last_message() {
             let (color, text) = match &message {
                 UserMessage::Info(text) => (Color::Cyan, text),
                 UserMessage::Error(text) => (Color::Red, text),
             };
 
-            let text = truncate_to_width(text, canvas.width());
+            let text = truncate_to_width(text, log_max_width);
             let text_width = text.display_width();
             let x = canvas.width() - text_width;
             canvas.draw_str(bottom_bar_y1, x, text);
