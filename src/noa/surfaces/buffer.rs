@@ -512,7 +512,7 @@ impl Surface for BufferSurface {
             .width()
             .saturating_sub(marker_width + 1 + 1 + colno_width + num_cursors_width);
 
-        // Draw the first line.
+        // Bottom bar: draw the first line.
         let bottom_bar_y0 = canvas.height() - 2;
         canvas.draw_str(bottom_bar_y0, 0, marker);
         canvas.draw_str(
@@ -536,7 +536,7 @@ impl Surface for BufferSurface {
 
         canvas.set_style(bottom_bar_y0, 0, canvas.width(), &ctx.theme.bottom_bar_text);
 
-        // Draw the second line.
+        // Bottom bar: draw the second line.
         let bottom_bar_y1 = canvas.height() - 1;
         if let Some(message) = ctx.editor.last_message() {
             let (color, text) = match &message {
