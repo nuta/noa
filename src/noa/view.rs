@@ -298,9 +298,25 @@ impl View {
         self.walk_ts_node(lang, root, &mut root.walk());
     }
 
+    pub fn clear_search_highlights(&mut self) {
+        for line in &mut self.lines {
+            line.search_highlights.clear();
+        }
+    }
     pub fn set_search_highlights<'a>(&mut self, iter: noa_buffer::SearchIter<'a>) {
-        let SEARCH_HIGHLIGHTS_MAX = 256;
-        for m in iter.take(SEARCH_HIGHLIGHTS_MAX) {}
+        const SEARCH_HIGHLIGHTS_MAX: usize = 256;
+
+        self.clear_search_highlights();
+        for Range { start, end } in iter.take(SEARCH_HIGHLIGHTS_MAX) {
+            for line in &mut self.lines {
+                if line.range.contains(start) && line.range.contains(end) {
+                    line.search_highlights.push(Highlight {
+                        range: (start.x - line.range.start.x)..(end.x - line.range.start.x),
+                        highlight_type: HighlightType::MatchedBySearch,
+                    });
+                }
+            }
+        }
     }
 }
 

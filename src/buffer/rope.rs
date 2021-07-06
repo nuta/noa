@@ -258,7 +258,7 @@ impl Rope {
 
     pub fn find_all<'a>(&'a self, needle: &str, after: Option<Point>) -> SearchIter<'a> {
         if needle.is_empty() {
-            return SearchIter::empty(self);
+            return SearchIter::new_empty(self);
         }
 
         let needle = needle.to_owned(); // FIXME:
@@ -280,7 +280,7 @@ impl Rope {
         after: Option<Point>,
     ) -> Result<SearchIter<'a>, regex::Error> {
         if pattern.is_empty() {
-            return Ok(SearchIter::empty(self));
+            return Ok(SearchIter::new_empty(self));
         }
 
         let re = Regex::new(pattern)?;
@@ -336,7 +336,7 @@ pub struct SearchIter<'a> {
 }
 
 impl<'a> SearchIter<'a> {
-    pub fn new(
+    fn new(
         rope: &'a Rope,
         searcher: impl Fn(&str) -> Option<SearchMatch> + 'static,
         after: Option<Point>,
@@ -350,7 +350,7 @@ impl<'a> SearchIter<'a> {
         }
     }
 
-    pub fn empty(rope: &'a Rope) -> SearchIter<'a> {
+    fn new_empty(rope: &'a Rope) -> SearchIter<'a> {
         SearchIter {
             rope,
             text: "".to_owned(),

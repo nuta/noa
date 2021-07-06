@@ -15,6 +15,7 @@ pub struct Lsp {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HighlightType {
+    MatchedBySearch,
     Ident,
     StringLiteral,
     EscapeSequence,

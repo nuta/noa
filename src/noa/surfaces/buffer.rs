@@ -399,19 +399,32 @@ impl Surface for BufferSurface {
             }
 
             // Highlights.
-            for h in &display_line.syntax_highlights {
-                let x_start = text_start_x + h.range.start;
-                let x_end = text_start_x + h.range.end;
-                let color = match h.highlight_type {
-                    HighlightType::Ident => Color::Magenta,
-                    HighlightType::StringLiteral => Color::Green,
-                    HighlightType::EscapeSequence => Color::Cyan,
-                    HighlightType::PrimitiveType => Color::Cyan,
-                    HighlightType::CMacro => Color::Magenta,
-                    HighlightType::CIncludeArg => Color::Green,
-                };
+            let highlights_set = [
+                &display_line.syntax_highlights,
+                &display_line.search_highlights,
+            ];
 
-                canvas.set_fg(y, x_start, x_end, color);
+            for hs in highlights_set {
+                for h in hs {
+                    let x_start = text_start_x + h.range.start;
+                    let x_end = text_start_x + h.range.end;
+                    let (fg, bg) = match h.highlight_type {
+                        HighlightType::Ident => (Some(Color::Magenta), None),
+                        HighlightType::StringLiteral => (Some(Color::Green), None),
+                        HighlightType::EscapeSequence => (Some(Color::Cyan), None),
+                        HighlightType::PrimitiveType => (Some(Color::Cyan), None),
+                        HighlightType::CMacro => (Some(Color::Magenta), None),
+                        HighlightType::CIncludeArg => (Some(Color::Green), None),
+                        HighlightType::MatchedBySearch => (None, Some(Color::DarkYellow)),
+                    };
+
+                    if let Some(color) = fg {
+                        canvas.set_fg(y, x_start, x_end, color);
+                    }
+                    if let Some(color) = bg {
+                        canvas.set_bg(y, x_start, x_end, color);
+                    }
+                }
             }
 
             // Whitespaces after the line.
