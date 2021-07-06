@@ -128,6 +128,7 @@ impl BufferSurface {
             }
             (KeyCode::Esc, NONE) => {
                 self.search_query.clear();
+                self.search_matches.clear();
             }
             (KeyCode::Char('/'), ALT) => {
                 self.mode = BufferSurfaceMode::Search;
