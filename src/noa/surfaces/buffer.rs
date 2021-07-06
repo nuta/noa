@@ -271,14 +271,20 @@ impl BufferSurface {
         match (key.code, key.modifiers) {
             (KeyCode::Esc, NONE) => {
                 self.mode = BufferSurfaceMode::Normal;
-                self.search_query.clear();
-                self.search_matches.clear();
             }
             (KeyCode::Up, NONE) => {
                 // TODO:
             }
             (KeyCode::Down, NONE) => {
                 // TODO:
+            }
+            // Select all occurrences.
+            (KeyCode::Char('?'), ALT) => {
+                let mut f = ctx.editor.current_file().write();
+                self.select_search_matches(&mut f.buffer);
+                self.mode = BufferSurfaceMode::Normal;
+                self.search_query.clear();
+                self.search_matches.clear();
             }
             // Move to the previous occurrence.
             (KeyCode::Char(','), ALT) => {
