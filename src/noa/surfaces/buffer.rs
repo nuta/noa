@@ -43,6 +43,7 @@ pub struct BufferSurface {
     scroll_ys: Vec<usize>,
     scroll_bar_x: usize,
     search_query: LineEdit,
+    search_matches: Vec<Range>,
 }
 
 impl BufferSurface {
@@ -58,6 +59,7 @@ impl BufferSurface {
             scroll_ys: Vec::new(),
             scroll_bar_x: 0,
             search_query: LineEdit::new(),
+            search_matches: Vec::new(),
         }
     }
 
@@ -272,13 +274,19 @@ impl BufferSurface {
                     return HandledEvent::Ignored;
                 }
 
+                const SEARCH_HIGHLIGHTS_MAX: usize = 256;
                 if prev_ver != self.search_query.rope().version() {
                     // The search query has been updated.
                     let query = self.search_query.text();
+                    trace!("search: highlighting \"{}\"", query);
                     if query.is_empty() {
-                        f.view.clear_search_highlights();
+                        self.search_matches.clear();
                     } else {
-                        f.highlight_by_find_all(&query);
+                        self.search_matches = f
+                            .buffer
+                            .find_all(&query, None)
+                            .take(SEARCH_HIGHLIGHTS_MAX)
+                            .collect();
                     }
                 }
             }
@@ -322,6 +330,7 @@ impl Surface for BufferSurface {
 
             f.layout_view(0, canvas.height(), text_width);
             f.highlight_from_tree_sitter();
+            f.view.set_search_highlights(&self.search_matches);
 
             (max_lineno_width, text_width, text_start_x)
         };
@@ -406,6 +415,7 @@ impl Surface for BufferSurface {
                 &display_line.search_highlights,
             ];
 
+            trace!("h: {:?}", &display_line.search_highlights);
             for hs in highlights_set {
                 for h in hs {
                     let x_start = text_start_x + h.range.start;
@@ -424,6 +434,7 @@ impl Surface for BufferSurface {
                         canvas.set_fg(y, x_start, x_end, color);
                     }
                     if let Some(color) = bg {
+                        trace!("render: {:?} {}..{}", h.highlight_type, x_start, x_end);
                         canvas.set_bg(y, x_start, x_end, color);
                     }
                 }

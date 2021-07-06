@@ -298,18 +298,15 @@ impl View {
         self.walk_ts_node(lang, root, &mut root.walk());
     }
 
-    pub fn clear_search_highlights(&mut self) {
+    pub fn set_search_highlights<'a>(&mut self, matches: &[Range]) {
         for line in &mut self.lines {
             line.search_highlights.clear();
         }
-    }
-    pub fn set_search_highlights<'a>(&mut self, iter: noa_buffer::SearchIter<'a>) {
-        const SEARCH_HIGHLIGHTS_MAX: usize = 256;
 
-        self.clear_search_highlights();
-        for Range { start, end } in iter.take(SEARCH_HIGHLIGHTS_MAX) {
+        for Range { start, end } in matches {
             for line in &mut self.lines {
-                if line.range.contains(start) && line.range.contains(end) {
+                if line.range.contains(*start) && line.range.contains(*end) {
+                    trace!("search highlight: {}..{}", start, end);
                     line.search_highlights.push(Highlight {
                         range: (start.x - line.range.start.x)..(end.x - line.range.start.x),
                         highlight_type: HighlightType::MatchedBySearch,
