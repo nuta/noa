@@ -243,6 +243,24 @@ impl Rope {
         Point::new(pos.y, end)
     }
 
+    pub fn find_prev(&self, needle: &str, before: Option<Point>) -> Option<Range> {
+        if needle.is_empty() {
+            return None;
+        }
+
+        let heystack = self.text();
+        let rfind_from = before
+            .map(|pos| self.point_to_byte_off(pos))
+            .unwrap_or_else(|| heystack.len());
+
+        heystack[..rfind_from].rfind(needle).map(|byte_offset| {
+            let start = self.byte_off_to_point(byte_offset);
+            // TODO: pattern might include '\n'
+            let end = Point::new(start.y, start.x + needle.chars().count());
+            Range::from_points(start, end)
+        })
+    }
+
     pub fn find_next(&self, needle: &str, after: Option<Point>) -> Option<Range> {
         self.find_all(needle, after).next()
     }
@@ -252,8 +270,36 @@ impl Rope {
         pattern: &str,
         after: Option<Point>,
     ) -> Result<Option<Range>, regex::Error> {
+        if pattern.is_empty() {
+            return Ok(None);
+        }
+
         self.find_all_by_regex(pattern, after)
             .map(|mut iter| iter.next())
+    }
+
+    pub fn find_prev_by_regex(
+        &self,
+        pattern: &str,
+        before: Option<Point>,
+    ) -> Result<Option<Range>, regex::Error> {
+        let iter = self.find_all_by_regex(pattern, None)?;
+        let mut prev = None;
+        for range in iter {
+            match before {
+                Some(before) if range.front() < before => {
+                    prev = Some(range);
+                }
+                Some(_) => {
+                    return Ok(prev);
+                }
+                None => {
+                    prev = Some(range);
+                }
+            }
+        }
+
+        Ok(prev)
     }
 
     pub fn find_all<'a>(&'a self, needle: &str, after: Option<Point>) -> SearchIter<'a> {
@@ -388,6 +434,7 @@ impl<'a> Iterator for SearchIter<'a> {
                 matched_len,
             }) => {
                 let pos = self.rope.byte_off_to_point(start + byte_offset);
+                // TODO: pattern might include '\n'
                 let end = Point::new(pos.y, pos.x + matched_len);
                 (Some(pos), Some(Range::from_points(pos, end)))
             }
@@ -436,7 +483,7 @@ mod test {
     }
 
     #[test]
-    fn find() {
+    fn find_next() {
         // It's ABC
         // これはABCです
         // ABC
@@ -460,6 +507,27 @@ mod test {
         );
         assert_eq!(rope.find_next("ABC", Some(Point::new(2, 0))), None);
         assert_eq!(rope.find_next("ABC", Some(Point::new(2, 3))), None);
+    }
+
+    #[test]
+    fn find_prev() {
+        // It's ABC
+        // これはABCです
+        // ABC
+        //
+        // (あ and its friends occupy 3 bytes.)
+        let rope = Rope::from_str("It's ABC\nこれはABCです\nABC");
+        assert_eq!(rope.find_prev("", None), None);
+        assert_eq!(rope.find_prev("ABC", None), Some(Range::new(2, 0, 2, 3)));
+        assert_eq!(rope.find_prev("ABC", Some(Point::new(0, 5))), None);
+        assert_eq!(
+            rope.find_prev("ABC", Some(Point::new(0, 8))),
+            Some(Range::new(0, 5, 0, 8))
+        );
+        assert_eq!(
+            rope.find_prev("ABC", Some(Point::new(2, 0))),
+            Some(Range::new(1, 3, 1, 6))
+        );
     }
 
     #[test]
@@ -502,6 +570,33 @@ mod test {
         assert_eq!(
             rope.find_next_by_regex("A[BC]{2}", Some(Point::new(2, 3))),
             Ok(None)
+        );
+    }
+
+    #[test]
+    fn find_prev_by_regex() {
+        // It's ABC
+        // これはABCです
+        // ABC
+        //
+        // (あ and its friends occupy 3 bytes.)
+        let rope = Rope::from_str("It's ABC\nこれはABCです\nABC");
+        assert_eq!(rope.find_prev_by_regex("", None), Ok(None));
+        assert_eq!(
+            rope.find_prev_by_regex("ABC", None),
+            Ok(Some(Range::new(2, 0, 2, 3)))
+        );
+        assert_eq!(
+            rope.find_prev_by_regex("ABC", Some(Point::new(0, 5))),
+            Ok(None)
+        );
+        assert_eq!(
+            rope.find_prev_by_regex("ABC", Some(Point::new(0, 8))),
+            Ok(Some(Range::new(0, 5, 0, 8)))
+        );
+        assert_eq!(
+            rope.find_prev_by_regex("ABC", Some(Point::new(2, 0))),
+            Ok(Some(Range::new(1, 3, 1, 6)))
         );
     }
 
