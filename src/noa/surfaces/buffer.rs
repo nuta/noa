@@ -6,7 +6,6 @@ use std::{
 };
 
 use crossterm::{
-    cursor,
     event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind},
     style::Color,
 };
@@ -15,7 +14,7 @@ use noa_langs::HighlightType;
 use parking_lot::Mutex;
 
 use crate::{
-    editor::{OpenedFile, UserMessage},
+    editor::UserMessage,
     line_edit::LineEdit,
     minimap::{LineStatus, MiniMap, MiniMapCategory},
     surfaces::{prompt::CallbackResult, yes_no::YesNoChoice, FinderSurface, YesNoSurface},
@@ -25,6 +24,8 @@ use crate::{
         DisplayWidth, Event, HandledEvent, Layout, RectSize, Surface,
     },
 };
+
+const SEARCH_HIGHLIGHTS_MAX: usize = 256;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum BufferSurfaceMode {
@@ -133,6 +134,16 @@ impl BufferSurface {
             }
             (KeyCode::Char('/'), ALT) => {
                 self.mode = BufferSurfaceMode::Search;
+            }
+            (KeyCode::Char(':'), ALT) => {
+                self.fill_query_selection_or_word(&mut f.buffer);
+                self.mode = BufferSurfaceMode::Search;
+            }
+            (KeyCode::Char('?'), ALT) => {
+                self.fill_query_selection_or_word(&mut f.buffer);
+                self.update_search_matches(&f.buffer, &self.search_query.text());
+                self.select_search_matches(&mut f.buffer);
+                self.search_matches.clear();
             }
             (KeyCode::Char('f'), CTRL) => {
                 drop(f);
@@ -292,28 +303,48 @@ impl BufferSurface {
                     return HandledEvent::Ignored;
                 }
 
-                const SEARCH_HIGHLIGHTS_MAX: usize = 256;
                 if prev_ver != self.search_query.rope().version() {
                     // The search query has been updated.
+                    let f = ctx.editor.current_file().read();
                     let query = self.search_query.text();
-                    trace!("search: highlighting \"{}\"", query);
-                    if query.is_empty() {
-                        self.search_matches.clear();
-                    } else {
-                        self.search_matches = ctx
-                            .editor
-                            .current_file()
-                            .read()
-                            .buffer
-                            .find_all(&query, None)
-                            .take(SEARCH_HIGHLIGHTS_MAX)
-                            .collect();
-                    }
+                    self.update_search_matches(&f.buffer, &query);
                 }
             }
         }
 
         HandledEvent::Consumed
+    }
+
+    fn update_search_matches(&mut self, buffer: &Buffer, query: &str) {
+        if query.is_empty() {
+            self.search_matches.clear();
+        } else {
+            self.search_matches = buffer
+                .find_all(&query, None)
+                .take(SEARCH_HIGHLIGHTS_MAX)
+                .collect();
+        }
+    }
+
+    fn fill_query_selection_or_word(&mut self, buffer: &mut Buffer) {
+        let range = match buffer.main_cursor() {
+            Cursor::Selection(range) => range.clone(),
+            Cursor::Normal { .. } => match buffer.current_word_range() {
+                Some(range) => range,
+                None => return,
+            },
+        };
+
+        let query = buffer.rope().sub_str(&range).to_string();
+        self.search_query.set_text(&query);
+    }
+
+    fn select_search_matches(&mut self, buffer: &mut Buffer) {
+        if self.search_matches.is_empty() {
+            return;
+        }
+
+        buffer.select_by_ranges(&self.search_matches);
     }
 
     fn find_and_move<F1, F2>(&mut self, ctx: &mut Context, find: F1, find_fallback: F2)
@@ -464,7 +495,6 @@ impl Surface for BufferSurface {
                 &display_line.search_highlights,
             ];
 
-            trace!("h: {:?}", &display_line.search_highlights);
             for hs in highlights_set {
                 for h in hs {
                     let x_start = text_start_x + h.range.start;

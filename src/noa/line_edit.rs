@@ -45,6 +45,11 @@ impl LineEdit {
         Point::new(0, self.cursor)
     }
 
+    pub fn set_text(&mut self, text: &str) {
+        self.clear();
+        self.insert(text);
+    }
+
     pub fn insert(&mut self, s: &str) {
         self.rope.insert(self.cursor_as_pos(), s);
         self.cursor += s.chars().count();
