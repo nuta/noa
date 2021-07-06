@@ -6,6 +6,7 @@ use std::{
 };
 
 use crossterm::{
+    cursor,
     event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind},
     style::Color,
 };
@@ -262,12 +263,36 @@ impl BufferSurface {
         match (key.code, key.modifiers) {
             (KeyCode::Esc, NONE) => {
                 self.mode = BufferSurfaceMode::Normal;
+                self.search_query.clear();
+                self.search_matches.clear();
             }
             (KeyCode::Up, NONE) => {
                 // TODO:
             }
             (KeyCode::Down, NONE) => {
                 // TODO:
+            }
+            // Move to the next occurrence.
+            (KeyCode::Enter, NONE) => {
+                let query = self.search_query.text();
+                let cursor_pos = f.buffer.main_cursor_pos();
+                let next_match = f.buffer.find_next(&query, Some(cursor_pos));
+                let first_match = f.buffer.find_next(&query, None);
+                let new_cursor_pos = match (next_match, first_match) {
+                    (Some(next_match), _) => Some(next_match.front()),
+                    (None, Some(first_match)) => {
+                        ctx.editor.info("wrapping");
+                        Some(first_match.front())
+                    }
+                    (None, None) => {
+                        ctx.editor.info("no matches");
+                        None
+                    }
+                };
+
+                if let Some(new_pos) = new_cursor_pos {
+                    f.buffer.move_cursor_to(new_pos);
+                }
             }
             _ => {
                 let prev_ver = self.search_query.rope().version();
