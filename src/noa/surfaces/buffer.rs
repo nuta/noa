@@ -10,12 +10,12 @@ use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind},
     style::Color,
 };
-use noa_buffer::{Cursor, Point, Range};
+use noa_buffer::{Buffer, Cursor, Point, Range};
 use noa_langs::HighlightType;
 use parking_lot::Mutex;
 
 use crate::{
-    editor::UserMessage,
+    editor::{OpenedFile, UserMessage},
     line_edit::LineEdit,
     minimap::{LineStatus, MiniMap, MiniMapCategory},
     surfaces::{prompt::CallbackResult, yes_no::YesNoChoice, FinderSurface, YesNoSurface},
@@ -254,11 +254,8 @@ impl BufferSurface {
         key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
+        const ALT: KeyModifiers = KeyModifiers::ALT;
         // const CTRL: KeyModifiers = KeyModifiers::CONTROL;
-        // const ALT: KeyModifiers = KeyModifiers::ALT;
-        // const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
-
-        let mut f = ctx.editor.current_file().write();
 
         match (key.code, key.modifiers) {
             (KeyCode::Esc, NONE) => {
@@ -272,29 +269,24 @@ impl BufferSurface {
             (KeyCode::Down, NONE) => {
                 // TODO:
             }
+            // Move to the previous occurrence.
+            (KeyCode::Char(','), ALT) => {
+                self.find_and_move(
+                    ctx,
+                    |buffer, query, cursor_pos| buffer.find_prev(query, Some(cursor_pos)),
+                    |buffer, query| buffer.find_prev(query, None),
+                );
+            }
             // Move to the next occurrence.
-            (KeyCode::Enter, NONE) => {
-                let query = self.search_query.text();
-                let cursor_pos = f.buffer.main_cursor_pos();
-                let next_match = f.buffer.find_next(&query, Some(cursor_pos));
-                let first_match = f.buffer.find_next(&query, None);
-                let new_cursor_pos = match (next_match, first_match) {
-                    (Some(next_match), _) => Some(next_match.front()),
-                    (None, Some(first_match)) => {
-                        ctx.editor.info("wrapping");
-                        Some(first_match.front())
-                    }
-                    (None, None) => {
-                        ctx.editor.info("no matches");
-                        None
-                    }
-                };
-
-                if let Some(new_pos) = new_cursor_pos {
-                    f.buffer.move_cursor_to(new_pos);
-                }
+            (KeyCode::Enter, NONE) | (KeyCode::Char('.'), ALT) => {
+                self.find_and_move(
+                    ctx,
+                    |buffer, query, cursor_pos| buffer.find_next(query, Some(cursor_pos)),
+                    |buffer, query| buffer.find_next(query, None),
+                );
             }
             _ => {
+                // Interactive highlight.
                 let prev_ver = self.search_query.rope().version();
                 if !self.search_query.consume_key_event(key) {
                     return HandledEvent::Ignored;
@@ -308,7 +300,10 @@ impl BufferSurface {
                     if query.is_empty() {
                         self.search_matches.clear();
                     } else {
-                        self.search_matches = f
+                        self.search_matches = ctx
+                            .editor
+                            .current_file()
+                            .read()
                             .buffer
                             .find_all(&query, None)
                             .take(SEARCH_HIGHLIGHTS_MAX)
@@ -319,6 +314,34 @@ impl BufferSurface {
         }
 
         HandledEvent::Consumed
+    }
+
+    fn find_and_move<F1, F2>(&mut self, ctx: &mut Context, find: F1, find_fallback: F2)
+    where
+        F1: FnOnce(&Buffer, &str, Point) -> Option<Range>,
+        F2: FnOnce(&Buffer, &str) -> Option<Range>,
+    {
+        let mut f = ctx.editor.current_file().write();
+
+        let query = self.search_query.text();
+        let cursor_pos = f.buffer.main_cursor_pos();
+        let next_match = find(&f.buffer, &query, cursor_pos);
+        let fallback_match = find_fallback(&f.buffer, &query);
+        let new_cursor_pos = match (next_match, fallback_match) {
+            (Some(next_match), _) => Some(next_match.front()),
+            (None, Some(first_match)) => {
+                ctx.editor.info("wrapped");
+                Some(first_match.front())
+            }
+            (None, None) => {
+                ctx.editor.info("no matches");
+                None
+            }
+        };
+
+        if let Some(new_pos) = new_cursor_pos {
+            f.buffer.move_cursor_to(new_pos);
+        }
     }
 }
 

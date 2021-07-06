@@ -985,8 +985,20 @@ impl Buffer {
         self.move_cursors(0, 1, 0, 0);
     }
 
+    pub fn find_prev(&self, needle: &str, before: Option<Point>) -> Option<Range> {
+        self.rope.find_prev(needle, before)
+    }
+
     pub fn find_next(&self, needle: &str, after: Option<Point>) -> Option<Range> {
         self.rope.find_next(needle, after)
+    }
+
+    pub fn find_prev_by_regex(
+        &self,
+        pattern: &str,
+        after: Option<Point>,
+    ) -> Result<Option<Range>, regex::Error> {
+        self.rope.find_prev_by_regex(pattern, after)
     }
 
     pub fn find_next_by_regex(
