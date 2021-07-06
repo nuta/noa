@@ -267,8 +267,17 @@ impl BufferSurface {
                 // TODO:
             }
             _ => {
+                let prev_ver = self.search_query.rope().version();
                 if !self.search_query.consume_key_event(key) {
                     return HandledEvent::Ignored;
+                }
+
+                if prev_ver != self.search_query.rope().version() {
+                    // The search query has been updated.
+                    let query = self.search_query.text();
+                    if !query.is_empty() {
+                        f.highlight_by_find_all(&query);
+                    }
                 }
             }
         }
@@ -390,7 +399,7 @@ impl Surface for BufferSurface {
             }
 
             // Highlights.
-            for h in &display_line.highlights {
+            for h in &display_line.syntax_highlights {
                 let x_start = text_start_x + h.range.start;
                 let x_end = text_start_x + h.range.end;
                 let color = match h.highlight_type {

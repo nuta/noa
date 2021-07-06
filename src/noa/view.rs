@@ -20,7 +20,8 @@ pub struct DisplayLine {
     pub chunks: Vec<ops::Range<usize>>,
     /// The char indices in the whole buffer rope.
     pub range: Range,
-    pub highlights: Vec<Highlight>,
+    pub syntax_highlights: Vec<Highlight>,
+    pub search_highlights: Vec<Highlight>,
 }
 
 pub struct View {
@@ -112,7 +113,8 @@ impl View {
                     buffer_y: text_y,
                     chunks: vec![],
                     range: Range::from_points(Point::new(text_y, 0), Point::new(text_y, 0)),
-                    highlights: vec![],
+                    syntax_highlights: vec![],
+                    search_highlights: vec![],
                 });
             } else {
                 for mut chunk in line_rope.chunks() {
@@ -144,7 +146,8 @@ impl View {
                                 buffer_y: text_y,
                                 chunks: spans,
                                 range: Range::from_points(front, Point::new(text_y, text_x)),
-                                highlights: vec![],
+                                syntax_highlights: vec![],
+                                search_highlights: vec![],
                             });
 
                             spans = Vec::new();
@@ -160,7 +163,8 @@ impl View {
                         buffer_y: text_y,
                         chunks: spans,
                         range: Range::from_points(front, Point::new(text_y, text_x)),
-                        highlights: vec![],
+                        syntax_highlights: vec![],
+                        search_highlights: vec![],
                     });
                 }
             }
@@ -269,7 +273,7 @@ impl View {
                         {
                             let range =
                                 (start.x - line.range.start.x)..(end.x - line.range.start.x);
-                            line.highlights.push(Highlight {
+                            line.syntax_highlights.push(Highlight {
                                 range,
                                 highlight_type,
                             });
@@ -292,6 +296,11 @@ impl View {
     ) {
         let root = tree.root_node();
         self.walk_ts_node(lang, root, &mut root.walk());
+    }
+
+    pub fn set_search_highlights<'a>(&mut self, iter: noa_buffer::SearchIter<'a>) {
+        let SEARCH_HIGHLIGHTS_MAX = 256;
+        for m in iter.take(SEARCH_HIGHLIGHTS_MAX) {}
     }
 }
 

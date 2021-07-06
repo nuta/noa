@@ -1,3 +1,4 @@
+use crate::rope::SearchIter;
 use crate::{cursor::*, rope::Rope, Snapshot};
 
 use noa_editorconfig::*;
@@ -982,6 +983,30 @@ impl Buffer {
         // Try to restore cursors' x.
         self.set_cursors(old_cursors);
         self.move_cursors(0, 1, 0, 0);
+    }
+
+    pub fn find_next(&self, needle: &str, after: Option<Point>) -> Option<Range> {
+        self.rope.find_next(needle, after)
+    }
+
+    pub fn find_next_by_regex(
+        &self,
+        pattern: &str,
+        after: Option<Point>,
+    ) -> Result<Option<Range>, regex::Error> {
+        self.rope.find_next_by_regex(pattern, after)
+    }
+
+    pub fn find_all<'a>(&'a self, needle: &str, after: Option<Point>) -> SearchIter<'a> {
+        self.rope.find_all(needle, after)
+    }
+
+    pub fn find_all_by_regex<'a>(
+        &'a self,
+        pattern: &str,
+        after: Option<Point>,
+    ) -> Result<SearchIter<'a>, regex::Error> {
+        self.rope.find_all_by_regex(pattern, after)
     }
 }
 

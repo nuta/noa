@@ -62,6 +62,11 @@ impl OpenedFile {
             .expand_selections(&mut self.buffer, y_diff, x_diff);
     }
 
+    pub fn highlight_by_find_all(&mut self, needle: &str) {
+        self.view
+            .set_search_highlights(self.buffer.find_all(needle, None));
+    }
+
     pub fn highlight_from_tree_sitter(&mut self) {
         if let Some(ref tree) = self.syntax_highlight {
             self.view

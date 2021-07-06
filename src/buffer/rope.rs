@@ -243,7 +243,7 @@ impl Rope {
         Point::new(pos.y, end)
     }
 
-    pub fn find_next(&self, needle: &str, after: Option<Point>) -> Option<Point> {
+    pub fn find_next(&self, needle: &str, after: Option<Point>) -> Option<Range> {
         self.find_all(needle, after).next()
     }
 
@@ -251,7 +251,7 @@ impl Rope {
         &self,
         pattern: &str,
         after: Option<Point>,
-    ) -> Result<Option<Point>, regex::Error> {
+    ) -> Result<Option<Range>, regex::Error> {
         self.find_all_by_regex(pattern, after)
             .map(|mut iter| iter.next())
     }
@@ -262,7 +262,16 @@ impl Rope {
         }
 
         let needle = needle.to_owned(); // FIXME:
-        SearchIter::new(self, move |heystack| heystack.find(&needle), after)
+        SearchIter::new(
+            self,
+            move |heystack| {
+                heystack.find(&needle).map(|byte_offset| SearchMatch {
+                    byte_offset,
+                    matched_len: needle.len(),
+                })
+            },
+            after,
+        )
     }
 
     pub fn find_all_by_regex<'a>(
@@ -277,7 +286,12 @@ impl Rope {
         let re = Regex::new(pattern)?;
         Ok(SearchIter::new(
             self,
-            move |heystack| re.find(heystack).map(|m| m.start()),
+            move |heystack| {
+                re.find(heystack).map(|m| SearchMatch {
+                    byte_offset: m.start(),
+                    matched_len: heystack[m.start()..m.end()].chars().count(),
+                })
+            },
             after,
         ))
     }
@@ -308,18 +322,23 @@ impl Rope {
     }
 }
 
+struct SearchMatch {
+    byte_offset: usize,
+    matched_len: usize,
+}
+
 pub struct SearchIter<'a> {
     rope: &'a Rope,
     text: String,
     current: Option<Point>,
-    searcher: Box<dyn Fn(&str) -> Option<usize>>,
+    searcher: Box<dyn Fn(&str) -> Option<SearchMatch>>,
     reached_eof: bool,
 }
 
 impl<'a> SearchIter<'a> {
     pub fn new(
         rope: &'a Rope,
-        searcher: impl Fn(&str) -> Option<usize> + 'static,
+        searcher: impl Fn(&str) -> Option<SearchMatch> + 'static,
         after: Option<Point>,
     ) -> SearchIter<'a> {
         SearchIter {
@@ -343,7 +362,7 @@ impl<'a> SearchIter<'a> {
 }
 
 impl<'a> Iterator for SearchIter<'a> {
-    type Item = Point;
+    type Item = Range;
     fn next(&mut self) -> Option<Self::Item> {
         if self.reached_eof {
             return None;
@@ -362,9 +381,21 @@ impl<'a> Iterator for SearchIter<'a> {
             None => 0,
         };
 
-        self.current = (*self.searcher)(&self.text[start..])
-            .map(|off| self.rope.byte_off_to_point(start + off));
-        self.current
+        let m = (*self.searcher)(&self.text[start..]);
+        let (pos, range) = match m {
+            Some(SearchMatch {
+                byte_offset,
+                matched_len,
+            }) => {
+                let pos = self.rope.byte_off_to_point(start + byte_offset);
+                let end = Point::new(pos.y, pos.x + matched_len);
+                (Some(pos), Some(Range::from_points(pos, end)))
+            }
+            None => (None, None),
+        };
+
+        self.current = pos;
+        range
     }
 }
 
@@ -413,19 +444,19 @@ mod test {
         // (あ and its friends occupy 3 bytes.)
         let rope = Rope::from_str("It's ABC\nこれはABCです\nABC");
         assert_eq!(rope.find_next("", None), None);
-        assert_eq!(rope.find_next("It's", None), Some(Point::new(0, 0)));
-        assert_eq!(rope.find_next("ABC", None), Some(Point::new(0, 5)));
+        assert_eq!(rope.find_next("It's", None), Some(Range::new(0, 0, 0, 4)));
+        assert_eq!(rope.find_next("ABC", None), Some(Range::new(0, 5, 0, 8)));
         assert_eq!(
             rope.find_next("ABC", Some(Point::new(0, 4))),
-            Some(Point::new(0, 5))
+            Some(Range::new(0, 5, 0, 8))
         );
         assert_eq!(
             rope.find_next("ABC", Some(Point::new(0, 5))),
-            Some(Point::new(1, 3))
+            Some(Range::new(1, 3, 1, 6))
         );
         assert_eq!(
             rope.find_next("ABC", Some(Point::new(1, 3))),
-            Some(Point::new(2, 0))
+            Some(Range::new(2, 0, 2, 3))
         );
         assert_eq!(rope.find_next("ABC", Some(Point::new(2, 0))), None);
         assert_eq!(rope.find_next("ABC", Some(Point::new(2, 3))), None);
@@ -442,23 +473,27 @@ mod test {
         assert_eq!(rope.find_next_by_regex("", None), Ok(None));
         assert_eq!(
             rope.find_next_by_regex("...", None),
-            Ok(Some(Point::new(0, 0)))
+            Ok(Some(Range::new(0, 0, 0, 3)))
         );
         assert_eq!(
             rope.find_next_by_regex("A.C", None),
-            Ok(Some(Point::new(0, 5)))
+            Ok(Some(Range::new(0, 5, 0, 8)))
         );
         assert_eq!(
             rope.find_next_by_regex("A..", Some(Point::new(0, 4))),
-            Ok(Some(Point::new(0, 5)))
+            Ok(Some(Range::new(0, 5, 0, 8)))
+        );
+        assert_eq!(
+            rope.find_next_by_regex("こ", Some(Point::new(0, 0))),
+            Ok(Some(Range::new(1, 0, 1, 1)))
         );
         assert_eq!(
             rope.find_next_by_regex("A.+", Some(Point::new(0, 5))),
-            Ok(Some(Point::new(1, 3)))
+            Ok(Some(Range::new(1, 3, 1, 8)))
         );
         assert_eq!(
             rope.find_next_by_regex(".B.", Some(Point::new(1, 3))),
-            Ok(Some(Point::new(2, 0)))
+            Ok(Some(Range::new(2, 0, 2, 3)))
         );
         assert_eq!(
             rope.find_next_by_regex("A[BC]{2}", Some(Point::new(2, 0))),
@@ -478,19 +513,23 @@ mod test {
         //
         // (あ and its friends occupy 3 bytes.)
         let rope = Rope::from_str("It's ABC\nこれはABCです\nABC");
-        assert_eq!(rope.find_all("", None).collect::<Vec<Point>>(), vec![]);
+        assert_eq!(rope.find_all("", None).collect::<Vec<Range>>(), vec![]);
         assert_eq!(
-            rope.find_all("It's", None).collect::<Vec<Point>>(),
-            vec![Point::new(0, 0)]
+            rope.find_all("It's", None).collect::<Vec<Range>>(),
+            vec![Range::new(0, 0, 0, 4)]
         );
         assert_eq!(
-            rope.find_all("ABC", None).collect::<Vec<Point>>(),
-            vec![Point::new(0, 5), Point::new(1, 3), Point::new(2, 0),]
+            rope.find_all("ABC", None).collect::<Vec<Range>>(),
+            vec![
+                Range::new(0, 5, 0, 8),
+                Range::new(1, 3, 1, 6),
+                Range::new(2, 0, 2, 3),
+            ]
         );
         assert_eq!(
             rope.find_all("ABC", Some(Point::new(1, 2)))
-                .collect::<Vec<Point>>(),
-            vec![Point::new(1, 3), Point::new(2, 0),]
+                .collect::<Vec<Range>>(),
+            vec![Range::new(1, 3, 1, 6), Range::new(2, 0, 2, 3),]
         );
     }
 
@@ -504,23 +543,27 @@ mod test {
         let rope = Rope::from_str("It's ABC\nこれはABCです\nABC");
         assert_eq!(
             rope.find_all_by_regex("", None)
-                .map(|iter| iter.collect::<Vec<Point>>()),
+                .map(|iter| iter.collect::<Vec<Range>>()),
             Ok(vec![])
         );
         assert_eq!(
             rope.find_all_by_regex("It's", None)
-                .map(|iter| iter.collect::<Vec<Point>>()),
-            Ok(vec![Point::new(0, 0)])
+                .map(|iter| iter.collect::<Vec<Range>>()),
+            Ok(vec![Range::new(0, 0, 0, 4)])
         );
         assert_eq!(
             rope.find_all_by_regex("A[BC]{2}", None)
-                .map(|iter| iter.collect::<Vec<Point>>()),
-            Ok(vec![Point::new(0, 5), Point::new(1, 3), Point::new(2, 0),])
+                .map(|iter| iter.collect::<Vec<Range>>()),
+            Ok(vec![
+                Range::new(0, 5, 0, 8),
+                Range::new(1, 3, 1, 6),
+                Range::new(2, 0, 2, 3),
+            ])
         );
         assert_eq!(
             rope.find_all_by_regex("A[Bx].", Some(Point::new(1, 2)))
-                .map(|iter| iter.collect::<Vec<Point>>()),
-            Ok(vec![Point::new(1, 3), Point::new(2, 0),])
+                .map(|iter| iter.collect::<Vec<Range>>()),
+            Ok(vec![Range::new(1, 3, 1, 6), Range::new(2, 0, 2, 3),])
         );
     }
 }
