@@ -25,7 +25,7 @@ use crate::{
     },
 };
 
-const SEARCH_HIGHLIGHTS_MAX: usize = 256;
+const SEARCH_HIGHLIGHTS_MAX: usize = 8192;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum BufferSurfaceMode {
@@ -677,9 +677,15 @@ impl Surface for BufferSurface {
         }
 
         // Determine the main cursor position.
-        self.cursor_position =
-            f.view
-                .point_to_display_pos(main_cursor_pos, y_end, text_start_x, f.buffer.num_lines());
+        self.cursor_position = match self.mode {
+            BufferSurfaceMode::Normal => f.view.point_to_display_pos(
+                main_cursor_pos,
+                y_end,
+                text_start_x,
+                f.buffer.num_lines(),
+            ),
+            BufferSurfaceMode::Search => (bottom_bar_y1, self.search_query.cursor_display_pos()),
+        };
 
         self.text_start_x = text_start_x;
     }
