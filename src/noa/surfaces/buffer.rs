@@ -250,9 +250,9 @@ impl BufferSurface {
         key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
-        const CTRL: KeyModifiers = KeyModifiers::CONTROL;
-        const ALT: KeyModifiers = KeyModifiers::ALT;
-        const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
+        // const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        // const ALT: KeyModifiers = KeyModifiers::ALT;
+        // const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
         let mut f = ctx.editor.current_file().write();
 
@@ -275,7 +275,9 @@ impl BufferSurface {
                 if prev_ver != self.search_query.rope().version() {
                     // The search query has been updated.
                     let query = self.search_query.text();
-                    if !query.is_empty() {
+                    if query.is_empty() {
+                        f.view.clear_search_highlights();
+                    } else {
                         f.highlight_by_find_all(&query);
                     }
                 }
