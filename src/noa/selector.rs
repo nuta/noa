@@ -42,12 +42,15 @@ impl<T> Selector<T> {
     }
 
     pub fn select_next(&mut self) {
-        self.selected = min(self.items.len(), self.selected + 1);
-        info!("select_next: {} {}", self.selected, self.items.len());
+        self.selected = min(self.items.len().saturating_sub(1), self.selected + 1);
     }
 
     pub fn select_prev(&mut self) {
         self.selected = self.selected.saturating_sub(1);
+    }
+
+    pub fn select_last(&mut self) {
+        self.selected = self.items.len().saturating_sub(1);
     }
 
     pub fn push(&mut self, item: T) {

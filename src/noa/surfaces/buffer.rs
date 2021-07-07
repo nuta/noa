@@ -5,6 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use anyhow::Result;
 use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind},
     style::Color,
@@ -14,10 +15,15 @@ use noa_langs::HighlightType;
 use parking_lot::Mutex;
 
 use crate::{
-    editor::UserMessage,
+    editor::{Editor, UserMessage},
     line_edit::LineEdit,
     minimap::{LineStatus, MiniMap, MiniMapCategory},
-    surfaces::{prompt::CallbackResult, yes_no::YesNoChoice, FinderSurface, YesNoSurface},
+    selector::Selector,
+    surfaces::{
+        prompt::{self, CallbackResult},
+        yes_no::YesNoChoice,
+        FinderSurface, YesNoSurface,
+    },
     terminal::copy_to_clipboard,
     ui::{
         truncate_to_width, whitespaces, CanvasViewMut, Compositor, Context, Decoration,
@@ -33,6 +39,12 @@ enum BufferSurfaceMode {
     Search,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum SearchMode {
+    Plain,
+    Regex,
+}
+
 pub struct BufferSurface {
     mode: BufferSurfaceMode,
     // `(y, x)`.
@@ -44,8 +56,10 @@ pub struct BufferSurface {
     num_clicked: usize,
     scroll_ys: Vec<usize>,
     scroll_bar_x: usize,
+    search_mode: SearchMode,
     search_query: LineEdit,
     search_matches: Vec<Range>,
+    search_history: Selector<(SearchMode, String)>,
 }
 
 impl BufferSurface {
@@ -60,8 +74,10 @@ impl BufferSurface {
             num_clicked: 0,
             scroll_ys: Vec::new(),
             scroll_bar_x: 0,
+            search_mode: SearchMode::Plain,
             search_query: LineEdit::new(),
             search_matches: Vec::new(),
+            search_history: Selector::new(),
         }
     }
 
@@ -129,8 +145,7 @@ impl BufferSurface {
                 self.quit(ctx, compositor);
             }
             (KeyCode::Esc, NONE) => {
-                self.search_query.clear();
-                self.search_matches.clear();
+                self.clear_search();
             }
             (KeyCode::Char('/'), ALT) => {
                 self.mode = BufferSurfaceMode::Search;
@@ -141,7 +156,7 @@ impl BufferSurface {
             }
             (KeyCode::Char('?'), ALT) => {
                 self.fill_query_selection_or_word(&mut f.buffer);
-                self.update_search_matches(&f.buffer, &self.search_query.text());
+                self.update_search_matches(&ctx.editor, &f.buffer, &self.search_query.text());
                 self.select_search_matches(&mut f.buffer);
                 self.search_matches.clear();
             }
@@ -266,40 +281,90 @@ impl BufferSurface {
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
         const ALT: KeyModifiers = KeyModifiers::ALT;
-        // const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        const CTRL: KeyModifiers = KeyModifiers::CONTROL;
 
-        match (key.code, key.modifiers) {
-            (KeyCode::Esc, NONE) => {
+        let mut update_matches = false;
+        match (key.code, key.modifiers, self.search_mode) {
+            (KeyCode::Esc, NONE, _) => {
+                let query = self.search_query.text();
+                if !query.is_empty() {
+                    self.search_history.push((self.search_mode, query));
+                }
+
                 self.mode = BufferSurfaceMode::Normal;
+                self.clear_search();
             }
-            (KeyCode::Up, NONE) => {
-                // TODO:
+            (KeyCode::Char('c'), CTRL, _) => {
+                self.clear_search();
             }
-            (KeyCode::Down, NONE) => {
-                // TODO:
+            (KeyCode::Up, NONE, _) => {
+                self.search_history.select_prev();
+                if let Some((mode, query)) = self.search_history.selected() {
+                    self.search_mode = *mode;
+                    self.search_query.set_text(query);
+                    update_matches = true;
+                }
+            }
+            (KeyCode::Down, NONE, _) => {
+                self.search_history.select_next();
+                if let Some((mode, query)) = self.search_history.selected() {
+                    self.search_mode = *mode;
+                    self.search_query.set_text(query);
+                    update_matches = true;
+                }
             }
             // Select all occurrences.
-            (KeyCode::Char('?'), ALT) => {
+            (KeyCode::Char('r'), CTRL, _) => {
+                self.search_mode = match self.search_mode {
+                    SearchMode::Plain => SearchMode::Regex,
+                    SearchMode::Regex => SearchMode::Plain,
+                };
+
+                update_matches = true;
+            }
+            // Select all occurrences.
+            (KeyCode::Char('?'), ALT, _) => {
                 let mut f = ctx.editor.current_file().write();
                 self.select_search_matches(&mut f.buffer);
                 self.mode = BufferSurfaceMode::Normal;
+                self.search_mode = SearchMode::Plain;
                 self.search_query.clear();
                 self.search_matches.clear();
             }
             // Move to the previous occurrence.
-            (KeyCode::Char(','), ALT) => {
+            (KeyCode::Char(','), ALT, SearchMode::Plain) => {
                 self.find_and_move(
                     ctx,
-                    |buffer, query, cursor_pos| buffer.find_prev(query, Some(cursor_pos)),
-                    |buffer, query| buffer.find_prev(query, None),
+                    |buffer, query, cursor_pos| Ok(buffer.find_prev(query, Some(cursor_pos))),
+                    |buffer, query| Ok(buffer.find_prev(query, None)),
+                );
+            }
+            (KeyCode::Char(','), ALT, SearchMode::Regex) => {
+                self.find_and_move(
+                    ctx,
+                    |buffer, query, cursor_pos| {
+                        Ok(buffer.find_prev_by_regex(query, Some(cursor_pos))?)
+                    },
+                    |buffer, query| Ok(buffer.find_prev_by_regex(query, None)?),
                 );
             }
             // Move to the next occurrence.
-            (KeyCode::Enter, NONE) | (KeyCode::Char('.'), ALT) => {
+            (KeyCode::Enter, NONE, SearchMode::Plain)
+            | (KeyCode::Char('.'), ALT, SearchMode::Plain) => {
                 self.find_and_move(
                     ctx,
-                    |buffer, query, cursor_pos| buffer.find_next(query, Some(cursor_pos)),
-                    |buffer, query| buffer.find_next(query, None),
+                    |buffer, query, cursor_pos| Ok(buffer.find_next(query, Some(cursor_pos))),
+                    |buffer, query| Ok(buffer.find_next(query, None)),
+                );
+            }
+            (KeyCode::Enter, NONE, SearchMode::Regex)
+            | (KeyCode::Char('.'), ALT, SearchMode::Regex) => {
+                self.find_and_move(
+                    ctx,
+                    |buffer, query, cursor_pos| {
+                        Ok(buffer.find_next_by_regex(query, Some(cursor_pos))?)
+                    },
+                    |buffer, query| Ok(buffer.find_next_by_regex(query, None)?),
                 );
             }
             _ => {
@@ -311,24 +376,44 @@ impl BufferSurface {
 
                 if prev_ver != self.search_query.rope().version() {
                     // The search query has been updated.
-                    let f = ctx.editor.current_file().read();
-                    let query = self.search_query.text();
-                    self.update_search_matches(&f.buffer, &query);
+                    update_matches = true;
                 }
             }
+        }
+
+        if update_matches {
+            let f = ctx.editor.current_file().read();
+            let query = self.search_query.text();
+            self.update_search_matches(&ctx.editor, &f.buffer, &query);
         }
 
         HandledEvent::Consumed
     }
 
-    fn update_search_matches(&mut self, buffer: &Buffer, query: &str) {
+    fn clear_search(&mut self) {
+        self.search_mode = SearchMode::Plain;
+        self.search_history.select_last();
+        self.search_query.clear();
+        self.search_matches.clear();
+    }
+
+    fn update_search_matches(&mut self, editor: &Editor, buffer: &Buffer, query: &str) {
         if query.is_empty() {
             self.search_matches.clear();
         } else {
-            self.search_matches = buffer
-                .find_all(&query, None)
-                .take(SEARCH_HIGHLIGHTS_MAX)
-                .collect();
+            self.search_matches = match self.search_mode {
+                SearchMode::Plain => buffer
+                    .find_all(&query, None)
+                    .take(SEARCH_HIGHLIGHTS_MAX)
+                    .collect(),
+                SearchMode::Regex => match buffer.find_all_by_regex(&query, None) {
+                    Ok(iter) => iter.take(SEARCH_HIGHLIGHTS_MAX).collect(),
+                    Err(err) => {
+                        editor.error(format!("{}", err));
+                        return;
+                    }
+                },
+            };
         }
     }
 
@@ -355,15 +440,27 @@ impl BufferSurface {
 
     fn find_and_move<F1, F2>(&mut self, ctx: &mut Context, find: F1, find_fallback: F2)
     where
-        F1: FnOnce(&Buffer, &str, Point) -> Option<Range>,
-        F2: FnOnce(&Buffer, &str) -> Option<Range>,
+        F1: FnOnce(&Buffer, &str, Point) -> Result<Option<Range>>,
+        F2: FnOnce(&Buffer, &str) -> Result<Option<Range>>,
     {
         let mut f = ctx.editor.current_file().write();
 
         let query = self.search_query.text();
         let cursor_pos = f.buffer.main_cursor_pos();
-        let next_match = find(&f.buffer, &query, cursor_pos);
-        let fallback_match = find_fallback(&f.buffer, &query);
+        let next_match = match find(&f.buffer, &query, cursor_pos) {
+            Ok(m) => m,
+            Err(err) => {
+                ctx.editor.error(format!("{}", err));
+                return;
+            }
+        };
+        let fallback_match = match find_fallback(&f.buffer, &query) {
+            Ok(m) => m,
+            Err(err) => {
+                ctx.editor.error(format!("{}", err));
+                return;
+            }
+        };
         let new_cursor_pos = match (next_match, fallback_match) {
             (Some(next_match), _) => Some(next_match.front()),
             (None, Some(first_match)) => {
@@ -659,9 +756,39 @@ impl Surface for BufferSurface {
         // Bottom bar: draw the second line.
         let bottom_bar_y1 = canvas.height() - 1;
         let query = self.search_query.text();
-        let query_width = query.display_width();
-        let log_max_width = canvas.width().saturating_sub(query_width);
-        canvas.draw_str(bottom_bar_y1, 0, &query);
+
+        // Search prompt.
+        let (max_query_width, search_prompt_width) = match self.search_mode {
+            SearchMode::Regex
+                if self.mode == BufferSurfaceMode::Search || !self.search_query.is_empty() =>
+            {
+                let prompt_width = 8 /* "[regex] " */;
+                let max_query_width = canvas.width().saturating_sub(prompt_width);
+                canvas.draw_str(bottom_bar_y1, 0, "[regex]");
+                canvas.set_fg(bottom_bar_y1, 0, prompt_width, Color::Magenta);
+                canvas.set_deco(
+                    bottom_bar_y1,
+                    max_query_width + 1,
+                    max_query_width + 9,
+                    Decoration::bold(),
+                );
+
+                (max_query_width, prompt_width)
+            }
+            _ => {
+                let max_query_width = canvas.width();
+                (max_query_width, 0)
+            }
+        };
+
+        let log_max_width = canvas
+            .width()
+            .saturating_sub(search_prompt_width + max_query_width);
+        canvas.draw_str(
+            bottom_bar_y1,
+            search_prompt_width,
+            truncate_to_width(&query, max_query_width),
+        );
 
         if let Some(message) = ctx.editor.last_message() {
             let (color, text) = match &message {
@@ -684,7 +811,10 @@ impl Surface for BufferSurface {
                 text_start_x,
                 f.buffer.num_lines(),
             ),
-            BufferSurfaceMode::Search => (bottom_bar_y1, self.search_query.cursor_display_pos()),
+            BufferSurfaceMode::Search => (
+                bottom_bar_y1,
+                search_prompt_width + self.search_query.cursor_display_pos(),
+            ),
         };
 
         self.text_start_x = text_start_x;
