@@ -14,6 +14,7 @@ use parking_lot::Mutex;
 use tokio::{process::Command, sync::mpsc::UnboundedSender};
 
 use crate::{
+    actions::Action,
     fuzzy_set::FuzzySet,
     line_edit::LineEdit,
     selector::Selector,
@@ -26,6 +27,7 @@ use crate::{
 #[derive(Debug)]
 enum Item {
     File(PathBuf),
+    Action(Arc<dyn Action>),
 }
 
 pub struct FinderSurface {
@@ -50,10 +52,13 @@ impl FinderSurface {
         }
     }
 
-    fn select(&self, ctx: &mut Context, item: &Item) {
+    fn select(&self, ctx: &mut Context, compositor: &mut Compositor, item: &Item) {
         match item {
             Item::File(path) => {
                 ctx.editor.open_file(path, None);
+            }
+            Item::Action(action) => {
+                action.execute(ctx, compositor);
             }
         }
     }
@@ -76,6 +81,7 @@ impl FinderSurface {
                         .arg(path),
                 );
             }
+            Item::Action(_) => {}
         }
     }
 
@@ -108,6 +114,7 @@ impl FinderSurface {
                         .oops();
                 });
             }
+            Item::Action(_) => {}
         }
     }
 }
@@ -143,6 +150,7 @@ impl Surface for FinderSurface {
         for (i, (active, item)) in selector.items().take(inner.height() - 1).enumerate() {
             let title = match item {
                 Item::File(path) => path.to_str().unwrap(),
+                Item::Action(action) => action.title(),
             };
 
             inner.draw_str(1 + i, 0, title);
@@ -188,7 +196,7 @@ impl Surface for FinderSurface {
                 }
                 (NONE, KeyCode::Enter) => {
                     if let Some(item) = self.selector.lock().selected() {
-                        self.select(ctx, item);
+                        self.select(ctx, compositor, item);
                     }
 
                     compositor.pop_layer();

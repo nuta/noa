@@ -719,6 +719,38 @@ impl Buffer {
         self.delete();
     }
 
+    pub fn transform_selections_with<F>(&mut self, mut transform: F)
+    where
+        F: FnMut(&Range, &str) -> String,
+    {
+        self.rope.reset_modified_line();
+
+        let mut new_cursors = Vec::new();
+        let mut iter = self.cursors.iter().rev().peekable();
+        while let Some(c) = iter.next() {
+            // Determine the range to be deleted.
+            let range = match c {
+                Cursor::Normal { .. } => {
+                    continue;
+                }
+                Cursor::Selection(range) => range.clone(),
+            };
+
+            let old_text = self.rope.sub_str(&range).to_string();
+            let new_text = transform(&range, &old_text);
+
+            remove_range(
+                &mut self.rope,
+                &range,
+                iter.peek().copied(),
+                &mut new_cursors,
+            );
+            self.rope.insert(range.front(), &new_text);
+        }
+
+        self.set_cursors(new_cursors);
+    }
+
     pub fn mark_undo_point(&mut self) {
         match self.undo_stack.last() {
             Some(rope) if *rope == self.rope => {

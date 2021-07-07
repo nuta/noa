@@ -777,6 +777,7 @@ dependencies = [
  "noa_langs",
  "once_cell",
  "parking_lot",
+ "phf",
  "pretty_assertions",
  "serde",
  "serde_json",

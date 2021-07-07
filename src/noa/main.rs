@@ -38,6 +38,7 @@ extern crate log;
 #[macro_use]
 extern crate pretty_assertions;
 
+mod actions;
 mod editor;
 mod fuzzy_set;
 mod git;
