@@ -261,51 +261,57 @@ async fn update_items(
         let query = query.clone();
         path_resolver = tokio::spawn(async move {
             let results = Mutex::new(FuzzySet::with_capacity(32));
-            WalkBuilder::new(workspace_dir).build_parallel().run(|| {
-                Box::new(|dirent| {
-                    if let Ok(dirent) = dirent {
-                        let meta = dirent.metadata().unwrap();
-                        if !meta.is_file() {
-                            return WalkState::Continue;
-                        }
+            if !query.starts_with('>') {
+                WalkBuilder::new(workspace_dir).build_parallel().run(|| {
+                    Box::new(|dirent| {
+                        if let Ok(dirent) = dirent {
+                            let meta = dirent.metadata().unwrap();
+                            if !meta.is_file() {
+                                return WalkState::Continue;
+                            }
 
-                        let path = dirent.path().to_str().unwrap();
-                        let mut score = 0;
+                            let path = dirent.path().to_str().unwrap();
+                            let mut score = 0;
 
-                        // Fuzzy match.
-                        if let Some(m) = sublime_fuzzy::best_match(&query, path) {
-                            score += m.score();
-                        }
+                            // Fuzzy match.
+                            if let Some(m) = sublime_fuzzy::best_match(&query, path) {
+                                score += m.score();
+                            }
 
-                        // Recently used.
-                        if let Ok(atime) = meta.accessed() {
-                            if let Ok(elapsed) = atime.elapsed() {
-                                score += (100 / max(1, min(elapsed.as_secs(), 360))) as isize;
-                                score += (100 / max(1, elapsed.as_secs())) as isize;
+                            // Recently used.
+                            if let Ok(atime) = meta.accessed() {
+                                if let Ok(elapsed) = atime.elapsed() {
+                                    score += (100 / max(1, min(elapsed.as_secs(), 360))) as isize;
+                                    score += (100 / max(1, elapsed.as_secs())) as isize;
+                                }
+                            }
+
+                            if let Ok(mtime) = meta.modified() {
+                                if let Ok(elapsed) = mtime.elapsed() {
+                                    score += (10
+                                        / max(
+                                            1,
+                                            min(
+                                                elapsed.as_secs() / (3600 * 24 * 30),
+                                                3600 * 24 * 30,
+                                            ),
+                                        )) as isize;
+                                    score += (100 / max(1, min(elapsed.as_secs(), 360))) as isize;
+                                    score += (100 / max(1, elapsed.as_secs())) as isize;
+                                }
+                            }
+
+                            if score != 0 {
+                                results
+                                    .lock()
+                                    .push(score, Item::File(dirent.path().to_owned()));
                             }
                         }
+                        WalkState::Continue
+                    })
+                });
+            }
 
-                        if let Ok(mtime) = meta.modified() {
-                            if let Ok(elapsed) = mtime.elapsed() {
-                                score += (10
-                                    / max(
-                                        1,
-                                        min(elapsed.as_secs() / (3600 * 24 * 30), 3600 * 24 * 30),
-                                    )) as isize;
-                                score += (100 / max(1, min(elapsed.as_secs(), 360))) as isize;
-                                score += (100 / max(1, elapsed.as_secs())) as isize;
-                            }
-                        }
-
-                        if score != 0 {
-                            results
-                                .lock()
-                                .push(score, Item::File(dirent.path().to_owned()));
-                        }
-                    }
-                    WalkState::Continue
-                })
-            });
             results
         });
     }
@@ -313,8 +319,8 @@ async fn update_items(
     // Actions.
     let actions_resolver = tokio::spawn(async move {
         let query = query.clone();
-        let mut results = Mutex::new(FuzzySet::with_capacity(ACTIONS.len()));
-        {
+        let results = Mutex::new(FuzzySet::with_capacity(ACTIONS.len()));
+        if query.starts_with('>') {
             let mut results = results.lock();
             for action in ACTIONS.values() {
                 let mut score = 0;
