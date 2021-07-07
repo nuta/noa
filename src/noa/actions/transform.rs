@@ -17,3 +17,21 @@ impl Action for ToUppercase {
             .transform_selections_with(|_, text| text.to_ascii_uppercase());
     }
 }
+
+pub struct ToLowercase;
+
+impl Action for ToLowercase {
+    fn id(&self) -> &'static str {
+        "transform.to_lower"
+    }
+
+    fn title(&self) -> &'static str {
+        "Transform to Lowercase"
+    }
+
+    fn execute(&self, ctx: &mut crate::ui::Context, _compositor: &mut crate::ui::Compositor) {
+        let mut f = ctx.editor.current_file().write();
+        f.buffer
+            .transform_selections_with(|_, text| text.to_ascii_lowercase());
+    }
+}
