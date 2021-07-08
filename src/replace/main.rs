@@ -11,6 +11,7 @@ use noa_common::logger::install_logger;
 use std::{
     fs::OpenOptions,
     io::{prelude::*, SeekFrom},
+    ops::Range,
     path::{Path, PathBuf},
 };
 use structopt::StructOpt;
@@ -23,9 +24,9 @@ struct Opt {
     dir: Option<PathBuf>,
 }
 
-fn do_replace(path: &Path, matches: &[Match], replacement: &str) -> Result<()> {
+fn do_replace(path: &Path, matches: &[Range<usize>], replacement: &str) -> Result<()> {
     // FIXME: FIXME: FIXME: TODO:
-    return Ok(());
+    // return Ok(());
 
     let mut file = OpenOptions::new()
         .read(true)
@@ -36,8 +37,8 @@ fn do_replace(path: &Path, matches: &[Match], replacement: &str) -> Result<()> {
     let mut text = String::new();
     file.read_to_string(&mut text)?;
 
-    for m in matches.iter().rev() {
-        text.replace_range(m.start()..m.end(), replacement);
+    for range in matches.iter().rev() {
+        text.replace_range(*range, replacement);
     }
 
     file.set_len(0)?;
@@ -94,7 +95,7 @@ async fn main() {
             )
             .unwrap();
 
-        let replacement = "";
+        let replacement = "YAY";
         // We now got the list of matched ranges. Let's replace them.
         match do_replace(&path, &matches, &replacement) {
             Ok(()) => {}
