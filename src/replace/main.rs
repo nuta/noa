@@ -86,7 +86,6 @@ async fn main() {
 
     use grep::matcher::Matcher;
     use grep::regex::RegexMatcher;
-    use grep::searcher::sinks::UTF8;
     use grep::searcher::Searcher;
 
     let query = "oops";
@@ -105,19 +104,27 @@ async fn main() {
                 &matcher,
                 &path,
                 Utf8Sink(|lineno, range, line| {
-                    let m = matcher.find(line.as_bytes())?.unwrap();
-                    let before_text = &line[..m.start()];
-                    let matched_text = &line[m.start()..m.end()];
-                    let after_text = &line[m.end()..];
-                    matches.push(range);
-                    println!(
-                        "{}:{}: {}\x1b[1;31m{}\x1b[0m{}",
-                        path.display(),
-                        lineno,
-                        before_text,
-                        matched_text,
-                        after_text
-                    );
+                    matcher
+                        .find_iter(line.as_bytes(), |m| {
+                            let before_text = &line[..m.start()];
+                            let matched_text = &line[m.start()..m.end()];
+                            let after_text = &line[m.end()..];
+                            matches.push(range.start + m.start()..range.end + m.end());
+                            println!(
+                                "{}:{}: {}\x1b[1;31m{}\x1b[0m{}",
+                                path.display(),
+                                lineno,
+                                before_text,
+                                matched_text,
+                                after_text
+                            );
+
+                            /* continue finding */
+                            true
+                        })
+                        .unwrap();
+
+                    /* continue searching */
                     Ok(true)
                 }),
             )
