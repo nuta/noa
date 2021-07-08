@@ -6,11 +6,14 @@ mod search_query;
 mod ui;
 
 use anyhow::Result;
-use grep::matcher::Match;
+use grep::{
+    matcher::Match,
+    searcher::{Searcher, Sink, SinkError, SinkMatch},
+};
 use noa_common::logger::install_logger;
 use std::{
     fs::OpenOptions,
-    io::{prelude::*, SeekFrom},
+    io::{self, prelude::*, SeekFrom},
     ops::Range,
     path::{Path, PathBuf},
 };
@@ -38,13 +41,38 @@ fn do_replace(path: &Path, matches: &[Range<usize>], replacement: &str) -> Resul
     file.read_to_string(&mut text)?;
 
     for range in matches.iter().rev() {
-        text.replace_range(*range, replacement);
+        text.replace_range(range.clone(), replacement);
     }
 
     file.set_len(0)?;
     file.seek(SeekFrom::Start(0))?;
     file.write_all(text.as_bytes())?;
     Ok(())
+}
+
+pub struct Utf8Sink<F>(F)
+where
+    F: FnMut(u64, Range<usize>, &str) -> Result<bool, io::Error>;
+
+impl<F> Sink for Utf8Sink<F>
+where
+    F: FnMut(u64, Range<usize>, &str) -> Result<bool, io::Error>,
+{
+    type Error = io::Error;
+
+    fn matched(&mut self, _searcher: &Searcher, mat: &SinkMatch<'_>) -> Result<bool, io::Error> {
+        let text = match std::str::from_utf8(mat.bytes()) {
+            Ok(text) => text,
+            Err(err) => {
+                return Err(io::Error::error_message(err));
+            }
+        };
+        (self.0)(
+            mat.line_number().unwrap(),
+            mat.bytes_range_in_buffer(),
+            text,
+        )
+    }
 }
 
 #[tokio::main]
@@ -76,12 +104,12 @@ async fn main() {
             .search_path(
                 &matcher,
                 &path,
-                UTF8(|lineno, line| {
+                Utf8Sink(|lineno, range, line| {
                     let m = matcher.find(line.as_bytes())?.unwrap();
                     let before_text = &line[..m.start()];
                     let matched_text = &line[m.start()..m.end()];
                     let after_text = &line[m.end()..];
-                    matches.push(m);
+                    matches.push(range);
                     println!(
                         "{}:{}: {}\x1b[1;31m{}\x1b[0m{}",
                         path.display(),
