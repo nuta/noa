@@ -5,10 +5,18 @@ mod path_scanner;
 mod search_query;
 mod ui;
 
+use anyhow::Result;
+use grep::matcher::Match;
 use noa_common::logger::install_logger;
-use regex::Regex;
-use std::path::PathBuf;
+use std::{
+    io::SeekFrom,
+    path::{Path, PathBuf},
+};
 use structopt::StructOpt;
+use tokio::{
+    fs::OpenOptions,
+    io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
+};
 
 use crate::{path_scanner::PathScanner, ui::Ui};
 
@@ -41,6 +49,8 @@ async fn main() {
     path_scanner.scan(Box::new(|path: PathBuf| {
         // println!("{}", path.display());
 
+        // Grep'ing in the file.
+        let mut matches = Vec::new();
         Searcher::new()
             .search_path(
                 &matcher,
@@ -50,6 +60,7 @@ async fn main() {
                     let before_text = &line[..m.start()];
                     let matched_text = &line[m.start()..m.end()];
                     let after_text = &line[m.end()..];
+                    matches.push(m);
                     println!(
                         "{}:{}: {}\x1b[1;31m{}\x1b[0m{}",
                         path.display(),
@@ -62,6 +73,41 @@ async fn main() {
                 }),
             )
             .unwrap();
+
+        let replacement = "";
+        async fn do_replace(path: &Path, matches: &[Match], replacement: &str) -> Result<()> {
+            // FIXME: FIXME: FIXME: TODO:
+            return Ok(());
+
+            let mut file = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .truncate(false)
+                .open(&path)
+                .await?;
+
+            let mut text = String::new();
+            file.read_to_string(&mut text).await?;
+
+            for m in matches.iter().rev() {
+                text.replace_range(m.start()..m.end(), replacement);
+            }
+
+            file.set_len(0).await?;
+            file.seek(SeekFrom::Start(0)).await?;
+            file.write_all(text.as_bytes()).await?;
+            Ok(())
+        }
+
+        // We now got the list of matched ranges. Let's replace them.
+        tokio::spawn(async move {
+            match do_replace(&path, &matches, &replacement).await {
+                Ok(()) => {}
+                Err(err) => {
+                    // TODO: error reporting
+                }
+            }
+        });
 
         true
     }));
