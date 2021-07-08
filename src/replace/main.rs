@@ -1,13 +1,15 @@
 #[macro_use]
 extern crate log;
 
+mod path_scanner;
+mod search_query;
 mod ui;
 
 use noa_common::logger::install_logger;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
-use crate::ui::Ui;
+use crate::{path_scanner::PathScanner, ui::Ui};
 
 #[derive(StructOpt)]
 struct Opt {
@@ -22,20 +24,11 @@ async fn main() {
 
     let opt = Opt::from_args();
     let ui = Ui::new();
-
-    use ignore::{WalkBuilder, WalkState};
     let base_dir = opt.dir.unwrap_or_else(|| std::env::current_dir().unwrap());
-    WalkBuilder::new(base_dir).build_parallel().run(|| {
-        Box::new(|dirent| {
-            if let Ok(dirent) = dirent {
-                let meta = dirent.metadata().unwrap();
-                if !meta.is_file() {
-                    return WalkState::Continue;
-                }
 
-                println!("{}", dirent.path().display());
-            }
-            WalkState::Continue
-        })
-    });
+    let path_scanner = PathScanner::new(&base_dir);
+    path_scanner.scan(Box::new(|path: PathBuf| {
+        println!("{}", path.display());
+        true
+    }));
 }

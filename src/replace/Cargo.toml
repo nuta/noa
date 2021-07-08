@@ -21,6 +21,7 @@ parking_lot = "0"
 crossterm = { version = "0", features = ["event-stream"] }
 grep = "0"
 ignore = "0"
+regex = "1"
 
 noa_buffer = { path = "../buffer" }
 noa_common = { path = "../common" }

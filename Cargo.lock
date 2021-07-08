@@ -966,6 +966,7 @@ dependencies = [
  "noa_common",
  "parking_lot",
  "pretty_assertions",
+ "regex",
  "structopt",
  "tokio",
 ]
