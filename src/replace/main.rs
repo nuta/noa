@@ -109,7 +109,7 @@ async fn main() {
                             let before_text = &line[..m.start()];
                             let matched_text = &line[m.start()..m.end()];
                             let after_text = &line[m.end()..];
-                            matches.push(range.start + m.start()..range.end + m.end());
+                            matches.push(range.start + m.start()..range.start + m.end());
                             println!(
                                 "{}:{}: {}\x1b[1;31m{}\x1b[0m{}",
                                 path.display(),
