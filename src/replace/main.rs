@@ -9,14 +9,11 @@ use anyhow::Result;
 use grep::matcher::Match;
 use noa_common::logger::install_logger;
 use std::{
-    io::SeekFrom,
+    fs::OpenOptions,
+    io::{prelude::*, SeekFrom},
     path::{Path, PathBuf},
 };
 use structopt::StructOpt;
-use tokio::{
-    fs::OpenOptions,
-    io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
-};
 
 use crate::{path_scanner::PathScanner, ui::Ui};
 
@@ -24,6 +21,29 @@ use crate::{path_scanner::PathScanner, ui::Ui};
 struct Opt {
     #[structopt(long, parse(from_os_str))]
     dir: Option<PathBuf>,
+}
+
+fn do_replace(path: &Path, matches: &[Match], replacement: &str) -> Result<()> {
+    // FIXME: FIXME: FIXME: TODO:
+    return Ok(());
+
+    let mut file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .truncate(false)
+        .open(&path)?;
+
+    let mut text = String::new();
+    file.read_to_string(&mut text)?;
+
+    for m in matches.iter().rev() {
+        text.replace_range(m.start()..m.end(), replacement);
+    }
+
+    file.set_len(0)?;
+    file.seek(SeekFrom::Start(0))?;
+    file.write_all(text.as_bytes())?;
+    Ok(())
 }
 
 #[tokio::main]
@@ -75,39 +95,13 @@ async fn main() {
             .unwrap();
 
         let replacement = "";
-        async fn do_replace(path: &Path, matches: &[Match], replacement: &str) -> Result<()> {
-            // FIXME: FIXME: FIXME: TODO:
-            return Ok(());
-
-            let mut file = OpenOptions::new()
-                .read(true)
-                .write(true)
-                .truncate(false)
-                .open(&path)
-                .await?;
-
-            let mut text = String::new();
-            file.read_to_string(&mut text).await?;
-
-            for m in matches.iter().rev() {
-                text.replace_range(m.start()..m.end(), replacement);
-            }
-
-            file.set_len(0).await?;
-            file.seek(SeekFrom::Start(0)).await?;
-            file.write_all(text.as_bytes()).await?;
-            Ok(())
-        }
-
         // We now got the list of matched ranges. Let's replace them.
-        tokio::spawn(async move {
-            match do_replace(&path, &matches, &replacement).await {
-                Ok(()) => {}
-                Err(err) => {
-                    // TODO: error reporting
-                }
+        match do_replace(&path, &matches, &replacement) {
+            Ok(()) => {}
+            Err(err) => {
+                // TODO: error reporting
             }
-        });
+        }
 
         true
     }));
