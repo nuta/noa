@@ -1,5 +1,5 @@
+use crate::{KeyCode, KeyEvent, KeyModifiers};
 use noa_buffer::{Point, Range, Rope};
-use noa_cui::{KeyCode, KeyEvent, KeyModifiers};
 
 pub struct LineEdit {
     rope: Rope,

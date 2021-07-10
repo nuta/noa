@@ -1,11 +1,6 @@
-use noa_cui::KeyEvent;
+use crate::{CanvasViewMut, Compositor, HandledEvent, KeyEvent, Layout, RectSize, Surface};
 
-use noa_cui::{CanvasViewMut, Compositor, HandledEvent, Layout, RectSize, Surface};
-
-use super::{
-    prompt::{CallbackResult, PromptMessage},
-    PromptSurface,
-};
+use super::prompt::{CallbackResult, PromptMessage, PromptSurface};
 
 pub struct YesNoChoice {
     pub key: char,

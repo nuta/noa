@@ -9,7 +9,7 @@ use noa_common::{
     oops::OopsExt,
     tmux::{self, in_tmux},
 };
-use noa_cui::{KeyCode, KeyEvent, KeyModifiers};
+use noa_cui::{KeyCode, KeyEvent, KeyModifiers, LineEdit};
 use parking_lot::{Mutex, RwLock};
 use tokio::{process::Command, sync::mpsc::UnboundedSender};
 
@@ -17,7 +17,6 @@ use crate::{
     actions::{self, Action, ACTIONS},
     buffer_set::BufferSet,
     fuzzy_set::FuzzySet,
-    line_edit::LineEdit,
     selector::Selector,
     sync_client::SyncClient,
     Event,

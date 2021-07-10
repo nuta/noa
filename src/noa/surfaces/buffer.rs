@@ -8,17 +8,19 @@ use std::{
 
 use anyhow::Result;
 use noa_buffer::{Buffer, Cursor, Point, Range};
-use noa_cui::{Color, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+use noa_cui::{
+    surfaces::{prompt::CallbackResult, yes_no::*},
+    Color, KeyCode, KeyEvent, KeyModifiers, LineEdit, MouseButton, MouseEvent, MouseEventKind,
+};
 use noa_langs::HighlightType;
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     buffer_set::BufferSet,
-    line_edit::LineEdit,
     minimap::{LineStatus, MiniMap, MiniMapCategory},
     selector::Selector,
-    surfaces::{prompt::CallbackResult, yes_no::YesNoChoice, FinderSurface, YesNoSurface},
+    surfaces::FinderSurface,
     sync_client::SyncClient,
     theme::Theme,
     Event,

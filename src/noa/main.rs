@@ -43,7 +43,6 @@ mod actions;
 mod buffer_set;
 mod fuzzy_set;
 mod git;
-mod line_edit;
 mod minimap;
 mod selector;
 mod surfaces;

@@ -1,12 +1,8 @@
 use std::cmp::{max, min};
 
-use noa_cui::truncate_to_width;
-use noa_cui::{KeyCode, KeyEvent, KeyModifiers};
-
-use crate::line_edit::LineEdit;
-
-use noa_cui::{
-    CanvasViewMut, Compositor, Decoration, DisplayWidth, HandledEvent, Layout, RectSize, Surface,
+use crate::{
+    truncate_to_width, CanvasViewMut, Compositor, Decoration, DisplayWidth, HandledEvent, KeyCode,
+    KeyEvent, KeyModifiers, Layout, LineEdit, RectSize, Surface,
 };
 
 #[derive(Debug)]
