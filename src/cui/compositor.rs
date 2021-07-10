@@ -194,6 +194,7 @@ impl Compositor {
     {
         let mut idle = false;
         loop {
+            trace!("rendering to terminal...");
             self.render_to_terminal(cursor_pos());
 
             match timeout(Duration::from_millis(400), self.input_rx.recv()).await {

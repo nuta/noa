@@ -138,13 +138,6 @@ async fn main() {
     let sync = Arc::new(Mutex::new(SyncClient::new(&workspace_dir, noti_tx)));
     let theme = DEFAULT_THEME;
 
-    // Initialize UI.
-    // let mut compositor = Compositor::new(terminal);
-    // let completion = CompletionSurface::new(&mut ctx);
-    // let buffer = BufferSurface::new(minimap);
-    // compositor.push_layer(&mut buffer);
-    // compositor.push_layer(&mut completion);
-
     let mut cursor_pos = opt.lineno.map(|lineno| {
         Point::new(
             lineno.saturating_sub(1),
@@ -164,6 +157,21 @@ async fn main() {
         buffers.open_file(file, cursor_pos.take());
     }
 
+    // Initialize UI.
+    let buffers = Arc::new(RwLock::new(buffers));
+    let mut compositor = noa_cui::Compositor::new();
+    let completion = CompletionSurface::new(buffers.clone(), event_tx.clone(), sync.clone());
+    let buffer = BufferSurface::new(
+        theme,
+        buffers.clone(),
+        &workspace_dir,
+        event_tx.clone(),
+        sync.clone(),
+        minimap.clone(),
+    );
+    compositor.push_layer(buffer);
+    compositor.push_layer(completion);
+
     // Handle notifications.
     {
         let event_tx = event_tx.clone();
@@ -173,10 +181,6 @@ async fn main() {
             }
         });
     }
-
-    let backup_dir = backup_dir();
-    let buffers = Arc::new(RwLock::new(buffers));
-    let mut compositor = noa_cui::Compositor::new();
 
     let before_event = || {
         // The buffer version *before* we handle user inputs that possibly modifies
@@ -265,6 +269,7 @@ async fn main() {
     let on_idle = {
         let repo = repo.clone();
         let buffers = buffers.clone();
+        let backup_dir = backup_dir();
         move || {
             let buffers = buffers.read();
             let backup_dir = backup_dir.clone();
