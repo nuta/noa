@@ -1,7 +1,7 @@
 use std::cmp::{max, min};
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use noa_cui::truncate_to_width;
+use noa_cui::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::line_edit::LineEdit;
 

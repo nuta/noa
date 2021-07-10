@@ -1,6 +1,4 @@
-use crossterm::style::Color;
-
-use noa_cui::{Decoration, Style};
+use noa_cui::{Color, Decoration, Style};
 
 #[derive(Clone, Debug)]
 pub struct Theme {

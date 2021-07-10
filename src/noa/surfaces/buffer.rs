@@ -7,11 +7,8 @@ use std::{
 };
 
 use anyhow::Result;
-use crossterm::{
-    event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind},
-    style::Color,
-};
 use noa_buffer::{Buffer, Cursor, Point, Range};
+use noa_cui::{Color, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use noa_langs::HighlightType;
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::mpsc::UnboundedSender;
@@ -129,7 +126,7 @@ impl BufferSurface {
                 // Save all.
                 {
                     let buffers = self.buffers.clone();
-                    YesNoChoice::new('a', || {
+                    YesNoChoice::new('a', move || {
                         buffers.write().save_all();
                         // FIXME: QUIT
                         // buffers.exit_editor();
@@ -166,22 +163,29 @@ impl BufferSurface {
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), CTRL) => {
                 drop(f);
+                drop(buffers);
                 self.quit(compositor);
             }
             (KeyCode::Esc, NONE) => {
+                drop(f);
+                drop(buffers);
                 self.clear_search();
             }
             (KeyCode::Char('/'), ALT) => {
                 self.mode = BufferSurfaceMode::Search;
             }
             (KeyCode::Char(':'), ALT) => {
-                self.fill_query_selection_or_word(&mut f.buffer);
+                drop(f);
+                drop(buffers);
+                self.fill_query_selection_or_word();
                 self.mode = BufferSurfaceMode::Search;
             }
             (KeyCode::Char('?'), ALT) => {
-                self.fill_query_selection_or_word(&mut f.buffer);
-                self.update_search_matches(&f.buffer, &self.search_query.text());
-                self.select_search_matches(&mut f.buffer);
+                drop(f);
+                drop(buffers);
+                self.fill_query_selection_or_word();
+                self.update_search_matches(&self.search_query.text());
+                self.select_search_matches();
                 self.search_matches.clear();
             }
             (KeyCode::Char('f'), CTRL) => {
@@ -353,9 +357,7 @@ impl BufferSurface {
             }
             // Select all occurrences.
             (KeyCode::Char('?'), ALT, _) => {
-                let buffers = self.buffers.write();
-                let mut f = buffers.current_file().write();
-                self.select_search_matches(&mut f.buffer);
+                self.select_search_matches();
                 self.mode = BufferSurfaceMode::Normal;
                 self.search_mode = SearchMode::Plain;
                 self.search_query.clear();
@@ -408,10 +410,8 @@ impl BufferSurface {
         }
 
         if update_matches {
-            let buffers = self.buffers.read();
-            let mut f = buffers.current_file().read();
             let query = self.search_query.text();
-            self.update_search_matches(&f.buffer, &query);
+            self.update_search_matches(&query);
         }
 
         HandledEvent::Consumed
@@ -424,16 +424,20 @@ impl BufferSurface {
         self.search_matches.clear();
     }
 
-    fn update_search_matches(&mut self, buffer: &Buffer, query: &str) {
+    fn update_search_matches(&mut self, query: &str) {
+        let buffers = self.buffers.read();
+        let mut f = buffers.current_file().read();
+
         if query.is_empty() {
             self.search_matches.clear();
         } else {
             self.search_matches = match self.search_mode {
-                SearchMode::Plain => buffer
+                SearchMode::Plain => f
+                    .buffer
                     .find_all(&query, None)
                     .take(SEARCH_HIGHLIGHTS_MAX)
                     .collect(),
-                SearchMode::Regex => match buffer.find_all_by_regex(&query, None) {
+                SearchMode::Regex => match f.buffer.find_all_by_regex(&query, None) {
                     Ok(iter) => iter.take(SEARCH_HIGHLIGHTS_MAX).collect(),
                     Err(err) => {
                         // FIXME:
@@ -445,25 +449,33 @@ impl BufferSurface {
         }
     }
 
-    fn fill_query_selection_or_word(&mut self, buffer: &mut Buffer) {
-        let range = match buffer.main_cursor() {
+    fn fill_query_selection_or_word(&mut self) {
+        let buffers = self.buffers.read();
+        let f = buffers.current_file().read();
+
+        let range = match f.buffer.main_cursor() {
             Cursor::Selection(range) => range.clone(),
-            Cursor::Normal { .. } => match buffer.current_word_range() {
+            Cursor::Normal { .. } => match f.buffer.current_word_range() {
                 Some(range) => range,
                 None => return,
             },
         };
 
-        let query = buffer.rope().sub_str(&range).to_string();
+        let query = f.buffer.rope().sub_str(&range).to_string();
         self.search_query.set_text(&query);
     }
 
-    fn select_search_matches(&mut self, buffer: &mut Buffer) {
+    fn select_search_matches(&mut self) {
         if self.search_matches.is_empty() {
             return;
         }
 
-        buffer.select_by_ranges(&self.search_matches);
+        self.buffers
+            .write()
+            .current_file()
+            .write()
+            .buffer
+            .select_by_ranges(&self.search_matches);
     }
 
     fn find_and_move<F1, F2>(&mut self, find: F1, find_fallback: F2)
@@ -570,15 +582,16 @@ impl Surface for BufferSurface {
             );
         }
 
+        let theme = self.theme;
         let draw_minimap_char =
-            |canvas: &mut CanvasViewMut<'a>, y: usize, x: usize, status: &LineStatus| {
+            move |canvas: &mut CanvasViewMut<'a>, y: usize, x: usize, status: &LineStatus| {
                 let style = match status {
-                    LineStatus::Cursor => &self.theme.line_status_cursor,
-                    LineStatus::Warning => &self.theme.line_status_warning,
-                    LineStatus::Error => &self.theme.line_status_error,
-                    LineStatus::AddedLine => &self.theme.line_status_added,
-                    LineStatus::RemovedLine => &self.theme.line_status_removed,
-                    LineStatus::ModifiedLine => &self.theme.line_status_modified,
+                    LineStatus::Cursor => &theme.line_status_cursor,
+                    LineStatus::Warning => &theme.line_status_warning,
+                    LineStatus::Error => &theme.line_status_error,
+                    LineStatus::AddedLine => &theme.line_status_added,
+                    LineStatus::RemovedLine => &theme.line_status_removed,
+                    LineStatus::ModifiedLine => &theme.line_status_modified,
                 };
 
                 canvas.draw_char(y, x, '\u{2590}' /* Right Half Block */);

@@ -49,7 +49,6 @@ mod selector;
 mod surfaces;
 mod sync_client;
 mod theme;
-mod ui;
 mod view;
 
 #[derive(StructOpt)]
@@ -135,7 +134,7 @@ async fn main() {
     let (noti_tx, mut noti_rx) = unbounded_channel();
     let mut buffers = BufferSet::new();
     let minimap = Arc::new(parking_lot::Mutex::new(MiniMap::new()));
-    let repo = Repo::open(&workspace_dir).ok();
+    let repo = Arc::new(Repo::open(&workspace_dir).ok());
     let sync = Arc::new(Mutex::new(SyncClient::new(&workspace_dir, noti_tx)));
     let theme = DEFAULT_THEME;
 
@@ -264,19 +263,20 @@ async fn main() {
     };
 
     let on_idle = {
+        let repo = repo.clone();
         let buffers = buffers.clone();
-        || {
+        move || {
             let buffers = buffers.read();
-            let current_file = buffers.current_file().clone();
             let backup_dir = backup_dir.clone();
 
             // Update git line statuses.
-            if let Some(repo) = repo.as_ref() {
-                let current_file = current_file.clone();
-                tokio::spawn(async move {
+            let current_file = buffers.current_file().clone();
+            tokio::spawn(async move {
+                if let Some(repo) = repo.as_ref() {
+                    let current_file = current_file.clone();
                     let (path, snapshot) = {
                         let mut f = current_file.read();
-                        let path = f.buffer.path().clone();
+                        let path = f.buffer.path().map(Path::to_path_buf);
                         let snapshot = f.buffer.take_snapshot();
                         (path, snapshot)
                     };
@@ -284,12 +284,13 @@ async fn main() {
                     if let Some(path) = path {
                         minimap
                             .lock()
-                            .update_git_line_statuses(&repo, path, snapshot.text());
+                            .update_git_line_statuses(&repo, &path, snapshot.text());
                     }
-                });
-            }
+                }
+            });
 
             // Create a backup file and add a undo point.
+            let current_file = buffers.current_file().clone();
             tokio::spawn(async move {
                 let mut f = current_file.write();
                 f.buffer.update_backup(&backup_dir);

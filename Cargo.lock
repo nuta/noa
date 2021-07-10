@@ -883,7 +883,6 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "arrayvec",
- "crossterm",
  "futures",
  "git2",
  "ignore",

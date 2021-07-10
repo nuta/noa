@@ -8,7 +8,7 @@ use crate::buffer_set::BufferSet;
 mod transform;
 
 pub struct Context<'a> {
-    buffers: &'a Arc<RwLock<BufferSet>>,
+    pub buffers: &'a Arc<RwLock<BufferSet>>,
 }
 
 pub trait Action: Send + Sync {

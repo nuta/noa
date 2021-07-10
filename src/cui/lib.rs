@@ -8,6 +8,9 @@ mod surface;
 mod terminal;
 mod utils;
 
+pub use crossterm::event::*;
+pub use crossterm::style::*;
+
 pub use canvas::*;
 pub use compositor::*;
 pub use display_width::*;

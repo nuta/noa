@@ -1,4 +1,4 @@
-use crossterm::event::KeyEvent;
+use noa_cui::KeyEvent;
 
 use noa_cui::{CanvasViewMut, Compositor, HandledEvent, Layout, RectSize, Surface};
 

@@ -2,7 +2,6 @@ use std::time::Duration;
 use std::{slice, sync::Arc};
 
 use crossterm::event::KeyEvent;
-use noa_common::sync_protocol::{FileLocation, Notification};
 use noa_common::time_report::TimeReport;
 use parking_lot::Mutex;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};

@@ -4,12 +4,12 @@ use std::{
     sync::Arc,
 };
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use noa_common::{
     dirs::noa_bin_args,
     oops::OopsExt,
     tmux::{self, in_tmux},
 };
+use noa_cui::{KeyCode, KeyEvent, KeyModifiers};
 use parking_lot::{Mutex, RwLock};
 use tokio::{process::Command, sync::mpsc::UnboundedSender};
 

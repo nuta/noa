@@ -92,6 +92,7 @@ pub fn resolve_git_dir(dir: &Path) -> Option<PathBuf> {
     None
 }
 
+#[derive(Clone)]
 pub struct Repo {
     repo_dir: PathBuf,
 }

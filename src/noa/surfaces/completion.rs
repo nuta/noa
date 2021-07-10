@@ -1,8 +1,8 @@
 use std::{cmp::max, sync::Arc};
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use noa_buffer::Snapshot;
 use noa_cui::truncate_to_width;
+use noa_cui::{KeyCode, KeyEvent, KeyModifiers};
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::mpsc::UnboundedSender;
 
