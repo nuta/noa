@@ -1,6 +1,6 @@
 use crossterm::style::Color;
 
-use super::{canvas::Style, Decoration};
+use super::{Decoration, Style};
 
 #[derive(Clone, Debug)]
 pub struct Theme {

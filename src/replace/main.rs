@@ -29,7 +29,7 @@ struct Opt {
 
 fn do_replace(path: &Path, matches: &[Range<usize>], replacement: &str) -> Result<()> {
     // FIXME: FIXME: FIXME: TODO:
-    // return Ok(());
+    return Ok(());
 
     let mut file = OpenOptions::new()
         .read(true)

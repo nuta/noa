@@ -2,6 +2,7 @@ use std::{cmp::max, sync::Arc};
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use noa_buffer::Snapshot;
+use noa_cui::truncate_to_width;
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -11,8 +12,8 @@ use crate::{
     selector::Selector,
     sync_client::SyncClient,
     ui::{
-        truncate_to_width, CanvasViewMut, Compositor, Context, Decoration, DisplayWidth, Event,
-        HandledEvent, Layout, RectSize, Surface,
+        CanvasViewMut, Compositor, Context, Decoration, DisplayWidth, Event, HandledEvent, Layout,
+        RectSize, Surface,
     },
 };
 

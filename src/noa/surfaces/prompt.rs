@@ -1,12 +1,13 @@
 use std::cmp::{max, min};
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use noa_cui::truncate_to_width;
 
 use crate::{
     line_edit::LineEdit,
     ui::{
-        truncate_to_width, CanvasViewMut, Compositor, Context, Decoration, DisplayWidth,
-        HandledEvent, Layout, RectSize, Surface,
+        CanvasViewMut, Compositor, Context, Decoration, DisplayWidth, HandledEvent, Layout,
+        RectSize, Surface,
     },
 };
 

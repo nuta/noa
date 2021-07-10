@@ -3,7 +3,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::editor::Editor;
 
-use super::{canvas::CanvasViewMut, theme::Theme, Compositor, Event};
+use super::{theme::Theme, CanvasViewMut, Compositor, Event};
 
 pub struct Context<'a> {
     pub event_tx: &'a UnboundedSender<Event>,

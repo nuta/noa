@@ -12,7 +12,7 @@ pub trait Action: Send + Sync {
     fn execute(&self, ctx: &mut Context, compositor: &mut Compositor);
 }
 
-impl std::fmt::Debug for Action {
+impl std::fmt::Debug for dyn Action {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[action: {}]", self.id())
     }

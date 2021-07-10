@@ -7,7 +7,7 @@ use crossterm::{
     cursor::{self, MoveTo},
     event::{
         DisableMouseCapture, EnableMouseCapture, Event as TermEvent, EventStream, KeyCode,
-        KeyEvent, KeyModifiers,
+        KeyEvent, KeyModifiers, MouseEvent,
     },
     execute, queue,
     style::{Attribute, Print, SetAttribute, SetBackgroundColor, SetForegroundColor},
@@ -16,22 +16,33 @@ use crossterm::{
 use futures::StreamExt;
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::ui::{DrawOp, Event};
+use crate::canvas::DrawOp;
 
-async fn terminal_input_handler(event_queue: UnboundedSender<Event>) {
+#[derive(Debug)]
+pub enum Input {
+    Key(KeyEvent),
+    Mouse(MouseEvent),
+    KeyBatch(String),
+    Resize {
+        screen_height: usize,
+        screen_width: usize,
+    },
+}
+
+async fn terminal_input_handler(event_queue: UnboundedSender<Input>) {
     let mut stream = EventStream::new().fuse();
 
-    fn handle_event(event_queue: &UnboundedSender<Event>, ev: TermEvent) {
+    fn handle_event(event_queue: &UnboundedSender<Input>, ev: TermEvent) {
         match ev {
             TermEvent::Key(key) => {
-                event_queue.send(Event::Key(key)).ok();
+                event_queue.send(Input::Key(key)).ok();
             }
             TermEvent::Mouse(ev) => {
-                event_queue.send(Event::Mouse(ev)).ok();
+                event_queue.send(Input::Mouse(ev)).ok();
             }
             TermEvent::Resize(cols, rows) => {
                 event_queue
-                    .send(Event::Resize {
+                    .send(Input::Resize {
                         screen_width: cols as usize,
                         screen_height: rows as usize,
                     })
@@ -86,7 +97,7 @@ async fn terminal_input_handler(event_queue: UnboundedSender<Event>) {
                         }
                     }
 
-                    event_queue.send(Event::KeyBatch(buf)).ok();
+                    event_queue.send(Input::KeyBatch(buf)).ok();
                     if let Some(ev) = next_event {
                         handle_event(&event_queue, ev);
                     }
@@ -105,7 +116,7 @@ pub struct Terminal {
 }
 
 impl Terminal {
-    pub fn new(event_queue: UnboundedSender<Event>) -> Terminal {
+    pub fn new(event_queue: UnboundedSender<Input>) -> Terminal {
         enable_raw_mode().expect("failed to enable the raw mode");
         execute!(stdout(), EnterAlternateScreen).expect("failed to enter the alternative screen");
         execute!(stdout(), EnableMouseCapture).expect("failed to enable mouse capture");

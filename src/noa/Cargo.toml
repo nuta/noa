@@ -21,17 +21,18 @@ futures = "0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 parking_lot = "0"
-crossterm = { version = "0", features = ["event-stream"] }
-unicode-width = "0"
 arrayvec = "0"
 ignore = "0"
 sublime_fuzzy = "0"
-base64 = "0"
 git2 = { version = "0", default-features = false }
 libgit2-sys = "0"
 phf = { version = "0", features = ["macros"] }
 
+
+crossterm = { version = "0", features = ["event-stream"] }
+
 noa_common = { path = "../common" }
+noa_cui = { path = "../cui" }
 noa_buffer = { path = "../buffer" }
 noa_editorconfig = { path = "../editorconfig" }
 noa_langs = { path = "../langs" }

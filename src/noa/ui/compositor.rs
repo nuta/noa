@@ -1,27 +1,19 @@
 use std::{slice, sync::Arc};
 
-use crossterm::event::{KeyEvent, MouseEvent};
+use crossterm::event::KeyEvent;
 use noa_buffer::Point;
 use noa_common::sync_protocol::{FileLocation, Notification};
 use noa_common::time_report::TimeReport;
 use parking_lot::Mutex;
 
-use crate::ui::{Context, Surface};
+use crate::ui::{Context, HandledEvent, Layout, RectSize, Surface};
 
-use crate::terminal::Terminal;
-
-use super::{truncate_to_width, Canvas, CanvasViewMut, HandledEvent, Layout, RectSize};
+use noa_cui::{truncate_to_width, Canvas, CanvasViewMut, Input, Terminal};
 
 #[derive(Debug)]
 pub enum Event {
     ReDraw,
-    Key(KeyEvent),
-    Mouse(MouseEvent),
-    KeyBatch(String),
-    Resize {
-        screen_height: usize,
-        screen_width: usize,
-    },
+    Input(Input),
     OpenFile(FileLocation),
     Notification(Notification),
 }
@@ -151,48 +143,50 @@ impl Compositor {
 
     pub fn handle_event(&mut self, ctx: &mut Context, ev: Event) {
         match ev {
-            Event::Key(key) => {
-                for layer_lock in self.layers.clone().iter().rev() {
-                    let mut layer = layer_lock.lock();
-                    if layer.active {
-                        if let HandledEvent::Consumed =
-                            layer.surface.handle_key_event(ctx, self, key)
-                        {
-                            return;
+            Event::Input(input) => match input {
+                Input::Key(key) => {
+                    for layer_lock in self.layers.clone().iter().rev() {
+                        let mut layer = layer_lock.lock();
+                        if layer.active {
+                            if let HandledEvent::Consumed =
+                                layer.surface.handle_key_event(ctx, self, key)
+                            {
+                                return;
+                            }
                         }
                     }
                 }
-            }
-            Event::Mouse(ev) => {
-                for layer_lock in self.layers.clone().iter().rev() {
-                    let mut layer = layer_lock.lock();
-                    if layer.active {
-                        if let HandledEvent::Consumed =
-                            layer.surface.handle_mouse_event(ctx, self, ev)
-                        {
-                            return;
+                Input::Mouse(ev) => {
+                    for layer_lock in self.layers.clone().iter().rev() {
+                        let mut layer = layer_lock.lock();
+                        if layer.active {
+                            if let HandledEvent::Consumed =
+                                layer.surface.handle_mouse_event(ctx, self, ev)
+                            {
+                                return;
+                            }
                         }
                     }
                 }
-            }
-            Event::KeyBatch(input) => {
-                for layer_lock in self.layers.clone().iter().rev() {
-                    let mut layer = layer_lock.lock();
-                    if layer.active {
-                        if let HandledEvent::Consumed =
-                            layer.surface.handle_key_batch_event(ctx, self, &input)
-                        {
-                            return;
+                Input::KeyBatch(input) => {
+                    for layer_lock in self.layers.clone().iter().rev() {
+                        let mut layer = layer_lock.lock();
+                        if layer.active {
+                            if let HandledEvent::Consumed =
+                                layer.surface.handle_key_batch_event(ctx, self, &input)
+                            {
+                                return;
+                            }
                         }
                     }
                 }
-            }
-            Event::Resize {
-                screen_height,
-                screen_width,
-            } => {
-                self.resize_screen(ctx, screen_height, screen_width);
-            }
+                Input::Resize {
+                    screen_height,
+                    screen_width,
+                } => {
+                    self.resize_screen(ctx, screen_height, screen_width);
+                }
+            },
             Event::OpenFile(loc) => {
                 ctx.editor.open_file(&loc.path, Some(loc.pos));
             }

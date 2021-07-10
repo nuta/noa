@@ -22,11 +22,12 @@ use tokio::{
 };
 use ui::Event;
 
+use noa_cui::Terminal;
+
 use crate::{
     editor::OpenedFile,
     surfaces::BufferSurface,
     sync_client::SyncClient,
-    terminal::Terminal,
     ui::Compositor,
     ui::{Context, DEFAULT_THEME},
 };
@@ -47,7 +48,6 @@ mod minimap;
 mod selector;
 mod surfaces;
 mod sync_client;
-mod terminal;
 mod ui;
 mod view;
 
@@ -123,6 +123,7 @@ async fn main() {
     };
 
     // Initialize editor components.
+    let (input_tx, mut input_rx) = unbounded_channel();
     let (event_tx, mut event_rx) = unbounded_channel();
     let (noti_tx, mut noti_rx) = unbounded_channel();
     let mut editor = editor::Editor::new(&workspace_dir, noti_tx.clone());
@@ -136,7 +137,7 @@ async fn main() {
     };
 
     // Initialize UI.
-    let terminal = Terminal::new(event_tx.clone());
+    let terminal = Terminal::new(input_tx);
     let mut compositor = Compositor::new(terminal);
     let completion = CompletionSurface::new(&mut ctx);
     let buffer = BufferSurface::new(minimap);

@@ -883,7 +883,6 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "arrayvec",
- "base64",
  "crossterm",
  "futures",
  "git2",
@@ -892,6 +891,7 @@ dependencies = [
  "log",
  "noa_buffer",
  "noa_common",
+ "noa_cui",
  "noa_editorconfig",
  "noa_langs",
  "once_cell",
@@ -903,7 +903,6 @@ dependencies = [
  "structopt",
  "sublime_fuzzy",
  "tokio",
- "unicode-width",
 ]
 
 [[package]]
@@ -933,6 +932,20 @@ dependencies = [
  "once_cell",
  "serde",
  "simplelog",
+]
+
+[[package]]
+name = "noa_cui"
+version = "0.0.0"
+dependencies = [
+ "arrayvec",
+ "base64",
+ "crossterm",
+ "futures",
+ "log",
+ "noa_common",
+ "tokio",
+ "unicode-width",
 ]
 
 [[package]]

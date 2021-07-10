@@ -19,16 +19,12 @@ use crate::{
     line_edit::LineEdit,
     minimap::{LineStatus, MiniMap, MiniMapCategory},
     selector::Selector,
-    surfaces::{
-        prompt::{self, CallbackResult},
-        yes_no::YesNoChoice,
-        FinderSurface, YesNoSurface,
-    },
-    terminal::copy_to_clipboard,
-    ui::{
-        truncate_to_width, whitespaces, CanvasViewMut, Compositor, Context, Decoration,
-        DisplayWidth, Event, HandledEvent, Layout, RectSize, Surface,
-    },
+    surfaces::{prompt::CallbackResult, yes_no::YesNoChoice, FinderSurface, YesNoSurface},
+    ui::{Compositor, Context, Event, HandledEvent, Layout, RectSize, Surface},
+};
+
+use noa_cui::{
+    copy_to_clipboard, truncate_to_width, whitespaces, CanvasViewMut, Decoration, DisplayWidth,
 };
 
 const SEARCH_HIGHLIGHTS_MAX: usize = 8192;
