@@ -332,7 +332,7 @@ async fn main() {
                 if let Some(repo) = repo.as_ref() {
                     let current_file = current_file.clone();
                     let (path, snapshot) = {
-                        let mut f = current_file.read();
+                        let f = current_file.read();
                         let path = f.buffer.path().map(Path::to_path_buf);
                         let snapshot = f.buffer.take_snapshot();
                         (path, snapshot)

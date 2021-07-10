@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, ops::Range, path::Path};
 
-use crate::git::{self, DiffType, Repo};
+use crate::git::{DiffType, Repo};
 
 #[derive(Debug, Clone, Copy)]
 pub enum LineStatus {

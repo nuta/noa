@@ -1,23 +1,23 @@
-use crate::git::DiffType;
-use crate::minimap::{LineStatus, MiniMap, MiniMapCategory};
-use crate::sync_client::SyncClient;
+
+
+
 
 use crate::view::View;
-use anyhow::{Context, Result};
+use anyhow::{Result};
 
-use noa_common::fast_hash::compute_fast_hash;
-use noa_common::oops::OopsExt;
-use noa_common::sync_protocol::lsp_types::DiagnosticSeverity;
-use noa_common::sync_protocol::{FileLocation, LspRequest, Notification};
-use noa_common::tmux::{self};
+
+
+
+
+
 use parking_lot::RwLock;
-use tokio::process::Command;
+
 
 use std::path::Path;
 use std::process::Stdio;
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
-use tokio::sync::Mutex;
+
 
 use noa_buffer::{Buffer, BufferId, Point};
 use noa_langs::tree_sitter;

@@ -433,7 +433,7 @@ impl BufferSurface {
 
     fn update_search_matches(&mut self, query: &str) {
         let buffers = self.buffers.read();
-        let mut f = buffers.current_file().read();
+        let f = buffers.current_file().read();
 
         if query.is_empty() {
             self.search_matches.clear();
@@ -553,7 +553,7 @@ impl Surface for BufferSurface {
         ];
 
         let (max_lineno_width, text_width, text_start_x) = {
-            let mut buffers = self.buffers.write();
+            let buffers = self.buffers.write();
             let mut f = buffers.current_file().write();
             let max_lineno_width = f.buffer.num_lines().display_width() + 1;
             let text_start_x = max_lineno_width + 2;

@@ -5,7 +5,7 @@ use libgit2_sys::{
     git_libgit2_init, git_object_peel, git_repository_open, git_revparse_single, GIT_OBJECT_BLOB,
     GIT_OK,
 };
-use noa_buffer::Buffer;
+
 
 use std::{
     ffi::{c_void, CString},
@@ -15,7 +15,7 @@ use std::{
     ptr,
 };
 
-use crate::minimap::MiniMap;
+
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DiffType {
