@@ -271,6 +271,8 @@ async fn main() {
 
             // Update git line statuses.
             let current_file = buffers.current_file().clone();
+            let minimap = minimap.clone();
+            let repo = repo.clone();
             tokio::spawn(async move {
                 if let Some(repo) = repo.as_ref() {
                     let current_file = current_file.clone();
@@ -299,5 +301,22 @@ async fn main() {
         }
     };
 
-    compositor.mainloop(before_event, after_event, || {}).await;
+    let cursor_pos = {
+        let buffers = buffers.clone();
+        move || {
+            let pos = buffers
+                .read()
+                .current_file()
+                .read()
+                .buffer
+                .main_cursor_pos();
+
+            // FIXME: Convert into display (y, x)
+            (pos.y, pos.x)
+        }
+    };
+
+    compositor
+        .mainloop(before_event, after_event, on_idle, cursor_pos)
+        .await;
 }

@@ -180,14 +180,22 @@ impl Compositor {
         }
     }
 
-    pub async fn mainloop<F1, F2, F3, T>(&mut self, before_event: F1, after_event: F2, on_idle: F3)
-    where
+    pub async fn mainloop<F1, F2, F3, F4, T>(
+        &mut self,
+        before_event: F1,
+        after_event: F2,
+        on_idle: F3,
+        cursor_pos: F4,
+    ) where
         F1: Fn() -> T,
         F2: Fn(T),
         F3: Fn(),
+        F4: Fn() -> (usize, usize),
     {
         let mut idle = false;
         loop {
+            self.render_to_terminal(cursor_pos());
+
             match timeout(Duration::from_millis(400), self.input_rx.recv()).await {
                 Ok(Some(ev)) => {
                     let prev = before_event();
