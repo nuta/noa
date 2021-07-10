@@ -1,10 +1,11 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use git2::DiffOptions;
 use libgit2_sys::{
     git_blob, git_blob_free, git_diff_blob_to_buffer, git_diff_delta, git_diff_hunk,
     git_libgit2_init, git_object_peel, git_repository_open, git_revparse_single, GIT_OBJECT_BLOB,
     GIT_OK,
 };
+use noa_buffer::Buffer;
 
 use std::{
     ffi::{c_void, CString},
@@ -13,6 +14,8 @@ use std::{
     path::{Path, PathBuf},
     ptr,
 };
+
+use crate::minimap::MiniMap;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DiffType {
@@ -89,57 +92,71 @@ pub fn resolve_git_dir(dir: &Path) -> Option<PathBuf> {
     None
 }
 
-pub fn compute_line_diffs(repo_path: &Path, path: &Path, text: &str) -> Result<Vec<LineRangeDiff>> {
-    debug_assert!(repo_path.is_absolute());
-    debug_assert!(path.is_absolute());
+pub struct Repo {
+    repo_dir: PathBuf,
+}
 
-    let mut ctx = DiffCallbackContext { diffs: Vec::new() };
-    unsafe {
-        let spec =
-            CString::new(format!("HEAD:{}", path.strip_prefix(repo_path)?.display())).unwrap();
-        let repo_path = CString::new(repo_path.as_os_str().to_str().unwrap()).unwrap();
-
-        let mut opts = DiffOptions::default();
-        opts.context_lines(0);
-
-        try_libgit_func!("init libgit2", git_libgit2_init());
-
-        let mut repo = ptr::null_mut();
-        try_libgit_func!(
-            "open the repo",
-            git_repository_open(&mut repo, repo_path.as_ptr())
-        );
-
-        let mut obj = ptr::null_mut();
-        try_libgit_func!(
-            "open the blob",
-            git_revparse_single(&mut obj, repo, spec.as_ptr())
-        );
-        let mut blob = ptr::null_mut();
-        try_libgit_func!(
-            "peel the object",
-            git_object_peel(&mut blob, obj, GIT_OBJECT_BLOB)
-        );
-
-        try_libgit_func!(
-            "compute diff",
-            git_diff_blob_to_buffer(
-                /* old_blob */ blob as *const git_blob,
-                /* old_as_path */ ptr::null(),
-                /* buffer */ text.as_bytes().as_ptr() as *const c_char,
-                /* buffer_len */ text.as_bytes().len(),
-                /* buffer_as_path */ ptr::null(),
-                /* options */ opts.raw(),
-                /* file_cb */ None,
-                /* binary_cb */ None,
-                /* hunk_cb */ Some(diff_callback),
-                /* line_cb */ None,
-                /* payload */ &mut ctx as *mut _ as *mut c_void,
-            )
-        );
-
-        git_blob_free(blob as *mut git_blob);
+impl Repo {
+    pub fn open(dir: &Path) -> Result<Repo> {
+        let repo_dir = resolve_git_dir(dir).context("not in a git repository")?;
+        Ok(Repo { repo_dir })
     }
 
-    Ok(ctx.diffs)
+    pub fn compute_line_diffs(&self, path: &Path, text: &str) -> Result<Vec<LineRangeDiff>> {
+        debug_assert!(self.repo_dir.is_absolute());
+        debug_assert!(path.is_absolute());
+
+        let mut ctx = DiffCallbackContext { diffs: Vec::new() };
+        unsafe {
+            let spec = CString::new(format!(
+                "HEAD:{}",
+                path.strip_prefix(self.repo_dir)?.display()
+            ))
+            .unwrap();
+            let repo_dir = CString::new(self.repo_dir.as_os_str().to_str().unwrap()).unwrap();
+
+            let mut opts = DiffOptions::default();
+            opts.context_lines(0);
+
+            try_libgit_func!("init libgit2", git_libgit2_init());
+
+            let mut repo = ptr::null_mut();
+            try_libgit_func!(
+                "open the repo",
+                git_repository_open(&mut repo, repo_dir.as_ptr())
+            );
+
+            let mut obj = ptr::null_mut();
+            try_libgit_func!(
+                "open the blob",
+                git_revparse_single(&mut obj, repo, spec.as_ptr())
+            );
+            let mut blob = ptr::null_mut();
+            try_libgit_func!(
+                "peel the object",
+                git_object_peel(&mut blob, obj, GIT_OBJECT_BLOB)
+            );
+
+            try_libgit_func!(
+                "compute diff",
+                git_diff_blob_to_buffer(
+                    /* old_blob */ blob as *const git_blob,
+                    /* old_as_path */ ptr::null(),
+                    /* buffer */ text.as_bytes().as_ptr() as *const c_char,
+                    /* buffer_len */ text.as_bytes().len(),
+                    /* buffer_as_path */ ptr::null(),
+                    /* options */ opts.raw(),
+                    /* file_cb */ None,
+                    /* binary_cb */ None,
+                    /* hunk_cb */ Some(diff_callback),
+                    /* line_cb */ None,
+                    /* payload */ &mut ctx as *mut _ as *mut c_void,
+                )
+            );
+
+            git_blob_free(blob as *mut git_blob);
+        }
+
+        Ok(ctx.diffs)
+    }
 }

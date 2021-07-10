@@ -1,5 +1,9 @@
+#![allow(unused)]
+
 use anyhow::Result;
-use editor::Editor;
+use buffer_set::BufferSet;
+use git::Repo;
+use minimap::{MiniMap, MiniMapCategory};
 use noa_buffer::Point;
 use noa_common::{
     dirs::{backup_dir, noa_bin_args},
@@ -24,7 +28,7 @@ use tokio::{
 use ui::Event;
 
 use crate::{
-    editor::OpenedFile,
+    buffer_set::OpenedFile,
     surfaces::BufferSurface,
     sync_client::SyncClient,
     ui::Compositor,
@@ -39,7 +43,7 @@ extern crate log;
 extern crate pretty_assertions;
 
 mod actions;
-mod editor;
+mod buffer_set;
 mod fuzzy_set;
 mod git;
 mod line_edit;
@@ -124,9 +128,10 @@ async fn main() {
     // Initialize editor components.
     let (event_tx, mut event_rx) = unbounded_channel();
     let (noti_tx, mut noti_rx) = unbounded_channel();
-    let mut editor = editor::Editor::new(&workspace_dir, noti_tx.clone());
-    let minimap = editor.minimap().clone();
-
+    let mut buffers = BufferSet::new();
+    let minimap = Arc::new(parking_lot::Mutex::new(MiniMap::new()));
+    let repo = Repo::open(&workspace_dir).ok();
+    let sync = SyncClient::new(&workspace_dir, noti_tx);
     let theme = DEFAULT_THEME;
 
     // Initialize UI.
@@ -151,12 +156,13 @@ async fn main() {
             continue;
         }
 
-        editor.open_file(file, cursor_pos.take());
+        // TODO: report error
+        buffers.open_file(file, cursor_pos.take());
     }
 
     // Fill syntax highlighting.
     tokio::spawn(update_highlight(
-        editor.current_file().clone(),
+        buffers.current_file().clone(),
         event_tx.clone(),
     ));
 
@@ -172,14 +178,47 @@ async fn main() {
 
     // The main event loop.
     let backup_dir = backup_dir();
-
+    let buffers = Arc::new(RwLock::new(buffers));
     let mut compositor = noa_cui::Compositor::new();
+
     let on_event = || {
         // TODO:
     };
-    let on_idle = || {
-        // TODO:
+
+    let on_idle = {
+        let buffers = buffers.clone();
+        || {
+            let buffers = buffers.read();
+            let current_file = buffers.current_file().clone();
+            let backup_dir = backup_dir.clone();
+
+            // Update git line statuses.
+            if let Some(repo) = repo.as_ref() {
+                tokio::spawn(async move {
+                    let (path, snapshot) = {
+                        let mut f = current_file.read();
+                        let path = f.buffer.path().clone();
+                        let snapshot = f.buffer.take_snapshot();
+                        (path, snapshot)
+                    };
+
+                    if let Some(path) = path {
+                        minimap
+                            .lock()
+                            .update_git_line_statuses(&repo, path, snapshot.text());
+                    }
+                });
+            }
+
+            // Create a backup file and add a undo point.
+            tokio::spawn(async move {
+                let mut f = current_file.write();
+                f.buffer.update_backup(&backup_dir);
+                f.buffer.mark_undo_point();
+            });
+        }
     };
+
     compositor.mainloop(on_event, || {}).await;
 
     /*
@@ -248,6 +287,7 @@ async fn main() {
     */
 }
 
+/*
 fn modified_or_switched_buffer(editor: &mut Editor, event_tx: UnboundedSender<Event>) {
     // Update the syntax highlighting.
     tokio::spawn(update_highlight(
@@ -295,6 +335,7 @@ fn modified_or_switched_buffer(editor: &mut Editor, event_tx: UnboundedSender<Ev
         });
     }
 }
+*/
 
 async fn update_highlight(switch_to: Arc<RwLock<OpenedFile>>, tx: UnboundedSender<Event>) {
     let (rope, mut parser) = {
