@@ -1,4 +1,5 @@
 use anyhow::Result;
+use editor::Editor;
 use noa_buffer::Point;
 use noa_common::{
     dirs::{backup_dir, noa_bin_args},
@@ -21,8 +22,6 @@ use tokio::{
     time::timeout,
 };
 use ui::Event;
-
-use noa_cui::Terminal;
 
 use crate::{
     editor::OpenedFile,
@@ -123,26 +122,19 @@ async fn main() {
     };
 
     // Initialize editor components.
-    let (input_tx, mut input_rx) = unbounded_channel();
     let (event_tx, mut event_rx) = unbounded_channel();
     let (noti_tx, mut noti_rx) = unbounded_channel();
     let mut editor = editor::Editor::new(&workspace_dir, noti_tx.clone());
     let minimap = editor.minimap().clone();
 
     let theme = DEFAULT_THEME;
-    let mut ctx = Context {
-        editor: &mut editor,
-        event_tx: &event_tx,
-        theme,
-    };
 
     // Initialize UI.
-    let terminal = Terminal::new(input_tx);
-    let mut compositor = Compositor::new(terminal);
-    let completion = CompletionSurface::new(&mut ctx);
-    let buffer = BufferSurface::new(minimap);
-    compositor.push_layer(&mut ctx, buffer);
-    compositor.push_layer(&mut ctx, completion);
+    // let mut compositor = Compositor::new(terminal);
+    // let completion = CompletionSurface::new(&mut ctx);
+    // let buffer = BufferSurface::new(minimap);
+    // compositor.push_layer(&mut ctx, buffer);
+    // compositor.push_layer(&mut ctx, completion);
 
     let mut cursor_pos = opt.lineno.map(|lineno| {
         Point::new(
@@ -180,117 +172,128 @@ async fn main() {
 
     // The main event loop.
     let backup_dir = backup_dir();
-    let mut updated = false;
-    while !editor.exited() {
-        let mut ctx = Context {
-            editor: &mut editor,
-            event_tx: &event_tx,
-            theme,
-        };
 
-        if updated {
-            compositor.render_to_terminal(&mut ctx);
-        }
+    let mut compositor = noa_cui::Compositor::new();
+    let on_event = || {
+        // TODO:
+    };
+    let on_idle = || {
+        // TODO:
+    };
+    compositor.mainloop(on_event, || {}).await;
 
-        match timeout(Duration::from_millis(400), event_rx.recv()).await {
-            Ok(Some(ev)) => {
-                let started_at = Instant::now();
-                let prev_ver = editor.current_file().read().buffer.id_and_version();
+    /*
+        let mut updated = false;
+        while !editor.exited() {
+            let mut ctx = Context {
+                editor: &mut editor,
+                event_tx: &event_tx,
+                theme,
+            };
 
-                let mut ctx = Context {
-                    editor: &mut editor,
-                    event_tx: &event_tx,
-                    theme,
-                };
-                compositor.handle_event(&mut ctx, ev);
-                while let Ok(Some(ev)) = timeout(Duration::from_micros(400), event_rx.recv()).await
-                {
+            if updated {
+                compositor.render_to_terminal(&mut ctx);
+            }
+
+            match timeout(Duration::from_millis(400), event_rx.recv()).await {
+                Ok(Some(ev)) => {
+                    let started_at = Instant::now();
+                    let prev_ver = editor.current_file().read().buffer.id_and_version();
+
+                    let mut ctx = Context {
+                        editor: &mut editor,
+                        event_tx: &event_tx,
+                        theme,
+                    };
                     compositor.handle_event(&mut ctx, ev);
-                }
-
-                let new_ver = editor.current_file().read().buffer.id_and_version();
-                if prev_ver != new_ver {
-                    //
-                    // Switched or modified the current buffer.
-                    //
-
-                    // Update the syntax highlighting.
-                    tokio::spawn(update_highlight(
-                        editor.current_file().clone(),
-                        event_tx.clone(),
-                    ));
-
-                    // Sync updated file contents with LSP.
+                    while let Ok(Some(ev)) = timeout(Duration::from_micros(400), event_rx.recv()).await
                     {
-                        let sync = editor.sync().clone();
-                        let current_file = editor.current_file().clone();
-                        tokio::spawn(async move {
-                            sync.lock()
-                                .await
-                                .call_lsp_method_for_file(&current_file, |path, f| {
-                                    LspRequest::UpdateFile {
-                                        path,
-                                        text: f.buffer.text(),
-                                        version: f.buffer.version(),
-                                    }
-                                })
-                                .await
-                                .oops();
-                        });
+                        compositor.handle_event(&mut ctx, ev);
                     }
 
-                    // Sync updated file contents with buffer-sync.
-                    {
-                        let sync = editor.sync().clone();
-                        let current_file = editor.current_file().clone();
-                        tokio::spawn(async move {
-                            let (path, text) = {
-                                let f = current_file.read();
-                                let path = match f.buffer.path() {
-                                    Some(path) => path.to_owned(),
-                                    None => return,
-                                };
-
-                                (path, f.buffer.text())
-                            };
-
-                            sync.lock()
-                                .await
-                                .call_buffer_update_file(&path, text)
-                                .await
-                                .oops();
-                        });
+                    let new_ver = editor.current_file().read().buffer.id_and_version();
+                    if prev_ver != new_ver {
+                        //
+                        // Switched or modified the current buffer.
+                        //
+                        modified_or_switched_buffer(&mut editor, event_tx.clone());
                     }
+
+                    updated = true;
+                    trace!(
+                        "event handling took {} us",
+                        started_at.elapsed().as_micros()
+                    );
                 }
+                Ok(None) => {
+                    break;
+                }
+                Err(_) if updated => {
+                    // Idle.
+                    let current_file = editor.current_file().clone();
+                    let backup_dir = backup_dir.clone();
+                    tokio::spawn(async move {
+                        let mut f = current_file.write();
+                        f.buffer.update_backup(&backup_dir);
+                        f.buffer.mark_undo_point();
+                    });
 
-                updated = true;
-                trace!(
-                    "event handling took {} us",
-                    started_at.elapsed().as_micros()
-                );
-            }
-            Ok(None) => {
-                break;
-            }
-            Err(_) if updated => {
-                // Idle.
-                let current_file = editor.current_file().clone();
-                let backup_dir = backup_dir.clone();
-                tokio::spawn(async move {
-                    let mut f = current_file.write();
-                    f.buffer.update_backup(&backup_dir);
-                    f.buffer.mark_undo_point();
-                });
+                    editor.update_git_line_statuses();
 
-                editor.update_git_line_statuses();
-
-                updated = false;
+                    updated = false;
+                }
+                Err(_) => {}
             }
-            Err(_) => {}
         }
+    */
+}
+
+fn modified_or_switched_buffer(editor: &mut Editor, event_tx: UnboundedSender<Event>) {
+    // Update the syntax highlighting.
+    tokio::spawn(update_highlight(
+        editor.current_file().clone(),
+        event_tx.clone(),
+    ));
+
+    // Sync updated file contents with LSP.
+    {
+        let sync = editor.sync().clone();
+        let current_file = editor.current_file().clone();
+        tokio::spawn(async move {
+            sync.lock()
+                .await
+                .call_lsp_method_for_file(&current_file, |path, f| LspRequest::UpdateFile {
+                    path,
+                    text: f.buffer.text(),
+                    version: f.buffer.version(),
+                })
+                .await
+                .oops();
+        });
     }
 
-    trace!("exiting the editor");
+    // Sync updated file contents with buffer-sync.
+    {
+        let sync = editor.sync().clone();
+        let current_file = editor.current_file().clone();
+        tokio::spawn(async move {
+            let (path, text) = {
+                let f = current_file.read();
+                let path = match f.buffer.path() {
+                    Some(path) => path.to_owned(),
+                    None => return,
+                };
+
+                (path, f.buffer.text())
+            };
+
+            sync.lock()
+                .await
+                .call_buffer_update_file(&path, text)
+                .await
+                .oops();
+        });
+    }
 }
 
 async fn update_highlight(switch_to: Arc<RwLock<OpenedFile>>, tx: UnboundedSender<Event>) {
