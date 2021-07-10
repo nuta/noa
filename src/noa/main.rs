@@ -1,8 +1,10 @@
 #![allow(unused)]
 
-use crate::{buffer_set::OpenedFile, sync_client::SyncClient, theme::DEFAULT_THEME};
+use crate::{
+    buffer_set::OpenedFile, minimap::LineStatus, sync_client::SyncClient, theme::DEFAULT_THEME,
+};
 use anyhow::Result;
-use buffer::BufferSurface;
+use buffer::{BufferSurface, StatusBar};
 use buffer_set::BufferSet;
 use completion::CompletionSurface;
 use git::Repo;
@@ -10,9 +12,10 @@ use minimap::{MiniMap, MiniMapCategory};
 use noa_buffer::{BufferId, Point};
 use noa_common::{
     dirs::{backup_dir, noa_bin_args},
+    fast_hash::compute_fast_hash,
     logger::install_logger,
     oops::OopsExt,
-    sync_protocol::{FileLocation, LspRequest, Notification},
+    sync_protocol::{lsp_types::DiagnosticSeverity, FileLocation, LspRequest, Notification},
     tmux,
 };
 use noa_cui::Compositor;
@@ -162,23 +165,79 @@ async fn main() {
     let buffers = Arc::new(RwLock::new(buffers));
     let mut compositor = Compositor::new();
     let completion = CompletionSurface::new(buffers.clone(), event_tx.clone(), sync.clone());
+    let status_bar = Arc::new(StatusBar::new());
     let buffer = BufferSurface::new(
         theme,
         buffers.clone(),
         &workspace_dir,
         event_tx.clone(),
         sync.clone(),
+        status_bar.clone(),
         minimap.clone(),
     );
     compositor.push_layer(buffer);
     compositor.push_layer(completion);
 
-    // Handle notifications.
+    // Handle (LSP) notifications.
     {
+        let buffers = buffers.clone();
+        let minimap = minimap.clone();
         let event_tx = event_tx.clone();
+        let status_bar = status_bar.clone();
         tokio::spawn(async move {
             while let Some(noti) = noti_rx.recv().await {
-                event_tx.send(Event::Notification(noti)).ok();
+                let mut buffers = buffers.write();
+                match noti {
+                    Notification::FileModified { path, text, hash } => {
+                        trace!("file change detected: {}", path.display());
+                        if let Some(opened_file) = buffers.get_opened_file_by_path(&path) {
+                            let mut f = opened_file.write();
+                            if compute_fast_hash(f.buffer.text().as_bytes()) != hash {
+                                f.buffer.set_text(&text);
+                            }
+                        }
+                    }
+                    Notification::Diagnostics { path, diags } => {
+                        if Some(path.as_path()) == buffers.current_file().read().buffer.path() {
+                            let mut minimap = minimap.lock();
+                            minimap.clear(MiniMapCategory::Diagnosis);
+                            for diag in diags {
+                                trace!("diagnostic: {:?}", diag);
+                                let interval = (diag.range.start.line as usize)
+                                    ..(diag.range.end.line as usize + 1);
+                                match diag.severity {
+                                    Some(DiagnosticSeverity::Error) => {
+                                        minimap.insert(
+                                            MiniMapCategory::Diagnosis,
+                                            interval,
+                                            LineStatus::Error,
+                                        );
+                                    }
+                                    Some(DiagnosticSeverity::Warning) => {
+                                        minimap.insert(
+                                            MiniMapCategory::Diagnosis,
+                                            interval,
+                                            LineStatus::Warning,
+                                        );
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                    Notification::OpenFileInOther {
+                        pane_id,
+                        path,
+                        position,
+                    } => match tmux::get_this_tmux_pane_id() {
+                        Some(our_pane_id) if our_pane_id == pane_id => {
+                            status_bar.info("opened a file");
+                            buffers.open_file(&path, position);
+                            tmux::select_pane(our_pane_id).oops();
+                        }
+                        _ => {}
+                    },
+                }
             }
         });
     }

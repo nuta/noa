@@ -15,6 +15,7 @@ use tokio::{process::Command, sync::mpsc::UnboundedSender};
 
 use crate::{
     actions::{self, Action, ACTIONS},
+    buffer::StatusBar,
     buffer_set::BufferSet,
     fuzzy_set::FuzzySet,
     selector::Selector,
@@ -31,6 +32,7 @@ enum Item {
 }
 
 pub struct FinderSurface {
+    status_bar: Arc<StatusBar>,
     buffers: Arc<RwLock<BufferSet>>,
     workspace_dir: PathBuf,
     event_tx: UnboundedSender<Event>,
@@ -41,6 +43,7 @@ pub struct FinderSurface {
 
 impl FinderSurface {
     pub fn new(
+        status_bar: Arc<StatusBar>,
         buffers: Arc<RwLock<BufferSet>>,
         workspace_dir: PathBuf,
         event_tx: UnboundedSender<Event>,
@@ -56,6 +59,7 @@ impl FinderSurface {
         ));
 
         FinderSurface {
+            status_bar,
             buffers,
             workspace_dir,
             event_tx,
@@ -80,23 +84,21 @@ impl FinderSurface {
 
     fn select_in_new_pane(&self, item: &Item) {
         if !in_tmux() {
-            // FIXME:
-            // ctx.editor.error("not in tmux");
+            self.status_bar.error("not in tmux");
             return;
         }
 
         match item {
             Item::File(path) => {
-                // FIXME:
-                // ctx.editor
-                //     .info(format!("opening {} in new pane", path.display()));
-                // ctx.editor.check_run_background(
-                //     "tmux-splitw",
-                //     Command::new("tmux")
-                //         .args(&["splitw", "-h"])
-                //         .args(noa_bin_args())
-                //         .arg(path),
-                // );
+                self.status_bar
+                    .info(format!("opening {} in new pane", path.display()));
+                self.status_bar.check_run_background(
+                    "tmux-splitw",
+                    Command::new("tmux")
+                        .args(&["splitw", "-h"])
+                        .args(noa_bin_args())
+                        .arg(path),
+                );
             }
             Item::Action(_) => {}
         }
@@ -104,8 +106,7 @@ impl FinderSurface {
 
     fn select_in_other_pane(&self, item: &Item) {
         if !in_tmux() {
-            // FIXME:
-            // ctx.editor.error("not in tmux");
+            self.status_bar.error("not in tmux");
             return;
         }
 
@@ -119,9 +120,8 @@ impl FinderSurface {
                     }
                 };
 
-                // FIXME:
-                // ctx.editor
-                //     .info(format!("opening {} in other pane", path.display(),));
+                self.status_bar
+                    .info(format!("opening {} in other pane", path.display(),));
 
                 let sync = self.sync.clone();
                 let path = path.to_owned();

@@ -2,6 +2,7 @@ use std::{
     cmp::{max, min},
     ops::Sub,
     path::{Path, PathBuf},
+    process::Stdio,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -14,7 +15,7 @@ use noa_cui::{
 };
 use noa_langs::HighlightType;
 use parking_lot::{Mutex, RwLock};
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::{process::Command, sync::mpsc::UnboundedSender};
 
 use crate::{
     buffer_set::BufferSet,
@@ -52,11 +53,12 @@ pub struct BufferSurface {
     event_tx: UnboundedSender<Event>,
     sync: Arc<tokio::sync::Mutex<SyncClient>>,
     mode: BufferSurfaceMode,
+    status_bar: Arc<StatusBar>,
+    minimap: Arc<Mutex<MiniMap>>,
     /// `(y, x)`.
     cursor_position: (usize, usize),
     text_start_x: usize,
     selection_start: Option<Point>,
-    minimap: Arc<Mutex<MiniMap>>,
     time_last_clicked: Instant,
     num_clicked: usize,
     scroll_ys: Vec<usize>,
@@ -74,6 +76,7 @@ impl BufferSurface {
         workspace_dir: &Path,
         event_tx: UnboundedSender<Event>,
         sync: Arc<tokio::sync::Mutex<SyncClient>>,
+        status_bar: Arc<StatusBar>,
         minimap: Arc<Mutex<MiniMap>>,
     ) -> BufferSurface {
         BufferSurface {
@@ -86,6 +89,7 @@ impl BufferSurface {
             cursor_position: (0, 0),
             text_start_x: 0,
             selection_start: None,
+            status_bar,
             minimap,
             time_last_clicked: Instant::now().sub(Duration::from_secs(100)),
             num_clicked: 0,
@@ -193,6 +197,7 @@ impl BufferSurface {
             (KeyCode::Char('f'), CTRL) => {
                 drop(f);
                 let finder = FinderSurface::new(
+                    self.status_bar.clone(),
                     self.buffers.clone(),
                     self.workspace_dir.clone(),
                     self.event_tx.clone(),
@@ -442,8 +447,7 @@ impl BufferSurface {
                 SearchMode::Regex => match f.buffer.find_all_by_regex(query, None) {
                     Ok(iter) => iter.take(SEARCH_HIGHLIGHTS_MAX).collect(),
                     Err(err) => {
-                        // FIXME:
-                        // editor.error(format!("{}", err));
+                        self.status_bar.error(format!("{}", err));
                         return;
                     }
                 },
@@ -493,29 +497,25 @@ impl BufferSurface {
         let next_match = match find(&f.buffer, &query, cursor_pos) {
             Ok(m) => m,
             Err(err) => {
-                // FIXME:
-                // ctx.editor.error(format!("{}", err));
+                self.status_bar.error(format!("{}", err));
                 return;
             }
         };
         let fallback_match = match find_fallback(&f.buffer, &query) {
             Ok(m) => m,
             Err(err) => {
-                // FIXME:
-                // ctx.editor.error(format!("{}", err));
+                self.status_bar.error(format!("{}", err));
                 return;
             }
         };
         let new_cursor_pos = match (next_match, fallback_match) {
             (Some(next_match), _) => Some(next_match.front()),
             (None, Some(first_match)) => {
-                // FIXME:
-                // ctx.editor.info("wrapped");
+                self.status_bar.info("wrapped");
                 Some(first_match.front())
             }
             (None, None) => {
-                // FIXME:
-                // ctx.editor.info("no matches");
+                self.status_bar.info("no matches");
                 None
             }
         };
@@ -845,20 +845,18 @@ impl Surface for BufferSurface {
             truncate_to_width(&query, max_query_width),
         );
 
-        /* FIXME:
-                if let Some(message) = ctx.editor.last_message() {
-                    let (color, text) = match &message {
-                        UserMessage::Info(text) => (Color::Cyan, text),
-                        UserMessage::Error(text) => (Color::Red, text),
-                    };
+        if let Some(message) = self.status_bar.last_message() {
+            let (color, text) = match &message {
+                StatusMessage::Info(text) => (Color::Cyan, text),
+                StatusMessage::Error(text) => (Color::Red, text),
+            };
 
-                    let text = truncate_to_width(text, log_max_width);
-                    let text_width = text.display_width();
-                    let x = canvas.width() - text_width;
-                    canvas.draw_str(bottom_bar_y1, x, text);
-                    canvas.set_fg(bottom_bar_y1, x, x + text_width, color);
-                }
-        */
+            let text = truncate_to_width(text, log_max_width);
+            let text_width = text.display_width();
+            let x = canvas.width() - text_width;
+            canvas.draw_str(bottom_bar_y1, x, text);
+            canvas.set_fg(bottom_bar_y1, x, x + text_width, color);
+        }
 
         // Determine the main cursor position.
         self.cursor_position = match self.mode {
@@ -1015,5 +1013,79 @@ impl Surface for BufferSurface {
 
             _ => HandledEvent::Ignored,
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum StatusMessage {
+    Info(String),
+    Error(String),
+}
+
+pub struct StatusBar {
+    messages: Arc<std::sync::Mutex<Vec<StatusMessage>>>,
+}
+
+impl StatusBar {
+    pub fn new() -> StatusBar {
+        StatusBar {
+            messages: Arc::new(std::sync::Mutex::new(Vec::new())),
+        }
+    }
+
+    pub fn last_message(&self) -> Option<StatusMessage> {
+        self.messages.lock().unwrap().last().cloned()
+    }
+
+    pub fn log(&self, m: StatusMessage) {
+        let mut messages = self.messages.lock().unwrap();
+        messages.push(m);
+        messages.truncate(128);
+    }
+
+    pub fn info<T: Into<String>>(&self, str: T) {
+        let string = str.into();
+        info!("info: {}", string);
+        self.log(StatusMessage::Info(string));
+    }
+
+    pub fn error<T: Into<String>>(&self, str: T) {
+        let string = str.into();
+        error!("error: {}", string);
+        self.log(StatusMessage::Error(string));
+    }
+
+    pub fn check_run_background(&self, title: &str, cmd: &mut Command) -> Result<()> {
+        let proc = cmd
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()?;
+
+        let title = title.to_owned();
+        let messages = self.messages.clone();
+        tokio::spawn(async move {
+            match proc.wait_with_output().await {
+                Ok(result) => {
+                    match std::str::from_utf8(&result.stderr) {
+                        Ok(stderr) => {
+                            warn!("stderr ({}): {}", title, stderr);
+                        }
+                        Err(err) => {
+                            error!("failed to execute {}: {}", title, err);
+                        }
+                    };
+                }
+                Err(err) => {
+                    error!("failed to execute {}: {}", title, err);
+                    messages
+                        .lock()
+                        .unwrap()
+                        .push(StatusMessage::Error(format!("{} failed: {:?}", title, err)));
+                }
+            }
+        });
+
+        Ok(())
     }
 }
