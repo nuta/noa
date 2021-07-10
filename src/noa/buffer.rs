@@ -18,9 +18,9 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     buffer_set::BufferSet,
+    finder::FinderSurface,
     minimap::{LineStatus, MiniMap, MiniMapCategory},
     selector::Selector,
-    surfaces::FinderSurface,
     sync_client::SyncClient,
     theme::Theme,
     Event,

@@ -1,10 +1,10 @@
 #![allow(unused)]
 
-use crate::{
-    buffer_set::OpenedFile, surfaces::BufferSurface, sync_client::SyncClient, theme::DEFAULT_THEME,
-};
+use crate::{buffer_set::OpenedFile, sync_client::SyncClient, theme::DEFAULT_THEME};
 use anyhow::Result;
+use buffer::BufferSurface;
 use buffer_set::BufferSet;
+use completion::CompletionSurface;
 use git::Repo;
 use minimap::{MiniMap, MiniMapCategory};
 use noa_buffer::{BufferId, Point};
@@ -15,6 +15,7 @@ use noa_common::{
     sync_protocol::{FileLocation, LspRequest, Notification},
     tmux,
 };
+use noa_cui::Compositor;
 use parking_lot::RwLock;
 use std::{
     env::current_dir,
@@ -23,7 +24,6 @@ use std::{
     time::{Duration, Instant},
 };
 use structopt::StructOpt;
-use surfaces::CompletionSurface;
 use tokio::{
     sync::{
         mpsc::{unbounded_channel, UnboundedSender},
@@ -40,12 +40,14 @@ extern crate log;
 extern crate pretty_assertions;
 
 mod actions;
+mod buffer;
 mod buffer_set;
+mod completion;
+mod finder;
 mod fuzzy_set;
 mod git;
 mod minimap;
 mod selector;
-mod surfaces;
 mod sync_client;
 mod theme;
 mod view;
@@ -158,7 +160,7 @@ async fn main() {
 
     // Initialize UI.
     let buffers = Arc::new(RwLock::new(buffers));
-    let mut compositor = noa_cui::Compositor::new();
+    let mut compositor = Compositor::new();
     let completion = CompletionSurface::new(buffers.clone(), event_tx.clone(), sync.clone());
     let buffer = BufferSurface::new(
         theme,
