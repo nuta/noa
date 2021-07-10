@@ -1,8 +1,4 @@
-#![allow(unused)]
-
-use crate::{
-    buffer_set::OpenedFile, minimap::LineStatus, sync_client::SyncClient, theme::DEFAULT_THEME,
-};
+use crate::{minimap::LineStatus, sync_client::SyncClient, theme::DEFAULT_THEME};
 use anyhow::Result;
 use buffer::{BufferSurface, StatusBar};
 use buffer_set::BufferSet;
@@ -24,16 +20,10 @@ use std::{
     env::current_dir,
     path::{Path, PathBuf},
     sync::Arc,
-    time::{Duration, Instant},
+    time::Instant,
 };
 use structopt::StructOpt;
-use tokio::{
-    sync::{
-        mpsc::{unbounded_channel, UnboundedSender},
-        Mutex,
-    },
-    time::timeout,
-};
+use tokio::sync::{mpsc::unbounded_channel, Mutex};
 
 #[macro_use]
 extern crate log;

@@ -298,7 +298,7 @@ impl View {
         self.walk_ts_node(lang, root, &mut root.walk());
     }
 
-    pub fn set_search_highlights<'a>(&mut self, matches: &[Range]) {
+    pub fn set_search_highlights(&mut self, matches: &[Range]) {
         for line in &mut self.lines {
             line.search_highlights.clear();
         }
