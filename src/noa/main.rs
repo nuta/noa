@@ -130,6 +130,7 @@ async fn main() {
     let minimap = Arc::new(parking_lot::Mutex::new(MiniMap::new()));
     let repo = Arc::new(Repo::open(&workspace_dir).ok());
     let sync = Arc::new(Mutex::new(SyncClient::new(&workspace_dir, noti_tx)));
+    let status_bar = Arc::new(StatusBar::new());
     let theme = DEFAULT_THEME;
 
     let mut cursor_pos = opt.lineno.map(|lineno| {
@@ -147,15 +148,13 @@ async fn main() {
             continue;
         }
 
-        // TODO: report error
-        buffers.open_file(file, cursor_pos.take());
+        status_bar.report_if_error(buffers.open_file(&sync, file, cursor_pos.take()));
     }
 
     // Initialize UI.
     let buffers = Arc::new(RwLock::new(buffers));
     let mut compositor = Compositor::new();
     let completion = CompletionSurface::new(buffers.clone(), event_tx.clone(), sync.clone());
-    let status_bar = Arc::new(StatusBar::new());
     let buffer = BufferSurface::new(
         theme,
         buffers.clone(),
@@ -172,8 +171,8 @@ async fn main() {
     {
         let buffers = buffers.clone();
         let minimap = minimap.clone();
-        let event_tx = event_tx.clone();
         let status_bar = status_bar.clone();
+        let sync = sync.clone();
         tokio::spawn(async move {
             while let Some(noti) = noti_rx.recv().await {
                 let mut buffers = buffers.write();
@@ -222,7 +221,7 @@ async fn main() {
                     } => match tmux::get_this_tmux_pane_id() {
                         Some(our_pane_id) if our_pane_id == pane_id => {
                             status_bar.info("opened a file");
-                            buffers.open_file(&path, position);
+                            status_bar.report_if_error(buffers.open_file(&sync, &path, position));
                             tmux::select_pane(our_pane_id).oops();
                         }
                         _ => {}

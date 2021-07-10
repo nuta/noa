@@ -69,10 +69,11 @@ impl FinderSurface {
         }
     }
 
-    fn select(&self, compositor: &mut Compositor, item: &Item) {
+    fn select(&self, _compositor: &mut Compositor, item: &Item) {
         match item {
             Item::File(path) => {
-                self.buffers.write().open_file(path, None);
+                self.status_bar
+                    .report_if_error(self.buffers.write().open_file(&self.sync, path, None));
             }
             Item::Action(action) => {
                 action.execute(&actions::Context {

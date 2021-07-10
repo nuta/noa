@@ -132,8 +132,9 @@ impl BufferSurface {
                 // Save all.
                 {
                     let buffers = self.buffers.clone();
+                    let status_bar = self.status_bar.clone();
                     YesNoChoice::new('a', move || {
-                        buffers.write().save_all();
+                        status_bar.report_if_error(buffers.write().save_all());
                         // FIXME: QUIT
                         // buffers.exit_editor();
                         CallbackResult::Close
@@ -207,7 +208,8 @@ impl BufferSurface {
             }
             (KeyCode::Char('s'), CTRL) => {
                 drop(f);
-                buffers.save_current_buffer();
+                self.status_bar
+                    .report_if_error(buffers.save_current_buffer());
             }
             (KeyCode::Char('u'), CTRL) => {
                 f.buffer.undo();
@@ -1055,12 +1057,25 @@ impl StatusBar {
         self.log(StatusMessage::Error(string));
     }
 
-    pub fn check_run_background(&self, title: &str, cmd: &mut Command) -> Result<()> {
-        let proc = cmd
+    pub fn report_if_error<T, E: std::fmt::Display>(&self, result: std::result::Result<T, E>) {
+        if let Err(err) = result {
+            self.error(format!("{}", err));
+        }
+    }
+
+    pub fn check_run_background(&self, title: &str, cmd: &mut Command) {
+        let proc = match cmd
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::piped())
-            .spawn()?;
+            .spawn()
+        {
+            Ok(proc) => proc,
+            Err(err) => {
+                self.error(format!("{} failed: {}", title, err));
+                return;
+            }
+        };
 
         let title = title.to_owned();
         let messages = self.messages.clone();
@@ -1085,7 +1100,5 @@ impl StatusBar {
                 }
             }
         });
-
-        Ok(())
     }
 }

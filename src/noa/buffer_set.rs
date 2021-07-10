@@ -1,23 +1,15 @@
-
-
-
-
+use crate::sync_client::SyncClient;
 use crate::view::View;
-use anyhow::{Result};
+use anyhow::Result;
 
-
-
-
-
-
+use noa_common::oops::OopsExt;
+use noa_common::sync_protocol::LspRequest;
 use parking_lot::RwLock;
-
+use tokio::sync::Mutex;
 
 use std::path::Path;
 use std::process::Stdio;
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
-
-
 
 use noa_buffer::{Buffer, BufferId, Point};
 use noa_langs::tree_sitter;
@@ -95,7 +87,12 @@ impl BufferSet {
             .find(|o| o.read().buffer.path().map(|p| p == path).unwrap_or(false))
     }
 
-    pub fn open_file(&mut self, path: &Path, cursor_pos: Option<Point>) -> Result<()> {
+    pub fn open_file(
+        &mut self,
+        sync: &Arc<Mutex<SyncClient>>,
+        path: &Path,
+        cursor_pos: Option<Point>,
+    ) -> Result<()> {
         let abspath = path.canonicalize()?;
         let opened_file = if let Some(opened_file) = self.get_opened_file_by_path(&abspath) {
             // The path is already opened.
@@ -121,6 +118,33 @@ impl BufferSet {
         // Move the cursor to the specified position.
         let cursor_pos = cursor_pos.unwrap_or(Point::new(0, 0));
         opened_file.write().buffer.move_cursor_to(cursor_pos);
+
+        {
+            // Tell the LSP server about the newly opened file.
+            let sync = sync.clone();
+            let opened_file = opened_file.clone();
+            tokio::spawn(async move {
+                sync.lock()
+                    .await
+                    .call_lsp_method_for_file(&opened_file, |path, opened_file| {
+                        LspRequest::OpenFile {
+                            path,
+                            text: opened_file.buffer.text(),
+                        }
+                    })
+                    .await
+                    .oops();
+            });
+        }
+
+        {
+            // Tell the buffer-sync server about the newly opened file.
+            let path = abspath.clone();
+            let sync = sync.clone();
+            tokio::spawn(async move {
+                sync.lock().await.call_buffer_open_file(&path).await.oops();
+            });
+        }
 
         Ok(())
     }
@@ -178,8 +202,9 @@ impl BufferSet {
         Ok(())
     }
 
-    pub fn save_current_buffer(&self) {
-        self.format_and_save(&mut self.current_file.write().buffer);
+    pub fn save_current_buffer(&self) -> Result<()> {
+        self.format_and_save(&mut self.current_file.write().buffer)?;
+        Ok(())
     }
 
     pub fn dirty_buffers(&self) -> Vec<Arc<RwLock<OpenedFile>>> {
@@ -194,9 +219,11 @@ impl BufferSet {
         buffers
     }
 
-    pub fn save_all(&self) {
+    pub fn save_all(&self) -> Result<()> {
         for opened_file in self.dirty_buffers() {
-            self.format_and_save(&mut opened_file.write().buffer);
+            self.format_and_save(&mut opened_file.write().buffer)?;
         }
+
+        Ok(())
     }
 }

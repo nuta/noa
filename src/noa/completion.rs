@@ -251,7 +251,6 @@ async fn update_completion(
         let mut results = FuzzySet::with_capacity(32);
         trace!("sending completion message...");
 
-        /* TODO:
         match sync.lock().await.call_completion(&opened_file).await {
             Ok(items) => {
                 let mut score = items.len() as isize;
@@ -270,7 +269,6 @@ async fn update_completion(
                 warn!("failed to call Completion request: {}", err);
             }
         }
-        */
         results
     };
 
