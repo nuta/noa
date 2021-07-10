@@ -436,10 +436,10 @@ impl BufferSurface {
             self.search_matches = match self.search_mode {
                 SearchMode::Plain => f
                     .buffer
-                    .find_all(&query, None)
+                    .find_all(query, None)
                     .take(SEARCH_HIGHLIGHTS_MAX)
                     .collect(),
-                SearchMode::Regex => match f.buffer.find_all_by_regex(&query, None) {
+                SearchMode::Regex => match f.buffer.find_all_by_regex(query, None) {
                     Ok(iter) => iter.take(SEARCH_HIGHLIGHTS_MAX).collect(),
                     Err(err) => {
                         // FIXME:
@@ -597,7 +597,7 @@ impl Surface for BufferSurface {
                 };
 
                 canvas.draw_char(y, x, '\u{2590}' /* Right Half Block */);
-                canvas.set_style(y, x, x + 1, &style);
+                canvas.set_style(y, x, x + 1, style);
             };
 
         let mut y_end = 0;

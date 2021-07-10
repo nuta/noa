@@ -292,7 +292,7 @@ async fn main() {
                     if let Some(path) = path {
                         minimap
                             .lock()
-                            .update_git_line_statuses(&repo, &path, snapshot.text());
+                            .update_git_line_statuses(repo, &path, snapshot.text());
                     }
                 }
             });

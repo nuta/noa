@@ -106,7 +106,7 @@ impl SyncClient {
             .await;
 
         match resp {
-            Ok(LspResponse::GoToDefinition(locs)) => return Ok(locs),
+            Ok(LspResponse::GoToDefinition(locs)) => Ok(locs),
             _ => {
                 bail!("unexpected goto_definition response: {:?}", resp);
             }
@@ -125,7 +125,7 @@ impl SyncClient {
             .await;
 
         match resp {
-            Ok(LspResponse::Completion(items)) => return Ok(items),
+            Ok(LspResponse::Completion(items)) => Ok(items),
             _ => {
                 bail!("unexpected goto_definition response: {:?}", resp);
             }

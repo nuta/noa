@@ -121,6 +121,5 @@ impl<I: PartialOrd + Copy, V> IntervalMap<I, V> {
         self.inner
             .iter()
             .filter(move |e| start < e.interval.end && e.interval.start < end)
-            .into_iter()
     }
 }

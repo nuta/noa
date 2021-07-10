@@ -55,7 +55,7 @@ impl CompletionSurface {
             selector,
             current_word,
             sync.clone(),
-            current_file.clone(),
+            current_file,
             snapshot,
         ));
 
