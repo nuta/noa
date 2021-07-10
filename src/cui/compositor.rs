@@ -181,15 +181,18 @@ impl Compositor {
         }
     }
 
-    pub async fn mainloop<F1, F2>(&mut self, on_event: F1, on_idle: F2)
+    pub async fn mainloop<F1, F2, F3, T>(&mut self, before_event: F1, after_event: F2, on_idle: F3)
     where
-        F1: Fn(),
-        F2: Fn(),
+        F1: Fn() -> T,
+        F2: Fn(T),
+        F3: Fn(),
     {
         let mut idle = false;
         loop {
             match timeout(Duration::from_millis(400), self.input_rx.recv()).await {
                 Ok(Some(ev)) => {
+                    let prev = before_event();
+
                     self.handle_event(ev);
                     while let Ok(Some(ev)) =
                         timeout(Duration::from_micros(400), self.input_rx.recv()).await
@@ -197,7 +200,7 @@ impl Compositor {
                         self.handle_event(ev);
                     }
 
-                    on_event();
+                    after_event(prev);
                     idle = false;
                 }
                 Ok(None) => {

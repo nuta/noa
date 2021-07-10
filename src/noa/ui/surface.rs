@@ -1,15 +1,7 @@
 use crossterm::event::{KeyEvent, MouseEvent};
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::editor::Editor;
-
-use super::{theme::Theme, CanvasViewMut, Compositor, Event};
-
-pub struct Context<'a> {
-    pub event_tx: &'a UnboundedSender<Event>,
-    pub editor: &'a mut Editor,
-    pub theme: &'a Theme,
-}
+use super::{CanvasViewMut, Compositor, Event};
 
 #[derive(Clone, Copy, Debug)]
 pub enum Layout {
@@ -39,25 +31,14 @@ pub trait Surface {
     fn cursor_position(&self) -> Option<(usize, usize)>;
     /// Render its contents into the canvas. It must fill the whole canvas; the
     /// canvas can be the newly created one due to, for example, screen resizing.
-    fn render<'a>(&mut self, _ctx: &mut Context, canvas: CanvasViewMut<'a>);
-    fn handle_key_event(
-        &mut self,
-        ctx: &mut Context,
-        compositor: &mut Compositor,
-        key: KeyEvent,
-    ) -> HandledEvent;
+    fn render<'a>(&mut self, canvas: CanvasViewMut<'a>);
+    fn handle_key_event(&mut self, compositor: &mut Compositor, key: KeyEvent) -> HandledEvent;
     fn handle_mouse_event(
         &mut self,
-        _ctx: &mut Context,
         _compositor: &mut Compositor,
         _ev: MouseEvent,
     ) -> HandledEvent {
         HandledEvent::Ignored
     }
-    fn handle_key_batch_event(
-        &mut self,
-        ctx: &mut Context,
-        compositor: &mut Compositor,
-        input: &str,
-    ) -> HandledEvent;
+    fn handle_key_batch_event(&mut self, compositor: &mut Compositor, input: &str) -> HandledEvent;
 }

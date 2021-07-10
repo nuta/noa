@@ -27,7 +27,7 @@ use tokio::{
     time::sleep,
 };
 
-use crate::editor::OpenedFile;
+use crate::buffer_set::OpenedFile;
 
 pub struct SyncClient {
     workspace_dir: PathBuf,

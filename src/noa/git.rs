@@ -110,7 +110,7 @@ impl Repo {
         unsafe {
             let spec = CString::new(format!(
                 "HEAD:{}",
-                path.strip_prefix(self.repo_dir)?.display()
+                path.strip_prefix(&self.repo_dir)?.display()
             ))
             .unwrap();
             let repo_dir = CString::new(self.repo_dir.as_os_str().to_str().unwrap()).unwrap();

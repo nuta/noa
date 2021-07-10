@@ -1,15 +1,18 @@
 #![allow(unused)]
 
+use crate::{
+    buffer_set::OpenedFile, surfaces::BufferSurface, sync_client::SyncClient, theme::DEFAULT_THEME,
+};
 use anyhow::Result;
 use buffer_set::BufferSet;
 use git::Repo;
 use minimap::{MiniMap, MiniMapCategory};
-use noa_buffer::Point;
+use noa_buffer::{BufferId, Point};
 use noa_common::{
     dirs::{backup_dir, noa_bin_args},
     logger::install_logger,
     oops::OopsExt,
-    sync_protocol::LspRequest,
+    sync_protocol::{FileLocation, LspRequest, Notification},
     tmux,
 };
 use parking_lot::RwLock;
@@ -22,17 +25,11 @@ use std::{
 use structopt::StructOpt;
 use surfaces::CompletionSurface;
 use tokio::{
-    sync::mpsc::{unbounded_channel, UnboundedSender},
+    sync::{
+        mpsc::{unbounded_channel, UnboundedSender},
+        Mutex,
+    },
     time::timeout,
-};
-use ui::Event;
-
-use crate::{
-    buffer_set::OpenedFile,
-    surfaces::BufferSurface,
-    sync_client::SyncClient,
-    ui::Compositor,
-    ui::{Context, DEFAULT_THEME},
 };
 
 #[macro_use]
@@ -51,6 +48,7 @@ mod minimap;
 mod selector;
 mod surfaces;
 mod sync_client;
+mod theme;
 mod ui;
 mod view;
 
@@ -108,6 +106,13 @@ async fn open_path_in_tmux(opt: Opt) -> Result<()> {
     Ok(())
 }
 
+#[derive(Debug)]
+pub enum Event {
+    ReDraw,
+    OpenFile(FileLocation),
+    Notification(Notification),
+}
+
 #[tokio::main]
 async fn main() {
     install_logger("main");
@@ -131,15 +136,15 @@ async fn main() {
     let mut buffers = BufferSet::new();
     let minimap = Arc::new(parking_lot::Mutex::new(MiniMap::new()));
     let repo = Repo::open(&workspace_dir).ok();
-    let sync = SyncClient::new(&workspace_dir, noti_tx);
+    let sync = Arc::new(Mutex::new(SyncClient::new(&workspace_dir, noti_tx)));
     let theme = DEFAULT_THEME;
 
     // Initialize UI.
     // let mut compositor = Compositor::new(terminal);
     // let completion = CompletionSurface::new(&mut ctx);
     // let buffer = BufferSurface::new(minimap);
-    // compositor.push_layer(&mut ctx, buffer);
-    // compositor.push_layer(&mut ctx, completion);
+    // compositor.push_layer(&mut buffer);
+    // compositor.push_layer(&mut completion);
 
     let mut cursor_pos = opt.lineno.map(|lineno| {
         Point::new(
@@ -160,12 +165,6 @@ async fn main() {
         buffers.open_file(file, cursor_pos.take());
     }
 
-    // Fill syntax highlighting.
-    tokio::spawn(update_highlight(
-        buffers.current_file().clone(),
-        event_tx.clone(),
-    ));
-
     // Handle notifications.
     {
         let event_tx = event_tx.clone();
@@ -176,13 +175,92 @@ async fn main() {
         });
     }
 
-    // The main event loop.
     let backup_dir = backup_dir();
     let buffers = Arc::new(RwLock::new(buffers));
     let mut compositor = noa_cui::Compositor::new();
 
-    let on_event = || {
-        // TODO:
+    let before_event = || {
+        // The buffer version *before* we handle user inputs that possibly modifies
+        // the buffer.
+        let started_at = Instant::now();
+        let prev = buffers.read().current_file().read().buffer.id_and_version();
+        (started_at, prev)
+    };
+
+    let after_event = |(started_at, prev): (Instant, (BufferId, usize))| {
+        let buffers = buffers.read();
+        let current_file = buffers.current_file();
+        let f = current_file.read();
+        if prev != f.buffer.id_and_version() {
+            // Switched or modified the current buffer.
+            // Update the syntax highlighting.
+            {
+                let event_tx = event_tx.clone();
+                let current_file = current_file.clone();
+                tokio::spawn(async move {
+                    let (rope, mut parser) = {
+                        let f = current_file.read();
+                        let rope = f.buffer.rope().clone();
+                        let parser = match f.buffer.lang().syntax_highlighting_parser() {
+                            Some(parser) => parser,
+                            None => return,
+                        };
+                        (rope, parser)
+                    };
+
+                    if let Some(tree) = parser.parse(rope.text(), None) {
+                        current_file.write().syntax_highlight = Some(tree);
+                    }
+
+                    event_tx.send(Event::ReDraw).ok();
+                });
+            }
+
+            // Sync updated file contents with LSP.
+            {
+                let sync = sync.clone();
+                let current_file = current_file.clone();
+                tokio::spawn(async move {
+                    sync.lock()
+                        .await
+                        .call_lsp_method_for_file(&current_file, |path, f| LspRequest::UpdateFile {
+                            path,
+                            text: f.buffer.text(),
+                            version: f.buffer.version(),
+                        })
+                        .await
+                        .oops();
+                });
+            }
+
+            // Sync updated file contents with buffer-sync.
+            {
+                let sync = sync.clone();
+                let current_file = current_file.clone();
+                tokio::spawn(async move {
+                    let (path, text) = {
+                        let f = current_file.read();
+                        let path = match f.buffer.path() {
+                            Some(path) => path.to_owned(),
+                            None => return,
+                        };
+
+                        (path, f.buffer.text())
+                    };
+
+                    sync.lock()
+                        .await
+                        .call_buffer_update_file(&path, text)
+                        .await
+                        .oops();
+                });
+            }
+
+            trace!(
+                "event handling took {} us",
+                started_at.elapsed().as_micros()
+            );
+        }
     };
 
     let on_idle = {
@@ -194,6 +272,7 @@ async fn main() {
 
             // Update git line statuses.
             if let Some(repo) = repo.as_ref() {
+                let current_file = current_file.clone();
                 tokio::spawn(async move {
                     let (path, snapshot) = {
                         let mut f = current_file.read();
@@ -219,138 +298,5 @@ async fn main() {
         }
     };
 
-    compositor.mainloop(on_event, || {}).await;
-
-    /*
-        let mut updated = false;
-        while !editor.exited() {
-            let mut ctx = Context {
-                editor: &mut editor,
-                event_tx: &event_tx,
-                theme,
-            };
-
-            if updated {
-                compositor.render_to_terminal(&mut ctx);
-            }
-
-            match timeout(Duration::from_millis(400), event_rx.recv()).await {
-                Ok(Some(ev)) => {
-                    let started_at = Instant::now();
-                    let prev_ver = editor.current_file().read().buffer.id_and_version();
-
-                    let mut ctx = Context {
-                        editor: &mut editor,
-                        event_tx: &event_tx,
-                        theme,
-                    };
-                    compositor.handle_event(&mut ctx, ev);
-                    while let Ok(Some(ev)) = timeout(Duration::from_micros(400), event_rx.recv()).await
-                    {
-                        compositor.handle_event(&mut ctx, ev);
-                    }
-
-                    let new_ver = editor.current_file().read().buffer.id_and_version();
-                    if prev_ver != new_ver {
-                        //
-                        // Switched or modified the current buffer.
-                        //
-                        modified_or_switched_buffer(&mut editor, event_tx.clone());
-                    }
-
-                    updated = true;
-                    trace!(
-                        "event handling took {} us",
-                        started_at.elapsed().as_micros()
-                    );
-                }
-                Ok(None) => {
-                    break;
-                }
-                Err(_) if updated => {
-                    // Idle.
-                    let current_file = editor.current_file().clone();
-                    let backup_dir = backup_dir.clone();
-                    tokio::spawn(async move {
-                        let mut f = current_file.write();
-                        f.buffer.update_backup(&backup_dir);
-                        f.buffer.mark_undo_point();
-                    });
-
-                    editor.update_git_line_statuses();
-
-                    updated = false;
-                }
-                Err(_) => {}
-            }
-        }
-    */
-}
-
-/*
-fn modified_or_switched_buffer(editor: &mut Editor, event_tx: UnboundedSender<Event>) {
-    // Update the syntax highlighting.
-    tokio::spawn(update_highlight(
-        editor.current_file().clone(),
-        event_tx.clone(),
-    ));
-
-    // Sync updated file contents with LSP.
-    {
-        let sync = editor.sync().clone();
-        let current_file = editor.current_file().clone();
-        tokio::spawn(async move {
-            sync.lock()
-                .await
-                .call_lsp_method_for_file(&current_file, |path, f| LspRequest::UpdateFile {
-                    path,
-                    text: f.buffer.text(),
-                    version: f.buffer.version(),
-                })
-                .await
-                .oops();
-        });
-    }
-
-    // Sync updated file contents with buffer-sync.
-    {
-        let sync = editor.sync().clone();
-        let current_file = editor.current_file().clone();
-        tokio::spawn(async move {
-            let (path, text) = {
-                let f = current_file.read();
-                let path = match f.buffer.path() {
-                    Some(path) => path.to_owned(),
-                    None => return,
-                };
-
-                (path, f.buffer.text())
-            };
-
-            sync.lock()
-                .await
-                .call_buffer_update_file(&path, text)
-                .await
-                .oops();
-        });
-    }
-}
-*/
-
-async fn update_highlight(switch_to: Arc<RwLock<OpenedFile>>, tx: UnboundedSender<Event>) {
-    let (rope, mut parser) = {
-        let f = switch_to.read();
-        let rope = f.buffer.rope().clone();
-        let parser = match f.buffer.lang().syntax_highlighting_parser() {
-            Some(parser) => parser,
-            None => return,
-        };
-        (rope, parser)
-    };
-
-    if let Some(tree) = parser.parse(rope.text(), None) {
-        switch_to.write().syntax_highlight = Some(tree);
-    }
-
-    tx.send(Event::ReDraw).ok();
+    compositor.mainloop(before_event, after_event, || {}).await;
 }

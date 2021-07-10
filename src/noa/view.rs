@@ -5,7 +5,7 @@ use std::ops;
 use noa_buffer::{Buffer, Cursor, Point, Range};
 use noa_langs::{tree_sitter, HighlightType, Lang};
 
-use crate::ui::DisplayWidth;
+use noa_cui::DisplayWidth;
 
 #[derive(Debug, Clone)]
 pub struct Highlight {

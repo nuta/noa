@@ -1,6 +1,7 @@
 use std::{
     cmp::{max, min},
     ops::Sub,
+    path::{Path, PathBuf},
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -12,19 +13,23 @@ use crossterm::{
 };
 use noa_buffer::{Buffer, Cursor, Point, Range};
 use noa_langs::HighlightType;
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
-    editor::{Editor, UserMessage},
+    buffer_set::BufferSet,
     line_edit::LineEdit,
     minimap::{LineStatus, MiniMap, MiniMapCategory},
     selector::Selector,
     surfaces::{prompt::CallbackResult, yes_no::YesNoChoice, FinderSurface, YesNoSurface},
-    ui::{Compositor, Context, Event, HandledEvent, Layout, RectSize, Surface},
+    sync_client::SyncClient,
+    theme::Theme,
+    Event,
 };
 
 use noa_cui::{
-    copy_to_clipboard, truncate_to_width, whitespaces, CanvasViewMut, Decoration, DisplayWidth,
+    copy_to_clipboard, truncate_to_width, whitespaces, CanvasViewMut, Compositor, Decoration,
+    DisplayWidth, HandledEvent, Layout, RectSize, Surface,
 };
 
 const SEARCH_HIGHLIGHTS_MAX: usize = 8192;
@@ -42,8 +47,13 @@ enum SearchMode {
 }
 
 pub struct BufferSurface {
+    theme: &'static Theme,
+    buffers: Arc<RwLock<BufferSet>>,
+    workspace_dir: PathBuf,
+    event_tx: UnboundedSender<Event>,
+    sync: Arc<tokio::sync::Mutex<SyncClient>>,
     mode: BufferSurfaceMode,
-    // `(y, x)`.
+    /// `(y, x)`.
     cursor_position: (usize, usize),
     text_start_x: usize,
     selection_start: Option<Point>,
@@ -59,8 +69,20 @@ pub struct BufferSurface {
 }
 
 impl BufferSurface {
-    pub fn new(minimap: Arc<Mutex<MiniMap>>) -> BufferSurface {
+    pub fn new(
+        theme: &'static Theme,
+        buffers: Arc<RwLock<BufferSet>>,
+        workspace_dir: &Path,
+        event_tx: UnboundedSender<Event>,
+        sync: Arc<tokio::sync::Mutex<SyncClient>>,
+        minimap: Arc<Mutex<MiniMap>>,
+    ) -> BufferSurface {
         BufferSurface {
+            theme,
+            buffers,
+            workspace_dir: workspace_dir.to_owned(),
+            event_tx,
+            sync,
             mode: BufferSurfaceMode::Normal,
             cursor_position: (0, 0),
             text_start_x: 0,
@@ -77,10 +99,11 @@ impl BufferSurface {
         }
     }
 
-    fn quit(&mut self, ctx: &mut Context, compositor: &mut Compositor) {
-        let dirty_buffers = ctx.editor.dirty_buffers();
+    fn quit(&mut self, compositor: &mut Compositor) {
+        let buffers = self.buffers.read();
+        let dirty_buffers = buffers.dirty_buffers();
         if dirty_buffers.is_empty() {
-            ctx.editor.exit_editor();
+            // FIXME: QUIT EDITRR
             return;
         }
 
@@ -101,30 +124,34 @@ impl BufferSurface {
             if dirty_buffers.len() > 1 { ", ..." } else { "" }
         );
         let prompt = YesNoSurface::new(
-            ctx,
             &title,
             vec![
                 // Save all.
-                YesNoChoice::new('a', |ctx| {
-                    ctx.editor.save_all();
-                    ctx.editor.exit_editor();
-                    CallbackResult::Close
-                }),
+                {
+                    let buffers = self.buffers.clone();
+                    YesNoChoice::new('a', || {
+                        buffers.write().save_all();
+                        // FIXME: QUIT
+                        // buffers.exit_editor();
+                        CallbackResult::Close
+                    })
+                },
                 // Cancel.
-                YesNoChoice::new('c', |_ctx| CallbackResult::Close),
+                YesNoChoice::new('c', || CallbackResult::Close),
                 // Force quit.
-                YesNoChoice::new('Q', |ctx| {
-                    ctx.editor.exit_editor();
+                YesNoChoice::new('Q', || {
+                    // FIXME: QUIT
+                    // buffers.exit_editor();
                     CallbackResult::Close
                 }),
             ],
         );
-        compositor.push_layer(ctx, prompt);
+        compositor.push_layer(prompt);
     }
 
     fn handle_key_event_in_buffer(
         &mut self,
-        ctx: &mut Context,
+
         compositor: &mut Compositor,
         key: KeyEvent,
     ) -> HandledEvent {
@@ -133,12 +160,13 @@ impl BufferSurface {
         const ALT: KeyModifiers = KeyModifiers::ALT;
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
-        let mut f = ctx.editor.current_file().write();
+        let buffers = self.buffers.write();
+        let mut f = buffers.current_file().write();
 
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), CTRL) => {
                 drop(f);
-                self.quit(ctx, compositor);
+                self.quit(compositor);
             }
             (KeyCode::Esc, NONE) => {
                 self.clear_search();
@@ -152,18 +180,23 @@ impl BufferSurface {
             }
             (KeyCode::Char('?'), ALT) => {
                 self.fill_query_selection_or_word(&mut f.buffer);
-                self.update_search_matches(&ctx.editor, &f.buffer, &self.search_query.text());
+                self.update_search_matches(&f.buffer, &self.search_query.text());
                 self.select_search_matches(&mut f.buffer);
                 self.search_matches.clear();
             }
             (KeyCode::Char('f'), CTRL) => {
                 drop(f);
-                let finder = FinderSurface::new(ctx);
-                compositor.push_layer(ctx, finder);
+                let finder = FinderSurface::new(
+                    self.buffers.clone(),
+                    self.workspace_dir.clone(),
+                    self.event_tx.clone(),
+                    self.sync.clone(),
+                );
+                compositor.push_layer(finder);
             }
             (KeyCode::Char('s'), CTRL) => {
                 drop(f);
-                ctx.editor.save_current_buffer();
+                buffers.save_current_buffer();
             }
             (KeyCode::Char('u'), CTRL) => {
                 f.buffer.undo();
@@ -271,7 +304,7 @@ impl BufferSurface {
 
     fn handle_key_event_in_search(
         &mut self,
-        ctx: &mut Context,
+
         _compositor: &mut Compositor,
         key: KeyEvent,
     ) -> HandledEvent {
@@ -320,7 +353,8 @@ impl BufferSurface {
             }
             // Select all occurrences.
             (KeyCode::Char('?'), ALT, _) => {
-                let mut f = ctx.editor.current_file().write();
+                let buffers = self.buffers.write();
+                let mut f = buffers.current_file().write();
                 self.select_search_matches(&mut f.buffer);
                 self.mode = BufferSurfaceMode::Normal;
                 self.search_mode = SearchMode::Plain;
@@ -330,14 +364,12 @@ impl BufferSurface {
             // Move to the previous occurrence.
             (KeyCode::Char(','), ALT, SearchMode::Plain) => {
                 self.find_and_move(
-                    ctx,
                     |buffer, query, cursor_pos| Ok(buffer.find_prev(query, Some(cursor_pos))),
                     |buffer, query| Ok(buffer.find_prev(query, None)),
                 );
             }
             (KeyCode::Char(','), ALT, SearchMode::Regex) => {
                 self.find_and_move(
-                    ctx,
                     |buffer, query, cursor_pos| {
                         Ok(buffer.find_prev_by_regex(query, Some(cursor_pos))?)
                     },
@@ -348,7 +380,6 @@ impl BufferSurface {
             (KeyCode::Enter, NONE, SearchMode::Plain)
             | (KeyCode::Char('.'), ALT, SearchMode::Plain) => {
                 self.find_and_move(
-                    ctx,
                     |buffer, query, cursor_pos| Ok(buffer.find_next(query, Some(cursor_pos))),
                     |buffer, query| Ok(buffer.find_next(query, None)),
                 );
@@ -356,7 +387,6 @@ impl BufferSurface {
             (KeyCode::Enter, NONE, SearchMode::Regex)
             | (KeyCode::Char('.'), ALT, SearchMode::Regex) => {
                 self.find_and_move(
-                    ctx,
                     |buffer, query, cursor_pos| {
                         Ok(buffer.find_next_by_regex(query, Some(cursor_pos))?)
                     },
@@ -378,9 +408,10 @@ impl BufferSurface {
         }
 
         if update_matches {
-            let f = ctx.editor.current_file().read();
+            let buffers = self.buffers.read();
+            let mut f = buffers.current_file().read();
             let query = self.search_query.text();
-            self.update_search_matches(&ctx.editor, &f.buffer, &query);
+            self.update_search_matches(&f.buffer, &query);
         }
 
         HandledEvent::Consumed
@@ -393,7 +424,7 @@ impl BufferSurface {
         self.search_matches.clear();
     }
 
-    fn update_search_matches(&mut self, editor: &Editor, buffer: &Buffer, query: &str) {
+    fn update_search_matches(&mut self, buffer: &Buffer, query: &str) {
         if query.is_empty() {
             self.search_matches.clear();
         } else {
@@ -405,7 +436,8 @@ impl BufferSurface {
                 SearchMode::Regex => match buffer.find_all_by_regex(&query, None) {
                     Ok(iter) => iter.take(SEARCH_HIGHLIGHTS_MAX).collect(),
                     Err(err) => {
-                        editor.error(format!("{}", err));
+                        // FIXME:
+                        // editor.error(format!("{}", err));
                         return;
                     }
                 },
@@ -434,37 +466,42 @@ impl BufferSurface {
         buffer.select_by_ranges(&self.search_matches);
     }
 
-    fn find_and_move<F1, F2>(&mut self, ctx: &mut Context, find: F1, find_fallback: F2)
+    fn find_and_move<F1, F2>(&mut self, find: F1, find_fallback: F2)
     where
         F1: FnOnce(&Buffer, &str, Point) -> Result<Option<Range>>,
         F2: FnOnce(&Buffer, &str) -> Result<Option<Range>>,
     {
-        let mut f = ctx.editor.current_file().write();
+        let buffers = self.buffers.read();
+        let mut f = buffers.current_file().write();
 
         let query = self.search_query.text();
         let cursor_pos = f.buffer.main_cursor_pos();
         let next_match = match find(&f.buffer, &query, cursor_pos) {
             Ok(m) => m,
             Err(err) => {
-                ctx.editor.error(format!("{}", err));
+                // FIXME:
+                // ctx.editor.error(format!("{}", err));
                 return;
             }
         };
         let fallback_match = match find_fallback(&f.buffer, &query) {
             Ok(m) => m,
             Err(err) => {
-                ctx.editor.error(format!("{}", err));
+                // FIXME:
+                // ctx.editor.error(format!("{}", err));
                 return;
             }
         };
         let new_cursor_pos = match (next_match, fallback_match) {
             (Some(next_match), _) => Some(next_match.front()),
             (None, Some(first_match)) => {
-                ctx.editor.info("wrapped");
+                // FIXME:
+                // ctx.editor.info("wrapped");
                 Some(first_match.front())
             }
             (None, None) => {
-                ctx.editor.info("no matches");
+                // FIXME:
+                // ctx.editor.info("no matches");
                 None
             }
         };
@@ -492,7 +529,7 @@ impl Surface for BufferSurface {
         Some(self.cursor_position)
     }
 
-    fn render<'a>(&mut self, ctx: &mut Context, mut canvas: CanvasViewMut<'a>) {
+    fn render<'a>(&mut self, mut canvas: CanvasViewMut<'a>) {
         canvas.clear();
 
         let categories = [
@@ -502,7 +539,8 @@ impl Surface for BufferSurface {
         ];
 
         let (max_lineno_width, text_width, text_start_x) = {
-            let mut f = ctx.editor.current_file().write();
+            let mut buffers = self.buffers.write();
+            let mut f = buffers.current_file().write();
             let max_lineno_width = f.buffer.num_lines().display_width() + 1;
             let text_start_x = max_lineno_width + 2;
             let text_width = canvas.width() - (text_start_x + 1);
@@ -514,7 +552,8 @@ impl Surface for BufferSurface {
             (max_lineno_width, text_width, text_start_x)
         };
 
-        let f = ctx.editor.current_file().read();
+        let buffers = self.buffers.read();
+        let f = buffers.current_file().read();
 
         // Update the minimap.
         let mut minimap = self.minimap.lock();
@@ -534,12 +573,12 @@ impl Surface for BufferSurface {
         let draw_minimap_char =
             |canvas: &mut CanvasViewMut<'a>, y: usize, x: usize, status: &LineStatus| {
                 let style = match status {
-                    LineStatus::Cursor => &ctx.theme.line_status_cursor,
-                    LineStatus::Warning => &ctx.theme.line_status_warning,
-                    LineStatus::Error => &ctx.theme.line_status_error,
-                    LineStatus::AddedLine => &ctx.theme.line_status_added,
-                    LineStatus::RemovedLine => &ctx.theme.line_status_removed,
-                    LineStatus::ModifiedLine => &ctx.theme.line_status_modified,
+                    LineStatus::Cursor => &self.theme.line_status_cursor,
+                    LineStatus::Warning => &self.theme.line_status_warning,
+                    LineStatus::Error => &self.theme.line_status_error,
+                    LineStatus::AddedLine => &self.theme.line_status_added,
+                    LineStatus::RemovedLine => &self.theme.line_status_removed,
+                    LineStatus::ModifiedLine => &self.theme.line_status_modified,
                 };
 
                 canvas.draw_char(y, x, '\u{2590}' /* Right Half Block */);
@@ -653,7 +692,7 @@ impl Surface for BufferSurface {
                     i,
                     self.scroll_bar_x,
                     self.scroll_bar_x + 1,
-                    ctx.theme.line_status_visible,
+                    self.theme.line_status_visible,
                 );
             }
 
@@ -747,7 +786,12 @@ impl Surface for BufferSurface {
             );
         }
 
-        canvas.set_style(bottom_bar_y0, 0, canvas.width(), &ctx.theme.bottom_bar_text);
+        canvas.set_style(
+            bottom_bar_y0,
+            0,
+            canvas.width(),
+            &self.theme.bottom_bar_text,
+        );
 
         // Bottom bar: draw the second line.
         let bottom_bar_y1 = canvas.height() - 1;
@@ -786,18 +830,20 @@ impl Surface for BufferSurface {
             truncate_to_width(&query, max_query_width),
         );
 
-        if let Some(message) = ctx.editor.last_message() {
-            let (color, text) = match &message {
-                UserMessage::Info(text) => (Color::Cyan, text),
-                UserMessage::Error(text) => (Color::Red, text),
-            };
+        /* FIXME:
+                if let Some(message) = ctx.editor.last_message() {
+                    let (color, text) = match &message {
+                        UserMessage::Info(text) => (Color::Cyan, text),
+                        UserMessage::Error(text) => (Color::Red, text),
+                    };
 
-            let text = truncate_to_width(text, log_max_width);
-            let text_width = text.display_width();
-            let x = canvas.width() - text_width;
-            canvas.draw_str(bottom_bar_y1, x, text);
-            canvas.set_fg(bottom_bar_y1, x, x + text_width, color);
-        }
+                    let text = truncate_to_width(text, log_max_width);
+                    let text_width = text.display_width();
+                    let x = canvas.width() - text_width;
+                    canvas.draw_str(bottom_bar_y1, x, text);
+                    canvas.set_fg(bottom_bar_y1, x, x + text_width, color);
+                }
+        */
 
         // Determine the main cursor position.
         self.cursor_position = match self.mode {
@@ -816,38 +862,34 @@ impl Surface for BufferSurface {
         self.text_start_x = text_start_x;
     }
 
-    fn handle_key_event(
-        &mut self,
-        ctx: &mut Context,
-        compositor: &mut Compositor,
-        key: KeyEvent,
-    ) -> HandledEvent {
+    fn handle_key_event(&mut self, compositor: &mut Compositor, key: KeyEvent) -> HandledEvent {
         match self.mode {
-            BufferSurfaceMode::Normal => self.handle_key_event_in_buffer(ctx, compositor, key),
-            BufferSurfaceMode::Search => self.handle_key_event_in_search(ctx, compositor, key),
+            BufferSurfaceMode::Normal => self.handle_key_event_in_buffer(compositor, key),
+            BufferSurfaceMode::Search => self.handle_key_event_in_search(compositor, key),
         }
     }
 
     fn handle_key_batch_event(
         &mut self,
-        ctx: &mut Context,
+
         _compositor: &mut Compositor,
         input: &str,
     ) -> HandledEvent {
-        ctx.editor.current_file().write().buffer.insert(input);
+        self.buffers
+            .read()
+            .current_file()
+            .write()
+            .buffer
+            .insert(input);
         HandledEvent::Consumed
     }
 
-    fn handle_mouse_event(
-        &mut self,
-        ctx: &mut Context,
-        _compositor: &mut Compositor,
-        ev: MouseEvent,
-    ) -> HandledEvent {
+    fn handle_mouse_event(&mut self, _compositor: &mut Compositor, ev: MouseEvent) -> HandledEvent {
         const CTRL: KeyModifiers = KeyModifiers::CONTROL;
         const NONE: KeyModifiers = KeyModifiers::NONE;
 
-        let mut f = ctx.editor.current_file().write();
+        let buffers = self.buffers.write();
+        let mut f = buffers.current_file().write();
 
         let MouseEvent {
             kind,
@@ -885,9 +927,9 @@ impl Surface for BufferSurface {
                 HandledEvent::Consumed
             }
             (CTRL, MouseEventKind::Down(MouseButton::Left)) => {
-                let sync = ctx.editor.sync().clone();
-                let file = ctx.editor.current_file().clone();
-                let event_tx = ctx.event_tx.clone();
+                let file = buffers.current_file().clone();
+                let sync = self.sync.clone();
+                let event_tx = self.event_tx.clone();
                 tokio::spawn(async move {
                     match sync.lock().await.call_goto_definition(&file).await {
                         Ok(locs) => {

@@ -6,7 +6,7 @@ use noa_common::sync_protocol::{FileLocation, Notification};
 use noa_common::time_report::TimeReport;
 use parking_lot::Mutex;
 
-use crate::ui::{Context, HandledEvent, Layout, RectSize, Surface};
+use noa_cui::{HandledEvent, Layout, RectSize, Surface};
 
 use noa_cui::{truncate_to_width, Canvas, CanvasViewMut, Input, Terminal};
 
@@ -66,7 +66,7 @@ impl Compositor {
         }
     }
 
-    pub fn push_layer(&mut self, _ctx: &mut Context, surface: impl Surface + 'static) {
+    pub fn push_layer(&mut self, surface: impl Surface + 'static) {
         self.layers.push(Arc::new(Mutex::new(Layer {
             surface: Box::new(surface),
             active: true,
@@ -80,13 +80,13 @@ impl Compositor {
         self.layers.pop();
     }
 
-    pub fn resize_screen(&mut self, _ctx: &mut Context, height: usize, width: usize) {
+    pub fn resize_screen(&mut self, height: usize, width: usize) {
         self.screen_size = RectSize { height, width };
         self.screens = [Canvas::new(height, width), Canvas::new(height, width)];
         self.terminal.clear();
     }
 
-    pub fn render_to_terminal(&mut self, ctx: &mut Context) {
+    pub fn render_to_terminal(&mut self, cursor_pos: (usize, usize)) {
         // Re-layout layers.
         let cursor_pos = ctx.editor.current_file().read().buffer.main_cursor_pos();
         for layer in &mut self.layers {
@@ -104,7 +104,7 @@ impl Compositor {
 
         // Render and composite layers.
         let compose_layers_time = TimeReport::new("compose_layers");
-        compose_layers(ctx, &mut self.screens[screen_index], self.layers.iter());
+        compose_layers(&mut self.screens[screen_index], self.layers.iter());
         compose_layers_time.report();
 
         // Get the cursor position.
@@ -141,7 +141,7 @@ impl Compositor {
         stdout_write_time.report();
     }
 
-    pub fn handle_event(&mut self, ctx: &mut Context, ev: Event) {
+    pub fn handle_event(&mut self, ev: Event) {
         match ev {
             Event::Input(input) => match input {
                 Input::Key(key) => {
@@ -149,7 +149,7 @@ impl Compositor {
                         let mut layer = layer_lock.lock();
                         if layer.active {
                             if let HandledEvent::Consumed =
-                                layer.surface.handle_key_event(ctx, self, key)
+                                layer.surface.handle_key_event(self, key)
                             {
                                 return;
                             }
@@ -161,7 +161,7 @@ impl Compositor {
                         let mut layer = layer_lock.lock();
                         if layer.active {
                             if let HandledEvent::Consumed =
-                                layer.surface.handle_mouse_event(ctx, self, ev)
+                                layer.surface.handle_mouse_event(self, ev)
                             {
                                 return;
                             }
@@ -173,7 +173,7 @@ impl Compositor {
                         let mut layer = layer_lock.lock();
                         if layer.active {
                             if let HandledEvent::Consumed =
-                                layer.surface.handle_key_batch_event(ctx, self, &input)
+                                layer.surface.handle_key_batch_event(self, &input)
                             {
                                 return;
                             }
@@ -184,14 +184,16 @@ impl Compositor {
                     screen_height,
                     screen_width,
                 } => {
-                    self.resize_screen(ctx, screen_height, screen_width);
+                    self.resize_screen(screen_height, screen_width);
                 }
             },
             Event::OpenFile(loc) => {
-                ctx.editor.open_file(&loc.path, Some(loc.pos));
+                // FIXME:
+                // ctx.editor.open_file(&loc.path, Some(loc.pos));
             }
             Event::Notification(noti) => {
-                ctx.editor.handle_sync_notification(noti);
+                // FIXME:
+                // ctx.editor.handle_sync_notification(noti);
             }
             Event::ReDraw => {
                 // We have to do nothing here.
@@ -201,11 +203,7 @@ impl Compositor {
 }
 
 /// Renders each surfaces and copy the compose into the screen canvas.
-fn compose_layers<'a, 'b, 'c>(
-    ctx: &'a mut Context,
-    screen: &'b mut Canvas,
-    layers: slice::Iter<'c, Arc<Mutex<Layer>>>,
-) {
+fn compose_layers<'a, 'b>(screen: &'a mut Canvas, layers: slice::Iter<'b, Arc<Mutex<Layer>>>) {
     screen.view_mut().clear();
 
     for layer in layers {
@@ -225,7 +223,7 @@ fn compose_layers<'a, 'b, 'c>(
             _ => continue,
         }
 
-        layer.surface.render(ctx, layer.canvas.view_mut());
+        layer.surface.render(layer.canvas.view_mut());
         screen.copy_from_other(layer.screen_y, layer.screen_x, &layer.canvas);
     }
 }
@@ -292,22 +290,17 @@ impl Surface for TooSmallSurface {
         None
     }
 
-    fn render<'a>(&mut self, _ctx: &mut Context, mut canvas: CanvasViewMut<'a>) {
+    fn render<'a>(&mut self, mut canvas: CanvasViewMut<'a>) {
         canvas.draw_str(0, 0, truncate_to_width(&self.text, canvas.width()));
     }
 
-    fn handle_key_event(
-        &mut self,
-        _ctx: &mut Context,
-        _compositor: &mut Compositor,
-        _key: KeyEvent,
-    ) -> HandledEvent {
+    fn handle_key_event(&mut self, _compositor: &mut Compositor, _key: KeyEvent) -> HandledEvent {
         HandledEvent::Consumed
     }
 
     fn handle_key_batch_event(
         &mut self,
-        _ctx: &mut Context,
+
         _compositor: &mut Compositor,
         _input: &str,
     ) -> HandledEvent {
