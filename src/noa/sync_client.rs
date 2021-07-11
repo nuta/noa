@@ -15,7 +15,7 @@ use std::{
 use anyhow::{bail, Context, Result};
 use noa_buffer::Point;
 use noa_common::{
-    dirs::lsp_sock_path,
+    dirs::sync_sock_path,
     oops::OopsExt,
     sync_protocol::{
         lsp_types, BufferSyncRequest, FileLocation, LspRequest, LspResponse, Notification,
@@ -121,7 +121,6 @@ impl SyncClient {
         &self,
         opened_file: &Arc<RwLock<OpenedFile>>,
     ) -> Result<oneshot::Receiver<Vec<lsp_types::CompletionItem>>> {
-        trace!("calling completion");
         self.call_lsp_method_for_file(
             &opened_file,
             |path, opened_file| LspRequest::Completion {
@@ -131,7 +130,8 @@ impl SyncClient {
             |resp| match resp {
                 LspResponse::Completion(items) => Ok(items),
                 _ => {
-                    bail!("unexpected goto_definition response: {:?}", resp);
+                    error!("unexpected completion response: {:?}", resp);
+                    bail!("unexpected completion response: {:?}", resp);
                 }
             },
         )
@@ -164,7 +164,6 @@ impl SyncClient {
             }
         };
 
-        trace!("self.call");
         let resp_rx = self.call("lsp", Some(lang_id), req).await?;
         tokio::spawn(async move {
             let resp_body = match resp_rx.await {
@@ -206,7 +205,6 @@ impl SyncClient {
 
         let (tx, rx) = oneshot::channel::<String>();
         let id = self.next_request_id.fetch_add(1, Ordering::SeqCst);
-        trace!("lockign sent_req");
         self.sent_requests.lock().await.insert(id, tx);
 
         // Construct a request.
@@ -214,7 +212,6 @@ impl SyncClient {
         body.push('\n');
 
         for _ in 0..2 {
-            trace!("ensure LSP");
             self.ensure_daemon_is_spawned(daemon_type, lsp_lang).await?;
 
             // Send the request.
@@ -227,7 +224,9 @@ impl SyncClient {
                 .write_all(body.as_bytes())
                 .await
             {
-                Ok(()) => break,
+                Ok(()) => {
+                    break;
+                }
                 Err(err)
                     if err.kind() == ErrorKind::BrokenPipe
                         || err.kind() == ErrorKind::ConnectionRefused =>
@@ -244,7 +243,6 @@ impl SyncClient {
             }
         }
 
-        trace!("wait for respo");
         Ok(rx)
     }
 
@@ -265,7 +263,7 @@ impl SyncClient {
             return Ok(());
         }
 
-        let sock_path = lsp_sock_path(&self.workspace_dir, daemon_type);
+        let sock_path = sync_sock_path(&self.workspace_dir, daemon_type, lsp_lang);
         trace!("connecting to sync {}", sock_path.display());
         if UnixStream::connect(&sock_path).await.is_err() {
             // The sync for the language is not running. Spawn it.
@@ -280,7 +278,10 @@ impl SyncClient {
             spawn_sync(daemon_type, &self.workspace_dir, &sock_path, &extra_args)?;
         }
 
+        trace!("try connecting to sync {}", sock_path.display());
         let sock = try_to_connect(&sock_path).await?;
+        trace!("connected to sync {}", sock_path.display());
+
         let (read_end, write_end) = sock.into_split();
         self.daemon_connections
             .lock()
@@ -312,12 +313,12 @@ impl SyncClient {
 
                         match to_client {
                             ToClient::Notification(noti) => {
-                                event_tx.send(noti).unwrap();
+                                event_tx.send(noti).ok();
                             }
                             ToClient::Response(resp) => {
                                 match sent_requests.lock().await.remove(&resp.id) {
                                     Some(tx) => {
-                                        tx.send(resp.body).unwrap();
+                                        tx.send(resp.body).ok();
                                     }
                                     None => {
                                         warn!("unknown response id from sync: {:#?}", resp);
@@ -348,6 +349,7 @@ fn spawn_sync<A: AsRef<OsStr>>(
     extra_args: &[A],
 ) -> Result<()> {
     if cfg!(debug_assertions) {
+        info!("spawning from cargo");
         Command::new("cargo")
             .args(&["run", "--bin", "noa-sync", "--"])
             .arg("--daemon-type")

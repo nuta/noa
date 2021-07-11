@@ -253,9 +253,11 @@ async fn update_completion(
 
         match sync.call_completion(&opened_file).await {
             Ok(result) => {
+                trace!("waiting for completion results...");
                 if let Ok(items) = result.await {
                     let mut score = items.len() as isize;
                     for item in items {
+                        trace!("completion item: {:?}", item);
                         results.push(
                             score,
                             Item::Word {

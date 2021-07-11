@@ -26,10 +26,16 @@ struct Opt {
 
 #[tokio::main]
 async fn main() {
-    install_logger("sync");
-    trace!("starting");
-
     let opt = Opt::from_args();
+
+    install_logger(&format!(
+        "sync-{}",
+        opt.lsp_lang
+            .as_ref()
+            .map(String::as_str)
+            .unwrap_or_else(|| "buffer")
+    ));
+    trace!("starting");
 
     if UnixStream::connect(&opt.sock_path).await.is_ok() {
         panic!("sync already running at {}", opt.sock_path.display());
