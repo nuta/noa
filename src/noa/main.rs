@@ -14,7 +14,7 @@ use noa_common::{
     sync_protocol::{lsp_types::DiagnosticSeverity, FileLocation, LspRequest, Notification},
     tmux,
 };
-use noa_cui::Compositor;
+use noa_cui::{Compositor, Input};
 use parking_lot::RwLock;
 use std::{
     env::current_dir,
@@ -101,9 +101,9 @@ async fn open_path_in_tmux(opt: Opt) -> Result<()> {
 
 #[derive(Debug)]
 pub enum Event {
+    Quit,
     ReDraw,
     OpenFile(FileLocation),
-    Notification(Notification),
 }
 
 #[tokio::main]
@@ -166,6 +166,34 @@ async fn main() {
     );
     compositor.push_layer(buffer);
     compositor.push_layer(completion);
+
+    // Handle editor events.
+    {
+        let buffers = buffers.clone();
+        let sync = sync.clone();
+        let status_bar = status_bar.clone();
+        let input_tx = compositor.input_tx();
+        tokio::spawn(async move {
+            while let Some(ev) = event_rx.recv().await {
+                trace!("editor event: {:?}", ev);
+                match ev {
+                    Event::OpenFile(file_loc) => {
+                        status_bar.report_if_error(buffers.write().open_file(
+                            &sync,
+                            &file_loc.path,
+                            Some(file_loc.pos),
+                        ));
+                    }
+                    Event::Quit => {
+                        input_tx.send(Input::Quit).oops();
+                    }
+                    Event::ReDraw => {
+                        input_tx.send(Input::Redraw).oops();
+                    }
+                }
+            }
+        });
+    }
 
     // Handle (LSP) notifications.
     {
@@ -231,7 +259,8 @@ async fn main() {
         });
     }
 
-    let before_event = || {
+    // Before handling UI events.
+    let before_ui_event = || {
         // The buffer version *before* we handle user inputs that possibly modifies
         // the buffer.
         let started_at = Instant::now();
@@ -239,7 +268,8 @@ async fn main() {
         (started_at, prev)
     };
 
-    let after_event = |(started_at, prev): (Instant, (BufferId, usize))| {
+    // After handling UI events.
+    let after_ui_event = |(started_at, prev): (Instant, (BufferId, usize))| {
         let buffers = buffers.read();
         let current_file = buffers.current_file();
         let f = current_file.read();
@@ -371,6 +401,6 @@ async fn main() {
     };
 
     compositor
-        .mainloop(before_event, after_event, on_idle, cursor_pos)
+        .mainloop(before_ui_event, after_ui_event, on_idle, cursor_pos)
         .await;
 }

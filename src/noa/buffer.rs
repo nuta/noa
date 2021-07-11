@@ -9,6 +9,7 @@ use std::{
 
 use anyhow::Result;
 use noa_buffer::{Buffer, Cursor, Point, Range};
+use noa_common::oops::OopsExt;
 use noa_cui::{
     surfaces::{prompt::CallbackResult, yes_no::*},
     Color, KeyCode, KeyEvent, KeyModifiers, LineEdit, MouseButton, MouseEvent, MouseEventKind,
@@ -106,7 +107,7 @@ impl BufferSurface {
         let buffers = self.buffers.read();
         let dirty_buffers = buffers.dirty_buffers();
         if dirty_buffers.is_empty() {
-            // FIXME: QUIT EDITRR
+            self.event_tx.send(Event::Quit).oops();
             return;
         }
 
@@ -126,6 +127,7 @@ impl BufferSurface {
             basename,
             if dirty_buffers.len() > 1 { ", ..." } else { "" }
         );
+
         let prompt = YesNoSurface::new(
             &title,
             vec![
@@ -133,21 +135,23 @@ impl BufferSurface {
                 {
                     let buffers = self.buffers.clone();
                     let status_bar = self.status_bar.clone();
+                    let event_tx = self.event_tx.clone();
                     YesNoChoice::new('a', move || {
                         status_bar.report_if_error(buffers.write().save_all());
-                        // FIXME: QUIT
-                        // buffers.exit_editor();
+                        event_tx.send(Event::Quit).oops();
                         CallbackResult::Close
                     })
                 },
                 // Cancel.
                 YesNoChoice::new('c', || CallbackResult::Close),
                 // Force quit.
-                YesNoChoice::new('Q', || {
-                    // FIXME: QUIT
-                    // buffers.exit_editor();
-                    CallbackResult::Close
-                }),
+                {
+                    let event_tx = self.event_tx.clone();
+                    YesNoChoice::new('Q', move || {
+                        event_tx.send(Event::Quit).oops();
+                        CallbackResult::Close
+                    })
+                },
             ],
         );
         compositor.push_layer(prompt);

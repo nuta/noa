@@ -4,7 +4,7 @@ use std::{slice, sync::Arc};
 use crossterm::event::KeyEvent;
 use noa_common::time_report::TimeReport;
 use parking_lot::Mutex;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio::time::timeout;
 
 use crate::surface::{HandledEvent, Layout, RectSize, Surface};
@@ -22,6 +22,7 @@ pub struct Layer {
 pub struct Compositor {
     terminal: Terminal,
     input_rx: UnboundedReceiver<Input>,
+    input_tx: UnboundedSender<Input>,
     screens: [Canvas; 2],
     screen_size: RectSize,
     active_screen_index: usize,
@@ -32,7 +33,7 @@ pub struct Compositor {
 impl Compositor {
     pub fn new() -> Compositor {
         let (input_tx, input_rx) = unbounded_channel();
-        let terminal = Terminal::new(input_tx);
+        let terminal = Terminal::new(input_tx.clone());
 
         let screen_size = RectSize {
             height: terminal.height(),
@@ -56,11 +57,16 @@ impl Compositor {
         Compositor {
             terminal,
             input_rx,
+            input_tx,
             layers,
             screens: screen,
             active_screen_index: 0,
             screen_size,
         }
+    }
+
+    pub fn input_tx(&self) -> UnboundedSender<Input> {
+        self.input_tx.clone()
     }
 
     pub fn push_layer(&mut self, surface: impl Surface + 'static) {
@@ -137,14 +143,14 @@ impl Compositor {
         stdout_write_time.report();
     }
 
-    pub fn handle_event(&mut self, ev: Input) {
+    pub fn handle_event(&mut self, ev: Input) -> bool {
         match ev {
             Input::Key(key) => {
                 for layer_lock in self.layers.clone().iter().rev() {
                     let mut layer = layer_lock.lock();
                     if layer.active {
                         if let HandledEvent::Consumed = layer.surface.handle_key_event(self, key) {
-                            return;
+                            break;
                         }
                     }
                 }
@@ -154,7 +160,7 @@ impl Compositor {
                     let mut layer = layer_lock.lock();
                     if layer.active {
                         if let HandledEvent::Consumed = layer.surface.handle_mouse_event(self, ev) {
-                            return;
+                            break;
                         }
                     }
                 }
@@ -166,7 +172,7 @@ impl Compositor {
                         if let HandledEvent::Consumed =
                             layer.surface.handle_key_batch_event(self, &input)
                         {
-                            return;
+                            break;
                         }
                     }
                 }
@@ -177,7 +183,11 @@ impl Compositor {
             } => {
                 self.resize_screen(screen_height, screen_width);
             }
+            Input::Redraw => {}
+            Input::Quit => return false,
         }
+
+        true
     }
 
     pub async fn mainloop<F1, F2, F3, F4, T>(
@@ -201,11 +211,16 @@ impl Compositor {
                 Ok(Some(ev)) => {
                     let prev = before_event();
 
-                    self.handle_event(ev);
+                    if !self.handle_event(ev) {
+                        break;
+                    }
+
                     while let Ok(Some(ev)) =
                         timeout(Duration::from_micros(400), self.input_rx.recv()).await
                     {
-                        self.handle_event(ev);
+                        if !self.handle_event(ev) {
+                            break;
+                        }
                     }
 
                     after_event(prev);

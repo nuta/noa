@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 pub trait OopsExt: Sized {
     fn oops_with_reason(self, reason: &str);
 
@@ -10,7 +12,7 @@ pub trait OopsExt: Sized {
     }
 }
 
-impl<T> OopsExt for anyhow::Result<T> {
+impl<T, E: Debug> OopsExt for std::result::Result<T, E> {
     fn oops_with_reason(self, reason: &str) {
         match self {
             Ok(_) => {}

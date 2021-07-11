@@ -27,6 +27,8 @@ pub enum Input {
         screen_height: usize,
         screen_width: usize,
     },
+    Redraw,
+    Quit,
 }
 
 async fn terminal_input_handler(event_queue: UnboundedSender<Input>) {
