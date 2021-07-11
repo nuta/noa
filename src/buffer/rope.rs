@@ -307,7 +307,7 @@ impl Rope {
             return SearchIter::new_empty(self);
         }
 
-        let needle = needle.to_owned(); // FIXME:
+        let needle = needle.to_owned();
         SearchIter::new(
             self,
             move |heystack| {
