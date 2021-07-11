@@ -4,7 +4,7 @@ use crate::Event;
 use anyhow::Result;
 
 use noa_common::oops::OopsExt;
-use noa_common::sync_protocol::LspRequest;
+use noa_common::sync_protocol::{LspRequest, LspResponse};
 use parking_lot::RwLock;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Mutex;
@@ -152,12 +152,14 @@ impl BufferSet {
             tokio::spawn(async move {
                 sync.lock()
                     .await
-                    .call_lsp_method_for_file(&opened_file, |path, opened_file| {
-                        LspRequest::OpenFile {
+                    .call_lsp_method_for_file(
+                        &opened_file,
+                        |path, opened_file| LspRequest::OpenFile {
                             path,
                             text: opened_file.buffer.text(),
-                        }
-                    })
+                        },
+                        |_: LspResponse| Ok(()),
+                    )
                     .await
                     .oops();
             });

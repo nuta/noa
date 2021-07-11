@@ -951,10 +951,12 @@ impl Surface for BufferSurface {
                 let event_tx = self.event_tx.clone();
                 tokio::spawn(async move {
                     match sync.lock().await.call_goto_definition(&file).await {
-                        Ok(locs) => {
-                            trace!("goto_definition: {:?}", locs);
-                            if !locs.is_empty() {
-                                event_tx.send(Event::OpenFile(locs[0].clone())).ok();
+                        Ok(locs_rx) => {
+                            if let Ok(locs) = locs_rx.await {
+                                trace!("goto_definition: {:?}", locs);
+                                if !locs.is_empty() {
+                                    event_tx.send(Event::OpenFile(locs[0].clone())).ok();
+                                }
                             }
                         }
                         Err(err) => {

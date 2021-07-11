@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     ffi::OsStr,
+    fmt::Debug,
     io::ErrorKind,
     path::{Path, PathBuf},
     process::Stdio,
@@ -12,6 +13,7 @@ use anyhow::{bail, Context, Result};
 use noa_buffer::Point;
 use noa_common::{
     dirs::lsp_sock_path,
+    oops::OopsExt,
     sync_protocol::{
         lsp_types, BufferSyncRequest, FileLocation, LspRequest, LspResponse, Notification,
         RawRequest, ToClient, ToServer,
@@ -95,51 +97,57 @@ impl SyncClient {
     pub async fn call_goto_definition(
         &mut self,
         opened_file: &Arc<RwLock<OpenedFile>>,
-    ) -> Result<Vec<FileLocation>> {
-        let resp = self
-            .call_lsp_method_for_file(opened_file, |path, opened_file| {
-                LspRequest::GoToDefinition {
-                    path,
-                    position: opened_file.buffer.main_cursor_pos(),
+    ) -> Result<oneshot::Receiver<Vec<FileLocation>>> {
+        self.call_lsp_method_for_file(
+            opened_file,
+            |path, opened_file| LspRequest::GoToDefinition {
+                path,
+                position: opened_file.buffer.main_cursor_pos(),
+            },
+            |resp| match resp {
+                LspResponse::GoToDefinition(locs) => Ok(locs),
+                _ => {
+                    bail!("unexpected goto_definition response: {:?}", resp);
                 }
-            })
-            .await;
-
-        match resp {
-            Ok(LspResponse::GoToDefinition(locs)) => Ok(locs),
-            _ => {
-                bail!("unexpected goto_definition response: {:?}", resp);
-            }
-        }
+            },
+        )
+        .await
     }
 
     pub async fn call_completion(
         &mut self,
         opened_file: &Arc<RwLock<OpenedFile>>,
-    ) -> Result<Vec<lsp_types::CompletionItem>> {
-        let resp = self
-            .call_lsp_method_for_file(opened_file, |path, opened_file| LspRequest::Completion {
+    ) -> Result<oneshot::Receiver<Vec<lsp_types::CompletionItem>>> {
+        self.call_lsp_method_for_file(
+            &opened_file,
+            |path, opened_file| LspRequest::Completion {
                 path,
                 position: opened_file.buffer.main_cursor_pos(),
-            })
-            .await;
-
-        match resp {
-            Ok(LspResponse::Completion(items)) => Ok(items),
-            _ => {
-                bail!("unexpected goto_definition response: {:?}", resp);
-            }
-        }
+            },
+            |resp| match resp {
+                LspResponse::Completion(items) => Ok(items),
+                _ => {
+                    bail!("unexpected goto_definition response: {:?}", resp);
+                }
+            },
+        )
+        .await
     }
 
-    pub async fn call_lsp_method_for_file<F, I: Serialize>(
+    pub async fn call_lsp_method_for_file<F, G, I: Serialize, R1, R2>(
         &mut self,
         opened_file: &Arc<RwLock<OpenedFile>>,
         build_req: F,
-    ) -> Result<LspResponse>
+        parse_resp: G,
+    ) -> Result<oneshot::Receiver<R2>>
     where
         F: FnOnce(PathBuf, &OpenedFile) -> I,
+        G: FnOnce(R1) -> Result<R2> + Send + 'static,
+        R1: serde::de::DeserializeOwned,
+        R2: Debug + Send + 'static,
     {
+        let (result_tx, result_rx) = oneshot::channel();
+
         let (lang_id, req) = {
             let opened_file = opened_file.read();
             match (
@@ -152,9 +160,35 @@ impl SyncClient {
             }
         };
 
-        let resp_body = self.call("lsp", Some(lang_id), req).await?;
-        let resp = serde_json::from_str(&resp_body)?;
-        Ok(resp)
+        let resp_rx = self.call("lsp", Some(lang_id), req).await?;
+        tokio::spawn(async move {
+            let resp_body = match resp_rx.await {
+                Ok(body) => body,
+                Err(err) => {
+                    error!("failed to receive response from sync server: {:?}", err);
+                    return;
+                }
+            };
+
+            let resp_raw: R1 = match serde_json::from_str(&resp_body) {
+                Ok(resp) => resp,
+                Err(err) => {
+                    error!("failed to parse response from sync server: {:?}", err);
+                    return;
+                }
+            };
+            let resp: R2 = match parse_resp(resp_raw) {
+                Ok(resp) => resp,
+                Err(err) => {
+                    error!("failed to parse response from sync server: {:?}", err);
+                    return;
+                }
+            };
+
+            result_tx.send(resp).oops();
+        });
+
+        Ok(result_rx)
     }
 
     pub async fn call<I: Serialize>(
@@ -162,7 +196,7 @@ impl SyncClient {
         daemon_type: &'static str,
         lsp_lang: Option<&'static str>,
         request: I,
-    ) -> Result<String> {
+    ) -> Result<oneshot::Receiver<String>> {
         use tokio::io::AsyncWriteExt;
 
         let (tx, rx) = oneshot::channel::<String>();
@@ -203,7 +237,7 @@ impl SyncClient {
         }
 
         // Wait for the response.
-        Ok(rx.await?)
+        Ok(rx)
     }
 
     async fn ensure_daemon_is_spawned(

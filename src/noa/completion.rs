@@ -252,17 +252,19 @@ async fn update_completion(
         trace!("sending completion message...");
 
         match sync.lock().await.call_completion(&opened_file).await {
-            Ok(items) => {
-                let mut score = items.len() as isize;
-                for item in items {
-                    results.push(
-                        score,
-                        Item::Word {
-                            display_text: item.label,
-                            insert_text: item.insert_text,
-                        },
-                    );
-                    score -= 1;
+            Ok(result) => {
+                if let Ok(items) = result.await {
+                    let mut score = items.len() as isize;
+                    for item in items {
+                        results.push(
+                            score,
+                            Item::Word {
+                                display_text: item.label,
+                                insert_text: item.insert_text,
+                            },
+                        );
+                        score -= 1;
+                    }
                 }
             }
             Err(err) => {

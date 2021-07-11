@@ -11,7 +11,9 @@ use noa_common::{
     fast_hash::compute_fast_hash,
     logger::install_logger,
     oops::OopsExt,
-    sync_protocol::{lsp_types::DiagnosticSeverity, FileLocation, LspRequest, Notification},
+    sync_protocol::{
+        lsp_types::DiagnosticSeverity, FileLocation, LspRequest, LspResponse, Notification,
+    },
     tmux,
 };
 use noa_cui::{Compositor, Input};
@@ -313,11 +315,15 @@ async fn main() {
                 tokio::spawn(async move {
                     sync.lock()
                         .await
-                        .call_lsp_method_for_file(&current_file, |path, f| LspRequest::UpdateFile {
-                            path,
-                            text: f.buffer.text(),
-                            version: f.buffer.version(),
-                        })
+                        .call_lsp_method_for_file(
+                            &current_file,
+                            |path, f| LspRequest::UpdateFile {
+                                path,
+                                text: f.buffer.text(),
+                                version: f.buffer.version(),
+                            },
+                            |_: LspResponse| Ok(()),
+                        )
                         .await
                         .oops();
                 });
