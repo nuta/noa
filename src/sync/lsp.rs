@@ -144,8 +144,6 @@ async fn receive_responses(
         };
 
         // Parse the JSON.
-        trace!("body = '{}'", body);
-        trace!("----------------------------------------------------------");
         match serde_json::from_str::<jsonrpc_core::Output>(&body) {
             Ok(jsonrpc_core::Output::Success(json)) => {
                 // Received a response to a request.

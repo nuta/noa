@@ -15,8 +15,8 @@ pub enum ToServer<R> {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub enum ToClient<R> {
-    Response(RawResponse<R>),
+pub enum ToClient {
+    Response(RawResponse),
     Notification(Notification),
 }
 
@@ -27,9 +27,9 @@ pub struct RawRequest<T> {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct RawResponse<T> {
+pub struct RawResponse {
     pub id: usize,
-    pub body: T,
+    pub body: String,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -106,7 +106,7 @@ pub enum BufferSyncResponse {
 }
 
 unsafe impl<T: Send> Send for RawRequest<T> {}
-unsafe impl<T: Send> Send for RawResponse<T> {}
+unsafe impl Send for RawResponse {}
 unsafe impl Send for Notification {}
 unsafe impl Send for LspRequest {}
 unsafe impl Send for LspResponse {}

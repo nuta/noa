@@ -174,10 +174,11 @@ impl SyncClient {
                 }
             };
 
+            info!("PARSE BODY : {}", resp_body);
             let resp_raw: R1 = match serde_json::from_str(&resp_body) {
                 Ok(resp) => resp,
                 Err(err) => {
-                    error!("failed to parse response from sync server: {:?}", err);
+                    error!("failed to deserialize response from sync server: {:?}", err);
                     return;
                 }
             };
@@ -303,7 +304,8 @@ impl SyncClient {
                         break;
                     }
                     Ok(_) => {
-                        let to_client: ToClient<String> = match serde_json::from_str(&buf) {
+                        info!(">>> buf = {}", buf);
+                        let to_client: ToClient = match serde_json::from_str(&buf) {
                             Ok(resp) => resp,
                             Err(err) => {
                                 warn!("invalid packet from a sync socket: {}", err);
@@ -318,6 +320,7 @@ impl SyncClient {
                             ToClient::Response(resp) => {
                                 match sent_requests.lock().await.remove(&resp.id) {
                                     Some(tx) => {
+                                        trace!("resp.body={:?}", resp);
                                         tx.send(resp.body).ok();
                                     }
                                     None => {

@@ -50,8 +50,7 @@ pub async fn eventloop<D: Daemon + 'static>(
         spawn(async move {
             while let Some(noti) = noti_rx.recv().await {
                 trace!("sending a notification to noa: {:?}", noti);
-                let mut json =
-                    serde_json::to_string(&ToClient::<D::Response>::Notification(noti)).unwrap();
+                let mut json = serde_json::to_string(&ToClient::Notification(noti)).unwrap();
 
                 json.push('\n');
 
@@ -108,13 +107,16 @@ pub async fn eventloop<D: Daemon + 'static>(
                                         match daemon_lock.lock().await.process_request(params).await
                                         {
                                             Ok(body) => {
-                                                let resp = ToClient::<D::Response>::Response(
-                                                    RawResponse { id, body },
-                                                );
+                                                let resp = ToClient::Response(RawResponse {
+                                                    id,
+                                                    body: serde_json::to_string(&body).unwrap(),
+                                                });
                                                 let mut json =
                                                     serde_json::to_string(&resp).unwrap();
 
                                                 json.push('\n');
+                                                trace!("=========================================");
+                                                trace!("body = {}", json);
 
                                                 // Reply the response to noa.
                                                 warn_on_error!(

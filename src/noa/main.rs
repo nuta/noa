@@ -123,7 +123,10 @@ async fn main() {
     }
 
     let workspace_dir = match opt.files.get(0) {
-        Some(file_or_dir) if file_or_dir.is_dir() => file_or_dir.clone(),
+        Some(file_or_dir) if file_or_dir.is_dir() => file_or_dir
+            .clone()
+            .canonicalize()
+            .expect("failed to canonicalize the workspace dir"),
         _ => current_dir().unwrap(),
     };
 
