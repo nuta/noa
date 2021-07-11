@@ -1,14 +1,8 @@
 use std::cmp::{max, min};
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use noa_cui::truncate_to_width;
-
 use crate::{
-    line_edit::LineEdit,
-    ui::{
-        CanvasViewMut, Compositor, Context, Decoration, DisplayWidth, HandledEvent, Layout,
-        RectSize, Surface,
-    },
+    truncate_to_width, CanvasViewMut, Compositor, Decoration, DisplayWidth, HandledEvent, KeyCode,
+    KeyEvent, KeyModifiers, Layout, LineEdit, RectSize, Surface,
 };
 
 #[derive(Debug)]
@@ -31,18 +25,17 @@ pub struct PromptSurface {
     prompt_width: usize,
     input_width: usize,
     message: Option<PromptMessage>,
-    onchange: Option<Box<dyn Fn(&mut Context, &mut LineEdit) -> CallbackResult>>,
-    oncommit: Box<dyn Fn(&mut Context, &str) -> CallbackResult>,
+    onchange: Option<Box<dyn Fn(&mut LineEdit) -> CallbackResult>>,
+    oncommit: Box<dyn Fn(&str) -> CallbackResult>,
 }
 
 impl PromptSurface {
     pub fn new(
-        _ctx: &mut Context,
         title: &str,
         prompt: &str,
         input_width: usize,
-        onchange: Option<Box<dyn Fn(&mut Context, &mut LineEdit) -> CallbackResult>>,
-        oncommit: Box<dyn Fn(&mut Context, &str) -> CallbackResult>,
+        onchange: Option<Box<dyn Fn(&mut LineEdit) -> CallbackResult>>,
+        oncommit: Box<dyn Fn(&str) -> CallbackResult>,
     ) -> PromptSurface {
         PromptSurface {
             input: LineEdit::new(),
@@ -57,8 +50,8 @@ impl PromptSurface {
         }
     }
 
-    fn commit(&mut self, ctx: &mut Context, compositor: &mut Compositor) {
-        match (self.oncommit)(ctx, &self.input.text()) {
+    fn commit(&mut self, compositor: &mut Compositor) {
+        match (self.oncommit)(&self.input.text()) {
             CallbackResult::Keep(message) => {
                 self.message = message;
             }
@@ -102,7 +95,7 @@ impl Surface for PromptSurface {
         ))
     }
 
-    fn render<'a>(&mut self, _ctx: &mut Context, mut canvas: CanvasViewMut<'a>) {
+    fn render<'a>(&mut self, mut canvas: CanvasViewMut<'a>) {
         canvas.clear();
 
         // Border.
@@ -125,12 +118,7 @@ impl Surface for PromptSurface {
         }
     }
 
-    fn handle_key_event(
-        &mut self,
-        ctx: &mut Context,
-        compositor: &mut Compositor,
-        key: KeyEvent,
-    ) -> HandledEvent {
+    fn handle_key_event(&mut self, compositor: &mut Compositor, key: KeyEvent) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
         // const CTRL: KeyModifiers = KeyModifiers::CONTROL;
         // const ALT: KeyModifiers = KeyModifiers::ALT;
@@ -146,7 +134,7 @@ impl Surface for PromptSurface {
                     return HandledEvent::Consumed;
                 }
                 (NONE, KeyCode::Enter) => {
-                    self.commit(ctx, compositor);
+                    self.commit(compositor);
                     return HandledEvent::Consumed;
                 }
                 _ => {
@@ -158,7 +146,7 @@ impl Surface for PromptSurface {
 
         if &prev_query != self.input.rope() {
             if let Some(onchange) = &self.onchange {
-                match onchange(ctx, &mut self.input) {
+                match onchange(&mut self.input) {
                     CallbackResult::Keep(message) => {
                         self.message = message;
                     }
@@ -166,7 +154,7 @@ impl Surface for PromptSurface {
                         compositor.pop_layer();
                     }
                     CallbackResult::_Commit => {
-                        self.commit(ctx, compositor);
+                        self.commit(compositor);
                     }
                 }
             }
@@ -176,7 +164,7 @@ impl Surface for PromptSurface {
 
     fn handle_key_batch_event(
         &mut self,
-        _ctx: &mut Context,
+
         _compositor: &mut Compositor,
         input: &str,
     ) -> HandledEvent {

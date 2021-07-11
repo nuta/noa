@@ -1,20 +1,21 @@
 use std::{cmp::max, sync::Arc};
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use noa_buffer::Snapshot;
 use noa_cui::truncate_to_width;
+use noa_cui::{KeyCode, KeyEvent, KeyModifiers};
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
-    editor::OpenedFile,
+    buffer_set::{BufferSet, OpenedFile},
     fuzzy_set::FuzzySet,
     selector::Selector,
     sync_client::SyncClient,
-    ui::{
-        CanvasViewMut, Compositor, Context, Decoration, DisplayWidth, Event, HandledEvent, Layout,
-        RectSize, Surface,
-    },
+    Event,
+};
+
+use noa_cui::{
+    CanvasViewMut, Compositor, Decoration, DisplayWidth, HandledEvent, Layout, RectSize, Surface,
 };
 
 const MIN_WIDTH: usize = 16;
@@ -27,29 +28,41 @@ enum Item {
 }
 
 pub struct CompletionSurface {
+    buffers: Arc<RwLock<BufferSet>>,
+    event_tx: UnboundedSender<Event>,
+    sync: Arc<SyncClient>,
     selector: Arc<Mutex<Selector<Item>>>,
 }
 
 impl CompletionSurface {
-    pub fn new(ctx: &mut Context) -> CompletionSurface {
+    pub fn new(
+        buffers: Arc<RwLock<BufferSet>>,
+        event_tx: UnboundedSender<Event>,
+        sync: Arc<SyncClient>,
+    ) -> CompletionSurface {
         let selector = Arc::new(Mutex::new(Selector::new()));
-        let opened_file = ctx.editor.current_file().read();
-        let current_word = opened_file
-            .buffer
-            .current_word()
-            .unwrap_or_else(|| "".to_owned());
-        let snapshot = opened_file.buffer.take_snapshot();
+        let (current_file, current_word, snapshot) = {
+            let buffers = buffers.read();
+            let current_file = buffers.current_file().clone();
+            let f = buffers.current_file().read();
+            let current_word = f.buffer.current_word().unwrap_or_else(|| "".to_owned());
+            let snapshot = f.buffer.take_snapshot();
+            (current_file, current_word, snapshot)
+        };
 
         tokio::spawn(update_completion(
-            ctx.event_tx.clone(),
+            event_tx.clone(),
             selector,
             current_word,
-            ctx.editor.sync().clone(),
-            ctx.editor.current_file().clone(),
+            sync.clone(),
+            current_file,
             snapshot,
         ));
 
         CompletionSurface {
+            buffers,
+            event_tx,
+            sync,
             selector: Arc::new(Mutex::new(Selector::new())),
         }
     }
@@ -88,7 +101,7 @@ impl Surface for CompletionSurface {
         None
     }
 
-    fn render<'a>(&mut self, _ctx: &mut Context, mut canvas: CanvasViewMut<'a>) {
+    fn render<'a>(&mut self, mut canvas: CanvasViewMut<'a>) {
         canvas.clear();
         canvas.draw_borders(0, 0, canvas.height() - 1, canvas.width() - 1);
 
@@ -122,19 +135,16 @@ impl Surface for CompletionSurface {
         }
     }
 
-    fn handle_key_event(
-        &mut self,
-        ctx: &mut Context,
-        _compositor: &mut Compositor,
-        key: KeyEvent,
-    ) -> HandledEvent {
+    fn handle_key_event(&mut self, _compositor: &mut Compositor, key: KeyEvent) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
         // const CTRL: KeyModifiers = KeyModifiers::CONTROL;
         // const ALT: KeyModifiers = KeyModifiers::ALT;
         // const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
         if matches!(key.code, KeyCode::Char(_)) {
-            let opened_file = ctx.editor.current_file().read();
+            let buffers = self.buffers.read();
+            let current_file = buffers.current_file();
+            let opened_file = current_file.read();
             let current_word = opened_file
                 .buffer
                 .current_word()
@@ -142,11 +152,11 @@ impl Surface for CompletionSurface {
             let snapshot = opened_file.buffer.take_snapshot();
 
             tokio::spawn(update_completion(
-                ctx.event_tx.clone(),
+                self.event_tx.clone(),
                 self.selector.clone(),
                 current_word,
-                ctx.editor.sync().clone(),
-                ctx.editor.current_file().clone(),
+                self.sync.clone(),
+                current_file.clone(),
                 snapshot,
             ));
         }
@@ -176,7 +186,8 @@ impl Surface for CompletionSurface {
                             insert_text,
                             display_text,
                         } => {
-                            let mut f = ctx.editor.current_file().write();
+                            let buffers = self.buffers.read();
+                            let mut f = buffers.current_file().write();
                             if let Some(range) = f.buffer.current_word_range() {
                                 f.buffer.select_by_ranges(&[range]);
                                 f.buffer.insert(match insert_text {
@@ -197,7 +208,7 @@ impl Surface for CompletionSurface {
 
     fn handle_key_batch_event(
         &mut self,
-        _ctx: &mut Context,
+
         _compositor: &mut Compositor,
         _input: &str,
     ) -> HandledEvent {
@@ -209,7 +220,7 @@ async fn update_completion(
     event_tx: UnboundedSender<Event>,
     selector: Arc<Mutex<Selector<Item>>>,
     query: String,
-    sync: Arc<tokio::sync::Mutex<SyncClient>>,
+    sync: Arc<SyncClient>,
     opened_file: Arc<RwLock<OpenedFile>>,
     snapshot: Arc<Snapshot>,
 ) {
@@ -240,26 +251,28 @@ async fn update_completion(
         let mut results = FuzzySet::with_capacity(32);
         trace!("sending completion message...");
 
-        /* TODO:
-        match sync.lock().await.call_completion(&opened_file).await {
-            Ok(items) => {
-                let mut score = items.len() as isize;
-                for item in items {
-                    results.push(
-                        score,
-                        Item::Word {
-                            display_text: item.label,
-                            insert_text: item.insert_text,
-                        },
-                    );
-                    score -= 1;
+        match sync.call_completion(&opened_file).await {
+            Ok(result) => {
+                trace!("waiting for completion results...");
+                if let Ok(items) = result.await {
+                    let mut score = items.len() as isize;
+                    for item in items {
+                        trace!("completion item: {:?}", item);
+                        results.push(
+                            score,
+                            Item::Word {
+                                display_text: item.label,
+                                insert_text: item.insert_text,
+                            },
+                        );
+                        score -= 1;
+                    }
                 }
             }
             Err(err) => {
                 warn!("failed to call Completion request: {}", err);
             }
         }
-        */
         results
     };
 

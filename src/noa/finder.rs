@@ -4,25 +4,26 @@ use std::{
     sync::Arc,
 };
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use noa_common::{
     dirs::noa_bin_args,
     oops::OopsExt,
     tmux::{self, in_tmux},
 };
-use parking_lot::Mutex;
+use noa_cui::{KeyCode, KeyEvent, KeyModifiers, LineEdit};
+use parking_lot::{Mutex, RwLock};
 use tokio::{process::Command, sync::mpsc::UnboundedSender};
 
 use crate::{
-    actions::{Action, ACTIONS},
+    actions::{self, Action, ACTIONS},
+    buffer::StatusBar,
+    buffer_set::BufferSet,
     fuzzy_set::FuzzySet,
-    line_edit::LineEdit,
     selector::Selector,
-    ui::{
-        CanvasViewMut, Compositor, Context, Decoration, Event, HandledEvent, Layout, RectSize,
-        Surface,
-    },
+    sync_client::SyncClient,
+    Event,
 };
+
+use noa_cui::{CanvasViewMut, Compositor, Decoration, HandledEvent, Layout, RectSize, Surface};
 
 #[derive(Debug)]
 enum Item {
@@ -31,49 +32,73 @@ enum Item {
 }
 
 pub struct FinderSurface {
+    status_bar: Arc<StatusBar>,
+    buffers: Arc<RwLock<BufferSet>>,
+    workspace_dir: PathBuf,
+    event_tx: UnboundedSender<Event>,
     input: LineEdit,
     selector: Arc<Mutex<Selector<Item>>>,
+    sync: Arc<SyncClient>,
 }
 
 impl FinderSurface {
-    pub fn new(ctx: &mut Context) -> FinderSurface {
+    pub fn new(
+        status_bar: Arc<StatusBar>,
+        buffers: Arc<RwLock<BufferSet>>,
+        workspace_dir: PathBuf,
+        event_tx: UnboundedSender<Event>,
+        sync: Arc<SyncClient>,
+    ) -> FinderSurface {
         let selector = Arc::new(Mutex::new(Selector::new()));
 
         tokio::spawn(update_items(
-            ctx.editor.workspace_dir().to_owned(),
-            ctx.event_tx.clone(),
+            workspace_dir.to_owned(),
+            event_tx.clone(),
             selector.clone(),
             "".to_owned(),
         ));
 
         FinderSurface {
+            status_bar,
+            buffers,
+            workspace_dir,
+            event_tx,
             input: LineEdit::new(),
             selector,
+            sync,
         }
     }
 
-    fn select(&self, ctx: &mut Context, compositor: &mut Compositor, item: &Item) {
+    fn select(&self, _compositor: &mut Compositor, item: &Item) {
         match item {
             Item::File(path) => {
-                ctx.editor.open_file(path, None);
+                self.status_bar
+                    .report_if_error(self.buffers.write().open_file(
+                        &self.sync,
+                        &self.event_tx,
+                        path,
+                        None,
+                    ));
             }
             Item::Action(action) => {
-                action.execute(ctx, compositor);
+                action.execute(&actions::Context {
+                    buffers: &self.buffers,
+                });
             }
         }
     }
 
-    fn select_in_new_pane(&self, ctx: &mut Context, item: &Item) {
+    fn select_in_new_pane(&self, item: &Item) {
         if !in_tmux() {
-            ctx.editor.error("not in tmux");
+            self.status_bar.error("not in tmux");
             return;
         }
 
         match item {
             Item::File(path) => {
-                ctx.editor
+                self.status_bar
                     .info(format!("opening {} in new pane", path.display()));
-                ctx.editor.check_run_background(
+                self.status_bar.check_run_background(
                     "tmux-splitw",
                     Command::new("tmux")
                         .args(&["splitw", "-h"])
@@ -85,9 +110,9 @@ impl FinderSurface {
         }
     }
 
-    fn select_in_other_pane(&self, ctx: &mut Context, item: &Item) {
+    fn select_in_other_pane(&self, item: &Item) {
         if !in_tmux() {
-            ctx.editor.error("not in tmux");
+            self.status_bar.error("not in tmux");
             return;
         }
 
@@ -101,15 +126,13 @@ impl FinderSurface {
                     }
                 };
 
-                ctx.editor
+                self.status_bar
                     .info(format!("opening {} in other pane", path.display(),));
 
-                let sync = ctx.editor.sync().clone();
+                let sync = self.sync.clone();
                 let path = path.to_owned();
                 tokio::spawn(async move {
-                    sync.lock()
-                        .await
-                        .call_buffer_open_file_in_other(&pane_id, &path, None)
+                    sync.call_buffer_open_file_in_other(&pane_id, &path, None)
                         .await
                         .oops();
                 });
@@ -140,7 +163,7 @@ impl Surface for FinderSurface {
         Some((1, 1 + self.input.cursor_display_pos()))
     }
 
-    fn render<'a>(&mut self, _ctx: &mut Context, mut canvas: CanvasViewMut<'a>) {
+    fn render<'a>(&mut self, mut canvas: CanvasViewMut<'a>) {
         canvas.clear();
         let mut inner = canvas.draw_borders(0, 0, canvas.height(), canvas.width());
 
@@ -169,12 +192,7 @@ impl Surface for FinderSurface {
         }
     }
 
-    fn handle_key_event(
-        &mut self,
-        ctx: &mut Context,
-        compositor: &mut Compositor,
-        key: KeyEvent,
-    ) -> HandledEvent {
+    fn handle_key_event(&mut self, compositor: &mut Compositor, key: KeyEvent) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
         // const CTRL: KeyModifiers = KeyModifiers::CONTROL;
         // const ALT: KeyModifiers = KeyModifiers::ALT;
@@ -196,7 +214,7 @@ impl Surface for FinderSurface {
                 }
                 (NONE, KeyCode::Enter) => {
                     if let Some(item) = self.selector.lock().selected() {
-                        self.select(ctx, compositor, item);
+                        self.select(compositor, item);
                     }
 
                     compositor.pop_layer();
@@ -204,7 +222,7 @@ impl Surface for FinderSurface {
                 }
                 (KeyModifiers::ALT, KeyCode::Enter) => {
                     if let Some(item) = self.selector.lock().selected() {
-                        self.select_in_new_pane(ctx, item);
+                        self.select_in_new_pane(item);
                     }
 
                     compositor.pop_layer();
@@ -212,7 +230,7 @@ impl Surface for FinderSurface {
                 }
                 (KeyModifiers::CONTROL, KeyCode::Char('o')) => {
                     if let Some(item) = self.selector.lock().selected() {
-                        self.select_in_other_pane(ctx, item);
+                        self.select_in_other_pane(item);
                     }
 
                     compositor.pop_layer();
@@ -227,8 +245,8 @@ impl Surface for FinderSurface {
 
         if &prev_query != self.input.rope() {
             tokio::spawn(update_items(
-                ctx.editor.workspace_dir().to_owned(),
-                ctx.event_tx.clone(),
+                self.workspace_dir.clone(),
+                self.event_tx.clone(),
                 self.selector.clone(),
                 self.input.text(),
             ));
@@ -238,7 +256,7 @@ impl Surface for FinderSurface {
 
     fn handle_key_batch_event(
         &mut self,
-        _ctx: &mut Context,
+
         _compositor: &mut Compositor,
         input: &str,
     ) -> HandledEvent {

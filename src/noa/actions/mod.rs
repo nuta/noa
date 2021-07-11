@@ -1,15 +1,20 @@
 use std::{collections::HashMap, sync::Arc};
 
 use once_cell::sync::Lazy;
+use parking_lot::RwLock;
 
-use crate::ui::{Compositor, Context};
+use crate::buffer_set::BufferSet;
 
 mod transform;
+
+pub struct Context<'a> {
+    pub buffers: &'a Arc<RwLock<BufferSet>>,
+}
 
 pub trait Action: Send + Sync {
     fn id(&self) -> &'static str;
     fn title(&self) -> &'static str;
-    fn execute(&self, ctx: &mut Context, compositor: &mut Compositor);
+    fn execute<'a>(&self, ctx: &Context<'a>);
 }
 
 impl std::fmt::Debug for dyn Action {

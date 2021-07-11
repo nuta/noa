@@ -1,4 +1,4 @@
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crate::{KeyCode, KeyEvent, KeyModifiers};
 use noa_buffer::{Point, Range, Rope};
 
 pub struct LineEdit {

@@ -144,7 +144,6 @@ async fn receive_responses(
         };
 
         // Parse the JSON.
-        trace!("body = '{}'", body);
         match serde_json::from_str::<jsonrpc_core::Output>(&body) {
             Ok(jsonrpc_core::Output::Success(json)) => {
                 // Received a response to a request.
@@ -153,7 +152,7 @@ async fn receive_responses(
                     .await
                     .remove(&json.id)
                     .expect("dangling response id from the LSP server");
-
+                trace!("request_method={:?}", request_method);
                 let resp = match request_method {
                     Completion::METHOD => {
                         let resp: CompletionResponse = serde_json::from_value(json.result).unwrap();

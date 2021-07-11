@@ -883,7 +883,6 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "arrayvec",
- "crossterm",
  "futures",
  "git2",
  "ignore",
@@ -943,7 +942,9 @@ dependencies = [
  "crossterm",
  "futures",
  "log",
+ "noa_buffer",
  "noa_common",
+ "parking_lot",
  "tokio",
  "unicode-width",
 ]

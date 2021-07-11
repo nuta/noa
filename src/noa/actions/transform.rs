@@ -1,4 +1,4 @@
-use super::Action;
+use super::{Action, Context};
 
 pub struct ToUppercase;
 
@@ -11,9 +11,12 @@ impl Action for ToUppercase {
         "Transform to Uppercase"
     }
 
-    fn execute(&self, ctx: &mut crate::ui::Context, _compositor: &mut crate::ui::Compositor) {
-        let mut f = ctx.editor.current_file().write();
-        f.buffer
+    fn execute<'a>(&self, ctx: &Context<'a>) {
+        ctx.buffers
+            .write()
+            .current_file()
+            .write()
+            .buffer
             .transform_selections_with(|_, text| text.to_ascii_uppercase());
     }
 }
@@ -29,9 +32,12 @@ impl Action for ToLowercase {
         "Transform to Lowercase"
     }
 
-    fn execute(&self, ctx: &mut crate::ui::Context, _compositor: &mut crate::ui::Compositor) {
-        let mut f = ctx.editor.current_file().write();
-        f.buffer
+    fn execute<'a>(&self, ctx: &Context<'a>) {
+        ctx.buffers
+            .write()
+            .current_file()
+            .write()
+            .buffer
             .transform_selections_with(|_, text| text.to_ascii_lowercase());
     }
 }

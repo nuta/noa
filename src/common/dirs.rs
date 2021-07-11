@@ -34,9 +34,18 @@ pub fn noa_workdir(workdir: &Path) -> PathBuf {
     dir
 }
 
-pub fn lsp_sock_path(workdir: &Path, lang: &str) -> PathBuf {
+pub fn sync_sock_path(workdir: &Path, daemon_type: &str, lsp_lang: Option<&str>) -> PathBuf {
     let dir = noa_workdir(workdir);
-    dir.join(&format!("{}.sock", lang))
+    let name = match lsp_lang {
+        Some(lang) => {
+            format!("{}-{}.sock", daemon_type, lang)
+        }
+        None => {
+            format!("{}.sock", daemon_type)
+        }
+    };
+
+    dir.join(&name)
 }
 
 pub fn log_file_path(name: &str) -> PathBuf {

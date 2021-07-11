@@ -1,4 +1,6 @@
-use std::{collections::BTreeMap, ops::Range};
+use std::{collections::BTreeMap, ops::Range, path::Path};
+
+use crate::git::{DiffType, Repo};
 
 #[derive(Debug, Clone, Copy)]
 pub enum LineStatus {
@@ -56,6 +58,33 @@ impl MiniMap {
     ) -> impl Iterator<Item = &Entry<usize, LineStatus>> {
         self.maps[&category].iter_overlapping(interval)
     }
+
+    pub fn update_git_line_statuses(&mut self, repo: &Repo, buffer_path: &Path, text: &str) {
+        let diffs = match repo.compute_line_diffs(buffer_path, text) {
+            Ok(diffs) => diffs,
+            Err(err) => {
+                trace!("failed to get git diff: {:?}", err);
+                return;
+            }
+        };
+
+        self.clear(MiniMapCategory::Diff);
+        for diff in diffs {
+            trace!(
+                "git diff: range={:?}, type={:?}",
+                diff.range,
+                diff.diff_type
+            );
+
+            let value = match diff.diff_type {
+                DiffType::Added => LineStatus::AddedLine,
+                DiffType::Removed => LineStatus::RemovedLine,
+                DiffType::Modified => LineStatus::ModifiedLine,
+            };
+
+            self.insert(MiniMapCategory::Diff, diff.range, value);
+        }
+    }
 }
 
 pub struct Entry<I, V> {
@@ -92,6 +121,5 @@ impl<I: PartialOrd + Copy, V> IntervalMap<I, V> {
         self.inner
             .iter()
             .filter(move |e| start < e.interval.end && e.interval.start < end)
-            .into_iter()
     }
 }

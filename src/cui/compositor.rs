@@ -1,22 +1,14 @@
+use std::time::Duration;
 use std::{slice, sync::Arc};
 
 use crossterm::event::KeyEvent;
-use noa_buffer::Point;
-use noa_common::sync_protocol::{FileLocation, Notification};
 use noa_common::time_report::TimeReport;
 use parking_lot::Mutex;
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio::time::timeout;
 
-use crate::ui::{Context, HandledEvent, Layout, RectSize, Surface};
-
-use noa_cui::{truncate_to_width, Canvas, CanvasViewMut, Input, Terminal};
-
-#[derive(Debug)]
-pub enum Event {
-    ReDraw,
-    Input(Input),
-    OpenFile(FileLocation),
-    Notification(Notification),
-}
+use crate::surface::{HandledEvent, Layout, RectSize, Surface};
+use crate::{truncate_to_width, Canvas, CanvasViewMut, Input, Terminal};
 
 pub struct Layer {
     pub surface: Box<dyn Surface>,
@@ -29,6 +21,8 @@ pub struct Layer {
 
 pub struct Compositor {
     terminal: Terminal,
+    input_rx: UnboundedReceiver<Input>,
+    input_tx: UnboundedSender<Input>,
     screens: [Canvas; 2],
     screen_size: RectSize,
     active_screen_index: usize,
@@ -37,7 +31,10 @@ pub struct Compositor {
 }
 
 impl Compositor {
-    pub fn new(terminal: Terminal) -> Compositor {
+    pub fn new() -> Compositor {
+        let (input_tx, input_rx) = unbounded_channel();
+        let terminal = Terminal::new(input_tx.clone());
+
         let screen_size = RectSize {
             height: terminal.height(),
             width: terminal.width(),
@@ -59,6 +56,8 @@ impl Compositor {
 
         Compositor {
             terminal,
+            input_rx,
+            input_tx,
             layers,
             screens: screen,
             active_screen_index: 0,
@@ -66,7 +65,11 @@ impl Compositor {
         }
     }
 
-    pub fn push_layer(&mut self, _ctx: &mut Context, surface: impl Surface + 'static) {
+    pub fn input_tx(&self) -> UnboundedSender<Input> {
+        self.input_tx.clone()
+    }
+
+    pub fn push_layer(&mut self, surface: impl Surface + 'static) {
         self.layers.push(Arc::new(Mutex::new(Layer {
             surface: Box::new(surface),
             active: true,
@@ -80,15 +83,14 @@ impl Compositor {
         self.layers.pop();
     }
 
-    pub fn resize_screen(&mut self, _ctx: &mut Context, height: usize, width: usize) {
+    pub fn resize_screen(&mut self, height: usize, width: usize) {
         self.screen_size = RectSize { height, width };
         self.screens = [Canvas::new(height, width), Canvas::new(height, width)];
         self.terminal.clear();
     }
 
-    pub fn render_to_terminal(&mut self, ctx: &mut Context) {
+    pub fn render_to_terminal(&mut self, cursor_pos: (usize, usize)) {
         // Re-layout layers.
-        let cursor_pos = ctx.editor.current_file().read().buffer.main_cursor_pos();
         for layer in &mut self.layers {
             let mut layer = layer.lock();
             let ((screen_y, screen_x), rect_size) =
@@ -104,7 +106,7 @@ impl Compositor {
 
         // Render and composite layers.
         let compose_layers_time = TimeReport::new("compose_layers");
-        compose_layers(ctx, &mut self.screens[screen_index], self.layers.iter());
+        compose_layers(&mut self.screens[screen_index], self.layers.iter());
         compose_layers_time.report();
 
         // Get the cursor position.
@@ -141,71 +143,110 @@ impl Compositor {
         stdout_write_time.report();
     }
 
-    pub fn handle_event(&mut self, ctx: &mut Context, ev: Event) {
+    pub fn handle_event(&mut self, ev: Input) -> bool {
+        trace!("UI event: {:?}", ev);
         match ev {
-            Event::Input(input) => match input {
-                Input::Key(key) => {
-                    for layer_lock in self.layers.clone().iter().rev() {
-                        let mut layer = layer_lock.lock();
-                        if layer.active {
-                            if let HandledEvent::Consumed =
-                                layer.surface.handle_key_event(ctx, self, key)
-                            {
-                                return;
-                            }
+            Input::Key(key) => {
+                for layer_lock in self.layers.clone().iter().rev() {
+                    let mut layer = layer_lock.lock();
+                    if layer.active {
+                        if let HandledEvent::Consumed = layer.surface.handle_key_event(self, key) {
+                            break;
                         }
                     }
                 }
-                Input::Mouse(ev) => {
-                    for layer_lock in self.layers.clone().iter().rev() {
-                        let mut layer = layer_lock.lock();
-                        if layer.active {
-                            if let HandledEvent::Consumed =
-                                layer.surface.handle_mouse_event(ctx, self, ev)
-                            {
-                                return;
-                            }
-                        }
-                    }
-                }
-                Input::KeyBatch(input) => {
-                    for layer_lock in self.layers.clone().iter().rev() {
-                        let mut layer = layer_lock.lock();
-                        if layer.active {
-                            if let HandledEvent::Consumed =
-                                layer.surface.handle_key_batch_event(ctx, self, &input)
-                            {
-                                return;
-                            }
-                        }
-                    }
-                }
-                Input::Resize {
-                    screen_height,
-                    screen_width,
-                } => {
-                    self.resize_screen(ctx, screen_height, screen_width);
-                }
-            },
-            Event::OpenFile(loc) => {
-                ctx.editor.open_file(&loc.path, Some(loc.pos));
             }
-            Event::Notification(noti) => {
-                ctx.editor.handle_sync_notification(noti);
+            Input::Mouse(ev) => {
+                for layer_lock in self.layers.clone().iter().rev() {
+                    let mut layer = layer_lock.lock();
+                    if layer.active {
+                        if let HandledEvent::Consumed = layer.surface.handle_mouse_event(self, ev) {
+                            break;
+                        }
+                    }
+                }
             }
-            Event::ReDraw => {
-                // We have to do nothing here.
+            Input::KeyBatch(input) => {
+                for layer_lock in self.layers.clone().iter().rev() {
+                    let mut layer = layer_lock.lock();
+                    if layer.active {
+                        if let HandledEvent::Consumed =
+                            layer.surface.handle_key_batch_event(self, &input)
+                        {
+                            break;
+                        }
+                    }
+                }
+            }
+            Input::Resize {
+                screen_height,
+                screen_width,
+            } => {
+                self.resize_screen(screen_height, screen_width);
+            }
+            Input::Redraw => {}
+            Input::Quit => return false,
+        }
+
+        true
+    }
+
+    pub async fn mainloop<F1, F2, F3, F4, T>(
+        &mut self,
+        before_event: F1,
+        after_event: F2,
+        on_idle: F3,
+        cursor_pos: F4,
+    ) where
+        F1: Fn() -> T,
+        F2: Fn(T),
+        F3: Fn(),
+        F4: Fn() -> (usize, usize),
+    {
+        let mut idle = false;
+        loop {
+            self.render_to_terminal(cursor_pos());
+
+            let timeout_value = if idle {
+                Duration::from_secs(u64::MAX)
+            } else {
+                Duration::from_millis(300)
+            };
+
+            match timeout(timeout_value, self.input_rx.recv()).await {
+                Ok(Some(ev)) => {
+                    let prev = before_event();
+
+                    if !self.handle_event(ev) {
+                        return;
+                    }
+
+                    while let Ok(Some(ev)) =
+                        timeout(Duration::from_micros(50), self.input_rx.recv()).await
+                    {
+                        if !self.handle_event(ev) {
+                            return;
+                        }
+                    }
+
+                    after_event(prev);
+                    idle = false;
+                }
+                Ok(None) => {
+                    break;
+                }
+                Err(_) if !idle => {
+                    on_idle();
+                    idle = true;
+                }
+                Err(_) => {}
             }
         }
     }
 }
 
 /// Renders each surfaces and copy the compose into the screen canvas.
-fn compose_layers<'a, 'b, 'c>(
-    ctx: &'a mut Context,
-    screen: &'b mut Canvas,
-    layers: slice::Iter<'c, Arc<Mutex<Layer>>>,
-) {
+fn compose_layers<'a, 'b>(screen: &'a mut Canvas, layers: slice::Iter<'b, Arc<Mutex<Layer>>>) {
     screen.view_mut().clear();
 
     for layer in layers {
@@ -225,7 +266,7 @@ fn compose_layers<'a, 'b, 'c>(
             _ => continue,
         }
 
-        layer.surface.render(ctx, layer.canvas.view_mut());
+        layer.surface.render(layer.canvas.view_mut());
         screen.copy_from_other(layer.screen_y, layer.screen_x, &layer.canvas);
     }
 }
@@ -233,8 +274,9 @@ fn compose_layers<'a, 'b, 'c>(
 fn relayout_layers(
     screen_size: RectSize,
     surface: &(impl Surface + ?Sized),
-    cursor_pos: Point,
+    cursor_pos: (usize, usize),
 ) -> ((usize, usize), RectSize) {
+    let (cursor_y, cursor_x) = cursor_pos;
     let (layout, rect) = surface.layout(screen_size);
 
     let (screen_y, screen_x) = match layout {
@@ -244,16 +286,16 @@ fn relayout_layers(
             (screen_size.width / 2).saturating_sub(rect.width / 2),
         ),
         Layout::AroundCursor => {
-            let y = if cursor_pos.y + rect.height + 1 > screen_size.height {
-                cursor_pos.y.saturating_sub(rect.height + 1)
+            let y = if cursor_y + rect.height + 1 > screen_size.height {
+                cursor_y.saturating_sub(rect.height + 1)
             } else {
-                cursor_pos.y + 1
+                cursor_y + 1
             };
 
-            let x = if cursor_pos.x + rect.width > screen_size.width {
-                cursor_pos.x.saturating_sub(rect.width)
+            let x = if cursor_x + rect.width > screen_size.width {
+                cursor_x.saturating_sub(rect.width)
             } else {
-                cursor_pos.x
+                cursor_x
             };
 
             (y, x)
@@ -292,22 +334,16 @@ impl Surface for TooSmallSurface {
         None
     }
 
-    fn render<'a>(&mut self, _ctx: &mut Context, mut canvas: CanvasViewMut<'a>) {
+    fn render<'a>(&mut self, mut canvas: CanvasViewMut<'a>) {
         canvas.draw_str(0, 0, truncate_to_width(&self.text, canvas.width()));
     }
 
-    fn handle_key_event(
-        &mut self,
-        _ctx: &mut Context,
-        _compositor: &mut Compositor,
-        _key: KeyEvent,
-    ) -> HandledEvent {
+    fn handle_key_event(&mut self, _compositor: &mut Compositor, _key: KeyEvent) -> HandledEvent {
         HandledEvent::Consumed
     }
 
     fn handle_key_batch_event(
         &mut self,
-        _ctx: &mut Context,
         _compositor: &mut Compositor,
         _input: &str,
     ) -> HandledEvent {

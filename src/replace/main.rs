@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 #[macro_use]
 extern crate log;
 
@@ -132,7 +134,7 @@ async fn main() {
 
         let replacement = "YAY";
         // We now got the list of matched ranges. Let's replace them.
-        match do_replace(&path, &matches, &replacement) {
+        match do_replace(&path, &matches, replacement) {
             Ok(()) => {}
             Err(err) => {
                 // TODO: error reporting
