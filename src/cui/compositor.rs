@@ -222,7 +222,7 @@ impl Compositor {
                     }
 
                     while let Ok(Some(ev)) =
-                        timeout(Duration::from_micros(5), self.input_rx.recv()).await
+                        timeout(Duration::from_micros(50), self.input_rx.recv()).await
                     {
                         if !self.handle_event(ev) {
                             return;
