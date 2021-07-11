@@ -6,7 +6,6 @@ use libgit2_sys::{
     GIT_OK,
 };
 
-
 use std::{
     ffi::{c_void, CString},
     ops,
@@ -14,8 +13,6 @@ use std::{
     path::{Path, PathBuf},
     ptr,
 };
-
-
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DiffType {
@@ -99,7 +96,9 @@ pub struct Repo {
 
 impl Repo {
     pub fn open(dir: &Path) -> Result<Repo> {
-        let repo_dir = resolve_git_dir(dir).context("not in a git repository")?;
+        let repo_dir = resolve_git_dir(dir)
+            .context("not in a git repository")?
+            .canonicalize()?;
         Ok(Repo { repo_dir })
     }
 

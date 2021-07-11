@@ -144,6 +144,7 @@ impl Compositor {
     }
 
     pub fn handle_event(&mut self, ev: Input) -> bool {
+        trace!("UI event: {:?}", ev);
         match ev {
             Input::Key(key) => {
                 for layer_lock in self.layers.clone().iter().rev() {
@@ -204,22 +205,27 @@ impl Compositor {
     {
         let mut idle = false;
         loop {
-            trace!("rendering to terminal...");
             self.render_to_terminal(cursor_pos());
 
-            match timeout(Duration::from_millis(400), self.input_rx.recv()).await {
+            let timeout_value = if idle {
+                Duration::from_secs(u64::MAX)
+            } else {
+                Duration::from_millis(300)
+            };
+
+            match timeout(timeout_value, self.input_rx.recv()).await {
                 Ok(Some(ev)) => {
                     let prev = before_event();
 
                     if !self.handle_event(ev) {
-                        break;
+                        return;
                     }
 
                     while let Ok(Some(ev)) =
-                        timeout(Duration::from_micros(400), self.input_rx.recv()).await
+                        timeout(Duration::from_micros(5), self.input_rx.recv()).await
                     {
                         if !self.handle_event(ev) {
-                            break;
+                            return;
                         }
                     }
 
