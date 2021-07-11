@@ -38,7 +38,7 @@ pub struct FinderSurface {
     event_tx: UnboundedSender<Event>,
     input: LineEdit,
     selector: Arc<Mutex<Selector<Item>>>,
-    sync: Arc<tokio::sync::Mutex<SyncClient>>,
+    sync: Arc<SyncClient>,
 }
 
 impl FinderSurface {
@@ -47,7 +47,7 @@ impl FinderSurface {
         buffers: Arc<RwLock<BufferSet>>,
         workspace_dir: PathBuf,
         event_tx: UnboundedSender<Event>,
-        sync: Arc<tokio::sync::Mutex<SyncClient>>,
+        sync: Arc<SyncClient>,
     ) -> FinderSurface {
         let selector = Arc::new(Mutex::new(Selector::new()));
 
@@ -132,9 +132,7 @@ impl FinderSurface {
                 let sync = self.sync.clone();
                 let path = path.to_owned();
                 tokio::spawn(async move {
-                    sync.lock()
-                        .await
-                        .call_buffer_open_file_in_other(&pane_id, &path, None)
+                    sync.call_buffer_open_file_in_other(&pane_id, &path, None)
                         .await
                         .oops();
                 });

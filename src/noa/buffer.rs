@@ -52,7 +52,7 @@ pub struct BufferSurface {
     buffers: Arc<RwLock<BufferSet>>,
     workspace_dir: PathBuf,
     event_tx: UnboundedSender<Event>,
-    sync: Arc<tokio::sync::Mutex<SyncClient>>,
+    sync: Arc<SyncClient>,
     mode: BufferSurfaceMode,
     status_bar: Arc<StatusBar>,
     minimap: Arc<Mutex<MiniMap>>,
@@ -76,7 +76,7 @@ impl BufferSurface {
         buffers: Arc<RwLock<BufferSet>>,
         workspace_dir: &Path,
         event_tx: UnboundedSender<Event>,
-        sync: Arc<tokio::sync::Mutex<SyncClient>>,
+        sync: Arc<SyncClient>,
         status_bar: Arc<StatusBar>,
         minimap: Arc<Mutex<MiniMap>>,
     ) -> BufferSurface {
@@ -950,7 +950,7 @@ impl Surface for BufferSurface {
                 let sync = self.sync.clone();
                 let event_tx = self.event_tx.clone();
                 tokio::spawn(async move {
-                    match sync.lock().await.call_goto_definition(&file).await {
+                    match sync.call_goto_definition(&file).await {
                         Ok(locs_rx) => {
                             if let Ok(locs) = locs_rx.await {
                                 trace!("goto_definition: {:?}", locs);

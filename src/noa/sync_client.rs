@@ -5,7 +5,10 @@ use std::{
     io::ErrorKind,
     path::{Path, PathBuf},
     process::Stdio,
-    sync::Arc,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
     time::Duration,
 };
 
@@ -33,9 +36,9 @@ use crate::buffer_set::OpenedFile;
 
 pub struct SyncClient {
     workspace_dir: PathBuf,
-    daemon_connections: HashMap<&'static str /* lang id */, OwnedWriteHalf>,
+    daemon_connections: Arc<Mutex<HashMap<&'static str /* lang id */, OwnedWriteHalf>>>,
     sent_requests: Arc<Mutex<HashMap<usize /* request id */, oneshot::Sender<String>>>>,
-    next_request_id: usize,
+    next_request_id: AtomicUsize,
     noti_tx: UnboundedSender<Notification>,
 }
 
@@ -43,14 +46,14 @@ impl SyncClient {
     pub fn new(workspace_dir: &Path, noti_tx: UnboundedSender<Notification>) -> SyncClient {
         SyncClient {
             workspace_dir: workspace_dir.to_owned(),
-            daemon_connections: HashMap::new(),
+            daemon_connections: Arc::new(Mutex::new(HashMap::new())),
             sent_requests: Arc::new(Mutex::new(HashMap::new())),
-            next_request_id: 10000,
+            next_request_id: AtomicUsize::new(10000),
             noti_tx,
         }
     }
 
-    pub async fn call_buffer_open_file(&mut self, path: &Path) -> Result<()> {
+    pub async fn call_buffer_open_file(&self, path: &Path) -> Result<()> {
         self.call(
             "buffer_sync",
             None,
@@ -63,7 +66,7 @@ impl SyncClient {
     }
 
     pub async fn call_buffer_open_file_in_other(
-        &mut self,
+        &self,
         pane_id: &str,
         path: &Path,
         position: Option<Point>,
@@ -81,7 +84,7 @@ impl SyncClient {
         Ok(())
     }
 
-    pub async fn call_buffer_update_file(&mut self, path: &Path, text: String) -> Result<()> {
+    pub async fn call_buffer_update_file(&self, path: &Path, text: String) -> Result<()> {
         self.call(
             "buffer_sync",
             None,
@@ -95,7 +98,7 @@ impl SyncClient {
     }
 
     pub async fn call_goto_definition(
-        &mut self,
+        &self,
         opened_file: &Arc<RwLock<OpenedFile>>,
     ) -> Result<oneshot::Receiver<Vec<FileLocation>>> {
         self.call_lsp_method_for_file(
@@ -115,9 +118,10 @@ impl SyncClient {
     }
 
     pub async fn call_completion(
-        &mut self,
+        &self,
         opened_file: &Arc<RwLock<OpenedFile>>,
     ) -> Result<oneshot::Receiver<Vec<lsp_types::CompletionItem>>> {
+        trace!("calling completion");
         self.call_lsp_method_for_file(
             &opened_file,
             |path, opened_file| LspRequest::Completion {
@@ -135,7 +139,7 @@ impl SyncClient {
     }
 
     pub async fn call_lsp_method_for_file<F, G, I: Serialize, R1, R2>(
-        &mut self,
+        &self,
         opened_file: &Arc<RwLock<OpenedFile>>,
         build_req: F,
         parse_resp: G,
@@ -160,6 +164,7 @@ impl SyncClient {
             }
         };
 
+        trace!("self.call");
         let resp_rx = self.call("lsp", Some(lang_id), req).await?;
         tokio::spawn(async move {
             let resp_body = match resp_rx.await {
@@ -192,7 +197,7 @@ impl SyncClient {
     }
 
     pub async fn call<I: Serialize>(
-        &mut self,
+        &self,
         daemon_type: &'static str,
         lsp_lang: Option<&'static str>,
         request: I,
@@ -200,8 +205,8 @@ impl SyncClient {
         use tokio::io::AsyncWriteExt;
 
         let (tx, rx) = oneshot::channel::<String>();
-        let id = self.next_request_id;
-        self.next_request_id += 1;
+        let id = self.next_request_id.fetch_add(1, Ordering::SeqCst);
+        trace!("lockign sent_req");
         self.sent_requests.lock().await.insert(id, tx);
 
         // Construct a request.
@@ -209,11 +214,14 @@ impl SyncClient {
         body.push('\n');
 
         for _ in 0..2 {
+            trace!("ensure LSP");
             self.ensure_daemon_is_spawned(daemon_type, lsp_lang).await?;
 
             // Send the request.
             match self
                 .daemon_connections
+                .lock()
+                .await
                 .get_mut(daemon_type)
                 .unwrap()
                 .write_all(body.as_bytes())
@@ -227,7 +235,7 @@ impl SyncClient {
                     // Perhaps the LSP server has been exited due to the idle timeout.
                     // Try again.
                     trace!("sync is not available, respawning...");
-                    self.daemon_connections.remove(daemon_type);
+                    self.daemon_connections.lock().await.remove(daemon_type);
                     continue;
                 }
                 Err(err) => {
@@ -236,19 +244,24 @@ impl SyncClient {
             }
         }
 
-        // Wait for the response.
+        trace!("wait for respo");
         Ok(rx)
     }
 
     async fn ensure_daemon_is_spawned(
-        &mut self,
+        &self,
         daemon_type: &'static str,
         lsp_lang: Option<&'static str>,
     ) -> Result<()> {
         static SPAWN_LOCK: Mutex<()> = Mutex::const_new(());
         let _spawn_lock = SPAWN_LOCK.lock().await;
 
-        if self.daemon_connections.contains_key(daemon_type) {
+        if self
+            .daemon_connections
+            .lock()
+            .await
+            .contains_key(daemon_type)
+        {
             return Ok(());
         }
 
@@ -269,7 +282,10 @@ impl SyncClient {
 
         let sock = try_to_connect(&sock_path).await?;
         let (read_end, write_end) = sock.into_split();
-        self.daemon_connections.insert(daemon_type, write_end);
+        self.daemon_connections
+            .lock()
+            .await
+            .insert(daemon_type, write_end);
 
         // Handle responses from the server.
         let sent_requests = self.sent_requests.clone();

@@ -7,7 +7,6 @@ use noa_common::oops::OopsExt;
 use noa_common::sync_protocol::{LspRequest, LspResponse};
 use parking_lot::RwLock;
 use tokio::sync::mpsc::UnboundedSender;
-use tokio::sync::Mutex;
 
 use std::path::Path;
 use std::process::Stdio;
@@ -91,7 +90,7 @@ impl BufferSet {
 
     pub fn open_file(
         &mut self,
-        sync: &Arc<Mutex<SyncClient>>,
+        sync: &Arc<SyncClient>,
         event_tx: &UnboundedSender<Event>,
         path: &Path,
         cursor_pos: Option<Point>,
@@ -150,18 +149,16 @@ impl BufferSet {
             let sync = sync.clone();
             let opened_file = opened_file.clone();
             tokio::spawn(async move {
-                sync.lock()
-                    .await
-                    .call_lsp_method_for_file(
-                        &opened_file,
-                        |path, opened_file| LspRequest::OpenFile {
-                            path,
-                            text: opened_file.buffer.text(),
-                        },
-                        |_: LspResponse| Ok(()),
-                    )
-                    .await
-                    .oops();
+                sync.call_lsp_method_for_file(
+                    &opened_file,
+                    |path, opened_file| LspRequest::OpenFile {
+                        path,
+                        text: opened_file.buffer.text(),
+                    },
+                    |_: LspResponse| Ok(()),
+                )
+                .await
+                .oops();
             });
         }
 
@@ -170,7 +167,7 @@ impl BufferSet {
             let path = abspath.clone();
             let sync = sync.clone();
             tokio::spawn(async move {
-                sync.lock().await.call_buffer_open_file(&path).await.oops();
+                sync.call_buffer_open_file(&path).await.oops();
             });
         }
 

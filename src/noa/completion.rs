@@ -30,7 +30,7 @@ enum Item {
 pub struct CompletionSurface {
     buffers: Arc<RwLock<BufferSet>>,
     event_tx: UnboundedSender<Event>,
-    sync: Arc<tokio::sync::Mutex<SyncClient>>,
+    sync: Arc<SyncClient>,
     selector: Arc<Mutex<Selector<Item>>>,
 }
 
@@ -38,7 +38,7 @@ impl CompletionSurface {
     pub fn new(
         buffers: Arc<RwLock<BufferSet>>,
         event_tx: UnboundedSender<Event>,
-        sync: Arc<tokio::sync::Mutex<SyncClient>>,
+        sync: Arc<SyncClient>,
     ) -> CompletionSurface {
         let selector = Arc::new(Mutex::new(Selector::new()));
         let (current_file, current_word, snapshot) = {
@@ -220,7 +220,7 @@ async fn update_completion(
     event_tx: UnboundedSender<Event>,
     selector: Arc<Mutex<Selector<Item>>>,
     query: String,
-    sync: Arc<tokio::sync::Mutex<SyncClient>>,
+    sync: Arc<SyncClient>,
     opened_file: Arc<RwLock<OpenedFile>>,
     snapshot: Arc<Snapshot>,
 ) {
@@ -251,7 +251,7 @@ async fn update_completion(
         let mut results = FuzzySet::with_capacity(32);
         trace!("sending completion message...");
 
-        match sync.lock().await.call_completion(&opened_file).await {
+        match sync.call_completion(&opened_file).await {
             Ok(result) => {
                 if let Ok(items) = result.await {
                     let mut score = items.len() as isize;

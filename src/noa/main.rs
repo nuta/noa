@@ -25,7 +25,7 @@ use std::{
     time::Instant,
 };
 use structopt::StructOpt;
-use tokio::sync::{mpsc::unbounded_channel, Mutex};
+use tokio::sync::mpsc::unbounded_channel;
 
 #[macro_use]
 extern crate log;
@@ -69,7 +69,7 @@ pub async fn open_path_in_tmux(pane: &str, mouse_y: usize, mouse_x: usize) -> Re
     let (path, pos) = tmux::resolve_path_on_cursor(pane, mouse_y, mouse_x)?;
 
     let (tx, _) = unbounded_channel();
-    let mut sync = SyncClient::new(Path::new("/"), tx);
+    let sync = SyncClient::new(Path::new("/"), tx);
 
     match tmux::get_other_noa_pane_id() {
         Ok(pane_id) => {
@@ -133,7 +133,7 @@ async fn main() {
     let mut buffers = BufferSet::new();
     let minimap = Arc::new(parking_lot::Mutex::new(MiniMap::new()));
     let repo = Arc::new(Repo::open(&workspace_dir).ok());
-    let sync = Arc::new(Mutex::new(SyncClient::new(&workspace_dir, noti_tx)));
+    let sync = Arc::new(SyncClient::new(&workspace_dir, noti_tx));
     let status_bar = Arc::new(StatusBar::new());
     let theme = DEFAULT_THEME;
 
@@ -313,19 +313,17 @@ async fn main() {
                 let sync = sync.clone();
                 let current_file = current_file.clone();
                 tokio::spawn(async move {
-                    sync.lock()
-                        .await
-                        .call_lsp_method_for_file(
-                            &current_file,
-                            |path, f| LspRequest::UpdateFile {
-                                path,
-                                text: f.buffer.text(),
-                                version: f.buffer.version(),
-                            },
-                            |_: LspResponse| Ok(()),
-                        )
-                        .await
-                        .oops();
+                    sync.call_lsp_method_for_file(
+                        &current_file,
+                        |path, f| LspRequest::UpdateFile {
+                            path,
+                            text: f.buffer.text(),
+                            version: f.buffer.version(),
+                        },
+                        |_: LspResponse| Ok(()),
+                    )
+                    .await
+                    .oops();
                 });
             }
 
@@ -344,11 +342,7 @@ async fn main() {
                         (path, f.buffer.text())
                     };
 
-                    sync.lock()
-                        .await
-                        .call_buffer_update_file(&path, text)
-                        .await
-                        .oops();
+                    sync.call_buffer_update_file(&path, text).await.oops();
                 });
             }
 
