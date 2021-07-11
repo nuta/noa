@@ -1,10 +1,12 @@
 use crate::sync_client::SyncClient;
 use crate::view::View;
+use crate::Event;
 use anyhow::Result;
 
 use noa_common::oops::OopsExt;
 use noa_common::sync_protocol::LspRequest;
 use parking_lot::RwLock;
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Mutex;
 
 use std::path::Path;
@@ -90,6 +92,7 @@ impl BufferSet {
     pub fn open_file(
         &mut self,
         sync: &Arc<Mutex<SyncClient>>,
+        event_tx: &UnboundedSender<Event>,
         path: &Path,
         cursor_pos: Option<Point>,
     ) -> Result<()> {
@@ -119,8 +122,31 @@ impl BufferSet {
         let cursor_pos = cursor_pos.unwrap_or(Point::new(0, 0));
         opened_file.write().buffer.move_cursor_to(cursor_pos);
 
+        // Compute syntax highlighting.
         {
-            // Tell the LSP server about the newly opened file.
+            let event_tx = event_tx.clone();
+            let opened_file = opened_file.clone();
+            tokio::spawn(async move {
+                let (rope, mut parser) = {
+                    let f = opened_file.read();
+                    let rope = f.buffer.rope().clone();
+                    let parser = match f.buffer.lang().syntax_highlighting_parser() {
+                        Some(parser) => parser,
+                        None => return,
+                    };
+                    (rope, parser)
+                };
+
+                if let Some(tree) = parser.parse(rope.text(), None) {
+                    opened_file.write().syntax_highlight = Some(tree);
+                }
+
+                event_tx.send(Event::ReDraw).ok();
+            });
+        }
+
+        // Tell the LSP server about the newly opened file.
+        {
             let sync = sync.clone();
             let opened_file = opened_file.clone();
             tokio::spawn(async move {
@@ -137,8 +163,8 @@ impl BufferSet {
             });
         }
 
+        // Tell the buffer-sync server about the newly opened file.
         {
-            // Tell the buffer-sync server about the newly opened file.
             let path = abspath.clone();
             let sync = sync.clone();
             tokio::spawn(async move {

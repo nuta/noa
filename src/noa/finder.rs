@@ -73,7 +73,12 @@ impl FinderSurface {
         match item {
             Item::File(path) => {
                 self.status_bar
-                    .report_if_error(self.buffers.write().open_file(&self.sync, path, None));
+                    .report_if_error(self.buffers.write().open_file(
+                        &self.sync,
+                        &self.event_tx,
+                        path,
+                        None,
+                    ));
             }
             Item::Action(action) => {
                 action.execute(&actions::Context {

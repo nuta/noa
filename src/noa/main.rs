@@ -63,12 +63,8 @@ struct Opt {
     tmux_mouse_x: Option<usize>,
 }
 
-async fn open_path_in_tmux(opt: Opt) -> Result<()> {
-    let (path, pos) = tmux::resolve_path_on_cursor(
-        opt.tmux_pane.expect("--tmux-pane is required").as_str(),
-        opt.tmux_mouse_y.expect("--tmux-mouse-y is required"),
-        opt.tmux_mouse_x.expect("--tmux-mouse-x is required"),
-    )?;
+pub async fn open_path_in_tmux(pane: &str, mouse_y: usize, mouse_x: usize) -> Result<()> {
+    let (path, pos) = tmux::resolve_path_on_cursor(pane, mouse_y, mouse_x)?;
 
     let (tx, _) = unbounded_channel();
     let mut sync = SyncClient::new(Path::new("/"), tx);
@@ -112,7 +108,13 @@ async fn main() {
     let opt = Opt::from_args();
 
     if opt.open_path_in_tmux {
-        if let Err(err) = open_path_in_tmux(opt).await {
+        if let Err(err) = open_path_in_tmux(
+            opt.tmux_pane.expect("--tmux-pane is required").as_str(),
+            opt.tmux_mouse_y.expect("--tmux-mouse-y is required"),
+            opt.tmux_mouse_x.expect("--tmux-mouse-x is required"),
+        )
+        .await
+        {
             error!("failed to open a path in tmux: {:?}", err);
         }
         return;
@@ -148,7 +150,7 @@ async fn main() {
             continue;
         }
 
-        status_bar.report_if_error(buffers.open_file(&sync, file, cursor_pos.take()));
+        status_bar.report_if_error(buffers.open_file(&sync, &event_tx, file, cursor_pos.take()));
     }
 
     // Initialize UI.
@@ -171,6 +173,7 @@ async fn main() {
     {
         let buffers = buffers.clone();
         let sync = sync.clone();
+        let event_tx = event_tx.clone();
         let status_bar = status_bar.clone();
         let input_tx = compositor.input_tx();
         tokio::spawn(async move {
@@ -180,6 +183,7 @@ async fn main() {
                     Event::OpenFile(file_loc) => {
                         status_bar.report_if_error(buffers.write().open_file(
                             &sync,
+                            &event_tx,
                             &file_loc.path,
                             Some(file_loc.pos),
                         ));
@@ -200,6 +204,7 @@ async fn main() {
         let buffers = buffers.clone();
         let minimap = minimap.clone();
         let status_bar = status_bar.clone();
+        let event_tx = event_tx.clone();
         let sync = sync.clone();
         tokio::spawn(async move {
             while let Some(noti) = noti_rx.recv().await {
@@ -249,7 +254,9 @@ async fn main() {
                     } => match tmux::get_this_tmux_pane_id() {
                         Some(our_pane_id) if our_pane_id == pane_id => {
                             status_bar.info("opened a file");
-                            status_bar.report_if_error(buffers.open_file(&sync, &path, position));
+                            status_bar.report_if_error(
+                                buffers.open_file(&sync, &event_tx, &path, position),
+                            );
                             tmux::select_pane(our_pane_id).oops();
                         }
                         _ => {}
@@ -275,6 +282,7 @@ async fn main() {
         let f = current_file.read();
         if prev != f.buffer.id_and_version() {
             // Switched or modified the current buffer.
+
             // Update the syntax highlighting.
             {
                 let event_tx = event_tx.clone();
