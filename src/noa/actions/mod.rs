@@ -5,6 +5,8 @@ use parking_lot::RwLock;
 
 use crate::buffer_set::BufferSet;
 
+mod movement;
+mod selection;
 mod transform;
 
 pub struct Context<'a> {
@@ -24,7 +26,13 @@ impl std::fmt::Debug for dyn Action {
 }
 
 pub static ACTIONS: Lazy<HashMap<&str, Arc<dyn Action>>> = Lazy::new(|| {
-    let actions = [Arc::new(transform::ToUppercase) as Arc<dyn Action>];
+    let actions = [
+        Arc::new(transform::ToLowercase) as Arc<dyn Action>,
+        Arc::new(transform::ToUppercase) as Arc<dyn Action>,
+        Arc::new(selection::SelectAll) as Arc<dyn Action>,
+        Arc::new(movement::MoveToBeginningOfBuffer) as Arc<dyn Action>,
+        Arc::new(movement::MoveToEndOfBuffer) as Arc<dyn Action>,
+    ];
 
     let mut actions_map = HashMap::with_capacity(actions.len());
     for action in actions {

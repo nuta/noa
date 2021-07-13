@@ -20,7 +20,7 @@ use tokio::{process::Command, sync::mpsc::UnboundedSender};
 
 use crate::{
     buffer_set::BufferSet,
-    finder::FinderSurface,
+    finder::Finder,
     minimap::{LineStatus, MiniMap, MiniMapCategory},
     selector::Selector,
     sync_client::SyncClient,
@@ -47,7 +47,7 @@ enum SearchMode {
     Regex,
 }
 
-pub struct BufferSurface {
+pub struct TextArea {
     theme: &'static Theme,
     buffers: Arc<RwLock<BufferSet>>,
     workspace_dir: PathBuf,
@@ -70,7 +70,7 @@ pub struct BufferSurface {
     search_history: Selector<(SearchMode, String)>,
 }
 
-impl BufferSurface {
+impl TextArea {
     pub fn new(
         theme: &'static Theme,
         buffers: Arc<RwLock<BufferSet>>,
@@ -79,8 +79,8 @@ impl BufferSurface {
         sync: Arc<SyncClient>,
         status_bar: Arc<StatusBar>,
         minimap: Arc<Mutex<MiniMap>>,
-    ) -> BufferSurface {
-        BufferSurface {
+    ) -> TextArea {
+        TextArea {
             theme,
             buffers,
             workspace_dir: workspace_dir.to_owned(),
@@ -128,7 +128,7 @@ impl BufferSurface {
             if dirty_buffers.len() > 1 { ", ..." } else { "" }
         );
 
-        let prompt = YesNoSurface::new(
+        let prompt = YesNoPrompt::new(
             &title,
             vec![
                 // Save all.
@@ -201,12 +201,25 @@ impl BufferSurface {
             }
             (KeyCode::Char('f'), CTRL) => {
                 drop(f);
-                let finder = FinderSurface::new(
+                let finder = Finder::new(
                     self.status_bar.clone(),
                     self.buffers.clone(),
                     self.workspace_dir.clone(),
                     self.event_tx.clone(),
                     self.sync.clone(),
+                    None,
+                );
+                compositor.push_layer(finder);
+            }
+            (KeyCode::Char('p'), CTRL) => {
+                drop(f);
+                let finder = Finder::new(
+                    self.status_bar.clone(),
+                    self.buffers.clone(),
+                    self.workspace_dir.clone(),
+                    self.event_tx.clone(),
+                    self.sync.clone(),
+                    Some("> "),
                 );
                 compositor.push_layer(finder);
             }
@@ -532,7 +545,7 @@ impl BufferSurface {
     }
 }
 
-impl Surface for BufferSurface {
+impl Surface for TextArea {
     fn name(&self) -> &str {
         "buffer"
     }
@@ -563,9 +576,10 @@ impl Surface for BufferSurface {
             let mut f = buffers.current_file().write();
             let max_lineno_width = f.buffer.num_lines().display_width() + 1;
             let text_start_x = max_lineno_width + 2;
+            let text_height = canvas.height() - 2;
             let text_width = canvas.width() - (text_start_x + 1);
 
-            f.layout_view(0, canvas.height(), text_width);
+            f.layout_view(0, text_height, text_width);
             f.highlight_from_tree_sitter();
             f.view.set_search_highlights(&self.search_matches);
 
@@ -628,11 +642,7 @@ impl Surface for BufferSurface {
             }
 
             if !drew_line_status {
-                canvas.draw_char(
-                    y,
-                    max_lineno_width,
-                    '\u{2502}', /* "Box Drawing Light Veritical" */
-                );
+                canvas.draw_char(y, max_lineno_width, '\u{2590}' /* Right Half Block */);
             }
 
             // Draw buffer contents.
@@ -969,10 +979,7 @@ impl Surface for BufferSurface {
             (NONE, MouseEventKind::Drag(MouseButton::Left)) => {
                 match self.selection_start {
                     Some(start) if start != buffer_pos => {
-                        f.buffer
-                            .set_cursors(vec![Cursor::Selection(Range::from_points(
-                                start, buffer_pos,
-                            ))]);
+                        f.set_cursor(Cursor::Selection(Range::from_points(start, buffer_pos)));
                     }
                     _ => {}
                 }
@@ -1009,8 +1016,7 @@ impl Surface for BufferSurface {
             (NONE, MouseEventKind::Up(MouseButton::Left)) => {
                 // Move cursor.
                 if matches!(self.selection_start, Some(start) if start == buffer_pos) {
-                    f.buffer
-                        .set_cursors(vec![Cursor::new(buffer_pos.y, buffer_pos.x)]);
+                    f.set_cursor(Cursor::new(buffer_pos.y, buffer_pos.x));
                 }
 
                 self.time_last_clicked = Instant::now();

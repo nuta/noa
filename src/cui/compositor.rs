@@ -47,7 +47,7 @@ impl Compositor {
 
         let mut layers = Vec::with_capacity(16);
         layers.push(Arc::new(Mutex::new(Layer {
-            surface: Box::new(TooSmallSurface::new("too small!")),
+            surface: Box::new(TooSmall::new("too small!")),
             active: true,
             canvas: Canvas::new(screen_size.height, screen_size.width),
             screen_y: 0,
@@ -305,19 +305,19 @@ fn relayout_layers(
     ((screen_y, screen_x), rect)
 }
 
-struct TooSmallSurface {
+struct TooSmall {
     text: String,
 }
 
-impl TooSmallSurface {
-    pub fn new(text: &str) -> TooSmallSurface {
-        TooSmallSurface {
+impl TooSmall {
+    pub fn new(text: &str) -> TooSmall {
+        TooSmall {
             text: text.to_string(),
         }
     }
 }
 
-impl Surface for TooSmallSurface {
+impl Surface for TooSmall {
     fn name(&self) -> &str {
         "too_small"
     }

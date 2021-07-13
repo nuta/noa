@@ -27,19 +27,19 @@ enum Item {
     },
 }
 
-pub struct CompletionSurface {
+pub struct Completion {
     buffers: Arc<RwLock<BufferSet>>,
     event_tx: UnboundedSender<Event>,
     sync: Arc<SyncClient>,
     selector: Arc<Mutex<Selector<Item>>>,
 }
 
-impl CompletionSurface {
+impl Completion {
     pub fn new(
         buffers: Arc<RwLock<BufferSet>>,
         event_tx: UnboundedSender<Event>,
         sync: Arc<SyncClient>,
-    ) -> CompletionSurface {
+    ) -> Completion {
         let selector = Arc::new(Mutex::new(Selector::new()));
         let (current_file, current_word, snapshot) = {
             let buffers = buffers.read();
@@ -59,7 +59,7 @@ impl CompletionSurface {
             snapshot,
         ));
 
-        CompletionSurface {
+        Completion {
             buffers,
             event_tx,
             sync,
@@ -68,7 +68,7 @@ impl CompletionSurface {
     }
 }
 
-impl Surface for CompletionSurface {
+impl Surface for Completion {
     fn name(&self) -> &str {
         "completion"
     }

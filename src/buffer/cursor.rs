@@ -186,6 +186,12 @@ impl Cursor {
     }
 }
 
+impl From<Point> for Cursor {
+    fn from(pos: Point) -> Cursor {
+        Cursor::new(pos.y, pos.x)
+    }
+}
+
 impl Ord for Cursor {
     fn cmp(&self, other: &Cursor) -> Ordering {
         let a = match self {

@@ -17,7 +17,7 @@ pub enum CallbackResult {
     Close,
 }
 
-pub struct PromptSurface {
+pub struct Prompt {
     input: LineEdit,
     title: String,
     title_width: usize,
@@ -29,15 +29,15 @@ pub struct PromptSurface {
     oncommit: Box<dyn Fn(&str) -> CallbackResult>,
 }
 
-impl PromptSurface {
+impl Prompt {
     pub fn new(
         title: &str,
         prompt: &str,
         input_width: usize,
         onchange: Option<Box<dyn Fn(&mut LineEdit) -> CallbackResult>>,
         oncommit: Box<dyn Fn(&str) -> CallbackResult>,
-    ) -> PromptSurface {
-        PromptSurface {
+    ) -> Prompt {
+        Prompt {
             input: LineEdit::new(),
             title: title.to_owned(),
             title_width: title.display_width(),
@@ -65,7 +65,7 @@ impl PromptSurface {
     }
 }
 
-impl Surface for PromptSurface {
+impl Surface for Prompt {
     fn name(&self) -> &str {
         "prompt"
     }
@@ -126,7 +126,7 @@ impl Surface for PromptSurface {
 
         let prev_query = self.input.rope().clone();
         if self.input.consume_key_event(key) {
-            self.input.relocate_top_left(self.input_width);
+            self.input.relocate_scroll(self.input_width);
         } else {
             match (key.modifiers, key.code) {
                 (NONE, KeyCode::Esc) => {
@@ -169,7 +169,7 @@ impl Surface for PromptSurface {
         input: &str,
     ) -> HandledEvent {
         self.input.insert(input);
-        self.input.relocate_top_left(self.input_width);
+        self.input.relocate_scroll(self.input_width);
         HandledEvent::Consumed
     }
 }

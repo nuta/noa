@@ -1,4 +1,6 @@
-use std::cmp::{self, min};
+//! Text reflow (soft wrapping), cursor movement, and scroll.
+
+use std::cmp::{self, max, min};
 
 use std::ops;
 
@@ -27,16 +29,18 @@ pub struct DisplayLine {
 pub struct View {
     lines: Vec<DisplayLine>,
     /// The index of display line.
-    top_left: usize,
+    scroll: usize,
     height: usize,
+    logical_x: usize,
 }
 
 impl View {
     pub fn new() -> View {
         View {
             lines: Vec::new(),
-            top_left: 0,
+            scroll: 0,
             height: 0,
+            logical_x: 0,
         }
     }
 
@@ -52,7 +56,7 @@ impl View {
             .map(|i| {
                 let display_line = &self.lines[i];
                 (
-                    i - self.top_left,
+                    i - self.scroll,
                     screen_text_start + pos.x - display_line.range.front().x,
                 )
             })
@@ -75,6 +79,12 @@ impl View {
     }
 
     fn point_to_display_line(&self, pos: Point) -> Option<usize> {
+        if matches!(self.lines.last(), Some(line) if line.range.back().y + 1 == pos.y) && pos.x == 0
+        {
+            // EOF.
+            return Some(self.lines.len() - 1);
+        }
+
         self.lines
             .binary_search_by(|line| {
                 if line.range.contains(pos) || line.range.back() == pos {
@@ -89,11 +99,10 @@ impl View {
     }
 
     pub fn visible_display_lines(&self) -> &[DisplayLine] {
-        &self.lines[self.top_left..min(self.lines.len(), self.top_left + self.height)]
+        &self.lines[self.scroll..min(self.lines.len(), self.scroll + self.height)]
     }
 
     pub fn layout(&mut self, buffer: &Buffer, y_from: usize, height: usize, width: usize) {
-        self.height = height;
         if y_from == 0 {
             self.lines.clear();
         } else {
@@ -169,19 +178,47 @@ impl View {
                 }
             }
         }
+
+        self.height = height;
+
+        let i = self
+            .point_to_display_line(buffer.main_cursor_pos())
+            .unwrap();
+
+        // Scroll up.
+        if i < self.scroll {
+            self.scroll = i;
+        }
+
+        // Scroll down.
+        if i >= self.scroll + height {
+            self.scroll = i - height + 1;
+        }
     }
 
-    pub fn move_cursors(&self, buffer: &mut Buffer, y_diff: isize, x_diff: isize) {
+    pub fn set_cursor(&mut self, buffer: &mut Buffer, cursor: Cursor) {
+        buffer.set_cursors(vec![cursor]);
+        self.logical_x = buffer.main_cursor_pos().x;
+    }
+
+    pub fn move_cursors(&mut self, buffer: &mut Buffer, y_diff: isize, x_diff: isize) {
         let mut new_cursors = Vec::new();
-        for cursor in buffer.cursors() {
+
+        for (i, cursor) in buffer.cursors().iter().enumerate() {
             // Cancel the selection.
-            let pos = match cursor {
+            let old_pos = match cursor {
                 Cursor::Normal { pos, .. } => *pos,
                 Cursor::Selection(range) => range.end,
             };
 
-            // Move the cursor.
-            let new_pos = self.move_x(self.move_y(pos, y_diff), x_diff);
+            let new_pos = self.move_x(self.move_y(old_pos, y_diff, Some(self.logical_x)), x_diff);
+            if i == 0 {
+                // The main cursor.
+                if y_diff.abs() == 0 {
+                    self.logical_x = new_pos.x;
+                }
+            }
+
             new_cursors.push(Cursor::Normal { pos: new_pos });
         }
 
@@ -197,14 +234,14 @@ impl View {
             };
 
             // Move the cursor.
-            let new_end = self.move_x(self.move_y(end, y_diff), x_diff);
+            let new_end = self.move_x(self.move_y(end, y_diff, None), x_diff);
             new_cursors.push(Cursor::Selection(Range::from_points(start, new_end)));
         }
 
         buffer.set_cursors(new_cursors);
     }
 
-    fn move_y(&self, pos: Point, y_diff: isize) -> Point {
+    fn move_y(&self, pos: Point, y_diff: isize, logical_x: Option<usize>) -> Point {
         let prev_y = self.point_to_display_line(pos).unwrap();
         let prev_line = &self.lines[prev_y];
 
@@ -214,12 +251,12 @@ impl View {
             prev_y + y_diff.abs() as usize
         };
 
-        let &new_line = &self
+        let new_line = &self
             .lines
             .get(new_y)
             .unwrap_or_else(|| &self.lines[self.lines.len() - 1]);
 
-        let char_x = pos.x - prev_line.range.front().x;
+        let char_x = max(logical_x.unwrap_or(0), pos.x).saturating_sub(prev_line.range.front().x);
 
         Point::new(
             new_line.range.front().y,
@@ -464,53 +501,95 @@ mod test {
         view.layout(&buffer, 0, 3, 5);
         assert_eq!(
             // 1|2345
-            view.move_y(Point::new(0, 1), 1),
+            view.move_y(Point::new(0, 1), 1, None),
             // a|bcde
             Point::new(0, 6)
         );
         assert_eq!(
             // a|bcde
-            view.move_y(Point::new(0, 6), 1),
+            view.move_y(Point::new(0, 6), 1, None),
             // !|@#
             Point::new(0, 11)
         );
         assert_eq!(
             // !|@#
-            view.move_y(Point::new(0, 11), 1),
+            view.move_y(Point::new(0, 11), 1, None),
             // x|yz
             Point::new(1, 1)
         );
 
         assert_eq!(
             // x|yz
-            view.move_y(Point::new(1, 1), -1),
+            view.move_y(Point::new(1, 1), -1, None),
             // !|@#
             Point::new(0, 11)
         );
         assert_eq!(
             // !|@#
-            view.move_y(Point::new(0, 11), -1),
+            view.move_y(Point::new(0, 11), -1, None),
             // a|bcde
             Point::new(0, 6)
         );
         assert_eq!(
             // !|@#
-            view.move_y(Point::new(0, 6), -1),
+            view.move_y(Point::new(0, 6), -1, None),
             // a|bcde
             Point::new(0, 1)
         );
 
         assert_eq!(
             // 1|2345
-            view.move_y(Point::new(0, 1), -1),
+            view.move_y(Point::new(0, 1), -1, None),
             // 1|2345
             Point::new(0, 1)
         );
         assert_eq!(
             // x|yz
-            view.move_y(Point::new(1, 1), 1),
+            view.move_y(Point::new(1, 1), 1, None),
             // x|yz
             Point::new(1, 1)
         );
+    }
+
+    #[test]
+    fn logical_x() {
+        // AB|C
+        //
+        // DEFGH
+        // 1
+        // XYZ
+        let mut buffer = Buffer::from_str("ABC\n\nDEFGH\n1\nXYZ");
+        let mut view = View::new();
+        view.set_cursor(&mut buffer, Cursor::new(0, 2));
+        view.layout(&buffer, 0, 10, 5);
+
+        // DE|FGH
+        view.move_cursors(&mut buffer, 2, 0);
+        assert_eq!(buffer.cursors(), vec![Cursor::new(2, 2)]);
+        // 1|
+        view.move_cursors(&mut buffer, 1, 0);
+        assert_eq!(buffer.cursors(), vec![Cursor::new(3, 1)]);
+        // XY|Z
+        view.move_cursors(&mut buffer, 1, 0);
+        assert_eq!(buffer.cursors(), vec![Cursor::new(4, 2)]);
+        // No changes.
+        view.move_cursors(&mut buffer, 1, 0);
+        assert_eq!(buffer.cursors(), vec![Cursor::new(4, 2)]);
+
+        // 1|
+        view.move_cursors(&mut buffer, -1, 0);
+        assert_eq!(buffer.cursors(), vec![Cursor::new(3, 1)]);
+        // DE|FGH
+        view.move_cursors(&mut buffer, -1, 0);
+        assert_eq!(buffer.cursors(), vec![Cursor::new(2, 2)]);
+        // | (lineno 2)
+        view.move_cursors(&mut buffer, -1, 0);
+        assert_eq!(buffer.cursors(), vec![Cursor::new(1, 0)]);
+        // AB|C
+        view.move_cursors(&mut buffer, -1, 0);
+        assert_eq!(buffer.cursors(), vec![Cursor::new(0, 2)]);
+        // No changes.
+        view.move_cursors(&mut buffer, -1, 0);
+        assert_eq!(buffer.cursors(), vec![Cursor::new(0, 2)]);
     }
 }

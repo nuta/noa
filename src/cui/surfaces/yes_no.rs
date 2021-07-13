@@ -1,6 +1,6 @@
 use crate::{CanvasViewMut, Compositor, HandledEvent, KeyEvent, Layout, RectSize, Surface};
 
-use super::prompt::{CallbackResult, PromptMessage, PromptSurface};
+use super::prompt::{CallbackResult, Prompt, PromptMessage};
 
 pub struct YesNoChoice {
     pub key: char,
@@ -16,19 +16,19 @@ impl YesNoChoice {
     }
 }
 
-pub struct YesNoSurface {
-    prompt: PromptSurface,
+pub struct YesNoPrompt {
+    prompt: Prompt,
 }
 
-impl YesNoSurface {
-    pub fn new(title: &str, choices: Vec<YesNoChoice>) -> YesNoSurface {
+impl YesNoPrompt {
+    pub fn new(title: &str, choices: Vec<YesNoChoice>) -> YesNoPrompt {
         let mut keys = String::with_capacity(choices.len());
         for choice in &choices {
             keys.push(choice.key);
         }
 
-        YesNoSurface {
-            prompt: PromptSurface::new(
+        YesNoPrompt {
+            prompt: Prompt::new(
                 title,
                 &format!("[{}]", keys),
                 1,
@@ -54,7 +54,7 @@ impl YesNoSurface {
     }
 }
 
-impl Surface for YesNoSurface {
+impl Surface for YesNoPrompt {
     fn name(&self) -> &str {
         "yes_no"
     }

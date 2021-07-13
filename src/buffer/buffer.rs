@@ -156,7 +156,7 @@ impl Buffer {
 
         pos.y = min(pos.y, self.rope.num_lines().saturating_sub(1));
         pos.x = min(pos.x, self.rope.line_len(pos.y));
-        self.cursors = vec![Cursor::Normal { pos }];
+        self.cursors = vec![Cursor::from(pos)];
     }
 
     #[cfg(test)]
@@ -343,6 +343,14 @@ impl Buffer {
         }
 
         self.sort_and_merge_cursors();
+    }
+
+    pub fn move_to_beginning_of_buffer(&mut self) {
+        self.move_cursor_to(Point::new(0, 0));
+    }
+
+    pub fn move_to_end_of_buffer(&mut self) {
+        self.move_cursor_to(Point::new(self.num_lines(), 0));
     }
 
     pub fn move_to_end_of_line(&mut self) {
@@ -748,7 +756,9 @@ impl Buffer {
             self.rope.insert(range.front(), &new_text);
         }
 
-        self.set_cursors(new_cursors);
+        if !new_cursors.is_empty() {
+            self.set_cursors(new_cursors);
+        }
     }
 
     pub fn mark_undo_point(&mut self) {
@@ -785,6 +795,11 @@ impl Buffer {
             self.undo_stack.push(self.rope.clone());
             self.rope = buf;
         }
+    }
+
+    pub fn select_all(&mut self) {
+        let range = Range::new(0, 0, self.num_lines(), 0);
+        self.set_cursors(vec![Cursor::Selection(range)]);
     }
 
     pub fn cut_selection(&mut self) -> String {

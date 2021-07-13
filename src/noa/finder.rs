@@ -15,11 +15,11 @@ use tokio::{process::Command, sync::mpsc::UnboundedSender};
 
 use crate::{
     actions::{self, Action, ACTIONS},
-    buffer::StatusBar,
     buffer_set::BufferSet,
     fuzzy_set::FuzzySet,
     selector::Selector,
     sync_client::SyncClient,
+    textarea::StatusBar,
     Event,
 };
 
@@ -31,7 +31,7 @@ enum Item {
     Action(Arc<dyn Action>),
 }
 
-pub struct FinderSurface {
+pub struct Finder {
     status_bar: Arc<StatusBar>,
     buffers: Arc<RwLock<BufferSet>>,
     workspace_dir: PathBuf,
@@ -41,29 +41,31 @@ pub struct FinderSurface {
     sync: Arc<SyncClient>,
 }
 
-impl FinderSurface {
+impl Finder {
     pub fn new(
         status_bar: Arc<StatusBar>,
         buffers: Arc<RwLock<BufferSet>>,
         workspace_dir: PathBuf,
         event_tx: UnboundedSender<Event>,
         sync: Arc<SyncClient>,
-    ) -> FinderSurface {
+        initial_input: Option<&str>,
+    ) -> Finder {
         let selector = Arc::new(Mutex::new(Selector::new()));
 
+        let query = initial_input.unwrap_or("");
         tokio::spawn(update_items(
             workspace_dir.to_owned(),
             event_tx.clone(),
             selector.clone(),
-            "".to_owned(),
+            query.to_owned(),
         ));
 
-        FinderSurface {
+        Finder {
             status_bar,
             buffers,
             workspace_dir,
             event_tx,
-            input: LineEdit::new(),
+            input: LineEdit::from_str(query),
             selector,
             sync,
         }
@@ -142,7 +144,7 @@ impl FinderSurface {
     }
 }
 
-impl Surface for FinderSurface {
+impl Surface for Finder {
     fn name(&self) -> &str {
         "finder"
     }

@@ -12,7 +12,7 @@ use std::path::Path;
 use std::process::Stdio;
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
-use noa_buffer::{Buffer, BufferId, Point};
+use noa_buffer::{Buffer, BufferId, Cursor, Point};
 use noa_langs::tree_sitter;
 
 pub struct OpenedFile {
@@ -24,6 +24,10 @@ pub struct OpenedFile {
 impl OpenedFile {
     pub fn layout_view(&mut self, y_from: usize, height: usize, width: usize) {
         self.view.layout(&self.buffer, y_from, height, width);
+    }
+
+    pub fn set_cursor(&mut self, cursor: Cursor) {
+        self.view.set_cursor(&mut self.buffer, cursor);
     }
 
     pub fn move_cursors(&mut self, y_diff: isize, x_diff: isize) {
@@ -46,11 +50,6 @@ impl OpenedFile {
 const SCRATCH_TEXT: &str = "\
 ;; This is the scratch buffer: you can't save it into a file.
 
-fn main() {
-    if 1 == 2 {
-        println!(\"Hello World!\");
-    }
-}
 ";
 
 pub struct BufferSet {

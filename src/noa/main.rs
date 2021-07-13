@@ -1,8 +1,7 @@
 use crate::{minimap::LineStatus, sync_client::SyncClient, theme::DEFAULT_THEME};
 use anyhow::Result;
-use buffer::{BufferSurface, StatusBar};
 use buffer_set::BufferSet;
-use completion::CompletionSurface;
+use completion::Completion;
 use git::Repo;
 use minimap::{MiniMap, MiniMapCategory};
 use noa_buffer::{BufferId, Point};
@@ -25,6 +24,7 @@ use std::{
     time::Instant,
 };
 use structopt::StructOpt;
+use textarea::{StatusBar, TextArea};
 use tokio::sync::mpsc::unbounded_channel;
 
 #[macro_use]
@@ -35,7 +35,6 @@ extern crate log;
 extern crate pretty_assertions;
 
 mod actions;
-mod buffer;
 mod buffer_set;
 mod completion;
 mod finder;
@@ -44,6 +43,7 @@ mod git;
 mod minimap;
 mod selector;
 mod sync_client;
+mod textarea;
 mod theme;
 mod view;
 
@@ -161,8 +161,8 @@ async fn main() {
     // Initialize UI.
     let buffers = Arc::new(RwLock::new(buffers));
     let mut compositor = Compositor::new();
-    let completion = CompletionSurface::new(buffers.clone(), event_tx.clone(), sync.clone());
-    let buffer = BufferSurface::new(
+    let completion = Completion::new(buffers.clone(), event_tx.clone(), sync.clone());
+    let buffer = TextArea::new(
         theme,
         buffers.clone(),
         &workspace_dir,

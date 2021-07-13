@@ -4,7 +4,7 @@ use noa_buffer::{Point, Range, Rope};
 pub struct LineEdit {
     rope: Rope,
     cursor: usize,
-    top_left: usize,
+    scroll: usize,
 }
 
 impl LineEdit {
@@ -12,8 +12,14 @@ impl LineEdit {
         LineEdit {
             rope: Rope::new(),
             cursor: 0,
-            top_left: 0,
+            scroll: 0,
         }
+    }
+
+    pub fn from_str(text: &str) -> LineEdit {
+        let mut le = LineEdit::new();
+        le.insert(text);
+        le
     }
 
     pub fn is_empty(&self) -> bool {
@@ -38,7 +44,7 @@ impl LineEdit {
     }
 
     pub fn cursor_display_pos(&self) -> usize {
-        self.cursor - self.top_left
+        self.cursor - self.scroll
     }
 
     fn cursor_as_pos(&self) -> Point {
@@ -79,15 +85,15 @@ impl LineEdit {
             .remove(&Range::new(0, self.cursor, 0, self.cursor + 1));
     }
 
-    pub fn relocate_top_left(&mut self, width: usize) {
+    pub fn relocate_scroll(&mut self, width: usize) {
         // Scroll Right.
-        if self.cursor > self.top_left + width {
-            self.top_left = self.cursor - width;
+        if self.cursor > self.scroll + width {
+            self.scroll = self.cursor - width;
         }
 
         // Scroll Left.
-        if self.cursor < self.top_left {
-            self.top_left = self.cursor;
+        if self.cursor < self.scroll {
+            self.scroll = self.cursor;
         }
     }
 
@@ -172,21 +178,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn relocate_top_left() {
+    fn relocate_scroll() {
         let mut le = LineEdit::new();
         le.insert("abcde");
-        le.relocate_top_left(5);
-        assert_eq!(le.top_left, 0);
+        le.relocate_scroll(5);
+        assert_eq!(le.scroll, 0);
 
-        le.relocate_top_left(4);
-        assert_eq!(le.top_left, 1);
+        le.relocate_scroll(4);
+        assert_eq!(le.scroll, 1);
 
         le.insert_char('f');
-        le.relocate_top_left(4);
-        assert_eq!(le.top_left, 2);
+        le.relocate_scroll(4);
+        assert_eq!(le.scroll, 2);
 
         le.move_to_beginning_of_line();
-        le.relocate_top_left(4);
-        assert_eq!(le.top_left, 0);
+        le.relocate_scroll(4);
+        assert_eq!(le.scroll, 0);
     }
 }

@@ -368,7 +368,7 @@ impl<'a> CanvasViewMut<'a> {
             self.set_grapheme(y_bottom - 1, x, horizontal_bar);
         }
 
-        self.set_grapheme(y_top, x_left, Grapheme::new("\u{250d}" /* top_left */));
+        self.set_grapheme(y_top, x_left, Grapheme::new("\u{250d}" /* scroll */));
         self.set_grapheme(
             y_top,
             x_right - 1,
