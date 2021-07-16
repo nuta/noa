@@ -18,8 +18,9 @@ use noa_common::{
     dirs::sync_sock_path,
     oops::OopsExt,
     sync_protocol::{
-        lsp_types, BufferSyncRequest, FileLocation, LspRequest, LspResponse, Notification,
-        RawRequest, ToClient, ToServer,
+        lsp_types::{self, HoverContents, SignatureHelp},
+        BufferSyncRequest, FileLocation, LspRequest, LspResponse, Notification, RawRequest,
+        ToClient, ToServer,
     },
 };
 use parking_lot::RwLock;
@@ -112,6 +113,48 @@ impl SyncClient {
                 LspResponse::GoToDefinition(locs) => Ok(locs),
                 _ => {
                     bail!("unexpected goto_definition response: {:?}", resp);
+                }
+            },
+        )
+        .await
+    }
+
+    pub async fn _call_hover(
+        &self,
+        opened_file: &Arc<RwLock<OpenedFile>>,
+        pos: Option<Point>,
+    ) -> Result<oneshot::Receiver<Option<HoverContents>>> {
+        self.call_lsp_method_for_file(
+            opened_file,
+            |path, opened_file| LspRequest::Hover {
+                path,
+                position: pos.unwrap_or_else(|| opened_file.buffer.main_cursor_pos()),
+            },
+            |resp| match resp {
+                LspResponse::Hover(contents) => Ok(contents),
+                _ => {
+                    bail!("unexpected hover response: {:?}", resp);
+                }
+            },
+        )
+        .await
+    }
+
+    pub async fn call_signature_help(
+        &self,
+        opened_file: &Arc<RwLock<OpenedFile>>,
+        pos: Option<Point>,
+    ) -> Result<oneshot::Receiver<Option<SignatureHelp>>> {
+        self.call_lsp_method_for_file(
+            opened_file,
+            |path, opened_file| LspRequest::SignatureHelp {
+                path,
+                position: pos.unwrap_or_else(|| opened_file.buffer.main_cursor_pos()),
+            },
+            |resp| match resp {
+                LspResponse::SignatureHelp(help) => Ok(help),
+                _ => {
+                    bail!("unexpected signature_help response: {:?}", resp);
                 }
             },
         )
@@ -319,7 +362,6 @@ impl SyncClient {
                             ToClient::Response(resp) => {
                                 match sent_requests.lock().await.remove(&resp.id) {
                                     Some(tx) => {
-                                        trace!("resp.body={:?}", resp);
                                         tx.send(resp.body).ok();
                                     }
                                     None => {

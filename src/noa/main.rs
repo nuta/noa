@@ -358,33 +358,61 @@ async fn main() {
 
     let on_idle = {
         let repo = repo.clone();
+        let sync = sync.clone();
+        let status_bar = status_bar.clone();
         let buffers = buffers.clone();
+        let event_tx = event_tx.clone();
         let backup_dir = backup_dir();
         move || {
             let buffers = buffers.read();
             let backup_dir = backup_dir.clone();
 
             // Update git line statuses.
-            let current_file = buffers.current_file().clone();
-            let minimap = minimap.clone();
-            let repo = repo.clone();
-            tokio::spawn(async move {
-                if let Some(repo) = repo.as_ref() {
-                    let current_file = current_file.clone();
-                    let (path, snapshot) = {
-                        let f = current_file.read();
-                        let path = f.buffer.path().map(Path::to_path_buf);
-                        let snapshot = f.buffer.take_snapshot();
-                        (path, snapshot)
-                    };
+            {
+                let current_file = buffers.current_file().clone();
+                let minimap = minimap.clone();
+                let repo = repo.clone();
+                let event_tx = event_tx.clone();
+                tokio::spawn(async move {
+                    if let Some(repo) = repo.as_ref() {
+                        let current_file = current_file.clone();
+                        let (path, snapshot) = {
+                            let f = current_file.read();
+                            let path = f.buffer.path().map(Path::to_path_buf);
+                            let snapshot = f.buffer.take_snapshot();
+                            (path, snapshot)
+                        };
 
-                    if let Some(path) = path {
-                        minimap
-                            .lock()
-                            .update_git_line_statuses(repo, &path, snapshot.text());
+                        if let Some(path) = path {
+                            minimap
+                                .lock()
+                                .update_git_line_statuses(repo, &path, snapshot.text());
+
+                            event_tx.send(Event::ReDraw).ok();
+                        }
                     }
-                }
-            });
+                });
+            }
+
+            // LSP: Hover.
+            {
+                let sync = sync.clone();
+                let status_bar = status_bar.clone();
+                let current_file = buffers.current_file().clone();
+                let event_tx = event_tx.clone();
+                tokio::spawn(async move {
+                    trace!("hover: requesting...");
+                    if let Ok(help) = sync.call_signature_help(&current_file, None).await {
+                        if let Ok(Some(help)) = help.await {
+                            trace!("hover: {:?}", help);
+                            if let Some(info) = help.signatures.get(0) {
+                                status_bar.info(&info.label);
+                                event_tx.send(Event::ReDraw).ok();
+                            }
+                        }
+                    }
+                });
+            }
 
             // Create a backup file and add a undo point.
             let current_file = buffers.current_file().clone();

@@ -871,6 +871,7 @@ impl Surface for TextArea {
             };
 
             let text = truncate_to_width(text, log_max_width);
+            info!("LOG: {}", text);
             let text_width = text.display_width();
             let x = canvas.width() - text_width;
             canvas.draw_str(bottom_bar_y1, x, text);

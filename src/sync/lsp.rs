@@ -13,11 +13,14 @@ use lsp_types::{
         DidChangeTextDocument, DidOpenTextDocument, Notification as LspNotificationTrait,
         PublishDiagnostics,
     },
-    request::{Completion, GotoDefinition, Initialize, Request},
+    request::{
+        Completion, GotoDefinition, HoverRequest, Initialize, Request, SignatureHelpRequest,
+    },
     CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
-    GotoDefinitionParams, GotoDefinitionResponse, InitializeParams, PartialResultParams,
-    PublishDiagnosticsParams, TextDocumentContentChangeEvent, TextDocumentIdentifier,
-    TextDocumentPositionParams, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
+    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, InitializeParams,
+    PartialResultParams, PublishDiagnosticsParams, SignatureHelp, SignatureHelpParams,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams,
+    VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 use noa_buffer::Point;
 use noa_common::sync_protocol::{FileLocation, LspRequest, LspResponse, Notification};
@@ -161,6 +164,16 @@ async fn receive_responses(
                             CompletionResponse::List(list) => list.items,
                         };
                         LspResponse::Completion(items)
+                    }
+                    HoverRequest::METHOD => {
+                        let contents = serde_json::from_value::<Hover>(json.result)
+                            .ok()
+                            .map(|resp| resp.contents);
+                        LspResponse::Hover(contents)
+                    }
+                    SignatureHelpRequest::METHOD => {
+                        let help = serde_json::from_value::<SignatureHelp>(json.result).ok();
+                        LspResponse::SignatureHelp(help)
                     }
                     GotoDefinition::METHOD => {
                         let resp: GotoDefinitionResponse =
@@ -425,6 +438,41 @@ impl Daemon for LspDaemon {
                     partial_result_params: PartialResultParams {
                         partial_result_token: None,
                     },
+                    work_done_progress_params: WorkDoneProgressParams {
+                        work_done_token: None,
+                    },
+                })
+                .await
+            }
+            LspRequest::Hover { path, position } => {
+                trace!("Hover(path={}, position={})", path.display(), position);
+                self.call_method::<HoverRequest>(HoverParams {
+                    text_document_position_params: TextDocumentPositionParams {
+                        position: position.into_position(),
+                        text_document: TextDocumentIdentifier {
+                            uri: parse_path_as_uri(&path),
+                        },
+                    },
+                    work_done_progress_params: WorkDoneProgressParams {
+                        work_done_token: None,
+                    },
+                })
+                .await
+            }
+            LspRequest::SignatureHelp { path, position } => {
+                trace!(
+                    "SignatureHelp(path={}, position={})",
+                    path.display(),
+                    position
+                );
+                self.call_method::<SignatureHelpRequest>(SignatureHelpParams {
+                    text_document_position_params: TextDocumentPositionParams {
+                        position: position.into_position(),
+                        text_document: TextDocumentIdentifier {
+                            uri: parse_path_as_uri(&path),
+                        },
+                    },
+                    context: None,
                     work_done_progress_params: WorkDoneProgressParams {
                         work_done_token: None,
                     },

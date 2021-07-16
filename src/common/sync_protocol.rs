@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use lsp_types::{CompletionItem, Diagnostic};
+use lsp_types::{CompletionItem, Diagnostic, HoverContents, SignatureHelp};
 use serde::{Deserialize, Serialize};
 
 use noa_buffer::Point;
@@ -65,6 +65,14 @@ pub enum LspRequest {
         path: PathBuf,
         position: Point,
     },
+    Hover {
+        path: PathBuf,
+        position: Point,
+    },
+    SignatureHelp {
+        path: PathBuf,
+        position: Point,
+    },
     GoToDefinition {
         path: PathBuf,
         position: Point,
@@ -80,6 +88,8 @@ pub struct FileLocation {
 #[derive(Deserialize, Serialize, Debug)]
 pub enum LspResponse {
     NoContent,
+    Hover(Option<HoverContents>),
+    SignatureHelp(Option<SignatureHelp>),
     Completion(Vec<CompletionItem>),
     GoToDefinition(Vec<FileLocation>),
 }

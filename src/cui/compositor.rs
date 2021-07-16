@@ -203,6 +203,7 @@ impl Compositor {
         F3: Fn(),
         F4: Fn() -> (usize, usize),
     {
+        let mut any_progress = false;
         let mut idle = false;
         loop {
             self.render_to_terminal(cursor_pos());
@@ -217,6 +218,7 @@ impl Compositor {
                 Ok(Some(ev)) => {
                     let prev = before_event();
 
+                    any_progress = !matches!(ev, Input::Redraw);
                     if !self.handle_event(ev) {
                         return;
                     }
@@ -224,6 +226,7 @@ impl Compositor {
                     while let Ok(Some(ev)) =
                         timeout(Duration::from_micros(50), self.input_rx.recv()).await
                     {
+                        any_progress = any_progress || !matches!(ev, Input::Redraw);
                         if !self.handle_event(ev) {
                             return;
                         }
@@ -235,8 +238,11 @@ impl Compositor {
                 Ok(None) => {
                     break;
                 }
-                Err(_) if !idle => {
+                Err(_) if !idle && any_progress => {
                     on_idle();
+                    idle = true;
+                }
+                Err(_) if !any_progress => {
                     idle = true;
                 }
                 Err(_) => {}
