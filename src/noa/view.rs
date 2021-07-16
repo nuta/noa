@@ -72,7 +72,7 @@ impl View {
     }
 
     pub fn display_pos_to_point(&self, display_y: usize, display_x: usize) -> Option<Point> {
-        self.lines.get(display_y).map(|line| {
+        self.lines.get(self.scroll + display_y).map(|line| {
             let mut pos = line.range.front();
             pos.x += min(display_x, line.range.end.x);
             pos

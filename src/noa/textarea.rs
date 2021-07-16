@@ -685,7 +685,6 @@ impl Surface for TextArea {
                         canvas.set_fg(y, x_start, x_end, color);
                     }
                     if let Some(color) = bg {
-                        trace!("render: {:?} {}..{}", h.highlight_type, x_start, x_end);
                         canvas.set_bg(y, x_start, x_end, color);
                     }
                 }
@@ -708,11 +707,12 @@ impl Surface for TextArea {
             .map(|l| l.buffer_y)
             .unwrap_or(0);
         let visible_range = visible_start..visible_end;
+        let inc = ((num_lines as f64) / (canvas.height() as f64)).ceil();
         self.scroll_ys.clear();
         self.scroll_bar_x = canvas.width() - 1;
         for i in 0..canvas.height() {
-            let start = (((num_lines as f64) / (canvas.height() as f64)) * (i as f64)) as usize;
-            let end = (((num_lines as f64) / (canvas.height() as f64)) * ((i + 1) as f64)) as usize;
+            let start = (inc * (i as f64)) as usize;
+            let end = (inc * ((i + 1) as f64)) as usize;
             for category in categories {
                 let y_range = (start)..(end);
                 if let Some(e) = minimap.iter_overlapping(category, y_range.clone()).next() {
