@@ -33,6 +33,7 @@ use noa_cui::{
     DisplayWidth, HandledEvent, Layout, RectSize, Surface,
 };
 
+const MOUSE_WHEEL_SCROLL_AMOUNT: isize = 15;
 const SEARCH_HIGHLIGHTS_MAX: usize = 8192;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -311,6 +312,7 @@ impl TextArea {
             }
             (KeyCode::Enter, NONE) => {
                 f.buffer.insert_char('\n');
+                f.buffer.tab();
             }
             (KeyCode::Tab, NONE) => {
                 f.buffer.tab();
@@ -670,6 +672,7 @@ impl Surface for TextArea {
                     let x_end = text_start_x + h.range.end;
                     let (fg, bg) = match h.highlight_type {
                         HighlightType::Ident => (Some(Color::Magenta), None),
+                        HighlightType::Comment => (Some(Color::Grey), None),
                         HighlightType::StringLiteral => (Some(Color::Green), None),
                         HighlightType::EscapeSequence => (Some(Color::Cyan), None),
                         HighlightType::PrimitiveType => (Some(Color::Cyan), None),
@@ -915,6 +918,7 @@ impl Surface for TextArea {
 
     fn handle_mouse_event(&mut self, _compositor: &mut Compositor, ev: MouseEvent) -> HandledEvent {
         const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        const ALT: KeyModifiers = KeyModifiers::ALT;
         const NONE: KeyModifiers = KeyModifiers::NONE;
 
         let buffers = self.buffers.write();
@@ -951,16 +955,30 @@ impl Surface for TextArea {
         };
 
         match (modifiers, kind) {
+            (NONE, MouseEventKind::ScrollUp) => {
+                f.scroll(-MOUSE_WHEEL_SCROLL_AMOUNT);
+                HandledEvent::Consumed
+            }
+            (NONE, MouseEventKind::ScrollDown) => {
+                f.scroll(MOUSE_WHEEL_SCROLL_AMOUNT);
+                HandledEvent::Consumed
+            }
             (NONE, MouseEventKind::Down(MouseButton::Left)) => {
                 self.selection_start = Some(buffer_pos);
                 HandledEvent::Consumed
             }
+            // Alt + click: Add a cursor at the clicked position
+            (ALT, MouseEventKind::Down(MouseButton::Left)) => {
+                f.buffer.add_cursor(Cursor::from(buffer_pos));
+                HandledEvent::Consumed
+            }
+            // Ctrl + click: Go to Definition
             (CTRL, MouseEventKind::Down(MouseButton::Left)) => {
                 let file = buffers.current_file().clone();
                 let sync = self.sync.clone();
                 let event_tx = self.event_tx.clone();
                 tokio::spawn(async move {
-                    match sync.call_goto_definition(&file).await {
+                    match sync.call_goto_definition(&file, Some(buffer_pos)).await {
                         Ok(locs_rx) => {
                             if let Ok(locs) = locs_rx.await {
                                 trace!("goto_definition: {:?}", locs);

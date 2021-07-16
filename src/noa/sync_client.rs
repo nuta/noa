@@ -100,12 +100,13 @@ impl SyncClient {
     pub async fn call_goto_definition(
         &self,
         opened_file: &Arc<RwLock<OpenedFile>>,
+        pos: Option<Point>,
     ) -> Result<oneshot::Receiver<Vec<FileLocation>>> {
         self.call_lsp_method_for_file(
             opened_file,
             |path, opened_file| LspRequest::GoToDefinition {
                 path,
-                position: opened_file.buffer.main_cursor_pos(),
+                position: pos.unwrap_or_else(|| opened_file.buffer.main_cursor_pos()),
             },
             |resp| match resp {
                 LspResponse::GoToDefinition(locs) => Ok(locs),

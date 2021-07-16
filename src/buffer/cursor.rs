@@ -121,6 +121,17 @@ impl Range {
         self.start <= pos && pos < self.end
     }
 
+    pub fn contains_range(&self, other: &Range) -> bool {
+        trace!(
+            "CONTAINS: {} {}, {} {}",
+            self,
+            other,
+            self.front() <= other.front(),
+            other.back() <= self.back()
+        );
+        self.front() <= other.front() && other.back() <= self.back()
+    }
+
     pub fn is_empty(&self) -> bool {
         self.front() == self.back()
     }

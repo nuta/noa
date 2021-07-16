@@ -184,6 +184,10 @@ impl Buffer {
         self.lang
     }
 
+    pub fn set_lang(&mut self, lang: &'static Lang) {
+        self.lang = lang;
+    }
+
     pub fn config(&self) -> &EditorConfig {
         &self.config
     }
@@ -931,15 +935,17 @@ impl Buffer {
         self.sort_and_merge_cursors();
     }
 
+    pub fn add_cursor(&mut self, cursor: Cursor) {
+        self.cursors.push(cursor);
+        self.sort_and_merge_cursors();
+    }
+
     pub fn add_cursor_above(&mut self) {
         let top = self.cursors[0].anchor();
         if top.y > 0 {
             let y = top.y - 1;
-            self.cursors
-                .push(Cursor::new(y, min(self.line_len(y), top.x)));
+            self.add_cursor(Cursor::new(y, min(self.line_len(y), top.x)));
         }
-
-        self.sort_and_merge_cursors();
     }
 
     pub fn add_cursor_below(&mut self) {
@@ -951,10 +957,8 @@ impl Buffer {
             } else {
                 min(self.line_len(y), bottom.x)
             };
-            self.cursors.push(Cursor::new(y, x));
+            self.add_cursor(Cursor::new(y, x));
         }
-
-        self.sort_and_merge_cursors();
     }
 
     pub fn move_current_line_above(&mut self) {

@@ -16,6 +16,7 @@ pub struct Lsp {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HighlightType {
     MatchedBySearch,
+    Comment,
     Ident,
     StringLiteral,
     EscapeSequence,
@@ -86,11 +87,13 @@ pub const C: Lang = Lang {
     }),
     tree_sitter_lib: Some(tree_sitter::tree_sitter_c),
     tree_sitter_mapping: phf_map! {
+        "comment" => HighlightType::Comment,
         "identifier" => HighlightType::Ident,
         "string_literal" => HighlightType::StringLiteral,
         "primitive_type" => HighlightType::PrimitiveType,
         "escape_sequence" => HighlightType::EscapeSequence,
         "preproc_include" => HighlightType::CMacro,
+        "#include" => HighlightType::CMacro,
         "system_lib_string" => HighlightType::CIncludeArg,
     },
 };

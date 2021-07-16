@@ -9,8 +9,9 @@ use noa_langs::{tree_sitter, HighlightType, Lang};
 
 use noa_cui::DisplayWidth;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Highlight {
+    /// Range in the display line.
     pub range: ops::Range<usize>,
     pub highlight_type: HighlightType,
 }
@@ -201,6 +202,20 @@ impl View {
         self.logical_x = buffer.main_cursor_pos().x;
     }
 
+    pub fn scroll(&mut self, buffer: &mut Buffer, y_diff: isize) {
+        self.scroll = if y_diff < 0 {
+            self.scroll.saturating_sub(y_diff.abs() as usize)
+        } else {
+            min(
+                self.scroll + y_diff.abs() as usize,
+                self.lines.len().saturating_sub(1),
+            )
+        };
+
+        let dl = &self.lines[self.scroll];
+        buffer.set_cursors(vec![Cursor::from(dl.range.start)]);
+    }
+
     pub fn move_cursors(&mut self, buffer: &mut Buffer, y_diff: isize, x_diff: isize) {
         let mut new_cursors = Vec::new();
 
@@ -302,14 +317,18 @@ impl View {
             if end_position.row == start_position.row {
                 let start = Point::new(start_position.row, start_position.column);
                 let end = Point::new(end_position.row, end_position.column);
+                let range = Range::from_points(start, end);
 
                 for line in &mut self.lines {
-                    if line.range.contains(start) && line.range.contains(end) {
+                    if range.overlaps_with(&line.range) {
                         if let Some(highlight_type) =
                             lang.tree_sitter_mapping.get(node.kind()).copied()
                         {
-                            let range =
-                                (start.x - line.range.start.x)..(end.x - line.range.start.x);
+                            let start_pos = max(start, line.range.start);
+                            let end_pos = min(end, line.range.end);
+                            let range = (start_pos.x - line.range.start.x)
+                                ..(end_pos.x - line.range.start.x);
+
                             line.syntax_highlights.push(Highlight {
                                 range,
                                 highlight_type,
@@ -342,10 +361,15 @@ impl View {
 
         for Range { start, end } in matches {
             for line in &mut self.lines {
-                if line.range.contains(*start) && line.range.contains(*end) {
+                let range = Range::from_points(*start, *end);
+                if range.contains_range(&line.range) {
                     trace!("search highlight: {}..{}", start, end);
+                    let start_pos = max(start, &line.range.start);
+                    let end_pos = min(end, &line.range.end);
+                    let range =
+                        (start_pos.x - line.range.start.x)..(end_pos.x - line.range.start.x);
                     line.search_highlights.push(Highlight {
-                        range: (start.x - line.range.start.x)..(end.x - line.range.start.x),
+                        range,
                         highlight_type: HighlightType::MatchedBySearch,
                     });
                 }
@@ -356,6 +380,8 @@ impl View {
 
 #[cfg(test)]
 mod test {
+    use noa_langs::tree_sitter::Tree;
+
     use super::*;
 
     #[test]
@@ -591,5 +617,126 @@ mod test {
         // No changes.
         view.move_cursors(&mut buffer, -1, 0);
         assert_eq!(buffer.cursors(), vec![Cursor::new(0, 2)]);
+    }
+
+    fn create_and_highlight_buffer(lang: &'static Lang, text: &str) -> (Buffer, Tree) {
+        let mut buffer = Buffer::from_str(text);
+
+        buffer.set_lang(lang);
+        let mut parser = buffer.lang().syntax_highlighting_parser().unwrap();
+        let tree = parser.parse(buffer.text(), None).unwrap();
+        (buffer, tree)
+    }
+
+    #[test]
+    fn highlight_single_line() {
+        // #include <stdio.h>
+        let (buffer, tree) =
+            create_and_highlight_buffer(&noa_langs::C, concat!("#include <stdio.h>\n",));
+        let mut view = View::new();
+
+        view.layout(&buffer, 0, 25, 80);
+        view.highlight_from_tree_sitter(&noa_langs::C, &tree);
+
+        assert_eq!(view.lines.len(), 2);
+        assert_eq!(
+            &view.lines[0].syntax_highlights,
+            &[
+                Highlight {
+                    highlight_type: HighlightType::CMacro,
+                    range: 0..8,
+                },
+                Highlight {
+                    highlight_type: HighlightType::CIncludeArg,
+                    range: 9..18,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn highlight_multi_lined_node() {
+        // "abcd
+        // 12345
+        // xyz"
+        let (buffer, tree) =
+            create_and_highlight_buffer(&noa_langs::C, concat!("\"abcd12345xyz\"\n",));
+        let mut view = View::new();
+
+        view.layout(&buffer, 0, 25, 5);
+        view.highlight_from_tree_sitter(&noa_langs::C, &tree);
+
+        assert_eq!(view.lines.len(), 4);
+        assert_eq!(
+            &view.lines[0].syntax_highlights,
+            &[Highlight {
+                highlight_type: HighlightType::StringLiteral,
+                range: 0..5,
+            }]
+        );
+        assert_eq!(
+            &view.lines[1].syntax_highlights,
+            &[Highlight {
+                highlight_type: HighlightType::StringLiteral,
+                range: 0..5,
+            }]
+        );
+        assert_eq!(
+            &view.lines[2].syntax_highlights,
+            &[Highlight {
+                highlight_type: HighlightType::StringLiteral,
+                range: 0..4,
+            }]
+        );
+    }
+
+    #[test]
+    fn highlight() {
+        //  // This is C code.
+        //  #include <stdio.h>
+        //  int foo;
+        let (buffer, tree) = create_and_highlight_buffer(
+            &noa_langs::C,
+            concat!("// This is C code.\n", "#include <stdio.h>\n", "int foo;\n",),
+        );
+        let mut view = View::new();
+
+        view.layout(&buffer, 0, 25, 80);
+        view.highlight_from_tree_sitter(&noa_langs::C, &tree);
+
+        assert_eq!(view.lines.len(), 4);
+        assert_eq!(
+            &view.lines[0].syntax_highlights,
+            &[Highlight {
+                highlight_type: HighlightType::Comment,
+                range: 0..18,
+            },]
+        );
+        assert_eq!(
+            &view.lines[1].syntax_highlights,
+            &[
+                Highlight {
+                    highlight_type: HighlightType::CMacro,
+                    range: 0..8,
+                },
+                Highlight {
+                    highlight_type: HighlightType::CIncludeArg,
+                    range: 9..18,
+                },
+            ]
+        );
+        assert_eq!(
+            &view.lines[2].syntax_highlights,
+            &[
+                Highlight {
+                    highlight_type: HighlightType::PrimitiveType,
+                    range: 0..3,
+                },
+                Highlight {
+                    highlight_type: HighlightType::Ident,
+                    range: 4..7,
+                },
+            ]
+        );
     }
 }

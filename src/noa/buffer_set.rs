@@ -34,6 +34,10 @@ impl OpenedFile {
         self.view.move_cursors(&mut self.buffer, y_diff, x_diff);
     }
 
+    pub fn scroll(&mut self, y_diff: isize) {
+        self.view.scroll(&mut self.buffer, y_diff);
+    }
+
     pub fn expand_selections(&mut self, y_diff: isize, x_diff: isize) {
         self.view
             .expand_selections(&mut self.buffer, y_diff, x_diff);
