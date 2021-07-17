@@ -3,6 +3,10 @@ extern crate log;
 
 use std::path::{Path, PathBuf};
 
+mod detect_indent;
+
+use detect_indent::detect_indent_style;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IndentStyle {
     Tab,
