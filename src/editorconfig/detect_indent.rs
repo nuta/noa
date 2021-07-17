@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::IndentStyle;
 
 pub fn detect_indent_style(text: &str) -> Option<(IndentStyle, usize)> {
-    // This map holds the differences in the indentation from the previous line.
+    // This map holds the occurrences of differences in the indentation from the previous line.
     let mut occurences = HashMap::new();
     let mut prev = None;
     for line in text.split('\n') {
