@@ -1,7 +1,10 @@
 #[macro_use]
 extern crate log;
 
-use std::path::{Path, PathBuf};
+use std::{
+    error::Error,
+    path::{Path, PathBuf},
+};
 
 mod detect_indent;
 
@@ -29,21 +32,37 @@ pub struct EditorConfig {
 }
 
 impl EditorConfig {
-    pub fn default() -> EditorConfig {
+    pub fn resolve_or_guess(source_file: &Path) -> EditorConfig {
+        EditorConfig::resolve(source_file).unwrap_or_else(|| {
+            read_to_string_4k(source_file)
+                .ok()
+                .and_then(|text| detect_indent_style(&text))
+                .map(|(indent_style, indent_size)| EditorConfig {
+                    indent_style,
+                    indent_size,
+                    ..Default::default()
+                })
+                .unwrap_or_default()
+        })
+    }
+
+    pub fn resolve(source_file: &Path) -> Option<EditorConfig> {
+        resolve_config(
+            &source_file
+                .canonicalize()
+                .unwrap_or_else(|_| PathBuf::from(".").canonicalize().unwrap()),
+        )
+    }
+}
+
+impl Default for EditorConfig {
+    fn default() -> EditorConfig {
         EditorConfig {
             indent_style: IndentStyle::Space,
             indent_size: 4,
             tab_width: 8,
             end_of_line: EndOfLine::Lf,
         }
-    }
-
-    pub fn resolve(source_file: &Path) -> EditorConfig {
-        resolve_config(
-            &source_file
-                .canonicalize()
-                .unwrap_or_else(|_| PathBuf::from(".").canonicalize().unwrap()),
-        )
     }
 }
 
@@ -217,7 +236,7 @@ fn matches_pattern(pattern: &str, path: &str) -> bool {
     }
 }
 
-fn resolve_config(source_file: &Path) -> EditorConfig {
+fn resolve_config(source_file: &Path) -> Option<EditorConfig> {
     assert!(source_file.is_absolute());
 
     // Read and parse all .editconfig files...
@@ -242,6 +261,7 @@ fn resolve_config(source_file: &Path) -> EditorConfig {
 
     // Visit from the root and determine the config for the source file.
     let mut ret = EditorConfig::default();
+    let mut matched_any = false;
     for (dir, config) in configs.iter().rev() {
         for rule in &config.rules {
             let relative_path = if rule.pattern.starts_with('*') {
@@ -256,11 +276,30 @@ fn resolve_config(source_file: &Path) -> EditorConfig {
                 ret.indent_style = rule.indent_style.unwrap_or(ret.indent_style);
                 ret.indent_size = rule.indent_size.unwrap_or(ret.indent_size);
                 ret.tab_width = rule.tab_width.unwrap_or(ret.tab_width);
+
+                if rule.indent_style.is_some() {
+                    matched_any = true;
+                }
             }
         }
     }
 
-    ret
+    if matched_any {
+        Some(ret)
+    } else {
+        None
+    }
+}
+
+fn read_to_string_4k(path: &Path) -> Result<String, Box<dyn Error>> {
+    use std::io::Read;
+
+    let mut file = std::fs::File::open(path)?;
+    let mut buf = vec![0; 4096];
+    let n = file.read(&mut buf)?;
+    buf.truncate(n);
+    let str = String::from_utf8(buf)?;
+    Ok(str)
 }
 
 #[cfg(test)]
