@@ -9,6 +9,12 @@ pub struct Position {
     pub x: usize,
 }
 
+impl Position {
+    pub fn new(y: usize, x: usize) -> Position {
+        Position { y, x }
+    }
+}
+
 impl Display for Position {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "({}, {})", self.y, self.x)
