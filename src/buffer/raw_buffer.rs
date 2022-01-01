@@ -51,6 +51,13 @@ impl RawBuffer {
     }
 
     /// Replaces the text at the `range` with `new_text`.
+    ///
+    /// # Complexity
+    ///
+    /// According to the ropey's documentation:
+    //
+    /// Runs in O(M + log N) time, where N is the length of the Rope and M
+    /// is the length of the range being removed/inserted.
     pub fn edit(&mut self, range: Range, new_text: &str) {
         let start = self.index_in_rope(range.front());
         let end = self.index_in_rope(range.back());
