@@ -44,6 +44,11 @@ impl RawBuffer {
 
     /// Returns a double-ended iterator at the given position which allows
     /// traversing characters in the buffer back and forth.
+    /// # Complexity
+    ///
+    /// From ropey's documentation:
+    ///
+    /// > Runs in amortized O(1) time and worst-case O(log N) time.
     pub fn char(&self, pos: Position) -> CharIter<'_> {
         CharIter {
             iter: self.rope.chars_at(self.index_in_rope(pos)),
