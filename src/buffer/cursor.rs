@@ -5,13 +5,13 @@ use std::{
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Position {
-    pub line: usize,
-    pub column: usize,
+    pub y: usize,
+    pub x: usize,
 }
 
 impl Display for Position {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "({}, {})", self.line, self.column)
+        write!(f, "({}, {})", self.y, self.x)
     }
 }
 
@@ -22,10 +22,10 @@ impl Ord for Position {
         if a == b {
             Ordering::Equal
         } else {
-            match a.line.cmp(&b.line) {
+            match a.y.cmp(&b.y) {
                 Ordering::Less => Ordering::Less,
                 Ordering::Greater => Ordering::Greater,
-                Ordering::Equal => a.column.cmp(&b.column),
+                Ordering::Equal => a.x.cmp(&b.x),
             }
         }
     }
@@ -44,6 +44,16 @@ pub struct Range {
 }
 
 impl Range {
+    pub fn new(start_y: usize, start_x: usize, end_y: usize, end_x: usize) -> Range {
+        Range {
+            start: Position {
+                y: start_y,
+                x: start_x,
+            },
+            end: Position { y: end_y, x: end_x },
+        }
+    }
+
     pub fn front(&self) -> Position {
         min(self.start, self.end)
     }
