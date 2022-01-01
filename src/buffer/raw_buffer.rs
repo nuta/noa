@@ -9,46 +9,42 @@ use crate::cursor::{Position, Range};
 pub struct RawBuffer {
     /// The inner buffer data structure.
     pub rope: ropey::Rope,
-    /// The `len_lines()` is expensive, so we cache it.
-    cached_num_lines: usize,
 }
 
 impl RawBuffer {
     pub fn new() -> RawBuffer {
         RawBuffer {
             rope: ropey::Rope::new(),
-            cached_num_lines: 0,
         }
     }
 
     #[cfg(test)]
     pub fn from_str(text: &str) -> RawBuffer {
-        let mut buffer = RawBuffer {
+        RawBuffer {
             rope: ropey::Rope::from_str(text),
-            cached_num_lines: 0,
-        };
-
-        buffer.after_update();
-        buffer
+        }
     }
 
     /// Returns the number of lines in the buffer.
+    ///
+    /// # Complexity
+    ///
+    /// Runs in O(1) time.
     pub fn num_lines(&self) -> usize {
-        self.cached_num_lines
+        self.rope.len_lines()
     }
 
     /// Turns the whole buffer into a string.
+    ///
+    /// # Complexity
+    ///
+    /// Runs in O(N) time, where N is the length of the buffer.
     pub fn text(&self) -> String {
         self.rope.to_string()
     }
 
     /// Returns a double-ended iterator at the given position which allows
     /// traversing characters in the buffer back and forth.
-    /// # Complexity
-    ///
-    /// From ropey's documentation:
-    ///
-    /// > Runs in amortized O(1) time and worst-case O(log N) time.
     pub fn char(&self, pos: Position) -> CharIter<'_> {
         CharIter {
             iter: self.rope.chars_at(self.index_in_rope(pos)),
@@ -69,15 +65,13 @@ impl RawBuffer {
 
         self.rope.remove(start..end);
         self.rope.insert(start, new_text);
-
-        self.after_update();
-    }
-
-    fn after_update(&mut self) {
-        self.cached_num_lines = self.rope.len_lines();
     }
 
     /// Returns the number of characters in a line except new line characters.
+    ///
+    /// # Complexity
+    ///
+    /// Runs in O(log N) time, where N is the length of the rope.
     fn line_len(&self, line: usize) -> usize {
         if line == self.num_lines() {
             0
@@ -87,6 +81,10 @@ impl RawBuffer {
     }
 
     /// Returns the character index in the rope.
+    ///
+    /// # Complexity
+    ///
+    /// Runs in O(log N) time, where N is the length of the rope.
     fn index_in_rope(&self, pos: Position) -> usize {
         let column = if pos.x == std::usize::MAX {
             self.line_len(pos.y)
@@ -103,6 +101,13 @@ pub struct CharIter<'a> {
 }
 
 impl<'a> CharIter<'a> {
+    /// Returns the previous character.
+    ///
+    /// # Complexity
+    ///
+    /// From ropey's documentation:
+    ///
+    /// > Runs in amortized O(1) time and worst-case O(log N) time.
     pub fn prev(&mut self) -> Option<char> {
         self.iter.prev()
     }
@@ -111,6 +116,13 @@ impl<'a> CharIter<'a> {
 impl Iterator for CharIter<'_> {
     type Item = char;
 
+    /// Returns the next character.
+    ///
+    /// # Complexity
+    ///
+    /// From ropey's documentation:
+    ///
+    /// > Runs in amortized O(1) time and worst-case O(log N) time.
     fn next(&mut self) -> Option<char> {
         self.iter.next()
     }
