@@ -239,7 +239,24 @@ mod tests {
     }
 
     #[test]
-    fn test_indentation() {
+    fn test_insert_newline_and_indent() {
+        let mut b = Buffer::from_text("");
+        b.set_cursors(&[Cursor::new(0, 0)]);
+        b.insert_newline_and_indent();
+        assert_eq!(b.config.indent_style, IndentStyle::Space);
+        assert_eq!(b.config.indent_size, 4);
+        assert_eq!(b.text(), "\n");
+        assert_eq!(b.cursors(), &[Cursor::new(1, 0)]);
+
+        let mut b = Buffer::from_text("        abXYZ");
+        b.set_cursors(&[Cursor::new(0, 10)]);
+        b.insert_newline_and_indent();
+        assert_eq!(b.text(), "        ab\n        XYZ");
+        assert_eq!(b.cursors(), &[Cursor::new(1, 8)]);
+    }
+
+    #[test]
+    fn test_indent() {
         let mut b = Buffer::from_text("");
         b.set_cursors(&[Cursor::new(0, 0)]);
         b.indent();
