@@ -143,9 +143,9 @@ pub struct Cursor {
 }
 
 impl Cursor {
-    pub fn new() -> Cursor {
+    pub fn new(y: usize, x: usize) -> Cursor {
         Cursor {
-            selection: Range::new(0, 0, 0, 0),
+            selection: Range::new(y, x, y, x),
         }
     }
 
@@ -187,7 +187,7 @@ pub struct CursorSet {
 impl CursorSet {
     pub fn new() -> CursorSet {
         CursorSet {
-            cursors: vec![Cursor::new()],
+            cursors: vec![Cursor::new(0, 0)],
         }
     }
 
