@@ -15,7 +15,7 @@ pub struct Position {
 }
 
 impl Position {
-    const END_OF_LINE: usize = std::usize::MAX;
+    pub const END_OF_LINE: usize = std::usize::MAX;
 
     pub fn new(y: usize, x: usize) -> Position {
         Position { y, x }
@@ -28,13 +28,15 @@ impl Position {
         }
     }
 
+    /// Computes the cursor position after the given edit, specifically,
+    /// after replacing `range` with `new_text`.
     pub fn position_after_edit(range: Range, new_text: &str) -> Position {
         let pos = range.front();
         let string_count = new_text.chars().count();
         let num_newlines_added = new_text.matches('\n').count();
         let num_newlines_deleted = range.back().y - range.front().y;
-        let y_diff = num_newlines_added.saturating_sub(num_newlines_deleted);
 
+        let y_diff = num_newlines_added.saturating_sub(num_newlines_deleted);
         let x_diff = new_text
             .rfind('\n')
             .map(|x| string_count - x - 1)
@@ -195,11 +197,12 @@ impl CursorSet {
     {
         let mut new_cursors = Vec::new();
         for cursor in self.cursors.iter_mut().rev() {
-            new_cursors.push(Cursor::from_position(f(cursor)));
+            let new_pos = f(cursor);
+            new_cursors.push(Cursor::from_position(new_pos));
         }
 
+        // Sort and merge cursors.
         debug_assert!(!new_cursors.is_empty());
-
         new_cursors.sort();
         let duplicated = new_cursors.iter().enumerate().map(|(i, c)| {
             (&new_cursors[..i])
@@ -207,12 +210,15 @@ impl CursorSet {
                 .any(|other| other.selection().overlaps_with(other.selection()))
         });
 
+        // Update cursors.
         self.cursors.clear();
         for (cursor, skip) in new_cursors.iter().zip(duplicated) {
             if !skip {
                 self.cursors.push(cursor.clone());
             }
         }
+
+        debug_assert!(!self.cursors.is_empty());
     }
 }
 
