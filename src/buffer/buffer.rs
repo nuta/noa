@@ -7,6 +7,22 @@ use crate::{
     raw_buffer::RawBuffer,
 };
 
+fn compute_desired_indent_len(buf: &RawBuffer, config: &EditorConfig, y: usize) -> usize {
+    let (prev_indent_len, char_at_cursor) = if y == 0 {
+        (0, None)
+    } else {
+        let prev_indent_len = buf.line_indent_len(y - 1);
+        let pos_at_newline = Position::new(y - 1, buf.line_len(y - 1));
+        let char_at_cursor = buf.char(pos_at_newline).prev();
+        (prev_indent_len, char_at_cursor)
+    };
+
+    match char_at_cursor {
+        Some('{') => prev_indent_len + config.indent_size,
+        _ => prev_indent_len,
+    }
+}
+
 pub struct Buffer {
     buf: RawBuffer,
     cursors: CursorSet,
@@ -67,25 +83,31 @@ impl Buffer {
         self.insert_str(&c.to_string());
     }
 
+    pub fn insert_newline_and_indent(&mut self) {
+        // Insert a newline.
+        self.cursors
+            .update_each(|c| self.buf.edit(c.selection(), "\n"));
+
+        // Add indentation.
+        self.cursors.update_each(|c| {
+            let indent_size = compute_desired_indent_len(&self.buf, &self.config, c.front().y);
+            self.buf.edit(
+                c.selection(),
+                &match self.config.indent_style {
+                    IndentStyle::Tab => "\t".repeat(indent_size),
+                    IndentStyle::Space => " ".repeat(indent_size),
+                },
+            )
+        });
+    }
+
     pub fn indent(&mut self) {
-        // Compute indent sizes.
+        // How many indentation characters should we add for each cursors?
         let mut increase_lens = Vec::new();
         for c in &self.cursors {
             let pos = c.front();
-            let (prev_indent_len, char_at_cursor) = if pos.y == 0 {
-                (0, None)
-            } else {
-                let prev_indent_len = self.buf.line_indent_len(pos.y - 1);
-                let pos_at_newline = Position::new(pos.y - 1, self.buf.line_len(pos.y - 1));
-                let char_at_cursor = self.buf.char(pos_at_newline).prev();
-                (prev_indent_len, char_at_cursor)
-            };
 
-            let desired_len = match char_at_cursor {
-                Some('{') => prev_indent_len + self.config.indent_size,
-                _ => prev_indent_len,
-            };
-
+            let desired_len = compute_desired_indent_len(&self.buf, &self.config, pos.y);
             let current_indent_len = self.buf.line_indent_len(pos.y);
             let n = if pos.x < desired_len && pos.x == current_indent_len {
                 desired_len - pos.x
