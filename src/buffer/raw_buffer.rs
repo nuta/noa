@@ -34,6 +34,28 @@ impl RawBuffer {
         self.rope.len_lines()
     }
 
+    /// Returns the number of characters in the buffer.
+    ///
+    /// # Complexity
+    ///
+    /// Runs in O(1) time.
+    pub fn len_chars(&self) -> usize {
+        self.rope.len_chars()
+    }
+
+    /// Returns the number of characters in a line except new line characters.
+    ///
+    /// # Complexity
+    ///
+    /// Runs in O(log N) time, where N is the length of the buffer.
+    pub fn line_len(&self, y: usize) -> usize {
+        if y == self.num_lines() {
+            0
+        } else {
+            self.rope.line(y).len_chars()
+        }
+    }
+
     /// Turns the whole buffer into a string.
     ///
     /// # Complexity
@@ -51,7 +73,8 @@ impl RawBuffer {
         }
     }
 
-    /// Replaces the text at the `range` with `new_text`.
+    /// Replaces the text at the `range` with `new_text`. Returns the cursor
+    /// position after the replacement.
     ///
     /// # Complexity
     ///
@@ -59,7 +82,7 @@ impl RawBuffer {
     //
     /// Runs in O(M + log N) time, where N is the length of the Rope and M
     /// is the length of the range being removed/inserted.
-    pub fn edit(&mut self, range: Range, new_text: &str) {
+    pub fn edit(&mut self, range: Range, new_text: &str) -> Position {
         let start = self.pos_to_rope_index(range.front());
         let end = self.pos_to_rope_index(range.back());
 
@@ -70,19 +93,8 @@ impl RawBuffer {
         if !new_text.is_empty() {
             self.rope.insert(start, new_text);
         }
-    }
 
-    /// Returns the number of characters in a line except new line characters.
-    ///
-    /// # Complexity
-    ///
-    /// Runs in O(log N) time, where N is the length of the rope.
-    fn line_len(&self, line: usize) -> usize {
-        if line == self.num_lines() {
-            0
-        } else {
-            self.rope.line(line).len_chars()
-        }
+        Position::position_after_edit(range, new_text)
     }
 
     /// Returns the character index in the rope.

@@ -3,6 +3,8 @@ use std::{
     fmt::Display,
 };
 
+use crate::{buffer::Buffer, raw_buffer::RawBuffer};
+
 /// The zero-based position in the buffer.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Position {
@@ -50,6 +52,52 @@ impl Position {
         };
 
         Position::new(new_y, new_x)
+    }
+
+    /// Return the new position after moving up/down/left/right.
+    pub fn move_by(&mut self, buf: &RawBuffer, up: usize, down: usize, left: usize, right: usize) {
+        let num_lines = buf.num_lines();
+        if right > 0 {
+            let mut r = right;
+            loop {
+                let max_x = buf.line_len(self.y);
+                if self.x + r <= max_x {
+                    self.x += r;
+                    break;
+                } else if self.y >= num_lines {
+                    break;
+                } else {
+                    r -= max_x - self.x + 1;
+                    self.x = 0;
+                    self.y += 1;
+                }
+            }
+        }
+
+        if left > 0 {
+            let mut l = left;
+            loop {
+                if l <= self.x {
+                    self.x -= l;
+                    break;
+                } else if self.y == 0 {
+                    break;
+                } else {
+                    l -= self.x;
+                    if l > 0 {
+                        l -= 1;
+                        self.y -= 1;
+                        self.x = buf.line_len(self.y);
+                    }
+                }
+            }
+        }
+
+        self.y = self.y.saturating_add(down);
+        self.y = self.y.saturating_sub(up);
+
+        self.y = min(self.y, num_lines);
+        self.x = min(self.x, buf.line_len(self.y));
     }
 }
 
@@ -112,6 +160,10 @@ impl Range {
         min(self.start, self.end)
     }
 
+    pub fn front_mut(&mut self) -> &mut Position {
+        min(&mut self.start, &mut self.end)
+    }
+
     pub fn back(&self) -> Position {
         max(self.start, self.end)
     }
@@ -158,6 +210,10 @@ impl Cursor {
     pub fn selection(&self) -> Range {
         self.selection
     }
+
+    pub fn expand_left(&mut self, buf: &RawBuffer) {
+        self.selection.front_mut().move_by(buf, 0, 0, 0, 1)
+    }
 }
 
 impl PartialEq for Cursor {
@@ -191,20 +247,13 @@ impl CursorSet {
         }
     }
 
-    pub fn use_and_move_cursors<F>(&mut self, mut f: F)
-    where
-        F: FnMut(&mut Cursor) -> Position,
-    {
-        let mut new_cursors = Vec::new();
-        for cursor in self.cursors.iter_mut().rev() {
-            let new_pos = f(cursor);
-            new_cursors.push(Cursor::from_position(new_pos));
-        }
+    pub fn set_cursors(&mut self, new_cursors: &[Cursor]) {
+        debug_assert!(!new_cursors.is_empty());
 
         // Sort and merge cursors.
-        debug_assert!(!new_cursors.is_empty());
+        let mut new_cursors = new_cursors.to_vec();
         new_cursors.sort();
-        let duplicated = new_cursors.iter().enumerate().map(|(i, c)| {
+        let duplicated = new_cursors.iter().enumerate().map(|(i, _)| {
             (&new_cursors[..i])
                 .iter()
                 .any(|other| other.selection().overlaps_with(other.selection()))
@@ -219,6 +268,25 @@ impl CursorSet {
         }
 
         debug_assert!(!self.cursors.is_empty());
+    }
+
+    pub fn use_and_move_cursors<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&mut Cursor) -> Position,
+    {
+        let mut new_cursors = Vec::new();
+        for cursor in self.cursors.iter_mut().rev() {
+            let new_pos = f(cursor);
+            new_cursors.push(Cursor::from_position(new_pos));
+        }
+
+        self.set_cursors(&new_cursors);
+    }
+}
+
+impl Default for CursorSet {
+    fn default() -> CursorSet {
+        CursorSet::new()
     }
 }
 
