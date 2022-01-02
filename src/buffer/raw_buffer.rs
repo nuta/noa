@@ -47,7 +47,7 @@ impl RawBuffer {
     /// traversing characters in the buffer back and forth.
     pub fn char(&self, pos: Position) -> CharIter<'_> {
         CharIter {
-            iter: self.rope.chars_at(self.index_in_rope(pos)),
+            iter: self.rope.chars_at(self.pos_to_rope_index(pos)),
         }
     }
 
@@ -60,11 +60,16 @@ impl RawBuffer {
     /// Runs in O(M + log N) time, where N is the length of the Rope and M
     /// is the length of the range being removed/inserted.
     pub fn edit(&mut self, range: Range, new_text: &str) {
-        let start = self.index_in_rope(range.front());
-        let end = self.index_in_rope(range.back());
+        let start = self.pos_to_rope_index(range.front());
+        let end = self.pos_to_rope_index(range.back());
 
-        self.rope.remove(start..end);
-        self.rope.insert(start, new_text);
+        if !(start..end).is_empty() {
+            self.rope.remove(start..end);
+        }
+
+        if !new_text.is_empty() {
+            self.rope.insert(start, new_text);
+        }
     }
 
     /// Returns the number of characters in a line except new line characters.
@@ -85,7 +90,7 @@ impl RawBuffer {
     /// # Complexity
     ///
     /// Runs in O(log N) time, where N is the length of the rope.
-    fn index_in_rope(&self, pos: Position) -> usize {
+    fn pos_to_rope_index(&self, pos: Position) -> usize {
         let column = if pos.x == std::usize::MAX {
             self.line_len(pos.y)
         } else {
@@ -93,6 +98,18 @@ impl RawBuffer {
         };
 
         self.rope.line_to_char(pos.y) + column
+    }
+
+    /// Returns the position of the given rope character index.
+    ///
+    /// # Complexity
+    ///
+    /// Runs in O(log N) time, where N is the length of the rope.
+    fn rope_index_to_pos(&self, char_index: usize) -> Position {
+        let y = self.rope.char_to_line(char_index);
+        let x = char_index - self.rope.line_to_char(y);
+
+        Position::new(y, x)
     }
 }
 
