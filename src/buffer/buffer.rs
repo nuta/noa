@@ -1,5 +1,3 @@
-
-
 use noa_editorconfig::{EditorConfig, IndentStyle};
 
 use crate::{
@@ -55,28 +53,41 @@ impl Buffer {
 
     pub fn indent(&mut self) {
         // Compute indent sizes.
-        let mut indent_sizes = Vec::new();
+        let mut increase_lens = Vec::new();
         for c in &self.cursors {
             let pos = c.front();
-            let n = if pos.y == 0 {
-                self.config.indent_size
+            let (prev_indent_len, char_at_cursor) = if pos.y == 0 {
+                (0, None)
             } else {
-                let n = self.buf.line_indent_len(pos.y - 1);
+                let prev_indent_len = self.buf.line_indent_len(pos.y - 1);
                 let pos_at_newline = Position::new(pos.y - 1, self.buf.line_len(pos.y - 1));
                 let char_at_cursor = self.buf.char(pos_at_newline).prev();
-                match char_at_cursor {
-                    Some('{') => n + self.config.indent_size,
-                    _ => n,
-                }
+                (prev_indent_len, char_at_cursor)
             };
 
-            indent_sizes.push(n);
+            let desired_len = match char_at_cursor {
+                Some('{') => prev_indent_len + self.config.indent_size,
+                _ => prev_indent_len,
+            };
+
+            let current_indent_len = self.buf.line_indent_len(pos.y);
+            let n = if pos.x < desired_len && pos.x == current_indent_len {
+                desired_len - pos.x
+            } else {
+                let mut x = pos.x + 1;
+                while x % self.config.indent_size != 0 {
+                    x += 1;
+                }
+                x - pos.x
+            };
+
+            increase_lens.push(n);
         }
 
         // Insert indentations.
-        let mut indent_sizes_iter = indent_sizes.iter();
+        let mut increase_lens_iter = increase_lens.iter();
         self.cursors.use_and_move_cursors(|c| {
-            let indent_size = *indent_sizes_iter.next().unwrap();
+            let indent_size = *increase_lens_iter.next().unwrap();
             self.buf.edit(
                 c.selection(),
                 &match self.config.indent_style {
@@ -189,10 +200,30 @@ mod tests {
         b.indent();
         assert_eq!(b.text(), "    abc\n    ");
 
+        // __
+        let mut b = Buffer::from_text("  ");
+        b.set_cursors(&[Cursor::new(0, 2)]);
+        b.indent();
+        assert_eq!(b.text(), "    ");
+
+        // _____
+        let mut b = Buffer::from_text("     ");
+        b.set_cursors(&[Cursor::new(0, 5)]);
+        b.indent();
+        assert_eq!(b.text(), "        ");
+
         // if true {
         //     while true {
         let mut b = Buffer::from_text("if true {\n    while true {\n");
         b.set_cursors(&[Cursor::new(2, 0)]);
+        b.indent();
+        assert_eq!(b.text(), "if true {\n    while true {\n        ");
+
+        // if true {
+        //     while true {
+        // __
+        let mut b = Buffer::from_text("if true {\n    while true {\n  ");
+        b.set_cursors(&[Cursor::new(2, 2)]);
         b.indent();
         assert_eq!(b.text(), "if true {\n    while true {\n        ");
     }
