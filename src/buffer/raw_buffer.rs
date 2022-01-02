@@ -1,3 +1,5 @@
+use core::num;
+
 use crate::cursor::{Position, Range};
 
 /// An internal buffer implementation supporting primitive operations required
@@ -18,7 +20,6 @@ impl RawBuffer {
         }
     }
 
-    #[cfg(test)]
     pub fn from_str(text: &str) -> RawBuffer {
         RawBuffer {
             rope: ropey::Rope::from_str(text),
@@ -52,7 +53,16 @@ impl RawBuffer {
         if y == self.num_lines() {
             0
         } else {
-            self.rope.line(y).len_chars()
+            let line = self.rope.line(y);
+
+            // The `line` contains newline characters so we need to subtract them.
+            let num_newline_chars = line
+                .chunks()
+                .last()
+                .map(|chunk| chunk.matches(|c| c == '\n' || c == '\r').count())
+                .unwrap_or(0);
+
+            line.len_chars() - num_newline_chars
         }
     }
 
@@ -117,7 +127,7 @@ impl RawBuffer {
     /// # Complexity
     ///
     /// Runs in O(log N) time, where N is the length of the rope.
-    fn rope_index_to_pos(&self, char_index: usize) -> Position {
+    fn _rope_index_to_pos(&self, char_index: usize) -> Position {
         let y = self.rope.char_to_line(char_index);
         let x = char_index - self.rope.line_to_char(y);
 

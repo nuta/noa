@@ -1,5 +1,5 @@
 use crate::{
-    cursor::{CursorSet, Position},
+    cursor::{Cursor, CursorSet, Position},
     raw_buffer::RawBuffer,
 };
 
@@ -16,7 +16,6 @@ impl Buffer {
         }
     }
 
-    #[cfg(test)]
     pub fn from_str(text: &str) -> Buffer {
         Buffer {
             buf: RawBuffer::from_str(text),
@@ -28,12 +27,20 @@ impl Buffer {
         self.buf.len_chars()
     }
 
+    pub fn num_lines(&self) -> usize {
+        self.buf.num_lines()
+    }
+
+    pub fn line_len(&self, y: usize) -> usize {
+        self.buf.line_len(y)
+    }
+
     pub fn text(&self) -> String {
         self.buf.text()
     }
 
-    pub fn cursors_mut(&mut self) -> &mut CursorSet {
-        &mut self.cursors
+    pub fn set_cursors(&mut self, new_cursors: &[Cursor]) {
+        self.cursors.set_cursors(new_cursors);
     }
 
     pub fn insert_char(&mut self, c: char) {
@@ -48,6 +55,13 @@ impl Buffer {
     pub fn backspace(&mut self) {
         self.cursors.use_and_move_cursors(|c| {
             c.expand_left(&self.buf);
+            self.buf.edit(c.selection(), "")
+        });
+    }
+
+    pub fn delete(&mut self) {
+        self.cursors.use_and_move_cursors(|c| {
+            c.expand_right(&self.buf);
             self.buf.edit(c.selection(), "")
         });
     }
@@ -66,10 +80,19 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_line_len() {
+        assert_eq!(Buffer::from_str("").line_len(0), 0);
+        assert_eq!(Buffer::from_str("A").line_len(0), 1);
+        assert_eq!(Buffer::from_str("A\n").line_len(0), 1);
+        assert_eq!(Buffer::from_str("A\nBC").line_len(1), 2);
+        assert_eq!(Buffer::from_str("A\nBC\n").line_len(1), 2);
+    }
+
+    #[test]
     fn multibyte_characters() {
         let mut b = Buffer::new();
         b.insert_str("Hello 世界!");
-        b.cursors_mut().set_cursors(&[Cursor::new(0, 7)]);
+        b.set_cursors(&[Cursor::new(0, 7)]);
         assert_eq!(b.len_chars(), 9);
 
         // Hello 世|界! => Hello |界!
@@ -86,8 +109,28 @@ mod tests {
 
     #[test]
     fn test_multiple_cursors1() {
-        let mut b = Buffer::from_str("BC");
-        b.insert_str("A");
-        assert_eq!(b.text(), "ABC");
+        // ABC
+        // おは
+        // XY
+        let mut b = Buffer::from_str("ABC\nおは\nXY");
+        b.set_cursors(&[Cursor::new(0, 1), Cursor::new(1, 1), Cursor::new(2, 1)]);
+        b.insert_str("!");
+        assert_eq!(b.text(), "A!BC\nお!は\nX!Y");
+        b.backspace();
+        assert_eq!(b.text(), "ABC\nおは\nXY");
+    }
+
+    #[test]
+    fn test_multiple_cursors2() {
+        // ABC
+        // おは
+        // XY
+        let mut b = Buffer::from_str("ABC\nおは\nXY");
+        b.set_cursors(&[
+            Cursor::new_selection(0, b.line_len(0), 1, 0),
+            Cursor::new_selection(1, b.line_len(1), 2, 0),
+        ]);
+        b.insert_str("!");
+        assert_eq!(b.text(), "ABC!おは!XY");
     }
 }

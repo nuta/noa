@@ -1,6 +1,6 @@
 use std::{
     cmp::{max, min, Ordering},
-    fmt::Display,
+    fmt::{Debug, Display},
 };
 
 use crate::{buffer::Buffer, raw_buffer::RawBuffer};
@@ -11,23 +11,12 @@ pub struct Position {
     /// The line number. 0-origin.
     pub y: usize,
     /// The column number. 0-origin.
-    ///
-    /// If it's `Position::END_OF_LINE`, it means the cursor is at the end of the line.
     pub x: usize,
 }
 
 impl Position {
-    pub const END_OF_LINE: usize = std::usize::MAX;
-
     pub fn new(y: usize, x: usize) -> Position {
         Position { y, x }
-    }
-
-    pub fn end_of_line(y: usize) -> Position {
-        Position {
-            y,
-            x: Position::END_OF_LINE,
-        }
     }
 
     /// Computes the cursor position after the given edit, specifically,
@@ -168,6 +157,10 @@ impl Range {
         max(self.start, self.end)
     }
 
+    pub fn back_mut(&mut self) -> &mut Position {
+        max(&mut self.start, &mut self.end)
+    }
+
     pub fn is_empty(&self) -> bool {
         self.start == self.end
     }
@@ -177,6 +170,12 @@ impl Range {
             || self.front().y > other.back().y
             || (self.back().y == other.front().y && self.back().x <= other.front().x)
             || (self.front().y == other.back().y && self.front().x >= other.back().x))
+    }
+}
+
+impl Debug for Range {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self)
     }
 }
 
@@ -194,6 +193,20 @@ pub struct Cursor {
     selection: Range,
 }
 
+impl Debug for Cursor {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if self.selection.is_empty() {
+            write!(f, "Cursor[{}]", self.selection.start)
+        } else {
+            write!(
+                f,
+                "Selection[{}, {}]",
+                self.selection.start, self.selection.end
+            )
+        }
+    }
+}
+
 impl Cursor {
     pub fn new(y: usize, x: usize) -> Cursor {
         Cursor {
@@ -201,9 +214,9 @@ impl Cursor {
         }
     }
 
-    fn from_position(pos: Position) -> Cursor {
+    pub fn new_selection(start_y: usize, start_x: usize, end_y: usize, end_x: usize) -> Cursor {
         Cursor {
-            selection: Range::from_positions(pos, pos),
+            selection: Range::new(start_y, start_x, end_y, end_x),
         }
     }
 
@@ -212,7 +225,11 @@ impl Cursor {
     }
 
     pub fn expand_left(&mut self, buf: &RawBuffer) {
-        self.selection.front_mut().move_by(buf, 0, 0, 0, 1)
+        self.selection.front_mut().move_by(buf, 0, 0, 1, 0)
+    }
+
+    pub fn expand_right(&mut self, buf: &RawBuffer) {
+        self.selection.back_mut().move_by(buf, 0, 0, 0, 1)
     }
 }
 
@@ -253,10 +270,10 @@ impl CursorSet {
         // Sort and merge cursors.
         let mut new_cursors = new_cursors.to_vec();
         new_cursors.sort();
-        let duplicated = new_cursors.iter().enumerate().map(|(i, _)| {
+        let duplicated = new_cursors.iter().enumerate().map(|(i, c)| {
             (&new_cursors[..i])
                 .iter()
-                .any(|other| other.selection().overlaps_with(other.selection()))
+                .any(|other| c.selection().overlaps_with(other.selection()))
         });
 
         // Update cursors.
@@ -277,7 +294,7 @@ impl CursorSet {
         let mut new_cursors = Vec::new();
         for cursor in self.cursors.iter_mut().rev() {
             let new_pos = f(cursor);
-            new_cursors.push(Cursor::from_position(new_pos));
+            new_cursors.push(Cursor::new(new_pos.y, new_pos.x));
         }
 
         self.set_cursors(&new_cursors);
