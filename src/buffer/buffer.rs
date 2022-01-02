@@ -1,3 +1,5 @@
+use std::{fs::OpenOptions, path::Path};
+
 use noa_editorconfig::{EditorConfig, IndentStyle};
 
 use crate::{
@@ -43,8 +45,22 @@ impl Buffer {
         self.buf.text()
     }
 
+    pub fn cursors(&self) -> &[Cursor] {
+        self.cursors.as_slice()
+    }
+
     pub fn set_cursors(&mut self, new_cursors: &[Cursor]) {
         self.cursors.set_cursors(new_cursors);
+    }
+
+    pub fn save_to_file(&self, path: &Path) -> std::io::Result<()> {
+        let f = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(path)?;
+        self.buf.write_to(f)?;
+        Ok(())
     }
 
     pub fn insert_char(&mut self, c: char) {
@@ -86,7 +102,7 @@ impl Buffer {
 
         // Insert indentations.
         let mut increase_lens_iter = increase_lens.iter();
-        self.cursors.use_and_move_cursors(|c| {
+        self.cursors.update_each(|c| {
             let indent_size = *increase_lens_iter.next().unwrap();
             self.buf.edit(
                 c.selection(),
@@ -100,18 +116,18 @@ impl Buffer {
 
     pub fn insert_str(&mut self, s: &str) {
         self.cursors
-            .use_and_move_cursors(|c| self.buf.edit(c.selection(), s));
+            .update_each(|c| self.buf.edit(c.selection(), s));
     }
 
     pub fn backspace(&mut self) {
-        self.cursors.use_and_move_cursors(|c| {
+        self.cursors.update_each(|c| {
             c.expand_left(&self.buf);
             self.buf.edit(c.selection(), "")
         });
     }
 
     pub fn delete(&mut self) {
-        self.cursors.use_and_move_cursors(|c| {
+        self.cursors.update_each(|c| {
             c.expand_right(&self.buf);
             self.buf.edit(c.selection(), "")
         });
@@ -156,6 +172,21 @@ mod tests {
         // Hello 世|界! => Hell|界!
         b.insert_str("o こんにちは 世");
         assert_eq!(b.text(), "Hello こんにちは 世界!");
+    }
+
+    #[test]
+    fn test_insertion_at_eof() {
+        let mut b = Buffer::from_text("ABC");
+        b.set_cursors(&[Cursor::new(0, 3)]);
+        b.insert_char('\n');
+        assert_eq!(b.text(), "ABC\n");
+        assert_eq!(b.cursors(), &[Cursor::new(1, 0)]);
+
+        let mut b = Buffer::from_text("");
+        b.set_cursors(&[Cursor::new(0, 0)]);
+        b.insert_char('A');
+        assert_eq!(b.text(), "A");
+        assert_eq!(b.cursors(), &[Cursor::new(0, 1)]);
     }
 
     #[test]
@@ -205,6 +236,12 @@ mod tests {
         b.set_cursors(&[Cursor::new(0, 2)]);
         b.indent();
         assert_eq!(b.text(), "    ");
+
+        // a
+        let mut b = Buffer::from_text("a");
+        b.set_cursors(&[Cursor::new(0, 1)]);
+        b.indent();
+        assert_eq!(b.text(), "a   ");
 
         // _____
         let mut b = Buffer::from_text("     ");

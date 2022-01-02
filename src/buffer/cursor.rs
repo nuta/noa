@@ -278,6 +278,10 @@ impl CursorSet {
         }
     }
 
+    pub fn as_slice(&self) -> &[Cursor] {
+        &self.cursors
+    }
+
     pub fn set_cursors(&mut self, new_cursors: &[Cursor]) {
         debug_assert!(!new_cursors.is_empty());
 
@@ -301,7 +305,7 @@ impl CursorSet {
         debug_assert!(!self.cursors.is_empty());
     }
 
-    pub fn use_and_move_cursors<F>(&mut self, mut f: F)
+    pub fn update_each<F>(&mut self, mut f: F)
     where
         F: FnMut(&mut Cursor) -> Position,
     {

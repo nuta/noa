@@ -24,6 +24,10 @@ impl RawBuffer {
         }
     }
 
+    pub fn write_to(&self, writer: impl std::io::Write) -> std::io::Result<()> {
+        self.rope.write_to(writer)
+    }
+
     /// Returns the number of lines in the buffer.
     ///
     /// # Complexity
