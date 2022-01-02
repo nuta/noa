@@ -1,4 +1,7 @@
-use crate::{cursor::CursorSet, raw_buffer::RawBuffer};
+use crate::{
+    cursor::{CursorSet, Position},
+    raw_buffer::RawBuffer,
+};
 
 pub struct Buffer {
     buf: RawBuffer,
@@ -13,7 +16,10 @@ impl Buffer {
         }
     }
 
-    pub fn insert(&mut self, c: char) {
-        //
+    pub fn insert_str(&mut self, s: &str) {
+        self.cursors.use_and_move_cursors(|c| {
+            self.buf.edit(c.selection(), s);
+            Position::position_after_edit(c.selection(), s)
+        });
     }
 }
