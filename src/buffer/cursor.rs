@@ -3,7 +3,7 @@ use std::{
     fmt::{Debug, Display},
 };
 
-use crate::{buffer::Buffer, raw_buffer::RawBuffer};
+use crate::raw_buffer::RawBuffer;
 
 /// The zero-based position in the buffer.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -315,18 +315,18 @@ mod tests {
     fn range_overlaps_with() {
         let a = Range::new(0, 0, 0, 2);
         let b = Range::new(0, 1, 0, 3);
-        assert_eq!(a.overlaps_with(b), true);
+        assert!(a.overlaps_with(b));
 
         let a = Range::new(0, 0, 0, 1);
         let b = Range::new(0, 0, 0, 1);
-        assert_eq!(a.overlaps_with(b), true);
+        assert!(a.overlaps_with(b));
 
         let a = Range::new(0, 0, 0, 2);
         let b = Range::new(0, 2, 0, 3);
-        assert_eq!(a.overlaps_with(b), false);
+        assert!(!a.overlaps_with(b));
 
         let a = Range::new(0, 0, 0, 2);
         let b = Range::new(0, 3, 0, 4);
-        assert_eq!(a.overlaps_with(b), false);
+        assert!(!a.overlaps_with(b));
     }
 }

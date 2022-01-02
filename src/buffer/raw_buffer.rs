@@ -1,5 +1,3 @@
-use core::num;
-
 use crate::cursor::{Position, Range};
 
 /// An internal buffer implementation supporting primitive operations required
@@ -20,7 +18,7 @@ impl RawBuffer {
         }
     }
 
-    pub fn from_str(text: &str) -> RawBuffer {
+    pub fn from_text(text: &str) -> RawBuffer {
         RawBuffer {
             rope: ropey::Rope::from_str(text),
         }
@@ -135,6 +133,12 @@ impl RawBuffer {
     }
 }
 
+impl Default for RawBuffer {
+    fn default() -> RawBuffer {
+        RawBuffer::new()
+    }
+}
+
 pub struct CharIter<'a> {
     iter: ropey::iter::Chars<'a>,
 }
@@ -183,7 +187,7 @@ mod tests {
 
     #[test]
     fn test_deletion() {
-        let mut buffer = RawBuffer::from_str("ABCDEFG");
+        let mut buffer = RawBuffer::from_text("ABCDEFG");
         buffer.edit(Range::new(0, 1, 0, 1), "");
         assert_eq!(buffer.text(), "ABCDEFG");
 
@@ -193,7 +197,7 @@ mod tests {
 
     #[test]
     fn test_char() {
-        let buffer = RawBuffer::from_str("XY\n123");
+        let buffer = RawBuffer::from_text("XY\n123");
         let mut iter = buffer.char(Position::new(1, 1));
         assert_eq!(iter.next(), Some('2'));
         assert_eq!(iter.prev(), Some('2'));

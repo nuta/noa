@@ -1,5 +1,5 @@
 use crate::{
-    cursor::{Cursor, CursorSet, Position},
+    cursor::{Cursor, CursorSet},
     raw_buffer::RawBuffer,
 };
 
@@ -16,9 +16,9 @@ impl Buffer {
         }
     }
 
-    pub fn from_str(text: &str) -> Buffer {
+    pub fn from_text(text: &str) -> Buffer {
         Buffer {
-            buf: RawBuffer::from_str(text),
+            buf: RawBuffer::from_text(text),
             ..Default::default()
         }
     }
@@ -81,11 +81,11 @@ mod tests {
 
     #[test]
     fn test_line_len() {
-        assert_eq!(Buffer::from_str("").line_len(0), 0);
-        assert_eq!(Buffer::from_str("A").line_len(0), 1);
-        assert_eq!(Buffer::from_str("A\n").line_len(0), 1);
-        assert_eq!(Buffer::from_str("A\nBC").line_len(1), 2);
-        assert_eq!(Buffer::from_str("A\nBC\n").line_len(1), 2);
+        assert_eq!(Buffer::from_text("").line_len(0), 0);
+        assert_eq!(Buffer::from_text("A").line_len(0), 1);
+        assert_eq!(Buffer::from_text("A\n").line_len(0), 1);
+        assert_eq!(Buffer::from_text("A\nBC").line_len(1), 2);
+        assert_eq!(Buffer::from_text("A\nBC\n").line_len(1), 2);
     }
 
     #[test]
@@ -112,7 +112,7 @@ mod tests {
         // ABC
         // おは
         // XY
-        let mut b = Buffer::from_str("ABC\nおは\nXY");
+        let mut b = Buffer::from_text("ABC\nおは\nXY");
         b.set_cursors(&[Cursor::new(0, 1), Cursor::new(1, 1), Cursor::new(2, 1)]);
         b.insert_str("!");
         assert_eq!(b.text(), "A!BC\nお!は\nX!Y");
@@ -125,7 +125,7 @@ mod tests {
         // ABC
         // おは
         // XY
-        let mut b = Buffer::from_str("ABC\nおは\nXY");
+        let mut b = Buffer::from_text("ABC\nおは\nXY");
         b.set_cursors(&[
             Cursor::new_selection(0, b.line_len(0), 1, 0),
             Cursor::new_selection(1, b.line_len(1), 2, 0),
