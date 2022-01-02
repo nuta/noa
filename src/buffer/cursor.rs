@@ -90,6 +90,12 @@ impl Position {
     }
 }
 
+impl Debug for Position {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
 impl Display for Position {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "({}, {})", self.y, self.x)
@@ -224,6 +230,14 @@ impl Cursor {
         self.selection
     }
 
+    pub fn front(&self) -> Position {
+        self.selection.front()
+    }
+
+    pub fn back(&self) -> Position {
+        self.selection.back()
+    }
+
     pub fn expand_left(&mut self, buf: &RawBuffer) {
         self.selection.front_mut().move_by(buf, 0, 0, 1, 0)
     }
@@ -304,6 +318,15 @@ impl CursorSet {
 impl Default for CursorSet {
     fn default() -> CursorSet {
         CursorSet::new()
+    }
+}
+
+impl<'a> IntoIterator for &'a CursorSet {
+    type Item = &'a Cursor;
+    type IntoIter = std::slice::Iter<'a, Cursor>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.cursors.iter()
     }
 }
 

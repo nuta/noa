@@ -1,11 +1,16 @@
+use std::sync::RwLock;
+
+use noa_editorconfig::{EditorConfig, IndentStyle};
+
 use crate::{
-    cursor::{Cursor, CursorSet},
+    cursor::{Cursor, CursorSet, Position},
     raw_buffer::RawBuffer,
 };
 
 pub struct Buffer {
     buf: RawBuffer,
     cursors: CursorSet,
+    config: EditorConfig,
 }
 
 impl Buffer {
@@ -13,6 +18,7 @@ impl Buffer {
         Buffer {
             buf: RawBuffer::new(),
             cursors: CursorSet::new(),
+            config: EditorConfig::default(),
         }
     }
 
@@ -45,6 +51,40 @@ impl Buffer {
 
     pub fn insert_char(&mut self, c: char) {
         self.insert_str(&c.to_string());
+    }
+
+    pub fn indent(&mut self) {
+        // Compute indent sizes.
+        let mut indent_sizes = Vec::new();
+        for c in &self.cursors {
+            let pos = c.front();
+            let n = if pos.y == 0 {
+                self.config.indent_size
+            } else {
+                let n = self.buf.line_indent_len(pos.y - 1);
+                let pos_at_newline = Position::new(pos.y - 1, self.buf.line_len(pos.y - 1));
+                let char_at_cursor = self.buf.char(pos_at_newline).prev();
+                match char_at_cursor {
+                    Some('{') => n + self.config.indent_size,
+                    _ => n,
+                }
+            };
+
+            indent_sizes.push(n);
+        }
+
+        // Insert indentations.
+        let mut indent_sizes_iter = indent_sizes.iter();
+        self.cursors.use_and_move_cursors(|c| {
+            let indent_size = *indent_sizes_iter.next().unwrap();
+            self.buf.edit(
+                c.selection(),
+                &match self.config.indent_style {
+                    IndentStyle::Tab => "\t".repeat(indent_size),
+                    IndentStyle::Space => " ".repeat(indent_size),
+                },
+            )
+        });
     }
 
     pub fn insert_str(&mut self, s: &str) {
@@ -132,5 +172,28 @@ mod tests {
         ]);
         b.insert_str("!");
         assert_eq!(b.text(), "ABC!おは!XY");
+    }
+
+    #[test]
+    fn test_indentation() {
+        let mut b = Buffer::from_text("");
+        b.set_cursors(&[Cursor::new(0, 0)]);
+        b.indent();
+        assert_eq!(b.config.indent_style, IndentStyle::Space);
+        assert_eq!(b.config.indent_size, 4);
+        assert_eq!(b.text(), "    ");
+
+        //     abc
+        let mut b = Buffer::from_text("    abc\n");
+        b.set_cursors(&[Cursor::new(1, 0)]);
+        b.indent();
+        assert_eq!(b.text(), "    abc\n    ");
+
+        // if true {
+        //     while true {
+        let mut b = Buffer::from_text("if true {\n    while true {\n");
+        b.set_cursors(&[Cursor::new(2, 0)]);
+        b.indent();
+        assert_eq!(b.text(), "if true {\n    while true {\n        ");
     }
 }

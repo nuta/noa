@@ -64,6 +64,18 @@ impl RawBuffer {
         }
     }
 
+    /// Returns the number of indentation characters in a line.
+    ///
+    /// # Complexity
+    ///
+    /// Runs in O(M + log N) time, where N is the length of the rope and M is
+    /// the length of the line.
+    pub fn line_indent_len(&self, y: usize) -> usize {
+        self.char(Position::new(y, 0))
+            .take_while(|c| *c == ' ' || *c == '\t')
+            .count()
+    }
+
     /// Turns the whole buffer into a string.
     ///
     /// # Complexity

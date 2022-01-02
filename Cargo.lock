@@ -54,6 +54,7 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 name = "buffer"
 version = "0.0.1"
 dependencies = [
+ "noa_editorconfig",
  "ropey",
 ]
 
@@ -159,6 +160,13 @@ dependencies = [
  "dirs",
  "log",
  "simplelog",
+]
+
+[[package]]
+name = "noa_editorconfig"
+version = "0.0.0"
+dependencies = [
+ "log",
 ]
 
 [[package]]
