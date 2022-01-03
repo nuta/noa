@@ -99,6 +99,14 @@ impl RawBuffer {
         }
     }
 
+    /// Returns an iterator which returns occurrences of the given string.
+    pub fn find<'a, 'b>(&'a self, query: &'b str, pos: Position) -> FindIter<'a, 'b> {
+        FindIter {
+            chars: self.char(pos),
+            query,
+        }
+    }
+
     /// Replaces the text at the `range` with `new_text`. Returns the cursor
     /// position after the replacement.
     ///
