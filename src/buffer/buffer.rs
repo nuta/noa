@@ -65,7 +65,7 @@ impl Buffer {
     }
 
     pub fn lang(&self) -> &Lang {
-        &self.lang
+        self.lang
     }
 
     pub fn text(&self) -> String {
