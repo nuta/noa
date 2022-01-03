@@ -94,6 +94,8 @@ impl RawBuffer {
     pub fn char(&self, pos: Position) -> CharIter<'_> {
         CharIter {
             iter: self.rope.chars_at(self.pos_to_rope_index(pos)),
+            buf: self,
+            pos,
         }
     }
 
@@ -157,11 +159,17 @@ impl Default for RawBuffer {
     }
 }
 
+#[derive(Clone)]
 pub struct CharIter<'a> {
     iter: ropey::iter::Chars<'a>,
+    buf: &'a RawBuffer,
+    pos: Position,
 }
 
 impl<'a> CharIter<'a> {
+    pub fn position(&self) -> Position {
+        self.pos
+    }
     /// Returns the previous character.
     ///
     /// # Complexity
@@ -170,7 +178,23 @@ impl<'a> CharIter<'a> {
     ///
     /// > Runs in amortized O(1) time and worst-case O(log N) time.
     pub fn prev(&mut self) -> Option<char> {
-        self.iter.prev()
+        let ch = self.iter.prev();
+        match ch {
+            Some('\n') => {
+                self.pos.y -= 1;
+                self.pos.x = self.buf.line_len(self.pos.y);
+            }
+            Some('\r') => {
+                // Do nothing.
+            }
+            Some(_) => {
+                self.pos.x -= 1;
+            }
+            None => {
+                // Do nothing.
+            }
+        }
+        ch
     }
 }
 
@@ -185,7 +209,86 @@ impl Iterator for CharIter<'_> {
     ///
     /// > Runs in amortized O(1) time and worst-case O(log N) time.
     fn next(&mut self) -> Option<char> {
-        self.iter.next()
+        let ch = self.iter.prev();
+        match ch {
+            Some('\n') => {
+                self.pos.y += 1;
+                self.pos.x = 0;
+            }
+            Some('\r') => {
+                // Do nothing.
+            }
+            Some(_) => {
+                self.pos.x += 1;
+            }
+            None => {
+                // Do nothing.
+            }
+        }
+        ch
+    }
+}
+
+pub struct FindIter<'a, 'b> {
+    chars: CharIter<'a>,
+    query: &'b str,
+}
+
+impl<'a, 'b> Iterator for FindIter<'a, 'b> {
+    type Item = Position;
+
+    fn next(&mut self) -> Option<Position> {
+        let mut query_iter = self.query.chars();
+        let mut buf_iter = self.chars.clone();
+        let pos = buf_iter.position();
+
+        self.chars.next();
+
+        loop {
+            match (buf_iter.next(), query_iter.next()) {
+                (Some(a), Some(b)) if a != b => {
+                    return None;
+                }
+                (None, Some(_)) => {
+                    // Reached to EOF.
+                    return None;
+                }
+                (_, None) => {
+                    return Some(pos);
+                }
+                (Some(_), Some(_)) => {
+                    // Continue comparing the next characters...
+                }
+            }
+        }
+    }
+}
+
+impl<'a, 'b> DoubleEndedIterator for FindIter<'a, 'b> {
+    fn next_back(&mut self) -> Option<Position> {
+        let mut query_iter = self.query.chars();
+        let mut buf_iter = self.chars.clone();
+        let pos = buf_iter.position();
+
+        self.chars.prev();
+
+        loop {
+            match (buf_iter.next(), query_iter.next()) {
+                (Some(a), Some(b)) if a != b => {
+                    return None;
+                }
+                (None, Some(_)) => {
+                    // Reached to EOF.
+                    return None;
+                }
+                (_, None) => {
+                    return Some(pos);
+                }
+                (Some(_), Some(_)) => {
+                    // Continue comparing the next characters...
+                }
+            }
+        }
     }
 }
 
