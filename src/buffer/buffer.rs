@@ -1,11 +1,10 @@
-use std::{cmp::min, fs::OpenOptions, path::Path};
+use std::{fs::OpenOptions, path::Path};
 
 use noa_editorconfig::{EditorConfig, IndentStyle};
 use noa_langs::{Lang, PLAIN};
 
 use crate::{
-    cursor::{Cursor, CursorSet, Position, Range},
-    highlighting::Highlighter,
+    cursor::{Cursor, CursorSet, Position},
     raw_buffer::RawBuffer,
 };
 
@@ -141,7 +140,7 @@ impl Buffer {
     }
 
     pub fn deindent(&mut self) {
-        self.cursors.update_each(|c| {
+        self.cursors.update_each(|_c| {
             // let n = min(
             //     self.buf
             //         .char(Position::new(y, 0))
