@@ -60,6 +60,14 @@ impl Buffer {
         self.buf.line_len(y)
     }
 
+    pub fn config(&self) -> &EditorConfig {
+        &self.config
+    }
+
+    pub fn lang(&self) -> &Lang {
+        &self.lang
+    }
+
     pub fn text(&self) -> String {
         self.buf.text()
     }
