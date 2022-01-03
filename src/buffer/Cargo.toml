@@ -10,3 +10,4 @@ path = "lib.rs"
 ropey = "^1.3.2"
 
 noa_editorconfig = { path = "../editorconfig" }
+noa_langs = { path = "../langs" }

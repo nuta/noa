@@ -1,9 +1,11 @@
 use std::{cmp::min, fs::OpenOptions, path::Path};
 
 use noa_editorconfig::{EditorConfig, IndentStyle};
+use noa_langs::{Lang, PLAIN};
 
 use crate::{
     cursor::{Cursor, CursorSet, Position, Range},
+    highlighting::Highlighter,
     raw_buffer::RawBuffer,
 };
 
@@ -27,6 +29,7 @@ pub struct Buffer {
     buf: RawBuffer,
     cursors: CursorSet,
     config: EditorConfig,
+    lang: &'static Lang,
 }
 
 impl Buffer {
@@ -34,6 +37,7 @@ impl Buffer {
         Buffer {
             buf: RawBuffer::new(),
             cursors: CursorSet::new(),
+            lang: &PLAIN,
             config: EditorConfig::default(),
         }
     }

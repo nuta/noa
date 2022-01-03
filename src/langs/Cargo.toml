@@ -1,0 +1,17 @@
+[package]
+name = "noa_langs"
+version = "0.0.0"
+authors = ["Seiya Nuta <nuta@seiya.me>"]
+edition = "2018"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+log = "0"
+tree-sitter = "0"
+phf = { version = "0", features = ["macros"] }
+
+
+[build-dependencies]
+cc = "*"

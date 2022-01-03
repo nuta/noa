@@ -100,6 +100,8 @@ impl RawBuffer {
     /// Replaces the text at the `range` with `new_text`. Returns the cursor
     /// position after the replacement.
     ///
+    /// This is the only method that modifies the buffer.
+    ///
     /// # Complexity
     ///
     /// According to the ropey's documentation:
