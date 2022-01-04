@@ -186,6 +186,7 @@ dependencies = [
  "cc",
  "log",
  "phf",
+ "ropey",
  "tree-sitter",
 ]
 

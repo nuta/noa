@@ -11,7 +11,7 @@ path = "lib.rs"
 log = "0"
 tree-sitter = "0"
 phf = { version = "0", features = ["macros"] }
-
+ropey = "^1.3.2"
 
 [build-dependencies]
 cc = "*"
