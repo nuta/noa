@@ -12,7 +12,6 @@ extern crate log;
 extern crate pretty_assertions;
 
 #[derive(Parser, Debug)]
-#[clap(about, version, author)]
 struct Args {
     #[clap(name = "FILE", parse(from_os_str))]
     files: Vec<PathBuf>,
