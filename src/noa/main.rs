@@ -4,7 +4,6 @@ use clap::Parser;
 
 use noa_common::logger::install_logger;
 
-mod compositor;
 mod document;
 mod editor;
 mod ui;
