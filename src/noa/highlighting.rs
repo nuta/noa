@@ -1,4 +1,5 @@
-use crate::language::Language;
+use noa_buffer::buffer::Buffer;
+use noa_languages::language::Language;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HighlightType {
@@ -25,7 +26,8 @@ impl Highlighter {
         }
     }
 
-    pub fn update(&mut self, rope: &ropey::Rope) {
+    pub fn update(&mut self, buffer: &Buffer) {
+        let rope = buffer.raw_buffer().rope();
         if let Some(parser) = self.parser.as_mut() {
             self.tree = parser.parse_with(
                 &mut |i, _| {

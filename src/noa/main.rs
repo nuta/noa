@@ -9,6 +9,7 @@ use ui::{compositor::Compositor, terminal::Terminal};
 
 mod document;
 mod editor;
+mod highlighting;
 mod ui;
 mod view;
 

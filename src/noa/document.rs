@@ -9,7 +9,7 @@ use std::{
 use anyhow::Result;
 
 use noa_buffer::buffer::Buffer;
-use noa_languages::{highlighting::Highlighter, language::Language};
+use noa_languages::language::Language;
 
 use crate::view::View;
 
@@ -44,8 +44,7 @@ impl Document {
     }
 
     pub fn update(&mut self) {
-        let rope = self.buffer.raw_buffer().rope();
-        self.view.update(rope);
+        self.view.update(&self.buffer);
     }
 }
 

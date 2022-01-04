@@ -1,4 +1,6 @@
-use noa_languages::highlighting::Highlighter;
+use noa_buffer::buffer::Buffer;
+
+use crate::highlighting::Highlighter;
 
 pub struct DisplayRow {}
 
@@ -17,7 +19,7 @@ impl View {
         }
     }
 
-    pub fn update(&mut self, rope: &ropey::Rope) {
-        self.highlighter.update(rope);
+    pub fn update(&mut self, buffer: &Buffer) {
+        self.highlighter.update(buffer);
     }
 }
