@@ -23,10 +23,17 @@ fn compute_desired_indent_len(buf: &RawBuffer, config: &EditorConfig, y: usize) 
     }
 }
 
+struct UndoState {
+    buf: RawBuffer,
+    cursors: CursorSet,
+}
+
 pub struct Buffer {
     buf: RawBuffer,
     cursors: CursorSet,
     config: EditorConfig,
+    undo_stack: Vec<UndoState>,
+    redo_stack: Vec<UndoState>,
 }
 
 impl Buffer {
@@ -35,7 +42,13 @@ impl Buffer {
             buf: RawBuffer::new(),
             cursors: CursorSet::new(),
             config: EditorConfig::default(),
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
         }
+    }
+
+    pub fn raw_buffer(&self) -> &RawBuffer {
+        &self.buf
     }
 
     pub fn from_text(text: &str) -> Buffer {
@@ -171,6 +184,37 @@ impl Buffer {
             c.expand_right(&self.buf);
             self.buf.edit(c.selection(), "")
         });
+    }
+
+    pub fn save_undo(&mut self) {
+        if let Some(last_undo) = self.undo_stack.last() {
+            if last_undo.buf == self.buf {
+                // No changes.
+                return;
+            }
+        }
+
+        self.redo_stack.clear();
+        self.undo_stack.push(UndoState {
+            buf: self.buf.clone(),
+            cursors: self.cursors.clone(),
+        });
+    }
+
+    pub fn undo(&mut self) {
+        if let Some(state) = self.undo_stack.pop() {
+            self.buf = state.buf.clone();
+            self.cursors = state.cursors.clone();
+            self.redo_stack.push(state);
+        }
+    }
+
+    pub fn redo(&mut self) {
+        if let Some(state) = self.redo_stack.pop() {
+            self.buf = state.buf.clone();
+            self.cursors = state.cursors.clone();
+            self.redo_stack.push(state);
+        }
     }
 }
 

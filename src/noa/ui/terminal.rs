@@ -60,7 +60,7 @@ impl Terminal {
         execute!(stdout(), Clear(ClearType::All)).ok();
     }
 
-    pub fn set_event_listener(&self, event_queue: UnboundedSender<Input>) {
+    pub fn listen_events(&self, event_queue: UnboundedSender<Input>) {
         tokio::spawn(async move {
             let mut stream = EventStream::new().fuse();
 

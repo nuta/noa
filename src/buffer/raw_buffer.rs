@@ -8,7 +8,7 @@ use crate::cursor::{Position, Range};
 #[derive(Clone)]
 pub struct RawBuffer {
     /// The inner buffer data structure.
-    pub rope: ropey::Rope,
+    rope: ropey::Rope,
 }
 
 impl RawBuffer {
@@ -22,6 +22,10 @@ impl RawBuffer {
         RawBuffer {
             rope: ropey::Rope::from_str(text),
         }
+    }
+
+    pub fn rope(&self) -> &ropey::Rope {
+        &self.rope
     }
 
     pub fn write_to(&self, writer: impl std::io::Write) -> std::io::Result<()> {
@@ -164,6 +168,12 @@ impl RawBuffer {
 impl Default for RawBuffer {
     fn default() -> RawBuffer {
         RawBuffer::new()
+    }
+}
+
+impl PartialEq for RawBuffer {
+    fn eq(&self, other: &Self) -> bool {
+        self.rope == other.rope
     }
 }
 

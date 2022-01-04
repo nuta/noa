@@ -8,7 +8,9 @@ use std::{
 use anyhow::Result;
 
 use noa_buffer::buffer::Buffer;
-use noa_languages::language::Language;
+use noa_languages::{highlighting::Highlighter, language::Language};
+
+use crate::view::View;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct DocumentId(NonZeroUsize);
@@ -42,6 +44,8 @@ impl Document {
 pub struct DocumentManager {
     next_document_id: AtomicUsize,
     documents: HashMap<DocumentId, Document>,
+    views: HashMap<DocumentId, View>,
+    highlighters: HashMap<DocumentId, Highlighter>,
 }
 
 impl DocumentManager {
@@ -49,6 +53,21 @@ impl DocumentManager {
         DocumentManager {
             next_document_id: AtomicUsize::new(1),
             documents: HashMap::new(),
+            views: HashMap::new(),
+            highlighters: HashMap::new(),
         }
+    }
+
+    pub fn file_changed(&mut self) {
+        let document_id: DocumentId = unimplemented!();
+        let highlighter = &mut self.highlighters[&document_id];
+        let rope = &self.documents[&document_id]
+            .buffer
+            .raw_buffer()
+            .rope()
+            .clone();
+        tokio::spawn(async move {
+            highlighter.update(rope);
+        })
     }
 }

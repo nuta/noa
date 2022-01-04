@@ -267,6 +267,7 @@ impl PartialOrd for Cursor {
     }
 }
 /// A set of cursors, so-called multiple cursors.
+#[derive(Clone, Debug)]
 pub struct CursorSet {
     cursors: Vec<Cursor>,
 }
