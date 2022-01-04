@@ -1,6 +1,6 @@
 use crate::language::Language;
 use crate::lsp::Lsp;
-use crate::tree_sitter;
+use crate::tree_sitter::tree_sitter_c;
 
 pub const LANGUAGES: &[Language] = &[PLAIN, C];
 
@@ -10,7 +10,7 @@ pub const PLAIN: Language = Language {
     extensions: &[],
     formatter: None,
     lsp: None,
-    tree_sitter_lib: None,
+    tree_sitter_language: None,
 };
 
 pub const C: Language = Language {
@@ -22,5 +22,5 @@ pub const C: Language = Language {
         language_id: "c",
         command: &["clangd", "-j=8", "--log=verbose", "--pretty"],
     }),
-    tree_sitter_lib: Some(tree_sitter::tree_sitter_c),
+    tree_sitter_language: Some(|| unsafe { tree_sitter_c() }),
 };

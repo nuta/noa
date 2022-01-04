@@ -8,10 +8,18 @@ pub struct Highlighter {
 
 impl Highlighter {
     pub fn new(lang: &'static Language) -> Highlighter {
-        Highlighter {
-            tree: None,
-            parser: lang.syntax_highlighting_parser(),
-        }
+        let parser = lang.tree_sitter_language.as_ref().and_then(|get_lang| {
+            let mut parser = tree_sitter::Parser::new();
+            match parser.set_language(get_lang()) {
+                Ok(()) => Some(parser),
+                Err(err) => {
+                    error!("failed to load tree sitter: {}", err);
+                    None
+                }
+            }
+        });
+
+        Highlighter { tree: None, parser }
     }
 
     pub fn update(&mut self, buffer: &Buffer) {

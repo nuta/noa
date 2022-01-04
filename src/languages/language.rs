@@ -19,22 +19,7 @@ pub struct Language {
     pub extensions: &'static [&'static str],
     pub formatter: Option<&'static [&'static str]>,
     pub lsp: Option<Lsp>,
-    pub(crate) tree_sitter_lib: Option<unsafe extern "C" fn() -> tree_sitter::Language>,
-}
-
-impl Language {
-    pub fn syntax_highlighting_parser(&self) -> Option<tree_sitter::Parser> {
-        self.tree_sitter_lib.as_ref().and_then(|lib| {
-            let mut parser = tree_sitter::Parser::new();
-            match parser.set_language(unsafe { lib() }) {
-                Ok(()) => Some(parser),
-                Err(err) => {
-                    error!("failed to load tree sitter for {}: {}", self.id, err);
-                    None
-                }
-            }
-        })
-    }
+    pub tree_sitter_language: Option<fn() -> tree_sitter::Language>,
 }
 
 impl Hash for Language {
