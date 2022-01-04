@@ -1,4 +1,4 @@
-use crate::language::Lang;
+use crate::language::Language;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HighlightType {
@@ -18,7 +18,7 @@ pub struct Highlighter {
 }
 
 impl Highlighter {
-    pub fn new(lang: &'static Lang) -> Highlighter {
+    pub fn new(lang: &'static Language) -> Highlighter {
         Highlighter {
             tree: None,
             parser: lang.syntax_highlighting_parser(),

@@ -1,13 +1,13 @@
 use phf::phf_map;
 
 use crate::highlighting::HighlightType;
-use crate::language::Lang;
+use crate::language::Language;
 use crate::lsp::Lsp;
 use crate::tree_sitter;
 
-pub const LANGS: &[Lang] = &[PLAIN, C];
+pub const LANGS: &[Language] = &[PLAIN, C];
 
-pub const PLAIN: Lang = Lang {
+pub const PLAIN: Language = Language {
     id: "plain",
     filenames: &[],
     extensions: &[],
@@ -17,7 +17,7 @@ pub const PLAIN: Lang = Lang {
     tree_sitter_mapping: phf_map! {},
 };
 
-pub const C: Lang = Lang {
+pub const C: Language = Language {
     id: "c",
     filenames: &[],
     extensions: &["c", "h"],

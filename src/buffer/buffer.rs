@@ -1,7 +1,7 @@
 use std::{fs::OpenOptions, path::Path};
 
 use noa_editorconfig::{EditorConfig, IndentStyle};
-use noa_langs::{definitions::PLAIN, language::Lang};
+use noa_langs::{definitions::PLAIN, language::Language};
 
 use crate::{
     cursor::{Cursor, CursorSet, Position},
@@ -28,7 +28,7 @@ pub struct Buffer {
     buf: RawBuffer,
     cursors: CursorSet,
     config: EditorConfig,
-    lang: &'static Lang,
+    lang: &'static Language,
 }
 
 impl Buffer {
@@ -64,7 +64,7 @@ impl Buffer {
         &self.config
     }
 
-    pub fn lang(&self) -> &Lang {
+    pub fn lang(&self) -> &Language {
         self.lang
     }
 
