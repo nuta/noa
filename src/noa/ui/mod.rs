@@ -1,3 +1,3 @@
 mod canvas;
-mod compositor;
+pub mod compositor;
 pub mod terminal;

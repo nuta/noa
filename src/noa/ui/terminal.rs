@@ -6,7 +6,7 @@ use std::{
 use crossterm::{
     cursor::{self, MoveTo},
     event::{
-        DisableMouseCapture, EnableMouseCapture, Event as TermEvent, EventStream, KeyCode,
+        self, DisableMouseCapture, EnableMouseCapture, Event as TermEvent, EventStream, KeyCode,
         KeyEvent, KeyModifiers, MouseEvent,
     },
     execute, queue,
@@ -31,98 +31,16 @@ pub enum Input {
     Quit,
 }
 
-async fn terminal_input_handler(event_queue: UnboundedSender<Input>) {
-    let mut stream = EventStream::new().fuse();
-
-    fn handle_event(event_queue: &UnboundedSender<Input>, ev: TermEvent) {
-        match ev {
-            TermEvent::Key(key) => {
-                event_queue.send(Input::Key(key)).ok();
-            }
-            TermEvent::Mouse(ev) => {
-                event_queue.send(Input::Mouse(ev)).ok();
-            }
-            TermEvent::Resize(cols, rows) => {
-                event_queue
-                    .send(Input::Resize {
-                        screen_width: cols as usize,
-                        screen_height: rows as usize,
-                    })
-                    .ok();
-            }
-        }
-    }
-
-    fn is_next_available() -> crossterm::Result<bool> {
-        crossterm::event::poll(Duration::from_secs(0))
-    }
-
-    loop {
-        if let Some(Ok(ev)) = stream.next().await {
-            match ev {
-                TermEvent::Key(KeyEvent {
-                    code: KeyCode::Char(key),
-                    modifiers: KeyModifiers::NONE,
-                }) if is_next_available().unwrap() => {
-                    let mut next_event = None;
-                    let mut buf = key.to_string();
-                    while is_next_available().unwrap() && next_event.is_none() {
-                        if let Some(Ok(ev)) = stream.next().await {
-                            match ev {
-                                TermEvent::Key(KeyEvent {
-                                    code: KeyCode::Char(ch),
-                                    modifiers: KeyModifiers::SHIFT,
-                                }) => {
-                                    buf.push(ch);
-                                }
-                                TermEvent::Key(KeyEvent {
-                                    code,
-                                    modifiers: KeyModifiers::NONE,
-                                }) => match code {
-                                    KeyCode::Char(ch) => {
-                                        buf.push(ch);
-                                    }
-                                    KeyCode::Enter => {
-                                        buf.push('\n');
-                                    }
-                                    KeyCode::Tab => {
-                                        buf.push('\t');
-                                    }
-                                    _ => {
-                                        next_event = Some(ev);
-                                    }
-                                },
-                                ev => {
-                                    next_event = Some(ev);
-                                }
-                            }
-                        }
-                    }
-
-                    event_queue.send(Input::KeyBatch(buf)).ok();
-                    if let Some(ev) = next_event {
-                        handle_event(&event_queue, ev);
-                    }
-                }
-                _ => {
-                    handle_event(&event_queue, ev);
-                }
-            }
-        }
-    }
-}
-
 pub struct Terminal {
     height: usize,
     width: usize,
 }
 
 impl Terminal {
-    pub fn new(event_queue: UnboundedSender<Input>) -> Terminal {
+    pub fn new() -> Terminal {
         enable_raw_mode().expect("failed to enable the raw mode");
         execute!(stdout(), EnterAlternateScreen).expect("failed to enter the alternative screen");
         execute!(stdout(), EnableMouseCapture).expect("failed to enable mouse capture");
-        tokio::spawn(terminal_input_handler(event_queue));
         let (cols, rows) = size().expect("failed to get the terminal size");
         Terminal {
             height: rows as usize,
@@ -140,6 +58,89 @@ impl Terminal {
 
     pub fn clear(&mut self) {
         execute!(stdout(), Clear(ClearType::All)).ok();
+    }
+
+    pub fn set_event_listener(&self, event_queue: UnboundedSender<Input>) {
+        tokio::spawn(async move {
+            let mut stream = EventStream::new().fuse();
+
+            fn handle_event(event_queue: &UnboundedSender<Input>, ev: TermEvent) {
+                match ev {
+                    TermEvent::Key(key) => {
+                        event_queue.send(Input::Key(key)).ok();
+                    }
+                    TermEvent::Mouse(ev) => {
+                        event_queue.send(Input::Mouse(ev)).ok();
+                    }
+                    TermEvent::Resize(cols, rows) => {
+                        event_queue
+                            .send(Input::Resize {
+                                screen_width: cols as usize,
+                                screen_height: rows as usize,
+                            })
+                            .ok();
+                    }
+                }
+            }
+
+            fn is_next_available() -> crossterm::Result<bool> {
+                crossterm::event::poll(Duration::from_secs(0))
+            }
+
+            loop {
+                if let Some(Ok(ev)) = stream.next().await {
+                    match ev {
+                        TermEvent::Key(KeyEvent {
+                            code: KeyCode::Char(key),
+                            modifiers: KeyModifiers::NONE,
+                        }) if is_next_available().unwrap() => {
+                            let mut next_event = None;
+                            let mut buf = key.to_string();
+                            while is_next_available().unwrap() && next_event.is_none() {
+                                if let Some(Ok(ev)) = stream.next().await {
+                                    match ev {
+                                        TermEvent::Key(KeyEvent {
+                                            code: KeyCode::Char(ch),
+                                            modifiers: KeyModifiers::SHIFT,
+                                        }) => {
+                                            buf.push(ch);
+                                        }
+                                        TermEvent::Key(KeyEvent {
+                                            code,
+                                            modifiers: KeyModifiers::NONE,
+                                        }) => match code {
+                                            KeyCode::Char(ch) => {
+                                                buf.push(ch);
+                                            }
+                                            KeyCode::Enter => {
+                                                buf.push('\n');
+                                            }
+                                            KeyCode::Tab => {
+                                                buf.push('\t');
+                                            }
+                                            _ => {
+                                                next_event = Some(ev);
+                                            }
+                                        },
+                                        ev => {
+                                            next_event = Some(ev);
+                                        }
+                                    }
+                                }
+                            }
+
+                            event_queue.send(Input::KeyBatch(buf)).ok();
+                            if let Some(ev) = next_event {
+                                handle_event(&event_queue, ev);
+                            }
+                        }
+                        _ => {
+                            handle_event(&event_queue, ev);
+                        }
+                    }
+                }
+            }
+        });
     }
 
     pub fn drawer(&mut self) -> Drawer {

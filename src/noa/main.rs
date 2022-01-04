@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use clap::Parser;
 
 use noa_common::logger::install_logger;
+use ui::{compositor::Compositor, terminal::Terminal};
 
 mod document;
 mod editor;
@@ -28,6 +29,9 @@ struct Args {
 async fn main() {
     install_logger("main");
     let args = Args::parse();
-    let mut editor = editor::Editor::new();
+
+    let terminal = Terminal::new();
+    let compositor = Compositor::new(terminal);
+    let mut editor = editor::Editor::new(compositor);
     editor.run().await;
 }
