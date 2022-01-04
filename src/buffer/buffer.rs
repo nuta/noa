@@ -1,7 +1,7 @@
 use std::{fs::OpenOptions, path::Path};
 
 use noa_editorconfig::{EditorConfig, IndentStyle};
-use noa_langs::{definitions::PLAIN, language::Language};
+use noa_languages::{definitions::PLAIN, language::Language};
 
 use crate::{
     cursor::{Cursor, CursorSet, Position},

@@ -5,7 +5,7 @@ struct Lang {
     url: &'static str,
 }
 
-static LANGS: &[Lang] = &[
+static LANGUAGES: &[Lang] = &[
     Lang {
         name: "c",
         url: "https://github.com/tree-sitter/tree-sitter-c",
@@ -22,7 +22,7 @@ static LANGS: &[Lang] = &[
 
 fn main() {
     let grammars_dir = Path::new("tree_sitter/grammars");
-    for lang in LANGS {
+    for lang in LANGUAGES {
         let repo_dir = grammars_dir.join(lang.name);
         let src_dir = repo_dir.join("src");
 
