@@ -23,3 +23,14 @@ impl View {
         self.highlighter.update(buffer);
     }
 }
+
+// tree_sitter_mapping: phf_map! {
+//     "comment" => SyntaxSpanType::Comment,
+//     "identifier" => SyntaxSpanType::Ident,
+//     "string_literal" => SyntaxSpanType::StringLiteral,
+//     "primitive_type" => SyntaxSpanType::PrimitiveType,
+//     "escape_sequence" => SyntaxSpanType::EscapeSequence,
+//     "preproc_include" => SyntaxSpanType::CMacro,
+//     "#include" => SyntaxSpanType::CMacro,
+//     "system_lib_string" => SyntaxSpanType::CIncludeArg,
+// },

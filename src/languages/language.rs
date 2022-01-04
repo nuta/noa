@@ -4,7 +4,6 @@ use crate::lsp::Lsp;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SyntaxSpanType {
-    MatchedBySearch,
     Comment,
     Ident,
     StringLiteral,
@@ -20,7 +19,6 @@ pub struct Language {
     pub extensions: &'static [&'static str],
     pub formatter: Option<&'static [&'static str]>,
     pub lsp: Option<Lsp>,
-    pub tree_sitter_mapping: phf::Map<&'static str, SyntaxSpanType>,
     pub(crate) tree_sitter_lib: Option<unsafe extern "C" fn() -> tree_sitter::Language>,
 }
 
