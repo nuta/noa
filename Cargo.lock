@@ -437,6 +437,7 @@ dependencies = [
  "noa_languages",
  "parking_lot",
  "pretty_assertions",
+ "ropey",
  "tokio",
 ]
 
