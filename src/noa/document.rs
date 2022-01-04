@@ -22,6 +22,8 @@ pub struct Document {
     name: String,
     buffer: Buffer,
     lang: &'static Language,
+    view: View,
+    highlighter: Highlighter,
 }
 
 impl Document {
@@ -40,6 +42,12 @@ impl Document {
 
         Ok(())
     }
+
+    pub fn update(&mut self) {
+        let rope = self.buffer.raw_buffer().rope();
+        self.view.update(rope);
+        self.highlighter.update(rope);
+    }
 }
 
 pub struct DocumentManager {
@@ -47,7 +55,6 @@ pub struct DocumentManager {
     current: DocumentId,
     documents: HashMap<DocumentId, Document>,
     views: HashMap<DocumentId, View>,
-    highlighters: HashMap<DocumentId, Highlighter>,
 }
 
 impl DocumentManager {
@@ -60,7 +67,6 @@ impl DocumentManager {
             ),
             documents: HashMap::new(),
             views: HashMap::new(),
-            highlighters: HashMap::new(),
         };
 
         let scratch_doc = Document::new("**scratch**").unwrap();
@@ -77,8 +83,6 @@ impl DocumentManager {
         let highlighter = Highlighter::new(doc.lang);
 
         self.documents.insert(doc_id, doc);
-        self.views.insert(doc_id, View::new());
-        self.highlighters.insert(doc_id, highlighter);
 
         // First run of syntax highlighting, etc.
         self.file_changed(doc_id);
@@ -88,10 +92,6 @@ impl DocumentManager {
     }
 
     pub fn file_changed(&mut self, document_id: DocumentId) {
-        let rope = self.documents[&document_id].buffer.raw_buffer().rope();
-        self.highlighters
-            .get_mut(&document_id)
-            .unwrap()
-            .update(rope);
+        self.documents.get_mut(&document_id).unwrap().update();
     }
 }
