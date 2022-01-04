@@ -1,4 +1,4 @@
-use crate::definitions::LANGS;
+use crate::definitions::LANGUAGES;
 
 pub struct Lsp {
     pub language_id: &'static str,
@@ -6,7 +6,7 @@ pub struct Lsp {
 }
 
 pub fn get_lsp_config_by_lsp_lang_id(id: &str) -> Option<&'static Lsp> {
-    LANGS
+    LANGUAGES
         .iter()
         .find(|lang| match lang.lsp.as_ref() {
             Some(lsp) => lsp.language_id == id,

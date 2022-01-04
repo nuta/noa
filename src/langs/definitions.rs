@@ -5,7 +5,7 @@ use crate::language::Language;
 use crate::lsp::Lsp;
 use crate::tree_sitter;
 
-pub const LANGS: &[Language] = &[PLAIN, C];
+pub const LANGUAGES: &[Language] = &[PLAIN, C];
 
 pub const PLAIN: Language = Language {
     id: "plain",
