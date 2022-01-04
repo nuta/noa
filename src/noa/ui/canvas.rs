@@ -299,7 +299,7 @@ impl<'a> CanvasViewMut<'a> {
         self.update_range(y, x, y + 1, x_end, |graph| graph.bg = bg);
     }
 
-    pub fn set_deco(&mut self, y: usize, x: usize, x_end: usize, deco: Decoration) {
+    pub fn set_decoration(&mut self, y: usize, x: usize, x_end: usize, deco: Decoration) {
         self.update_range(y, x, y + 1, x_end, |graph| graph.deco = deco);
     }
 
