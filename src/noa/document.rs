@@ -60,14 +60,7 @@ impl DocumentManager {
 
     pub fn file_changed(&mut self) {
         let document_id: DocumentId = unimplemented!();
-        let highlighter = &mut self.highlighters[&document_id];
-        let rope = &self.documents[&document_id]
-            .buffer
-            .raw_buffer()
-            .rope()
-            .clone();
-        tokio::spawn(async move {
-            highlighter.update(rope);
-        })
+        let rope = self.documents[&document_id].buffer.raw_buffer().rope();
+        self.highlighters[&document_id].update(rope);
     }
 }
