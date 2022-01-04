@@ -1,7 +1,6 @@
 use phf::phf_map;
 
-use crate::highlighting::HighlightType;
-use crate::language::Language;
+use crate::language::{Language, SyntaxSpanType};
 use crate::lsp::Lsp;
 use crate::tree_sitter;
 
@@ -28,13 +27,13 @@ pub const C: Language = Language {
     }),
     tree_sitter_lib: Some(tree_sitter::tree_sitter_c),
     tree_sitter_mapping: phf_map! {
-        "comment" => HighlightType::Comment,
-        "identifier" => HighlightType::Ident,
-        "string_literal" => HighlightType::StringLiteral,
-        "primitive_type" => HighlightType::PrimitiveType,
-        "escape_sequence" => HighlightType::EscapeSequence,
-        "preproc_include" => HighlightType::CMacro,
-        "#include" => HighlightType::CMacro,
-        "system_lib_string" => HighlightType::CIncludeArg,
+        "comment" => SyntaxSpanType::Comment,
+        "identifier" => SyntaxSpanType::Ident,
+        "string_literal" => SyntaxSpanType::StringLiteral,
+        "primitive_type" => SyntaxSpanType::PrimitiveType,
+        "escape_sequence" => SyntaxSpanType::EscapeSequence,
+        "preproc_include" => SyntaxSpanType::CMacro,
+        "#include" => SyntaxSpanType::CMacro,
+        "system_lib_string" => SyntaxSpanType::CIncludeArg,
     },
 };

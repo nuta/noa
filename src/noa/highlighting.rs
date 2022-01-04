@@ -1,17 +1,5 @@
 use noa_buffer::buffer::Buffer;
-use noa_languages::language::Language;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HighlightType {
-    MatchedBySearch,
-    Comment,
-    Ident,
-    StringLiteral,
-    EscapeSequence,
-    PrimitiveType,
-    CMacro,
-    CIncludeArg,
-}
+use noa_languages::{language::Language, tree_sitter};
 
 pub struct Highlighter {
     tree: Option<tree_sitter::Tree>,

@@ -5,4 +5,4 @@ extern crate log;
 pub mod definitions;
 pub mod language;
 pub mod lsp;
-mod tree_sitter;
+pub mod tree_sitter;
