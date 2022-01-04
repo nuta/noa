@@ -52,7 +52,6 @@ pub struct DocumentManager {
     next_document_id: AtomicUsize,
     current: DocumentId,
     documents: HashMap<DocumentId, Document>,
-    views: HashMap<DocumentId, View>,
 }
 
 impl DocumentManager {
@@ -64,7 +63,6 @@ impl DocumentManager {
                 unsafe { NonZeroUsize::new_unchecked(1) },
             ),
             documents: HashMap::new(),
-            views: HashMap::new(),
         };
 
         let scratch_doc = Document::new("**scratch**").unwrap();
