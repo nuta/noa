@@ -1,9 +1,17 @@
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    num::NonZeroUsize,
+    path::{Path, PathBuf},
+    sync::atomic::AtomicUsize,
+};
 
 use anyhow::Result;
 
 use noa_buffer::buffer::Buffer;
 use noa_languages::language::Language;
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub struct DocumentId(NonZeroUsize);
 
 pub struct Document {
     /// It's `None` if the document is not backed by a file (e.g. a scrach buffer).
@@ -31,10 +39,16 @@ impl Document {
     }
 }
 
-pub struct DocumentManager {}
+pub struct DocumentManager {
+    next_document_id: AtomicUsize,
+    documents: HashMap<DocumentId, Document>,
+}
 
 impl DocumentManager {
     pub fn new() -> DocumentManager {
-        DocumentManager {}
+        DocumentManager {
+            next_document_id: AtomicUsize::new(1),
+            documents: HashMap::new(),
+        }
     }
 }
