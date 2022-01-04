@@ -62,8 +62,6 @@ impl Terminal {
 
     pub fn listen_events(&self, event_queue: UnboundedSender<Input>) {
         tokio::spawn(async move {
-            let mut stream = EventStream::new().fuse();
-
             fn handle_event(event_queue: &UnboundedSender<Input>, ev: TermEvent) {
                 match ev {
                     TermEvent::Key(key) => {
@@ -83,20 +81,21 @@ impl Terminal {
                 }
             }
 
-            fn is_next_available() -> crossterm::Result<bool> {
-                crossterm::event::poll(Duration::from_secs(0))
+            fn is_next_available() -> bool {
+                crossterm::event::poll(Duration::from_secs(0)).unwrap()
             }
 
+            let mut stream = EventStream::new().fuse();
             loop {
                 if let Some(Ok(ev)) = stream.next().await {
                     match ev {
                         TermEvent::Key(KeyEvent {
                             code: KeyCode::Char(key),
                             modifiers: KeyModifiers::NONE,
-                        }) if is_next_available().unwrap() => {
+                        }) if is_next_available() => {
                             let mut next_event = None;
                             let mut buf = key.to_string();
-                            while is_next_available().unwrap() && next_event.is_none() {
+                            while is_next_available() && next_event.is_none() {
                                 if let Some(Ok(ev)) = stream.next().await {
                                     match ev {
                                         TermEvent::Key(KeyEvent {
