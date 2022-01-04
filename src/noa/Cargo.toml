@@ -16,7 +16,10 @@ log = "0"
 anyhow = "1"
 clap = { version = "3.0.1", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
+futures = "0"
+crossterm = { version = "0", features = ["event-stream"] }
 parking_lot = "0"
+arrayvec = "0"
 
 noa_common = { path = "../common" }
 noa_buffer = { path = "../buffer" }

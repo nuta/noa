@@ -4,6 +4,12 @@ use clap::Parser;
 
 use noa_common::logger::install_logger;
 
+mod compositor;
+mod document;
+mod editor;
+mod ui;
+mod view;
+
 #[macro_use]
 extern crate log;
 
@@ -21,4 +27,6 @@ struct Args {
 async fn main() {
     install_logger("main");
     let args = Args::parse();
+    let mut editor = editor::Editor::new();
+    editor.run().await;
 }
