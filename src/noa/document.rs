@@ -23,11 +23,11 @@ pub struct Document {
     buffer: Buffer,
     lang: &'static Language,
     view: View,
-    highlighter: Highlighter,
 }
 
 impl Document {
     pub fn new(name: &str) -> Result<Document> {
+        // let highlighter = Highlighter::new(doc.lang);
         unimplemented!()
     }
 
@@ -46,7 +46,6 @@ impl Document {
     pub fn update(&mut self) {
         let rope = self.buffer.raw_buffer().rope();
         self.view.update(rope);
-        self.highlighter.update(rope);
     }
 }
 
@@ -79,8 +78,6 @@ impl DocumentManager {
         let doc_id = DocumentId(
             NonZeroUsize::new(self.next_document_id.fetch_add(1, Ordering::SeqCst)).unwrap(),
         );
-
-        let highlighter = Highlighter::new(doc.lang);
 
         self.documents.insert(doc_id, doc);
 
