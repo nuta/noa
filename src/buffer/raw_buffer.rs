@@ -258,9 +258,16 @@ impl Iterator for CharIter<'_> {
     }
 }
 
-#[derive(Clone, PartialEq, Debug)]
-pub struct Word {
-    pub range: Range,
+#[derive(Clone, PartialEq)]
+pub struct Word<'a> {
+    buf: &'a RawBuffer,
+    range: Range,
+}
+
+impl<'a> Word<'a> {
+    pub fn range(&self) -> Range {
+        self.range
+    }
 }
 
 #[derive(Clone)]
@@ -268,8 +275,8 @@ pub struct WordIter<'a> {
     iter: CharIter<'a>,
 }
 
-impl Iterator for WordIter<'_> {
-    type Item = Word;
+impl<'a> Iterator for WordIter<'a> {
+    type Item = Word<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.iter.clone().next().is_none() {
@@ -333,6 +340,7 @@ impl Iterator for WordIter<'_> {
         self.iter.next();
 
         Some(Word {
+            buf: self.iter.buf,
             range: Range::from_positions(start.position(), end.position()),
         })
     }
@@ -450,63 +458,31 @@ mod tests {
     fn test_word() {
         let buffer = RawBuffer::from_text("");
         let mut iter = buffer.word(Position::new(0, 0));
-        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next().map(|w| w.range()), None);
 
         let buffer = RawBuffer::from_text("A");
         let mut iter = buffer.word(Position::new(0, 0));
-        assert_eq!(
-            iter.next(),
-            Some(Word {
-                range: Range::new(0, 0, 0, 1)
-            })
-        );
-        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next().map(|w| w.range()), Some(Range::new(0, 0, 0, 1)));
+        assert_eq!(iter.next().map(|w| w.range()), None);
 
         let buffer = RawBuffer::from_text("ABC DEF");
         let mut iter = buffer.word(Position::new(0, 3));
-        assert_eq!(
-            iter.next(),
-            Some(Word {
-                range: Range::new(0, 0, 0, 3)
-            })
-        );
+        assert_eq!(iter.next().map(|w| w.range()), Some(Range::new(0, 0, 0, 3)));
 
         let buffer = RawBuffer::from_text("abc WXYZ   12");
         let mut iter = buffer.word(Position::new(0, 0));
+        assert_eq!(iter.next().map(|w| w.range()), Some(Range::new(0, 0, 0, 3)));
+        assert_eq!(iter.next().map(|w| w.range()), Some(Range::new(0, 4, 0, 8)));
         assert_eq!(
-            iter.next(),
-            Some(Word {
-                range: Range::new(0, 0, 0, 3)
-            })
+            iter.next().map(|w| w.range()),
+            Some(Range::new(0, 11, 0, 13))
         );
-        assert_eq!(
-            iter.next(),
-            Some(Word {
-                range: Range::new(0, 4, 0, 8)
-            })
-        );
-        assert_eq!(
-            iter.next(),
-            Some(Word {
-                range: Range::new(0, 11, 0, 13)
-            })
-        );
-        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next().map(|w| w.range()), None);
 
         let mut iter = buffer.word(Position::new(0, 5));
-        assert_eq!(
-            iter.next(),
-            Some(Word {
-                range: Range::new(0, 4, 0, 8)
-            })
-        );
+        assert_eq!(iter.next().map(|w| w.range()), Some(Range::new(0, 4, 0, 8)));
 
         let mut iter = buffer.word(Position::new(0, 8));
-        assert_eq!(
-            iter.next(),
-            Some(Word {
-                range: Range::new(0, 4, 0, 8)
-            })
-        );
+        assert_eq!(iter.next().map(|w| w.range()), Some(Range::new(0, 4, 0, 8)));
     }
 }
