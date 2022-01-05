@@ -93,6 +93,17 @@ impl RawBuffer {
         self.rope.to_string()
     }
 
+    /// Returns a substring.
+    ///
+    /// # Complexity
+    ///
+    /// Runs in O(N) time, where N is the length of the buffer.
+    pub fn substr(&self, range: Range) -> String {
+        let start = self.pos_to_rope_index(range.front());
+        let end = self.pos_to_rope_index(range.back());
+        self.rope.slice(start..end).to_string()
+    }
+
     /// Returns a double-ended iterator at the given position which allows
     /// traversing characters in the buffer back and forth.
     pub fn char(&self, pos: Position) -> CharIter<'_> {
@@ -268,6 +279,10 @@ impl<'a> Word<'a> {
     pub fn range(&self) -> Range {
         self.range
     }
+
+    pub fn text(&self) -> String {
+        self.buf.substr(self.range)
+    }
 }
 
 #[derive(Clone)]
@@ -431,6 +446,15 @@ mod tests {
 
         buffer.edit(Range::new(0, 1, 0, 3), "");
         assert_eq!(buffer.text(), "ADEFG");
+    }
+
+    #[test]
+    fn test_substr() {
+        let buffer = RawBuffer::from_text("...AB...");
+        assert_eq!(buffer.substr(Range::new(0, 3, 0, 5)), "AB");
+
+        let buffer = RawBuffer::from_text("あいうABえお");
+        assert_eq!(buffer.substr(Range::new(0, 3, 0, 5)), "AB");
     }
 
     #[test]
