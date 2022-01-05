@@ -59,7 +59,8 @@ impl DocumentManager {
         let mut manager = DocumentManager {
             next_document_id: AtomicUsize::new(1),
             current: DocumentId(
-                // Safety: 1 is not zero.
+                // Safety: Obviously 1 is not zero. This is a dummy value and
+                //         will be updated soon by a `open_virtual_file` call below.
                 unsafe { NonZeroUsize::new_unchecked(1) },
             ),
             documents: HashMap::new(),

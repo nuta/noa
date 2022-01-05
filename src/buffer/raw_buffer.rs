@@ -103,6 +103,16 @@ impl RawBuffer {
         }
     }
 
+    /// Returns a double-ended iterator at the given position which allows
+    /// traversing words in the buffer back and forth.
+    ///
+    /// The iterator always returns the current word at the position first.
+    pub fn word(&self, pos: Position) -> WordIter<'_> {
+        WordIter {
+            iter: self.char(pos),
+        }
+    }
+
     /// Returns an iterator which returns occurrences of the given string.
     pub fn find<'a, 'b>(&'a self, query: &'b str, pos: Position) -> FindIter<'a, 'b> {
         FindIter {
@@ -188,6 +198,7 @@ impl<'a> CharIter<'a> {
     pub fn position(&self) -> Position {
         self.pos
     }
+
     /// Returns the previous character.
     ///
     /// # Complexity
@@ -227,7 +238,7 @@ impl Iterator for CharIter<'_> {
     ///
     /// > Runs in amortized O(1) time and worst-case O(log N) time.
     fn next(&mut self) -> Option<char> {
-        let ch = self.iter.prev();
+        let ch = self.iter.next();
         match ch {
             Some('\n') => {
                 self.pos.y += 1;
@@ -244,6 +255,66 @@ impl Iterator for CharIter<'_> {
             }
         }
         ch
+    }
+}
+
+pub struct Word {
+    pub range: Range,
+}
+
+#[derive(Clone)]
+pub struct WordIter<'a> {
+    iter: CharIter<'a>,
+}
+
+impl Iterator for WordIter<'_> {
+    type Item = Word;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut end = self.iter.clone();
+        let first_ch = loop {
+            match end.next() {
+                Some(ch) if !ch.is_ascii_whitespace() => {
+                    break ch;
+                }
+                Some(_) => {
+                    // Whitespaces and tabs. Keep skipping.
+                    continue;
+                }
+                None => {
+                    return None;
+                }
+            }
+        };
+
+        let is_same_category = match first_ch {
+            ch if ch.is_ascii_alphanumeric() => |c: char| c.is_ascii_alphanumeric(),
+            ch if ch.is_ascii_punctuation() => |c: char| c.is_ascii_punctuation(),
+            _ => |c: char| !c.is_ascii_whitespace(),
+        };
+
+        let mut start = end.clone();
+        while let Some(ch) = start.prev() {
+            if !is_same_category(ch) {
+                start.next();
+                break;
+            }
+        }
+
+        while let Some(ch) = end.next() {
+            if !is_same_category(ch) {
+                end.prev();
+                break;
+            }
+        }
+
+        let mut next = end.clone();
+        next.next();
+        self.iter = next;
+
+        Some(Word {
+            range: Range::from_positions(start.position(), end.position()),
+        })
     }
 }
 
