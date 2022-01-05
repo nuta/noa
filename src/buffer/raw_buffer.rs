@@ -258,6 +258,7 @@ impl Iterator for CharIter<'_> {
     }
 }
 
+#[derive(Clone, PartialEq, Debug)]
 pub struct Word {
     pub range: Range,
 }
@@ -271,7 +272,18 @@ impl Iterator for WordIter<'_> {
     type Item = Word;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.iter.clone().next().is_none() {
+            return None;
+        }
+
         let mut end = self.iter.clone();
+        match end.prev() {
+            Some(prev_ch) if !prev_ch.is_ascii_whitespace() => {}
+            _ => {
+                end = self.iter.clone();
+            }
+        }
+
         let first_ch = loop {
             match end.next() {
                 Some(ch) if !ch.is_ascii_whitespace() => {
@@ -309,6 +321,7 @@ impl Iterator for WordIter<'_> {
         }
 
         let mut next = end.clone();
+        next.next();
         next.next();
         self.iter = next;
 
@@ -420,5 +433,63 @@ mod tests {
         assert_eq!(iter.next(), Some('Y'));
         assert_eq!(iter.next(), Some('\n'));
         assert_eq!(iter.next(), Some('1'));
+
+        let buffer = RawBuffer::from_text("XYZ");
+        let mut iter = buffer.char(Position::new(0, 1));
+        assert_eq!(iter.prev(), Some('X'));
+    }
+
+    #[test]
+    fn test_word() {
+        let buffer = RawBuffer::from_text("");
+        let mut iter = buffer.word(Position::new(0, 0));
+        assert_eq!(iter.next(), None);
+
+        let buffer = RawBuffer::from_text("ABC DEF");
+        let mut iter = buffer.word(Position::new(0, 3));
+        assert_eq!(
+            iter.next(),
+            Some(Word {
+                range: Range::new(0, 0, 0, 3)
+            })
+        );
+
+        let buffer = RawBuffer::from_text("abc WXYZ   12");
+        let mut iter = buffer.word(Position::new(0, 0));
+        assert_eq!(
+            iter.next(),
+            Some(Word {
+                range: Range::new(0, 0, 0, 3)
+            })
+        );
+        assert_eq!(
+            iter.next(),
+            Some(Word {
+                range: Range::new(0, 4, 0, 8)
+            })
+        );
+        assert_eq!(
+            iter.next(),
+            Some(Word {
+                range: Range::new(0, 11, 0, 13)
+            })
+        );
+        assert_eq!(iter.next(), None);
+
+        let mut iter = buffer.word(Position::new(0, 5));
+        assert_eq!(
+            iter.next(),
+            Some(Word {
+                range: Range::new(0, 4, 0, 8)
+            })
+        );
+
+        let mut iter = buffer.word(Position::new(0, 8));
+        assert_eq!(
+            iter.next(),
+            Some(Word {
+                range: Range::new(0, 4, 0, 8)
+            })
+        );
     }
 }
