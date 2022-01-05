@@ -273,9 +273,12 @@ impl Iterator for WordIter<'_> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.iter.clone().next().is_none() {
+            // EOF.
             return None;
         }
 
+        // If the iterator points to the end of a word, move the iterator back
+        // so that it returns the word.
         let mut end = self.iter.clone();
         match end.prev() {
             Some(prev_ch) if !prev_ch.is_ascii_whitespace() => {}
@@ -284,6 +287,7 @@ impl Iterator for WordIter<'_> {
             }
         }
 
+        // Skip whitespaces.
         let first_ch = loop {
             match end.next() {
                 Some(ch) if !ch.is_ascii_whitespace() => {
@@ -299,12 +303,14 @@ impl Iterator for WordIter<'_> {
             }
         };
 
+        // Determine the character category.
         let is_same_category = match first_ch {
             ch if ch.is_ascii_alphanumeric() => |c: char| c.is_ascii_alphanumeric(),
             ch if ch.is_ascii_punctuation() => |c: char| c.is_ascii_punctuation(),
             _ => |c: char| !c.is_ascii_whitespace(),
         };
 
+        // Find the beginning of the word.
         let mut start = end.clone();
         while let Some(ch) = start.prev() {
             if !is_same_category(ch) {
@@ -313,6 +319,7 @@ impl Iterator for WordIter<'_> {
             }
         }
 
+        // Find the end of the word.
         while let Some(ch) = end.next() {
             if !is_same_category(ch) {
                 end.prev();
@@ -320,10 +327,10 @@ impl Iterator for WordIter<'_> {
             }
         }
 
-        let mut next = end.clone();
-        next.next();
-        next.next();
-        self.iter = next;
+        self.iter = end.clone();
+        // Move the iterator to the next to next whitespace (not at the end of
+        // the word).
+        self.iter.next();
 
         Some(Word {
             range: Range::from_positions(start.position(), end.position()),
@@ -443,6 +450,16 @@ mod tests {
     fn test_word() {
         let buffer = RawBuffer::from_text("");
         let mut iter = buffer.word(Position::new(0, 0));
+        assert_eq!(iter.next(), None);
+
+        let buffer = RawBuffer::from_text("A");
+        let mut iter = buffer.word(Position::new(0, 0));
+        assert_eq!(
+            iter.next(),
+            Some(Word {
+                range: Range::new(0, 0, 0, 1)
+            })
+        );
         assert_eq!(iter.next(), None);
 
         let buffer = RawBuffer::from_text("ABC DEF");
