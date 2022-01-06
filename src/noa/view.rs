@@ -14,6 +14,8 @@ use crate::{
 pub struct DisplayRow {
     /// The graphemes in this row.
     graphemes: Vec<Grapheme>,
+    /// The positions in the buffer for each grapheme.
+    positions: Vec<Position>,
 }
 
 pub struct View {
@@ -46,12 +48,16 @@ impl View {
     pub fn layout(&mut self, buffer: &Buffer, rows: usize, cols: usize) {
         self.rows.clear();
         let whole_buffer = Range::new(0, 0, buffer.num_lines(), 0);
+        let mut pos = Position::new(0, 0);
         let mut grapheme_iter = buffer.grapheme_iter(whole_buffer);
         let mut unprocessed_grapheme = None;
         for _ in 0..rows {
             let mut graphemes = Vec::with_capacity(cols);
+            let mut positions = Vec::with_capacity(cols);
             let mut width_remaining = cols;
 
+            // Fill `graphemes`.
+            //
             // If we have a grapheme next to the last character of the last row,
             // specifically `unprocessed_grapheme` is Some, avoid consuming
             // the grapheme iterator.
@@ -74,6 +80,8 @@ impl View {
                     }
                     "\n" => {
                         // Go to the next line.
+                        pos.y += 1;
+                        pos.x = 0;
                         break;
                     }
                     _ => {
@@ -85,16 +93,22 @@ impl View {
                             break;
                         }
 
-                        width_remaining -= grapheme_width;
                         graphemes.push(Grapheme {
                             chars,
                             style: Style::default(),
                         });
+                        positions.push(pos);
+
+                        width_remaining -= grapheme_width;
+                        pos.x += 1;
                     }
                 };
             }
 
-            self.rows.push(DisplayRow { graphemes });
+            self.rows.push(DisplayRow {
+                graphemes,
+                positions,
+            });
         }
     }
 }
