@@ -1,8 +1,18 @@
-use noa_buffer::buffer::Buffer;
+use arrayvec::ArrayString;
+use noa_buffer::{
+    buffer::Buffer,
+    cursor::{Position, Range},
+};
 
-use crate::highlighting::Highlighter;
+use crate::{
+    highlighting::Highlighter,
+    ui::canvas::{Grapheme, Style},
+};
 
-pub struct DisplayRow {}
+pub struct DisplayRow {
+    /// The graphemes in this row.
+    graphemes: Vec<Grapheme>,
+}
 
 pub struct View {
     rows: Vec<DisplayRow>,
@@ -21,6 +31,14 @@ impl View {
 
     pub fn update(&mut self, buffer: &Buffer) {
         self.highlighter.update(buffer);
+    }
+
+    pub fn layout(&mut self, buffer: &Buffer, rows: std::ops::Range<usize>, cols: usize) {
+        self.rows.clear();
+        let mut chars = buffer.grapheme_iter(Range::new(0, 0, buffer.num_lines(), 0));
+        for _ in 0..rows.end {
+            // self.rows.push(DisplayRow {});
+        }
     }
 }
 

@@ -12,7 +12,7 @@ pub enum DrawOp<'a> {
     NoBold,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Style {
     pub fg: Color,
     pub bg: Color,
@@ -58,18 +58,18 @@ pub struct Grapheme {
     /// The character. It can be larger than 1 if it consists of multiple unicode
     /// characters like A with the acute accent.
     grapheme: ArrayString<4>,
-    fg: Color,
-    bg: Color,
-    deco: Decoration,
+    style: Style,
 }
 
 impl Grapheme {
     pub fn new(grapheme: &str) -> Grapheme {
         Grapheme {
             grapheme: ArrayString::from(grapheme).unwrap(),
-            fg: Color::Reset,
-            bg: Color::Reset,
-            deco: Default::default(),
+            style: Style {
+                fg: Color::Reset,
+                bg: Color::Reset,
+                deco: Default::default(),
+            },
         }
     }
 
@@ -160,25 +160,25 @@ impl Canvas {
                     needs_move = false;
                 }
 
-                if new.fg != fg {
-                    ops.push(DrawOp::FgColor(new.fg));
-                    fg = new.fg;
+                if new.style.fg != fg {
+                    ops.push(DrawOp::FgColor(new.style.fg));
+                    fg = new.style.fg;
                 }
 
-                if new.bg != bg {
-                    ops.push(DrawOp::BgColor(new.bg));
-                    bg = new.bg;
+                if new.style.bg != bg {
+                    ops.push(DrawOp::BgColor(new.style.bg));
+                    bg = new.style.bg;
                 }
 
-                if new.deco != deco {
-                    if new.deco.bold != deco.bold {
-                        ops.push(if new.deco.bold {
+                if new.style.deco != deco {
+                    if new.style.deco.bold != deco.bold {
+                        ops.push(if new.style.deco.bold {
                             DrawOp::Bold
                         } else {
                             DrawOp::NoBold
                         });
                     }
-                    deco = new.deco;
+                    deco = new.style.deco;
                 }
 
                 ops.push(DrawOp::Grapheme(&new.grapheme));
@@ -262,9 +262,7 @@ impl<'a> CanvasViewMut<'a> {
             x,
             Grapheme {
                 grapheme,
-                fg,
-                bg,
-                deco,
+                style: Style { fg, bg, deco },
             },
         )
     }
@@ -292,22 +290,22 @@ impl<'a> CanvasViewMut<'a> {
     }
 
     pub fn set_fg(&mut self, y: usize, x: usize, x_end: usize, fg: Color) {
-        self.update_range(y, x, y + 1, x_end, |graph| graph.fg = fg);
+        self.update_range(y, x, y + 1, x_end, |graph| graph.style.fg = fg);
     }
 
     pub fn set_bg(&mut self, y: usize, x: usize, x_end: usize, bg: Color) {
-        self.update_range(y, x, y + 1, x_end, |graph| graph.bg = bg);
+        self.update_range(y, x, y + 1, x_end, |graph| graph.style.bg = bg);
     }
 
     pub fn set_decoration(&mut self, y: usize, x: usize, x_end: usize, deco: Decoration) {
-        self.update_range(y, x, y + 1, x_end, |graph| graph.deco = deco);
+        self.update_range(y, x, y + 1, x_end, |graph| graph.style.deco = deco);
     }
 
     pub fn set_style(&mut self, y: usize, x: usize, x_end: usize, style: &Style) {
         self.update_range(y, x, y + 1, x_end, |graph| {
-            graph.fg = style.fg;
-            graph.bg = style.bg;
-            graph.deco = style.deco;
+            graph.style.fg = style.fg;
+            graph.style.bg = style.bg;
+            graph.style.deco = style.deco;
         });
     }
 

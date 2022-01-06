@@ -1,4 +1,7 @@
-use crate::cursor::{Position, Range};
+use crate::{
+    cursor::{Position, Range},
+    grapheme_iter::GraphemeIter,
+};
 
 /// An internal buffer implementation supporting primitive operations required
 /// by the editor.
@@ -130,6 +133,13 @@ impl RawBuffer {
             chars: self.char(pos),
             query,
         }
+    }
+
+    /// Returns an iterator which returns graphemes.
+    pub fn grapheme_iter(&self, range: Range) -> GraphemeIter<'_> {
+        let start = self.pos_to_rope_index(range.front());
+        let end = self.pos_to_rope_index(range.back());
+        GraphemeIter::new(&self.rope.slice(start..end))
     }
 
     /// Replaces the text at the `range` with `new_text`. Returns the cursor

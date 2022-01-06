@@ -1,4 +1,4 @@
-use std::{fs::OpenOptions, path::Path};
+use std::{fs::OpenOptions, ops::Deref, path::Path};
 
 use noa_editorconfig::{EditorConfig, IndentStyle};
 
@@ -58,24 +58,12 @@ impl Buffer {
         }
     }
 
-    pub fn len_chars(&self) -> usize {
-        self.buf.len_chars()
-    }
-
-    pub fn num_lines(&self) -> usize {
-        self.buf.num_lines()
-    }
-
     pub fn line_len(&self, y: usize) -> usize {
         self.buf.line_len(y)
     }
 
     pub fn config(&self) -> &EditorConfig {
         &self.config
-    }
-
-    pub fn text(&self) -> String {
-        self.buf.text()
     }
 
     pub fn cursors(&self) -> &[Cursor] {
@@ -221,6 +209,14 @@ impl Buffer {
 impl Default for Buffer {
     fn default() -> Buffer {
         Buffer::new()
+    }
+}
+
+impl Deref for Buffer {
+    type Target = RawBuffer;
+
+    fn deref(&self) -> &RawBuffer {
+        &self.buf
     }
 }
 
