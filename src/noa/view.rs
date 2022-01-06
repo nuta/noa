@@ -13,9 +13,9 @@ use crate::{
 #[derive(Debug, PartialEq)]
 pub struct DisplayRow {
     /// The graphemes in this row.
-    graphemes: Vec<Grapheme>,
+    pub graphemes: Vec<Grapheme>,
     /// The positions in the buffer for each grapheme.
-    positions: Vec<Position>,
+    pub positions: Vec<Position>,
 }
 
 pub struct View {
@@ -137,6 +137,10 @@ mod tests {
         }
     }
 
+    fn p(y: usize, x: usize) -> Position {
+        Position::new(y, x)
+    }
+
     #[test]
     fn test_layout() {
         let mut view = View::new(Highlighter::new(&PLAIN));
@@ -145,14 +149,19 @@ mod tests {
         view.layout(&buffer, 3, 5);
         assert_eq!(view.rows().len(), 3);
         assert_eq!(view.rows()[0].graphemes, vec![g("A"), g("B"), g("C")]);
+        assert_eq!(view.rows()[0].positions, vec![p(0, 0), p(0, 1), p(0, 2)]);
         assert_eq!(view.rows()[1].graphemes, vec![g("X")]);
+        assert_eq!(view.rows()[1].positions, vec![p(1, 0)]);
         assert_eq!(view.rows()[2].graphemes, vec![g("Y")]);
+        assert_eq!(view.rows()[2].positions, vec![p(2, 0)]);
 
         // Soft wrapping.
         let buffer = Buffer::from_text("ABC123XYZ");
         view.layout(&buffer, 2, 3);
         assert_eq!(view.rows().len(), 2);
         assert_eq!(view.rows()[0].graphemes, vec![g("A"), g("B"), g("C")]);
+        assert_eq!(view.rows()[0].positions, vec![p(0, 0), p(0, 1), p(0, 2)]);
         assert_eq!(view.rows()[1].graphemes, vec![g("1"), g("2"), g("3")]);
+        assert_eq!(view.rows()[1].positions, vec![p(0, 3), p(0, 4), p(0, 5)]);
     }
 }
