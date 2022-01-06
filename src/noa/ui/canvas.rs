@@ -67,7 +67,7 @@ impl Decoration {
 pub struct Grapheme {
     /// The character. It can be larger than 1 if it consists of multiple unicode
     /// characters like A with the acute accent.
-    pub chars: ArrayString<4>,
+    pub chars: ArrayString<8>,
     pub style: Style,
 }
 
