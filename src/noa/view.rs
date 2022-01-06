@@ -51,20 +51,13 @@ impl View {
         for _ in 0..rows {
             let mut graphemes = Vec::with_capacity(cols);
             let mut width_remaining = cols;
-            loop {
-                let grapheme_rope = match unprocessed_grapheme.take() {
-                    Some(grapheme) => grapheme,
-                    None => {
-                        match grapheme_iter.next() {
-                            Some(grapheme) => grapheme,
-                            None => {
-                                // EOF.
-                                break;
-                            }
-                        }
-                    }
-                };
 
+            // If we have a grapheme next to the last character of the last row,
+            // specifically `unprocessed_grapheme` is Some, avoid consuming
+            // the grapheme iterator.
+            while let Some(grapheme_rope) =
+                unprocessed_grapheme.take().or_else(|| grapheme_iter.next())
+            {
                 // Turn the grapheme into a string `chars`.
                 let mut chars = ArrayString::new();
                 for ch in grapheme_rope.chars() {
