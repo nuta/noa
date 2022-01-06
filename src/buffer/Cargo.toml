@@ -8,6 +8,7 @@ path = "lib.rs"
 
 [dependencies]
 ropey = "^1.3.2"
+unicode-width = "0"
 unicode-segmentation = "1"
 
 noa_editorconfig = { path = "../editorconfig" }

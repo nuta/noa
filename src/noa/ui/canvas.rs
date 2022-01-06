@@ -19,6 +19,16 @@ pub struct Style {
     pub deco: Decoration,
 }
 
+impl Default for Style {
+    fn default() -> Self {
+        Style {
+            fg: Color::Reset,
+            bg: Color::Reset,
+            deco: Decoration::default(),
+        }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
 pub struct Decoration {
     pub bold: bool,
@@ -57,19 +67,15 @@ impl Decoration {
 pub struct Grapheme {
     /// The character. It can be larger than 1 if it consists of multiple unicode
     /// characters like A with the acute accent.
-    grapheme: ArrayString<4>,
-    style: Style,
+    pub chars: ArrayString<4>,
+    pub style: Style,
 }
 
 impl Grapheme {
     pub fn new(grapheme: &str) -> Grapheme {
         Grapheme {
-            grapheme: ArrayString::from(grapheme).unwrap(),
-            style: Style {
-                fg: Color::Reset,
-                bg: Color::Reset,
-                deco: Default::default(),
-            },
+            chars: ArrayString::from(grapheme).unwrap(),
+            style: Default::default(),
         }
     }
 
@@ -181,7 +187,7 @@ impl Canvas {
                     deco = new.style.deco;
                 }
 
-                ops.push(DrawOp::Grapheme(&new.grapheme));
+                ops.push(DrawOp::Grapheme(&new.chars));
             }
 
             x += 1;
@@ -261,7 +267,7 @@ impl<'a> CanvasViewMut<'a> {
             y,
             x,
             Grapheme {
-                grapheme,
+                chars: grapheme,
                 style: Style { fg, bg, deco },
             },
         )

@@ -2,6 +2,7 @@ use arrayvec::ArrayString;
 use noa_buffer::{
     buffer::Buffer,
     cursor::{Position, Range},
+    display_width::DisplayWidth,
 };
 
 use crate::{
@@ -37,7 +38,40 @@ impl View {
         self.rows.clear();
         let mut chars = buffer.grapheme_iter(Range::new(0, 0, buffer.num_lines(), 0));
         for _ in 0..rows.end {
-            // self.rows.push(DisplayRow {});
+            let mut graphemes = Vec::with_capacity(cols);
+            let mut width_remaining = cols;
+            loop {
+                let grapheme_rope = match chars.next() {
+                    Some(rope) => rope,
+                    None => break,
+                };
+
+                let mut chars = ArrayString::new();
+                for ch in grapheme_rope.chars() {
+                    chars.push(ch);
+                }
+
+                match chars.as_str() {
+                    "\t" => {
+                        todo!()
+                    }
+                    _ => {
+                        let grapheme_width = chars.as_str().display_width();
+                        if grapheme_width > width_remaining {
+                            // Soft wrap.
+                            break;
+                        }
+
+                        width_remaining -= grapheme_width;
+                        graphemes.push(Grapheme {
+                            chars,
+                            style: Style::default(),
+                        });
+                    }
+                };
+            }
+
+            self.rows.push(DisplayRow { graphemes });
         }
     }
 }
