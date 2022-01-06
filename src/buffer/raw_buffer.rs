@@ -304,6 +304,7 @@ impl<'a> Iterator for WordIter<'a> {
     type Item = Word<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        // Handle the EOF case.
         self.iter.clone().next()?;
 
         // If the iterator points to the end of a word, move the iterator back
