@@ -304,10 +304,7 @@ impl<'a> Iterator for WordIter<'a> {
     type Item = Word<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.iter.clone().next().is_none() {
-            // EOF.
-            return None;
-        }
+        self.iter.clone().next()?;
 
         // If the iterator points to the end of a word, move the iterator back
         // so that it returns the word.

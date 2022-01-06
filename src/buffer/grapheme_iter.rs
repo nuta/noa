@@ -22,7 +22,7 @@ impl<'a> GraphemeIter<'a> {
         let first_chunk = chunks.next().unwrap_or("");
         GraphemeIter {
             text: *slice,
-            chunks: chunks,
+            chunks,
             cur_chunk: first_chunk,
             cur_chunk_start: 0,
             cursor: GraphemeCursor::new(0, slice.len_bytes(), true),
