@@ -141,6 +141,7 @@ mod tests {
         assert_eq!(view.rows()[1].graphemes, vec![g("X")]);
         assert_eq!(view.rows()[2].graphemes, vec![g("Y")]);
 
+        // Soft wrapping.
         let buffer = Buffer::from_text("ABC123XYZ");
         view.layout(&buffer, 2, 3);
         assert_eq!(view.rows().len(), 2);
