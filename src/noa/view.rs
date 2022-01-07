@@ -464,9 +464,9 @@ mod tests {
     fn bench_highlight_medium_spans(b: &mut test::Bencher) {
         let (mut view, buffer) = create_view_and_buffer(2048);
         let mut spans = Vec::new();
-        for i in 0..91 {
+        for i in 0..4096 {
             spans.push(Span {
-                range: Range::new(1024 + i, 0, 1024 + i, 1),
+                range: Range::new(1024, 0, 1024, 1),
                 style: Style::default(),
             });
         }
