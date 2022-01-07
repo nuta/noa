@@ -51,7 +51,8 @@ impl View {
     pub fn layout(&mut self, buffer: &Buffer, rows: usize, width: usize) {
         if rows == 1 {
             // The number of rows to be layouted is only 1, the naive approach
-            // performs slightly better (around 500 nanoseconds).
+            // performs slightly better (around 500 nanoseconds). It's small
+            // enough to use the parallelized approach for all cases though.
             self.layout_naive(buffer, rows, width);
         } else {
             self.layout_parallelized(buffer, rows, width);
@@ -121,7 +122,23 @@ impl View {
 
                 match chars.as_str() {
                     "\t" => {
-                        todo!()
+                        // Compute the number of spaces to fill.
+                        let mut n = 1;
+                        while (pos.x + n) % buffer.config().tab_width != 0 && width_remaining > 0 {
+                            dbg!(pos.x, n);
+                            n += 1;
+                            width_remaining -= 1;
+                        }
+
+                        for _ in 0..n {
+                            graphemes.push(Grapheme {
+                                chars: ArrayString::from(" ").unwrap(),
+                                style: Style::default(),
+                            });
+                            positions.push(pos);
+                        }
+
+                        pos.x += 1;
                     }
                     "\r" => {
                         // Ignore carriage returns. We'll handle newlines in the
@@ -175,6 +192,7 @@ impl View {
 
 #[cfg(test)]
 mod tests {
+    use noa_editorconfig::EditorConfig;
     use noa_languages::definitions::PLAIN;
 
     use super::*;
@@ -218,6 +236,42 @@ mod tests {
         assert_eq!(view.rows()[0].positions, vec![p(0, 0), p(0, 1), p(0, 2)]);
         assert_eq!(view.rows()[1].graphemes, vec![g("1"), g("2"), g("3")]);
         assert_eq!(view.rows()[1].positions, vec![p(0, 3), p(0, 4), p(0, 5)]);
+    }
+
+    #[test]
+    fn test_layout_tabs() {
+        let mut view = View::new(Highlighter::new(&PLAIN));
+
+        let config = EditorConfig {
+            tab_width: 4,
+            ..Default::default()
+        };
+
+        let mut buffer = Buffer::from_text("\tA");
+        buffer.set_config(&config);
+        view.layout(&buffer, 1, 16);
+        assert_eq!(view.rows().len(), 1);
+        assert_eq!(
+            view.rows()[0].graphemes,
+            vec![g(" "), g(" "), g(" "), g(" "), g("A")]
+        );
+        assert_eq!(
+            view.rows()[0].positions,
+            vec![p(0, 0), p(0, 0), p(0, 0), p(0, 0), p(0, 1)]
+        );
+
+        let mut buffer = Buffer::from_text("AB\tC");
+        buffer.set_config(&config);
+        view.layout(&buffer, 1, 16);
+        assert_eq!(view.rows().len(), 1);
+        assert_eq!(
+            view.rows()[0].graphemes,
+            vec![g("A"), g("B"), g(" "), g(" "), g("C")]
+        );
+        assert_eq!(
+            view.rows()[0].positions,
+            vec![p(0, 0), p(0, 1), p(0, 2), p(0, 2), p(0, 3)]
+        );
     }
 
     #[bench]

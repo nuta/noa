@@ -23,7 +23,7 @@ pub enum EndOfLine {
     CrLf,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct EditorConfig {
     pub indent_style: IndentStyle,
     pub indent_size: usize,

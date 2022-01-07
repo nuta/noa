@@ -500,6 +500,7 @@ dependencies = [
  "log",
  "noa_buffer",
  "noa_common",
+ "noa_editorconfig",
  "noa_languages",
  "parking_lot",
  "pretty_assertions",

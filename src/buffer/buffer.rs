@@ -66,6 +66,10 @@ impl Buffer {
         &self.config
     }
 
+    pub fn set_config(&mut self, config: &EditorConfig) {
+        self.config = config.clone();
+    }
+
     pub fn cursors(&self) -> &[Cursor] {
         self.cursors.as_slice()
     }
