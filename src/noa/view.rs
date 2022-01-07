@@ -66,6 +66,8 @@ impl View {
     /// - Ranges in `spans` do not overlap.
     /// - `rows` are not out of bounds: [`View::layout`] must be called before.
     pub fn highlight(&mut self, rows: std::ops::Range<usize>, spans: &[Span]) {
+        let rows = rows.start..min(rows.end, self.rows.len());
+
         // Locate the first grapheme's position in the given display rows.
         let first_pos = 'outer1: loop {
             for i in rows.clone() {
@@ -281,6 +283,7 @@ impl View {
 
 #[cfg(test)]
 mod tests {
+    use crossterm::style::Color;
     use noa_editorconfig::EditorConfig;
     use noa_languages::definitions::PLAIN;
 
@@ -293,8 +296,46 @@ mod tests {
         }
     }
 
+    fn g2(c: &str, fg: Color) -> Grapheme {
+        Grapheme {
+            chars: ArrayString::from(c).unwrap(),
+            style: Style {
+                fg,
+                ..Style::default()
+            },
+        }
+    }
+
     fn p(y: usize, x: usize) -> Position {
         Position::new(y, x)
+    }
+
+    #[test]
+    fn test_highlight() {
+        use Color::Red;
+
+        let mut view = View::new(Highlighter::new(&PLAIN));
+
+        let buffer = Buffer::from_text("ABC");
+        view.layout(&buffer, 1, 3);
+        view.highlight(
+            0..3,
+            &[Span {
+                range: Range::new(0, 0, 0, 2),
+                style: Style {
+                    fg: Red,
+                    ..Default::default()
+                },
+            }],
+        );
+
+        assert_eq!(
+            view.rows,
+            vec![DisplayRow {
+                graphemes: vec![g2("A", Red), g2("B", Red), g("C")],
+                positions: vec![p(0, 0), p(0, 1), p(0, 2)],
+            },]
+        );
     }
 
     #[test]
