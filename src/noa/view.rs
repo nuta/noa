@@ -293,6 +293,12 @@ mod tests {
         Position::new(y, x)
     }
 
+    fn create_view_and_buffer(num_lines: usize) -> (View, Buffer) {
+        let view = View::new(Highlighter::new(&PLAIN));
+        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(2048));
+        (view, buffer)
+    }
+
     #[test]
     fn test_highlight() {
         use Color::Red;
@@ -420,22 +426,55 @@ mod tests {
 
     #[bench]
     fn bench_layout_single_line(b: &mut test::Bencher) {
-        let mut view = View::new(Highlighter::new(&PLAIN));
-        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(1));
+        let (mut view, buffer) = create_view_and_buffer(1);
         b.iter(|| view.layout(&buffer, 1, 120));
     }
 
     #[bench]
     fn bench_layout_small_line(b: &mut test::Bencher) {
-        let mut view = View::new(Highlighter::new(&PLAIN));
-        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(64));
+        let (mut view, buffer) = create_view_and_buffer(64);
         b.iter(|| view.layout(&buffer, 64, 120));
     }
 
     #[bench]
     fn bench_layout_medium_text(b: &mut test::Bencher) {
-        let mut view = View::new(Highlighter::new(&PLAIN));
-        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(2048));
+        let (mut view, buffer) = create_view_and_buffer(2048);
         b.iter(|| view.layout(&buffer, 2048, 120));
+    }
+
+    #[bench]
+    fn bench_highlight_few_spans(b: &mut test::Bencher) {
+        let (mut view, buffer) = create_view_and_buffer(4);
+        let mut spans = Vec::new();
+        for i in 0..4 {
+            spans.push(Span {
+                range: Range::new(i, 0, i, 1),
+                style: Style::default(),
+            });
+        }
+
+        view.layout(&buffer, 1, 120);
+        b.iter(|| {
+            view.clear_highlights(0..4);
+            view.highlight(0..4, &spans);
+        });
+    }
+
+    #[bench]
+    fn bench_highlight_medium_spans(b: &mut test::Bencher) {
+        let (mut view, buffer) = create_view_and_buffer(2048);
+        let mut spans = Vec::new();
+        for i in 0..91 {
+            spans.push(Span {
+                range: Range::new(1024 + i, 0, 1024 + i, 1),
+                style: Style::default(),
+            });
+        }
+
+        view.layout(&buffer, 1, 120);
+        b.iter(|| {
+            view.clear_highlights(1024..(1024 + 128));
+            view.highlight(1024..(1024 + 128), &spans);
+        });
     }
 }
