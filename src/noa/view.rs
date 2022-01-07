@@ -164,4 +164,25 @@ mod tests {
         assert_eq!(view.rows()[1].graphemes, vec![g("1"), g("2"), g("3")]);
         assert_eq!(view.rows()[1].positions, vec![p(0, 3), p(0, 4), p(0, 5)]);
     }
+
+    #[bench]
+    fn bench_layout_small_text(b: &mut test::Bencher) {
+        let mut view = View::new(Highlighter::new(&PLAIN));
+        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(256));
+        b.iter(|| view.layout(&buffer, 256, 120));
+    }
+
+    #[bench]
+    fn bench_layout_medium_text(b: &mut test::Bencher) {
+        let mut view = View::new(Highlighter::new(&PLAIN));
+        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(4096));
+        b.iter(|| view.layout(&buffer, 4096, 120));
+    }
+
+    #[bench]
+    fn bench_layout_large_text(b: &mut test::Bencher) {
+        let mut view = View::new(Highlighter::new(&PLAIN));
+        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(30000));
+        b.iter(|| view.layout(&buffer, 30000, 120));
+    }
 }

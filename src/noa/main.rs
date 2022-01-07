@@ -1,4 +1,14 @@
 #![allow(unused)]
+#![feature(test)]
+
+extern crate test;
+
+#[macro_use]
+extern crate log;
+
+#[cfg(test)]
+#[macro_use]
+extern crate pretty_assertions;
 
 use std::path::PathBuf;
 
@@ -12,13 +22,6 @@ mod editor;
 mod highlighting;
 mod ui;
 mod view;
-
-#[macro_use]
-extern crate log;
-
-#[cfg(test)]
-#[macro_use]
-extern crate pretty_assertions;
 
 #[derive(Parser, Debug)]
 struct Args {
