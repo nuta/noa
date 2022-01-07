@@ -272,6 +272,37 @@ mod tests {
             view.rows()[0].positions,
             vec![p(0, 0), p(0, 1), p(0, 2), p(0, 2), p(0, 3)]
         );
+
+        let mut buffer = Buffer::from_text("ABC\t\t");
+        buffer.set_config(&config);
+        view.layout(&buffer, 1, 16);
+        assert_eq!(view.rows().len(), 1);
+        assert_eq!(
+            view.rows()[0].graphemes,
+            vec![
+                g("A"),
+                g("B"),
+                g("C"),
+                g(" "),
+                g(" "),
+                g(" "),
+                g(" "),
+                g(" ")
+            ]
+        );
+        assert_eq!(
+            view.rows()[0].positions,
+            vec![
+                p(0, 0),
+                p(0, 1),
+                p(0, 2),
+                p(0, 3),
+                p(0, 4),
+                p(0, 4),
+                p(0, 4),
+                p(0, 4)
+            ]
+        );
     }
 
     #[bench]
