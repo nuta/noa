@@ -87,7 +87,7 @@ impl View {
         // Apply spans.
         let mut row_i = rows.start;
         let mut col_i = 0;
-        'outer: for span in spans {
+        for span in spans {
             if span.range.front() > self.last_pos {
                 // Reached to the out-of-bounds span.
                 break;
