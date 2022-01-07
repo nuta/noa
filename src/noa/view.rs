@@ -66,6 +66,7 @@ impl View {
     /// - Ranges in `spans` do not overlap.
     /// - `rows` are not out of bounds: [`View::layout`] must be called before.
     pub fn highlight(&mut self, rows: std::ops::Range<usize>, spans: &[Span]) {
+        // Locate the first grapheme's position in the given display rows.
         let first_pos = 'outer1: loop {
             for i in rows.clone() {
                 match self.rows[i].positions.first() {
@@ -78,6 +79,7 @@ impl View {
             return;
         };
 
+        // Locate the last grapheme's position in the given display rows.
         let last_pos = 'outer2: loop {
             for i in rows.clone().rev() {
                 match self.rows[i].positions.last() {
@@ -99,6 +101,7 @@ impl View {
             }
         }
 
+        // Apply spans.
         let mut row_i = rows.start;
         let mut col_i = 0;
         'outer: for span in spans {
