@@ -1,3 +1,4 @@
+use core::num;
 use std::cmp::min;
 
 use arrayvec::ArrayString;
@@ -44,10 +45,32 @@ impl View {
         self.highlighter.update(buffer);
     }
 
-    /// Computes the grapheme layout.
+    /// Computes the grapheme layout (text wrapping).
     ///
     /// If you want to disable soft wrapping. Set `width` to `std::max::MAX`.
     pub fn layout(&mut self, buffer: &Buffer, rows: usize, width: usize) {
+        if rows < 4 {
+            self.layout_naive(buffer, rows, width);
+        } else {
+            self.layout_parallelized(buffer, rows, width);
+        }
+    }
+
+    /// A naive implementation of the layout.
+    fn layout_naive(&mut self, buffer: &Buffer, rows: usize, width: usize) {
+        self.rows.clear();
+        let mut y = 0;
+        let num_lines = buffer.num_lines();
+        while self.rows.len() < rows && y < num_lines {
+            let rows = self.layout_line(buffer, y, width);
+            debug_assert!(!rows.is_empty());
+            self.rows.extend(rows);
+            y += 1;
+        }
+    }
+
+    /// A parallelized implementation of the layout.
+    fn layout_parallelized(&mut self, buffer: &Buffer, rows: usize, width: usize) {
         use rayon::prelude::*;
         self.rows = (0..min(rows, buffer.num_lines()))
             .into_par_iter()
@@ -169,6 +192,12 @@ mod tests {
     fn test_layout() {
         let mut view = View::new(Highlighter::new(&PLAIN));
 
+        let buffer = Buffer::from_text("");
+        view.layout(&buffer, 3, 5);
+        assert_eq!(view.rows().len(), 1);
+        assert_eq!(view.rows()[0].graphemes, vec![]);
+        assert_eq!(view.rows()[0].positions, vec![]);
+
         let buffer = Buffer::from_text("ABC\nX\nY");
         view.layout(&buffer, 3, 5);
         assert_eq!(view.rows().len(), 3);
@@ -190,30 +219,58 @@ mod tests {
     }
 
     #[bench]
-    fn bench_layout_tiny_text(b: &mut test::Bencher) {
+    fn bench_layout_single_line(b: &mut test::Bencher) {
         let mut view = View::new(Highlighter::new(&PLAIN));
-        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(8));
-        b.iter(|| view.layout(&buffer, 8, 120));
-    }
-
-    #[bench]
-    fn bench_layout_small_text(b: &mut test::Bencher) {
-        let mut view = View::new(Highlighter::new(&PLAIN));
-        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(256));
-        b.iter(|| view.layout(&buffer, 256, 120));
+        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(1));
+        b.iter(|| view.layout(&buffer, 1, 120));
     }
 
     #[bench]
     fn bench_layout_medium_text(b: &mut test::Bencher) {
         let mut view = View::new(Highlighter::new(&PLAIN));
-        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(4096));
-        b.iter(|| view.layout(&buffer, 4096, 120));
+        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(2048));
+        b.iter(|| view.layout(&buffer, 2048, 120));
     }
 
-    // #[bench]
-    // fn bench_layout_large_text(b: &mut test::Bencher) {
-    //     let mut view = View::new(Highlighter::new(&PLAIN));
-    //     let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(50000));
-    //     b.iter(|| view.layout(&buffer, 50000, 120));
-    // }
+    #[bench]
+    fn bench_layout_single_line_naive(b: &mut test::Bencher) {
+        let mut view = View::new(Highlighter::new(&PLAIN));
+        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(1));
+        b.iter(|| view.layout_naive(&buffer, 1, 120));
+    }
+
+    #[bench]
+    fn bench_layout_tiny_text_naive(b: &mut test::Bencher) {
+        let mut view = View::new(Highlighter::new(&PLAIN));
+        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(8));
+        b.iter(|| view.layout_naive(&buffer, 8, 120));
+    }
+
+    #[bench]
+    fn bench_layout_small_text_naive(b: &mut test::Bencher) {
+        let mut view = View::new(Highlighter::new(&PLAIN));
+        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(256));
+        b.iter(|| view.layout_naive(&buffer, 256, 120));
+    }
+
+    #[bench]
+    fn bench_layout_single_line_parallelized(b: &mut test::Bencher) {
+        let mut view = View::new(Highlighter::new(&PLAIN));
+        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(1));
+        b.iter(|| view.layout_parallelized(&buffer, 1, 120));
+    }
+
+    #[bench]
+    fn bench_layout_tiny_text_parallelized(b: &mut test::Bencher) {
+        let mut view = View::new(Highlighter::new(&PLAIN));
+        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(8));
+        b.iter(|| view.layout_parallelized(&buffer, 8, 120));
+    }
+
+    #[bench]
+    fn bench_layout_small_text_parallelized(b: &mut test::Bencher) {
+        let mut view = View::new(Highlighter::new(&PLAIN));
+        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(256));
+        b.iter(|| view.layout_parallelized(&buffer, 256, 120));
+    }
 }
