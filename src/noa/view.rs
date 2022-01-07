@@ -29,6 +29,11 @@ pub struct DisplayRow {
 
 pub struct View {
     rows: Vec<DisplayRow>,
+    // The first grapheme's position in `rows`.
+    first_pos: Position,
+    // The last grapheme's position in `rows`.
+    last_pos: Position,
+    // The logical position of the cursor.
     logical_x: usize,
     highlighter: Highlighter,
 }
@@ -39,6 +44,8 @@ impl View {
             rows: Vec::new(),
             logical_x: 0,
             highlighter,
+            first_pos: Position::new(0, 0),
+            last_pos: Position::new(0, 0),
         }
     }
 
@@ -68,36 +75,10 @@ impl View {
     pub fn highlight(&mut self, rows: std::ops::Range<usize>, spans: &[Span]) {
         let rows = rows.start..min(rows.end, self.rows.len());
 
-        // Locate the first grapheme's position in the given display rows.
-        let first_pos = 'outer1: loop {
-            for i in rows.clone() {
-                match self.rows[i].positions.first() {
-                    Some(pos) => break 'outer1 *pos,
-                    None => continue,
-                }
-            }
-
-            // No graphemes in the given rows.
-            return;
-        };
-
-        // Locate the last grapheme's position in the given display rows.
-        let last_pos = 'outer2: loop {
-            for i in rows.clone().rev() {
-                match self.rows[i].positions.last() {
-                    Some(pos) => break 'outer2 *pos,
-                    None => continue,
-                }
-            }
-
-            // No graphemes in the given rows.
-            return;
-        };
-
         // Skip out-of-bounds spans.
         let mut spans_iter = spans.iter();
         while let Some(span) = spans_iter.next() {
-            if span.range.back() > first_pos {
+            if span.range.back() > self.first_pos {
                 spans_iter.next_back();
                 break;
             }
@@ -107,7 +88,7 @@ impl View {
         let mut row_i = rows.start;
         let mut col_i = 0;
         'outer: for span in spans {
-            if span.range.front() > last_pos {
+            if span.range.front() > self.last_pos {
                 // Reached to the out-of-bounds span.
                 break;
             }
@@ -140,32 +121,8 @@ impl View {
     ///
     /// If you want to disable soft wrapping. Set `width` to `std::max::MAX`.
     pub fn layout(&mut self, buffer: &Buffer, rows: usize, width: usize) {
-        if rows == 1 {
-            // The number of rows to be layouted is only 1, the naive approach
-            // performs slightly better (around 500 nanoseconds). It's small
-            // enough to use the parallelized approach for all cases though.
-            self.layout_naive(buffer, rows, width);
-        } else {
-            self.layout_parallelized(buffer, rows, width);
-        }
-    }
-
-    /// A naive implementation of the layout.
-    fn layout_naive(&mut self, buffer: &Buffer, rows: usize, width: usize) {
-        self.rows.clear();
-        let mut y = 0;
-        let num_lines = buffer.num_lines();
-        while self.rows.len() < rows && y < num_lines {
-            let rows = self.layout_line(buffer, y, width);
-            debug_assert!(!rows.is_empty());
-            self.rows.extend(rows);
-            y += 1;
-        }
-    }
-
-    /// A parallelized implementation of the layout.
-    fn layout_parallelized(&mut self, buffer: &Buffer, rows: usize, width: usize) {
         use rayon::prelude::*;
+
         self.rows = (0..min(rows, buffer.num_lines()))
             .into_par_iter()
             .map(|y| {
@@ -175,6 +132,32 @@ impl View {
             })
             .flatten()
             .collect();
+
+        // Locate the first grapheme's position in the given display rows.
+        self.first_pos = 'outer1: loop {
+            for i in 0..self.rows.len() {
+                match self.rows[i].positions.first() {
+                    Some(pos) => break 'outer1 *pos,
+                    None => continue,
+                }
+            }
+
+            // No graphemes in `self.rows`.
+            break Position::new(0, 0);
+        };
+
+        // Locate the last grapheme's position in the given display rows.
+        self.last_pos = 'outer2: loop {
+            for i in (0..self.rows.len()).rev() {
+                match self.rows[i].positions.last() {
+                    Some(pos) => break 'outer2 *pos,
+                    None => continue,
+                }
+            }
+
+            // No graphemes in `self.rows`.
+            break Position::new(0, 0);
+        };
     }
 
     fn layout_line(&self, buffer: &Buffer, y: usize, width: usize) -> Vec<DisplayRow> {
@@ -443,37 +426,16 @@ mod tests {
     }
 
     #[bench]
+    fn bench_layout_small_line(b: &mut test::Bencher) {
+        let mut view = View::new(Highlighter::new(&PLAIN));
+        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(64));
+        b.iter(|| view.layout(&buffer, 64, 120));
+    }
+
+    #[bench]
     fn bench_layout_medium_text(b: &mut test::Bencher) {
         let mut view = View::new(Highlighter::new(&PLAIN));
         let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(2048));
         b.iter(|| view.layout(&buffer, 2048, 120));
-    }
-
-    #[bench]
-    fn bench_layout_single_line_naive(b: &mut test::Bencher) {
-        let mut view = View::new(Highlighter::new(&PLAIN));
-        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(1));
-        b.iter(|| view.layout_naive(&buffer, 1, 120));
-    }
-
-    #[bench]
-    fn bench_layout_tiny_text_naive(b: &mut test::Bencher) {
-        let mut view = View::new(Highlighter::new(&PLAIN));
-        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(8));
-        b.iter(|| view.layout_naive(&buffer, 8, 120));
-    }
-
-    #[bench]
-    fn bench_layout_single_line_parallelized(b: &mut test::Bencher) {
-        let mut view = View::new(Highlighter::new(&PLAIN));
-        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(1));
-        b.iter(|| view.layout_parallelized(&buffer, 1, 120));
-    }
-
-    #[bench]
-    fn bench_layout_tiny_text_parallelized(b: &mut test::Bencher) {
-        let mut view = View::new(Highlighter::new(&PLAIN));
-        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(8));
-        b.iter(|| view.layout_parallelized(&buffer, 8, 120));
     }
 }
