@@ -102,7 +102,7 @@ impl View {
                         width_remaining -= grapheme_width;
                         pos.x += 1;
                     }
-                };
+                }
             }
 
             self.rows.push(DisplayRow {
