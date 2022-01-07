@@ -19,6 +19,22 @@ pub struct Style {
     pub deco: Decoration,
 }
 
+impl Style {
+    pub fn merge(&mut self, other: Style) {
+        if self.fg == Color::Reset {
+            self.fg = other.fg;
+        }
+
+        if self.bg == Color::Reset {
+            self.bg = other.bg;
+        }
+
+        if !self.deco.bold {
+            self.deco.bold = other.deco.bold;
+        }
+    }
+}
+
 impl Default for Style {
     fn default() -> Self {
         Style {

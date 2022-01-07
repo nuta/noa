@@ -111,7 +111,7 @@ impl View {
                     break;
                 }
 
-                grapheme.style = span.style;
+                grapheme.style.merge(span.style);
                 col_i += 1;
             }
         }
