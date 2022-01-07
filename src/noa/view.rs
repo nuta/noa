@@ -147,17 +147,17 @@ impl View {
         })();
 
         // Locate the last grapheme's position in the given display rows.
-        self.last_pos = 'outer2: loop {
+        self.last_pos = (|| {
             for i in (0..self.rows.len()).rev() {
                 match self.rows[i].positions.last() {
-                    Some(pos) => break 'outer2 *pos,
+                    Some(pos) => return *pos,
                     None => continue,
                 }
             }
 
             // No graphemes in `self.rows`.
-            break Position::new(0, 0);
-        };
+            Position::new(0, 0)
+        })();
     }
 
     fn layout_line(&self, buffer: &Buffer, y: usize, width: usize) -> Vec<DisplayRow> {
