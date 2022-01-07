@@ -134,17 +134,17 @@ impl View {
             .collect();
 
         // Locate the first grapheme's position in the given display rows.
-        self.first_pos = 'outer1: loop {
+        self.first_pos = (|| {
             for i in 0..self.rows.len() {
                 match self.rows[i].positions.first() {
-                    Some(pos) => break 'outer1 *pos,
+                    Some(pos) => return *pos,
                     None => continue,
                 }
             }
 
             // No graphemes in `self.rows`.
-            break Position::new(0, 0);
-        };
+            Position::new(0, 0)
+        })();
 
         // Locate the last grapheme's position in the given display rows.
         self.last_pos = 'outer2: loop {

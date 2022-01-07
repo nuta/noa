@@ -30,7 +30,7 @@ pub trait Surface {
     fn cursor_position(&self) -> Option<(usize, usize)>;
     /// Render its contents into the canvas. It must fill the whole canvas; the
     /// canvas can be the newly created one due to, for example, screen resizing.
-    fn render<'a>(&mut self, canvas: CanvasViewMut<'a>);
+    fn render(&mut self, canvas: CanvasViewMut<'_>);
     fn handle_key_event(&mut self, compositor: &mut Compositor, key: KeyEvent) -> HandledEvent;
     fn handle_mouse_event(
         &mut self,
