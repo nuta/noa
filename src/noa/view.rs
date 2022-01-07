@@ -49,7 +49,9 @@ impl View {
     ///
     /// If you want to disable soft wrapping. Set `width` to `std::max::MAX`.
     pub fn layout(&mut self, buffer: &Buffer, rows: usize, width: usize) {
-        if rows < 4 {
+        if rows == 1 {
+            // The number of rows to be layouted is only 1, the naive approach
+            // performs slightly better (around 500 nanoseconds).
             self.layout_naive(buffer, rows, width);
         } else {
             self.layout_parallelized(buffer, rows, width);
@@ -247,13 +249,6 @@ mod tests {
     }
 
     #[bench]
-    fn bench_layout_small_text_naive(b: &mut test::Bencher) {
-        let mut view = View::new(Highlighter::new(&PLAIN));
-        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(256));
-        b.iter(|| view.layout_naive(&buffer, 256, 120));
-    }
-
-    #[bench]
     fn bench_layout_single_line_parallelized(b: &mut test::Bencher) {
         let mut view = View::new(Highlighter::new(&PLAIN));
         let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(1));
@@ -265,12 +260,5 @@ mod tests {
         let mut view = View::new(Highlighter::new(&PLAIN));
         let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(8));
         b.iter(|| view.layout_parallelized(&buffer, 8, 120));
-    }
-
-    #[bench]
-    fn bench_layout_small_text_parallelized(b: &mut test::Bencher) {
-        let mut view = View::new(Highlighter::new(&PLAIN));
-        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(256));
-        b.iter(|| view.layout_parallelized(&buffer, 256, 120));
     }
 }
