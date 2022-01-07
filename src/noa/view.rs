@@ -1,3 +1,5 @@
+use std::cmp::min;
+
 use arrayvec::ArrayString;
 use noa_buffer::{
     buffer::Buffer,
@@ -46,28 +48,19 @@ impl View {
     ///
     /// If you want to disable soft wrapping. Set `width` to `std::max::MAX`.
     pub fn layout(&mut self, buffer: &Buffer, rows: usize, width: usize) {
-        if rows < 2048 {
-            self.rows.clear();
-            let mut y = 0;
-            while self.rows.len() < rows {
+        use rayon::prelude::*;
+        self.rows = (0..min(rows, buffer.num_lines()))
+            .into_par_iter()
+            .map(|y| {
                 let rows = self.layout_line(buffer, y, width);
                 debug_assert!(!rows.is_empty());
-                self.rows.extend(rows);
-                y += 1;
-            }
-        } else {
-            self.rows.clear();
-            let mut y = 0;
-            while self.rows.len() < rows {
-                let rows = self.layout_line(buffer, y, width);
-                debug_assert!(!rows.is_empty());
-                self.rows.extend(rows);
-                y += 1;
-            }
-        }
+                rows
+            })
+            .flatten()
+            .collect();
     }
 
-    fn layout_line(&mut self, buffer: &Buffer, y: usize, width: usize) -> Vec<DisplayRow> {
+    fn layout_line(&self, buffer: &Buffer, y: usize, width: usize) -> Vec<DisplayRow> {
         let range = Range::new(y, 0, y + 1, 0);
         let mut grapheme_iter = buffer.grapheme_iter(range);
         let mut unprocessed_grapheme = None;
@@ -188,7 +181,7 @@ mod tests {
 
         // Soft wrapping.
         let buffer = Buffer::from_text("ABC123XYZ");
-        view.layout(&buffer, 2, 3);
+        view.layout(&buffer, 2 /* at least 2 */, 3);
         assert_eq!(view.rows().len(), 3);
         assert_eq!(view.rows()[0].graphemes, vec![g("A"), g("B"), g("C")]);
         assert_eq!(view.rows()[0].positions, vec![p(0, 0), p(0, 1), p(0, 2)]);
@@ -220,7 +213,7 @@ mod tests {
     // #[bench]
     // fn bench_layout_large_text(b: &mut test::Bencher) {
     //     let mut view = View::new(Highlighter::new(&PLAIN));
-    //     let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(10000));
-    //     b.iter(|| view.layout(&buffer, 10000, 120));
+    //     let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(50000));
+    //     b.iter(|| view.layout(&buffer, 50000, 120));
     // }
 }
