@@ -14,6 +14,12 @@ use crate::{
 };
 
 #[derive(Debug, PartialEq)]
+pub struct Span {
+    pub range: Range,
+    pub style: Style,
+}
+
+#[derive(Debug, PartialEq)]
 pub struct DisplayRow {
     /// The graphemes in this row.
     pub graphemes: Vec<Grapheme>,
@@ -43,6 +49,86 @@ impl View {
     /// Called when the buffer is modified.
     pub fn update(&mut self, buffer: &Buffer) {
         self.highlighter.update(buffer);
+    }
+
+    /// Clears highlights in the given rows.
+    pub fn clear_highlights(&mut self, rows: std::ops::Range<usize>) {
+        for i in rows.start..min(rows.end, self.rows.len()) {
+            for grapheme in &mut self.rows[i].graphemes {
+                grapheme.style = Style::default();
+            }
+        }
+    }
+
+    /// Apply highlights. Caller must ensure that:
+    ///
+    /// - `spans` are sorted by their `range`s.
+    /// - Ranges in `spans` do not overlap.
+    /// - `rows` are not out of bounds: [`View::layout`] must be called before.
+    pub fn highlight(&mut self, rows: std::ops::Range<usize>, spans: &[Span]) {
+        let first_pos = 'outer1: loop {
+            for i in rows.clone() {
+                match self.rows[i].positions.first() {
+                    Some(pos) => break 'outer1 *pos,
+                    None => continue,
+                }
+            }
+
+            // No graphemes in the given rows.
+            return;
+        };
+
+        let last_pos = 'outer2: loop {
+            for i in rows.clone().rev() {
+                match self.rows[i].positions.last() {
+                    Some(pos) => break 'outer2 *pos,
+                    None => continue,
+                }
+            }
+
+            // No graphemes in the given rows.
+            return;
+        };
+
+        // Skip out-of-bounds spans.
+        let mut spans_iter = spans.iter();
+        while let Some(span) = spans_iter.next() {
+            if span.range.back() > first_pos {
+                spans_iter.next_back();
+                break;
+            }
+        }
+
+        let mut row_i = rows.start;
+        let mut col_i = 0;
+        'outer: for span in spans {
+            if span.range.front() > last_pos {
+                // Reached to the out-of-bounds span.
+                break;
+            }
+
+            // Apply `span`.
+            loop {
+                if row_i >= self.rows.len() {
+                    break;
+                }
+
+                if col_i >= self.rows[row_i].positions.len() {
+                    row_i += 1;
+                    col_i = 0;
+                    continue;
+                }
+
+                let pos = self.rows[row_i].positions[col_i];
+                let grapheme = &mut self.rows[row_i].graphemes[col_i];
+                if !span.range.contains(pos) {
+                    break;
+                }
+
+                grapheme.style = span.style;
+                col_i += 1;
+            }
+        }
     }
 
     /// Computes the grapheme layout (text wrapping).

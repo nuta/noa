@@ -171,6 +171,10 @@ impl Range {
         self.start == self.end
     }
 
+    pub fn contains(&self, pos: Position) -> bool {
+        self.start <= pos && pos < self.end
+    }
+
     pub fn overlaps_with(&self, other: Range) -> bool {
         !(self.back().y < other.front().y
             || self.front().y > other.back().y
