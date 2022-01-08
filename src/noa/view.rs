@@ -201,7 +201,6 @@ impl View {
                         // Compute the number of spaces to fill.
                         let mut n = 1;
                         while (pos.x + n) % buffer.config().tab_width != 0 && width_remaining > 0 {
-                            dbg!(pos.x, n);
                             n += 1;
                             width_remaining -= 1;
                         }

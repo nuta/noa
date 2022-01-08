@@ -299,7 +299,6 @@ impl CursorSet {
         // Sort and merge cursors.
         let mut new_cursors = new_cursors.to_vec();
         new_cursors.sort();
-        dbg!(&new_cursors);
         let duplicated = new_cursors.iter().enumerate().map(|(i, c)| {
             (&new_cursors[..i])
                 .iter()
