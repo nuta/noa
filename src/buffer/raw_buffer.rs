@@ -175,6 +175,16 @@ impl RawBuffer {
 
         let num_newlines_inserted = new_text.chars().filter(|c| *c == '\n').count();
         let num_newlines_deleted = range_removed.back().y - range_removed.front().y;
+        let string_count = new_text.chars().count();
+        let num_chars_deleted_last_y = if range_removed.front().y == range_removed.back().y {
+            range_removed.back().x - range_removed.front().x
+        } else {
+            range_removed.end.x
+        };
+        let num_chars_inserted_last_y = new_text
+            .rfind('\n')
+            .map(|x| string_count - x - 1)
+            .unwrap_or(string_count);
 
         self.edit(range_removed, new_text);
 
@@ -190,8 +200,14 @@ impl RawBuffer {
                 c.selection_mut().end.y -= num_newlines_deleted - num_newlines_inserted;
             }
 
-            if new_pos.y == c.selection().end.y {
-                // c.
+            if new_pos.y == c.selection().front().y {
+                if num_chars_deleted_last_y > num_chars_inserted_last_y {
+                    c.selection_mut().front_mut().x -=
+                        num_chars_deleted_last_y - num_chars_inserted_last_y;
+                } else {
+                    c.selection_mut().front_mut().x +=
+                        num_chars_inserted_last_y - num_chars_deleted_last_y;
+                }
             }
         }
     }
