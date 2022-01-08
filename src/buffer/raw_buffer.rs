@@ -1,5 +1,5 @@
 use crate::{
-    cursor::{Position, Range},
+    cursor::{Cursor, Position, Range},
     grapheme_iter::GraphemeIter,
 };
 
@@ -153,7 +153,7 @@ impl RawBuffer {
     //
     /// Runs in O(M + log N) time, where N is the length of the Rope and M
     /// is the length of the range being removed/inserted.
-    pub fn edit(&mut self, range: Range, new_text: &str) -> Position {
+    fn edit(&mut self, range: Range, new_text: &str) -> Position {
         let start = self.pos_to_rope_index(range.front());
         let end = self.pos_to_rope_index(range.back());
 
@@ -166,6 +166,17 @@ impl RawBuffer {
         }
 
         Position::position_after_edit(range, new_text)
+    }
+
+    pub fn edit_cursor(
+        &mut self,
+        current_cursor: &Cursor,
+        past_cursors: &mut [Cursor],
+        new_text: &str,
+    ) {
+        //
+        //    Cursor::new(new_pos.y, new_pos.x)
+        // new_cursors
     }
 
     /// Returns the character index in the rope.

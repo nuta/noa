@@ -312,14 +312,13 @@ impl CursorSet {
 
     pub fn update_each<F>(&mut self, mut f: F)
     where
-        F: FnMut(&mut Cursor) -> Position,
+        F: FnMut(&mut Cursor, &mut [Cursor]),
     {
         let mut new_cursors = Vec::new();
-        for cursor in self.cursors.iter_mut().rev() {
-            let new_pos = f(cursor);
-            new_cursors.push(Cursor::new(new_pos.y, new_pos.x));
+        for mut cursor in self.cursors.drain(..).rev() {
+            f(&mut cursor, &mut new_cursors);
+            new_cursors.push(cursor);
         }
-
         self.set_cursors(&new_cursors);
     }
 }

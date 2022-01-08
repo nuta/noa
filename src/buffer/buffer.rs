@@ -95,13 +95,14 @@ impl Buffer {
     pub fn insert_newline_and_indent(&mut self) {
         // Insert a newline.
         self.cursors
-            .update_each(|c| self.buf.edit(c.selection(), "\n"));
+            .update_each(|c, past_cursors| self.buf.edit_cursor(c, past_cursors, "\n"));
 
         // Add indentation.
-        self.cursors.update_each(|c| {
+        self.cursors.update_each(|c, past_cursors| {
             let indent_size = compute_desired_indent_len(&self.buf, &self.config, c.front().y);
-            self.buf.edit(
-                c.selection(),
+            self.buf.edit_cursor(
+                c,
+                past_cursors,
                 &match self.config.indent_style {
                     IndentStyle::Tab => "\t".repeat(indent_size),
                     IndentStyle::Space => " ".repeat(indent_size),
@@ -133,10 +134,11 @@ impl Buffer {
 
         // Insert indentations.
         let mut increase_lens_iter = increase_lens.iter();
-        self.cursors.update_each(|c| {
+        self.cursors.update_each(|c, past_cursors| {
             let indent_size = *increase_lens_iter.next().unwrap();
-            self.buf.edit(
-                c.selection(),
+            self.buf.edit_cursor(
+                c,
+                past_cursors,
                 &match self.config.indent_style {
                     IndentStyle::Tab => "\t".repeat(indent_size),
                     IndentStyle::Space => " ".repeat(indent_size),
@@ -146,7 +148,7 @@ impl Buffer {
     }
 
     pub fn deindent(&mut self) {
-        self.cursors.update_each(|_c| {
+        self.cursors.update_each(|_c, _past_cursors| {
             // let n = min(
             //     self.buf
             //         .char(Position::new(y, 0))
@@ -154,27 +156,28 @@ impl Buffer {
             //         .count(),
             //     self.config.indent_size,
             // );
-            // self.buf.edit(Range::new(y, 0, y, n), "")
+            // self.buf.edit_cursor(Range::new(y, 0, y, n), "")
             todo!()
         });
     }
 
     pub fn insert(&mut self, s: &str) {
-        self.cursors
-            .update_each(|c| self.buf.edit(c.selection(), s));
+        self.cursors.update_each(|c, past_cursors| {
+            self.buf.edit_cursor(c, past_cursors, s);
+        });
     }
 
     pub fn backspace(&mut self) {
-        self.cursors.update_each(|c| {
+        self.cursors.update_each(|c, past_cursors| {
             c.expand_left(&self.buf);
-            self.buf.edit(c.selection(), "")
+            self.buf.edit_cursor(c, past_cursors, "");
         });
     }
 
     pub fn delete(&mut self) {
-        self.cursors.update_each(|c| {
+        self.cursors.update_each(|c, past_cursors| {
             c.expand_right(&self.buf);
-            self.buf.edit(c.selection(), "")
+            self.buf.edit_cursor(c, past_cursors, "");
         });
     }
 
