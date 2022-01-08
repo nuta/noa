@@ -48,18 +48,20 @@ impl Position {
         let num_lines = buf.num_lines();
         if right > 0 {
             let mut r = right;
+            // let mut iter = buf.grapheme_iter(range);
             loop {
                 let max_x = buf.line_len(self.y);
-                if self.x + r <= max_x {
-                    self.x += r;
-                    break;
-                } else if self.y >= num_lines {
-                    break;
-                } else {
-                    r -= max_x - self.x + 1;
-                    self.x = 0;
-                    self.y += 1;
-                }
+
+                // if self.x + r <= max_x {
+                //     self.x += r;
+                //     break;
+                // } else if self.y >= num_lines {
+                //     break;
+                // } else {
+                //     self.x = 0;
+                //     self.y += 1;
+                //     r -= max_x - self.x + 1;
+                // }
             }
         }
 

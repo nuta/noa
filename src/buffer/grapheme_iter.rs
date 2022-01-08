@@ -8,7 +8,7 @@ use unicode_segmentation::{GraphemeCursor, GraphemeIncomplete};
 
 /// An implementation of a graphemes iterator, for iterating over
 /// the graphemes of a RopeSlice.
-pub struct GraphemeIter<'a> {
+pub struct DeprecatedGraphemeIter<'a> {
     text: RopeSlice<'a>,
     chunks: Chunks<'a>,
     cur_chunk: &'a str,
@@ -16,11 +16,11 @@ pub struct GraphemeIter<'a> {
     cursor: GraphemeCursor,
 }
 
-impl<'a> GraphemeIter<'a> {
-    pub fn new<'b>(slice: &RopeSlice<'b>) -> GraphemeIter<'b> {
+impl<'a> DeprecatedGraphemeIter<'a> {
+    pub fn new<'b>(slice: &RopeSlice<'b>) -> DeprecatedGraphemeIter<'b> {
         let mut chunks = slice.chunks();
         let first_chunk = chunks.next().unwrap_or("");
-        GraphemeIter {
+        DeprecatedGraphemeIter {
             text: *slice,
             chunks,
             cur_chunk: first_chunk,
@@ -30,7 +30,7 @@ impl<'a> GraphemeIter<'a> {
     }
 }
 
-impl<'a> Iterator for GraphemeIter<'a> {
+impl<'a> Iterator for DeprecatedGraphemeIter<'a> {
     type Item = RopeSlice<'a>;
 
     fn next(&mut self) -> Option<RopeSlice<'a>> {

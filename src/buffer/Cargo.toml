@@ -10,6 +10,7 @@ path = "lib.rs"
 ropey = "^1.3.2"
 unicode-width = "0"
 unicode-segmentation = "1"
+arrayvec = "0"
 
 noa_common = { path = "../common" }
 noa_editorconfig = { path = "../editorconfig" }

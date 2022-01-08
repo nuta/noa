@@ -162,7 +162,7 @@ impl View {
 
     fn layout_line(&self, buffer: &Buffer, y: usize, width: usize) -> Vec<DisplayRow> {
         let range = Range::new(y, 0, y + 1, 0);
-        let mut grapheme_iter = buffer.grapheme_iter(range);
+        let mut grapheme_iter = buffer.graphemes_in_range(range);
         let mut unprocessed_grapheme = None;
         let mut rows = Vec::with_capacity(2);
         let mut pos = Position::new(y, 0);

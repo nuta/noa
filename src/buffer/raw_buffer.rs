@@ -1,8 +1,10 @@
+use arrayvec::ArrayString;
 use noa_common::int_traits::AddAndSub;
+use unicode_segmentation::{GraphemeCursor, GraphemeIncomplete};
 
 use crate::{
     cursor::{Cursor, Position, Range},
-    grapheme_iter::GraphemeIter,
+    grapheme_iter::DeprecatedGraphemeIter,
 };
 
 /// An internal buffer implementation supporting primitive operations required
@@ -138,10 +140,19 @@ impl RawBuffer {
     }
 
     /// Returns an iterator which returns graphemes.
-    pub fn grapheme_iter(&self, range: Range) -> GraphemeIter<'_> {
+    // FIXME: Stop using this.
+    pub fn graphemes_in_range(&self, range: Range) -> DeprecatedGraphemeIter<'_> {
         let start = self.pos_to_rope_index(range.front());
         let end = self.pos_to_rope_index(range.back());
-        GraphemeIter::new(&self.rope.slice(start..end))
+        DeprecatedGraphemeIter::new(&self.rope.slice(start..end))
+    }
+
+    pub fn grapheme_iter(&self, pos: Position) -> GraphemeIter<'_> {
+        GraphemeIter {
+            iter: self.char(pos),
+            // Not sure if `std::usize::MAX` cause problems.
+            cursor: GraphemeCursor::new(0, std::usize::MAX, true),
+        }
     }
 
     /// Replaces the text at the `range` with `new_text`.
@@ -319,6 +330,109 @@ impl Iterator for CharIter<'_> {
             }
         }
         ch
+    }
+}
+
+#[derive(Clone)]
+pub struct GraphemeIter<'a> {
+    iter: CharIter<'a>,
+    cursor: GraphemeCursor,
+}
+
+impl<'a> GraphemeIter<'a> {
+    pub fn position(&self) -> Position {
+        self.iter.pos
+    }
+
+    /// Returns the previous character.
+    ///
+    /// # Complexity
+    ///
+    /// From ropey's documentation:
+    ///
+    /// > Runs in amortized O(1) time and worst-case O(log N) time.
+    pub fn prev(&mut self) -> Option<char> {
+        let ch = self.iter.prev();
+
+        ch
+    }
+}
+
+impl Iterator for GraphemeIter<'_> {
+    type Item = ArrayString<8>;
+
+    /// Returns the next character.
+    ///
+    /// # Complexity
+    ///
+    /// From ropey's documentation:
+    ///
+    /// > Runs in amortized O(1) time and worst-case O(log N) time.
+    fn next(&mut self) -> Option<ArrayString<8>> {
+        let mut tmp = ArrayString::<4>::new();
+        let mut cursor = GraphemeCursor::new(0, std::usize::MAX, false);
+        let mut offset = 0;
+        let mut char_start = self.iter.clone();
+        loop {
+            let (chunk, ch_len) = match self.iter.next() {
+                Some(ch) => {
+                    dbg!(ch);
+                    tmp.clear();
+                    tmp.push(ch);
+                    (tmp.as_str(), ch.len_utf8())
+                }
+                None => {
+                    // Reached to the EOF.
+                    if offset == 0 {
+                        return None;
+                    } else {
+                        // Return the last grapheme. Not sure if here's reachable.
+                        let mut grapheme = ArrayString::new();
+                        while let Some(ch) = char_start.next() {
+                            grapheme.push(ch);
+                        }
+
+                        debug_assert!(!grapheme.is_empty());
+
+                        self.iter = char_start;
+                        return Some(grapheme);
+                    }
+                }
+            };
+
+            match cursor.next_boundary(chunk, offset) {
+                Ok(Some(n)) => {
+                    let mut grapheme = ArrayString::new();
+                    while grapheme.len() < n {
+                        grapheme.push(char_start.next().unwrap());
+                    }
+
+                    self.iter = char_start;
+                    return Some(grapheme);
+                }
+                Ok(None) => {
+                    // Here's unreachable since the length is set to std::usize::MAX.
+                    unreachable!();
+                }
+                Err(GraphemeIncomplete::NextChunk) => {
+                    // Continue this loop.
+                }
+                Err(GraphemeIncomplete::InvalidOffset) => {
+                    // Why?
+                    panic!("GraphemeIncomplete::InvalidOffset");
+                }
+                Err(GraphemeIncomplete::PrevChunk) => {
+                    // Here's unreachable from `next_boundary`.
+                    unreachable!();
+                }
+                Err(GraphemeIncomplete::PreContext(_)) => {
+                    todo!();
+                }
+            }
+
+            debug_assert!(ch_len > 0);
+            offset += ch_len;
+        }
     }
 }
 
@@ -527,6 +641,23 @@ mod tests {
         let buffer = RawBuffer::from_text("XYZ");
         let mut iter = buffer.char(Position::new(0, 1));
         assert_eq!(iter.prev(), Some('X'));
+    }
+
+    #[test]
+    fn test_grapheme_iter() {
+        let buffer = RawBuffer::from_text("ABC");
+        let mut iter = buffer.grapheme_iter(Position::new(0, 0));
+        assert_eq!(iter.next().map(|s| s.to_string()), Some("A".to_string()));
+        assert_eq!(iter.next().map(|s| s.to_string()), Some("B".to_string()));
+        assert_eq!(iter.next().map(|s| s.to_string()), Some("C".to_string()));
+        assert_eq!(iter.next().map(|s| s.to_string()), None);
+
+        let buffer = RawBuffer::from_text("あaい");
+        let mut iter = buffer.grapheme_iter(Position::new(0, 0));
+        assert_eq!(iter.next().map(|s| s.to_string()), Some("あ".to_string()));
+        assert_eq!(iter.next().map(|s| s.to_string()), Some("a".to_string()));
+        assert_eq!(iter.next().map(|s| s.to_string()), Some("い".to_string()));
+        assert_eq!(iter.next().map(|s| s.to_string()), None);
     }
 
     #[test]

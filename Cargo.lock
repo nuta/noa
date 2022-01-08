@@ -513,6 +513,7 @@ dependencies = [
 name = "noa_buffer"
 version = "0.0.0"
 dependencies = [
+ "arrayvec",
  "noa_common",
  "noa_editorconfig",
  "ropey",
