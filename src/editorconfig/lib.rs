@@ -83,7 +83,6 @@ struct ConfigFile {
 }
 
 fn parse_config(body: &str) -> ConfigFile {
-    let mut in_global = true;
     let mut root = false;
     let mut rules = Vec::new();
     let mut rule: Rule = Default::default();
@@ -94,7 +93,6 @@ fn parse_config(body: &str) -> ConfigFile {
         if line.starts_with('[') {
             // [pattern]
             if let Some(index) = line.find(']') {
-                in_global = false;
                 if let Some(pattern) = pattern {
                     rule.pattern = pattern;
                     rules.push(rule);
@@ -115,48 +113,42 @@ fn parse_config(body: &str) -> ConfigFile {
                     value = &value[..index - 1];
                 }
 
-                if in_global {
-                    match key {
-                        "root" => {
-                            root = value == "true";
+                match key {
+                    "root" => {
+                        root = value == "true";
+                    }
+                    "indent_style" => match value {
+                        "space" => {
+                            rule.indent_style = Some(IndentStyle::Space);
+                        }
+                        "tab" => {
+                            rule.indent_style = Some(IndentStyle::Tab);
                         }
                         _ => {}
-                    }
-                } else {
-                    match key {
-                        "indent_style" => match value {
-                            "space" => {
-                                rule.indent_style = Some(IndentStyle::Space);
-                            }
-                            "tab" => {
-                                rule.indent_style = Some(IndentStyle::Tab);
-                            }
-                            _ => {}
-                        },
-                        "end_of_line" => match value {
-                            "cr" => {
-                                rule.end_of_line = Some(EndOfLine::Cr);
-                            }
-                            "lf" => {
-                                rule.end_of_line = Some(EndOfLine::Lf);
-                            }
-                            "crlf" => {
-                                rule.end_of_line = Some(EndOfLine::CrLf);
-                            }
-                            _ => {}
-                        },
-                        "indent_size" => {
-                            if let Ok(value) = value.parse::<usize>() {
-                                rule.indent_size = Some(value);
-                            }
+                    },
+                    "end_of_line" => match value {
+                        "cr" => {
+                            rule.end_of_line = Some(EndOfLine::Cr);
                         }
-                        "tab_width" => {
-                            if let Ok(value) = value.parse::<usize>() {
-                                rule.tab_width = Some(value);
-                            }
+                        "lf" => {
+                            rule.end_of_line = Some(EndOfLine::Lf);
+                        }
+                        "crlf" => {
+                            rule.end_of_line = Some(EndOfLine::CrLf);
                         }
                         _ => {}
+                    },
+                    "indent_size" => {
+                        if let Ok(value) = value.parse::<usize>() {
+                            rule.indent_size = Some(value);
+                        }
                     }
+                    "tab_width" => {
+                        if let Ok(value) = value.parse::<usize>() {
+                            rule.tab_width = Some(value);
+                        }
+                    }
+                    _ => {}
                 }
             }
         }

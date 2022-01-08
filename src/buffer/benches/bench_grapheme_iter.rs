@@ -12,7 +12,7 @@ fn bench_iterate_next_128_graphemes(b: &mut test::Bencher) {
 
     b.iter(|| {
         let mut iter = buffer.grapheme_iter(Position::new(0, 0));
-        while let Some(grapheme) = iter.next() {
+        for grapheme in iter.by_ref() {
             test::black_box(grapheme);
         }
     });
