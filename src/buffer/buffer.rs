@@ -13,7 +13,7 @@ fn compute_desired_indent_len(buf: &RawBuffer, config: &EditorConfig, y: usize) 
     } else {
         let prev_indent_len = buf.line_indent_len(y - 1);
         let pos_at_newline = Position::new(y - 1, buf.line_len(y - 1));
-        let char_at_cursor = buf.char(pos_at_newline).prev();
+        let char_at_cursor = buf.char_iter(pos_at_newline).prev();
         (prev_indent_len, char_at_cursor)
     };
 

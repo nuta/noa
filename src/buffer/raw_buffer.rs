@@ -86,7 +86,7 @@ impl RawBuffer {
     /// Runs in O(M + log N) time, where N is the length of the rope and M is
     /// the length of the line.
     pub fn line_indent_len(&self, y: usize) -> usize {
-        self.char(Position::new(y, 0))
+        self.char_iter(Position::new(y, 0))
             .take_while(|c| *c == ' ' || *c == '\t')
             .count()
     }
@@ -112,12 +112,20 @@ impl RawBuffer {
     }
 
     /// Returns a double-ended iterator at the given position which allows
-    /// traversing characters in the buffer back and forth.
-    pub fn char(&self, pos: Position) -> CharIter<'_> {
+    /// traversing characters (not graphemes) in the buffer back and forth.
+    pub fn char_iter(&self, pos: Position) -> CharIter<'_> {
         CharIter {
             iter: self.rope.chars_at(self.pos_to_rope_index(pos)),
             buf: self,
             pos,
+        }
+    }
+
+    /// Returns a double-ended iterator at the given position which allows
+    /// traversing graphemes in the buffer back and forth.
+    pub fn grapheme_iter(&self, pos: Position) -> GraphemeIter<'_> {
+        GraphemeIter {
+            iter: self.char_iter(pos),
         }
     }
 
@@ -127,14 +135,14 @@ impl RawBuffer {
     /// The iterator always returns the current word at the position first.
     pub fn word(&self, pos: Position) -> WordIter<'_> {
         WordIter {
-            iter: self.char(pos),
+            iter: self.char_iter(pos),
         }
     }
 
     /// Returns an iterator which returns occurrences of the given string.
     pub fn find<'a, 'b>(&'a self, query: &'b str, pos: Position) -> FindIter<'a, 'b> {
         FindIter {
-            chars: self.char(pos),
+            chars: self.char_iter(pos),
             query,
         }
     }
@@ -145,12 +153,6 @@ impl RawBuffer {
         let start = self.pos_to_rope_index(range.front());
         let end = self.pos_to_rope_index(range.back());
         DeprecatedGraphemeIter::new(&self.rope.slice(start..end))
-    }
-
-    pub fn grapheme_iter(&self, pos: Position) -> GraphemeIter<'_> {
-        GraphemeIter {
-            iter: self.char(pos),
-        }
     }
 
     /// Replaces the text at the `range` with `new_text`.
@@ -696,7 +698,7 @@ mod tests {
     #[test]
     fn test_char() {
         let buffer = RawBuffer::from_text("XY\n123");
-        let mut iter = buffer.char(Position::new(1, 1));
+        let mut iter = buffer.char_iter(Position::new(1, 1));
         assert_eq!(iter.next(), Some('2'));
         assert_eq!(iter.prev(), Some('2'));
         assert_eq!(iter.prev(), Some('1'));
@@ -710,7 +712,7 @@ mod tests {
         assert_eq!(iter.next(), Some('1'));
 
         let buffer = RawBuffer::from_text("XYZ");
-        let mut iter = buffer.char(Position::new(0, 1));
+        let mut iter = buffer.char_iter(Position::new(0, 1));
         assert_eq!(iter.prev(), Some('X'));
     }
 
