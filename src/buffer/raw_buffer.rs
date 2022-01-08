@@ -1,3 +1,5 @@
+use noa_common::int_traits::AddAndSub;
+
 use crate::{
     cursor::{Cursor, Position, Range},
     grapheme_iter::GraphemeIter,
@@ -173,15 +175,17 @@ impl RawBuffer {
     ) {
         let range_removed = current_cursor.selection();
 
-        let num_newlines_inserted = new_text.chars().filter(|c| *c == '\n').count();
-        let num_newlines_deleted = range_removed.back().y - range_removed.front().y;
+        let y_inserted = new_text.chars().filter(|c| *c == '\n').count();
+        let y_deleted = range_removed.back().y - range_removed.front().y;
+
+        // Compute the number of characters deleted/inserted in the last line.
         let string_count = new_text.chars().count();
-        let num_chars_deleted_last_y = if range_removed.front().y == range_removed.back().y {
+        let x_deleted = if range_removed.front().y == range_removed.back().y {
             range_removed.back().x - range_removed.front().x
         } else {
             range_removed.end.x
         };
-        let num_chars_inserted_last_y = new_text
+        let x_inserted = new_text
             .rfind('\n')
             .map(|x| string_count - x - 1)
             .unwrap_or(string_count);
@@ -192,23 +196,16 @@ impl RawBuffer {
         *current_cursor = Cursor::new(new_pos.y, new_pos.x);
 
         for c in past_cursors {
-            if num_newlines_inserted > num_newlines_deleted {
-                c.selection_mut().start.y += num_newlines_inserted - num_newlines_deleted;
-                c.selection_mut().end.y -= num_newlines_deleted - num_newlines_inserted;
-            } else {
-                c.selection_mut().start.y -= num_newlines_deleted - num_newlines_inserted;
-                c.selection_mut().end.y -= num_newlines_deleted - num_newlines_inserted;
-            }
-
-            if new_pos.y == c.selection().front().y {
-                if num_chars_deleted_last_y > num_chars_inserted_last_y {
-                    c.selection_mut().front_mut().x -=
-                        num_chars_deleted_last_y - num_chars_inserted_last_y;
-                } else {
-                    c.selection_mut().front_mut().x +=
-                        num_chars_inserted_last_y - num_chars_deleted_last_y;
+            let s = c.selection_mut();
+            if range_removed.back().y == s.front().y {
+                s.front_mut().x = s.front_mut().x.add_and_sub(x_inserted, x_deleted);
+                if range_removed.back().y == s.back().y {
+                    s.back_mut().x = s.back_mut().x.add_and_sub(x_inserted, x_deleted);
                 }
             }
+
+            s.start.y = s.start.y.add_and_sub(y_inserted, y_deleted);
+            s.end.y = s.end.y.add_and_sub(y_inserted, y_deleted);
         }
     }
 

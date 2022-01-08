@@ -3,5 +3,6 @@
 extern crate log;
 
 pub mod dirs;
+pub mod int_traits;
 pub mod logger;
 pub mod oops;

@@ -11,4 +11,5 @@ ropey = "^1.3.2"
 unicode-width = "0"
 unicode-segmentation = "1"
 
+noa_common = { path = "../common" }
 noa_editorconfig = { path = "../editorconfig" }
