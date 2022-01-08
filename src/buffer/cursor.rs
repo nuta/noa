@@ -47,38 +47,38 @@ impl Position {
     pub fn move_by(&mut self, buf: &RawBuffer, up: usize, down: usize, left: usize, right: usize) {
         let num_lines = buf.num_lines();
         if right > 0 {
-            let _r = right;
-            // let mut iter = buf.grapheme_iter(range);
+            let mut iter = buf.grapheme_iter(*self);
             loop {
-                let _max_x = buf.line_len(self.y);
-
-                // if self.x + r <= max_x {
-                //     self.x += r;
-                //     break;
-                // } else if self.y >= num_lines {
-                //     break;
-                // } else {
-                //     self.x = 0;
-                //     self.y += 1;
-                //     r -= max_x - self.x + 1;
-                // }
+                match iter.next() {
+                    Some(s) if s.as_str() == "\n" => {
+                        continue;
+                    }
+                    Some(_) => {
+                        *self = iter.position();
+                        break;
+                    }
+                    None => {
+                        // `self` is already at EOF. No need to update.
+                        break;
+                    }
+                }
             }
         }
 
         if left > 0 {
-            let mut l = left;
+            let mut iter = buf.grapheme_iter(*self);
             loop {
-                if l <= self.x {
-                    self.x -= l;
-                    break;
-                } else if self.y == 0 {
-                    break;
-                } else {
-                    l -= self.x;
-                    if l > 0 {
-                        l -= 1;
-                        self.y -= 1;
-                        self.x = buf.line_len(self.y);
+                match iter.prev() {
+                    Some(s) if s.as_str() == "\n" => {
+                        continue;
+                    }
+                    Some(_) => {
+                        *self = iter.position();
+                        break;
+                    }
+                    None => {
+                        // `self` is already at EOF. No need to update.
+                        break;
                     }
                 }
             }
