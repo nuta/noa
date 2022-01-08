@@ -67,7 +67,7 @@ impl Buffer {
     }
 
     pub fn set_config(&mut self, config: &EditorConfig) {
-        self.config = config.clone();
+        self.config = *config;
     }
 
     pub fn cursors(&self) -> &[Cursor] {

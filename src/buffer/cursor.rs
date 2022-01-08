@@ -47,10 +47,10 @@ impl Position {
     pub fn move_by(&mut self, buf: &RawBuffer, up: usize, down: usize, left: usize, right: usize) {
         let num_lines = buf.num_lines();
         if right > 0 {
-            let mut r = right;
+            let _r = right;
             // let mut iter = buf.grapheme_iter(range);
             loop {
-                let max_x = buf.line_len(self.y);
+                let _max_x = buf.line_len(self.y);
 
                 // if self.x + r <= max_x {
                 //     self.x += r;

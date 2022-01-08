@@ -459,7 +459,7 @@ impl Iterator for GraphemeIter<'_> {
                     } else {
                         // Return the last grapheme.
                         let mut grapheme = ArrayString::new();
-                        while let Some(ch) = char_start.next() {
+                        for ch in char_start.by_ref() {
                             grapheme.push(ch);
                         }
 
