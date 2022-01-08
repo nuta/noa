@@ -84,7 +84,7 @@ fn test_grapheme_iter_prev() {
     assert_eq!(iter.prev().map(|s| s.to_string()), Some("あ".to_string()));
     assert_eq!(iter.prev().map(|s| s.to_string()), None);
 
-    // A grapheme ("ka" in Katakana with Dakuten), consists of U+304B U+3099.
+    // A grapheme ("か" with dakuten), consists of U+304B U+3099.
     let buffer = RawBuffer::from_text("\u{304b}\u{3099}");
     let mut iter = buffer.grapheme_iter(Position::new(0, 2));
     assert_eq!(
