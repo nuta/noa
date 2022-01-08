@@ -11,7 +11,7 @@ fn test_substr() {
 }
 
 #[test]
-fn test_char() {
+fn test_char_iter() {
     let buffer = RawBuffer::from_text("XY\n123");
     let mut iter = buffer.char_iter(Position::new(1, 1));
     assert_eq!(iter.next(), Some('2'));
