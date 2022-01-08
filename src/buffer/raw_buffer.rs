@@ -2,10 +2,7 @@ use arrayvec::ArrayString;
 use noa_common::int_traits::AddAndSub;
 use unicode_segmentation::{GraphemeCursor, GraphemeIncomplete};
 
-use crate::{
-    cursor::{Cursor, Position, Range},
-    grapheme_iter::DeprecatedGraphemeIter,
-};
+use crate::cursor::{Cursor, Position, Range};
 
 /// An internal buffer implementation supporting primitive operations required
 /// by the editor.
@@ -145,14 +142,6 @@ impl RawBuffer {
             chars: self.char_iter(pos),
             query,
         }
-    }
-
-    /// Returns an iterator which returns graphemes.
-    // FIXME: Stop using this.
-    pub fn graphemes_in_range(&self, range: Range) -> DeprecatedGraphemeIter<'_> {
-        let start = self.pos_to_rope_index(range.front());
-        let end = self.pos_to_rope_index(range.back());
-        DeprecatedGraphemeIter::new(&self.rope.slice(start..end))
     }
 
     /// Replaces the text at the `range` with `new_text`.

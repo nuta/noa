@@ -161,8 +161,7 @@ impl View {
     }
 
     fn layout_line(&self, buffer: &Buffer, y: usize, width: usize) -> Vec<DisplayRow> {
-        let range = Range::new(y, 0, y + 1, 0);
-        let mut grapheme_iter = buffer.graphemes_in_range(range);
+        let mut grapheme_iter = buffer.grapheme_iter(Position::new(y, 0));
         let mut unprocessed_grapheme = None;
         let mut rows = Vec::with_capacity(2);
         let mut pos = Position::new(y, 0);
@@ -180,12 +179,15 @@ impl View {
             loop {
                 let grapheme_rope =
                     match unprocessed_grapheme.take().or_else(|| grapheme_iter.next()) {
-                        Some(rope) => rope,
-                        None => {
-                            // Reached at EOF.
+                        Some(_) if grapheme_iter.position().y > y => {
                             should_return = true;
                             break;
                         }
+                        None => {
+                            should_return = true;
+                            break;
+                        }
+                        Some(rope) => rope,
                     };
 
                 // Turn the grapheme into a string `chars`.
