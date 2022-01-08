@@ -192,9 +192,11 @@ impl RawBuffer {
 
         self.edit(range_removed, new_text);
 
+        // Move the current cursor.
         let new_pos = Position::position_after_edit(range_removed, new_text);
         *current_cursor = Cursor::new(new_pos.y, new_pos.x);
 
+        // Adjust past cursors.
         for c in past_cursors {
             let s = c.selection_mut();
             if range_removed.back().y == s.front().y {
