@@ -169,14 +169,18 @@ impl Buffer {
 
     pub fn backspace(&mut self) {
         self.cursors.update_each(|c, past_cursors| {
-            c.expand_left(&self.buf);
+            if c.selection().is_empty() {
+                c.expand_left(&self.buf);
+            }
             self.buf.edit_cursor(c, past_cursors, "");
         });
     }
 
     pub fn delete(&mut self) {
         self.cursors.update_each(|c, past_cursors| {
-            c.expand_right(&self.buf);
+            if c.selection().is_empty() {
+                c.expand_right(&self.buf);
+            }
             self.buf.edit_cursor(c, past_cursors, "");
         });
     }
@@ -357,7 +361,7 @@ mod tests {
         ]);
         b.backspace();
         assert_eq!(b.text(), "123f");
-        assert_eq!(b.cursors(), &[Cursor::new(0, 3),]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 3)]);
 
         // a|bc      |bc|12
         // |12   =>  xy|
@@ -399,7 +403,7 @@ mod tests {
         ]);
         b.backspace();
         assert_eq!(b.text(), "adefg");
-        assert_eq!(b.cursors(), &[Cursor::new(0, 1), Cursor::new(0, 4),]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 1), Cursor::new(0, 4)]);
 
         // ab|   =>  a|def|g
         // |c|def
@@ -414,7 +418,7 @@ mod tests {
         ]);
         b.backspace();
         assert_eq!(b.text(), "adefg");
-        assert_eq!(b.cursors(), &[Cursor::new(0, 1), Cursor::new(0, 4),]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 1), Cursor::new(0, 4)]);
     }
 
     #[test]
@@ -425,7 +429,7 @@ mod tests {
         b.set_cursors(&[Cursor::new(0, 1), Cursor::new(0, 4)]);
         b.delete();
         assert_eq!(b.text(), "abcd");
-        assert_eq!(b.cursors(), &[Cursor::new(0, 1), Cursor::new(0, 3),]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 1), Cursor::new(0, 3)]);
 
         // a|b|
         let mut b = Buffer::new();
@@ -433,7 +437,7 @@ mod tests {
         b.set_cursors(&[Cursor::new(0, 1), Cursor::new(0, 2)]);
         b.delete();
         assert_eq!(b.text(), "a");
-        assert_eq!(b.cursors(), &[Cursor::new(0, 1),]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 1)]);
 
         // a|bc
         // d|ef
@@ -479,7 +483,7 @@ mod tests {
         b.set_cursors(&[Cursor::new(0, 2), Cursor::new(1, 3)]);
         b.delete();
         assert_eq!(b.text(), "abcde");
-        assert_eq!(b.cursors(), &[Cursor::new(0, 2), Cursor::new(0, 5),]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 2), Cursor::new(0, 5)]);
 
         // abc|
         // |d|ef
@@ -494,7 +498,7 @@ mod tests {
         ]);
         b.delete();
         assert_eq!(b.text(), "abcf\nghi");
-        assert_eq!(b.cursors(), &[Cursor::new(0, 3), Cursor::new(1, 3),]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 3), Cursor::new(1, 3)]);
 
         // abc|     => abc|d|e|f
         // d|Xe|Yf
@@ -521,6 +525,12 @@ mod tests {
 
     #[test]
     fn single_selection_including_newlines() {
+        let mut b = Buffer::from_text("A\nB");
+        b.set_cursors(&[Cursor::new_selection(0, 1, 1, 0)]);
+        b.backspace();
+        assert_eq!(b.text(), "AB");
+        assert_eq!(b.cursors(), &[Cursor::new(0, 1)]);
+
         // xy|A     xy|z
         // BCD  =>
         // E|z
@@ -529,7 +539,7 @@ mod tests {
         b.set_cursors(&[Cursor::new_selection(0, 2, 2, 1)]);
         b.backspace();
         assert_eq!(b.text(), "xyz");
-        assert_eq!(b.cursors(), &[Cursor::new(0, 2),]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 2)]);
 
         // ab|      abX|c
         // |c   =>
@@ -539,7 +549,7 @@ mod tests {
         b.set_cursors(&[Cursor::new_selection(0, 2, 1, 0)]);
         b.insert("X");
         assert_eq!(b.text(), "abXc");
-        assert_eq!(b.cursors(), &[Cursor::new(0, 3),]);
+        assert_eq!(b.cursors(), &[Cursor::new(0, 3)]);
     }
 
     #[test]

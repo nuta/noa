@@ -142,8 +142,7 @@ impl RawBuffer {
         GraphemeIter::new(&self.rope.slice(start..end))
     }
 
-    /// Replaces the text at the `range` with `new_text`. Returns the cursor
-    /// position after the replacement.
+    /// Replaces the text at the `range` with `new_text`.
     ///
     /// This is the only method that modifies the buffer.
     ///
@@ -153,7 +152,7 @@ impl RawBuffer {
     //
     /// Runs in O(M + log N) time, where N is the length of the Rope and M
     /// is the length of the range being removed/inserted.
-    fn edit(&mut self, range: Range, new_text: &str) -> Position {
+    fn edit(&mut self, range: Range, new_text: &str) {
         let start = self.pos_to_rope_index(range.front());
         let end = self.pos_to_rope_index(range.back());
 
@@ -164,19 +163,37 @@ impl RawBuffer {
         if !new_text.is_empty() {
             self.rope.insert(start, new_text);
         }
-
-        Position::position_after_edit(range, new_text)
     }
 
     pub fn edit_cursor(
         &mut self,
-        current_cursor: &Cursor,
+        current_cursor: &mut Cursor,
         past_cursors: &mut [Cursor],
         new_text: &str,
     ) {
-        //
-        //    Cursor::new(new_pos.y, new_pos.x)
-        // new_cursors
+        let range_removed = current_cursor.selection();
+
+        let num_newlines_inserted = new_text.chars().filter(|c| *c == '\n').count();
+        let num_newlines_deleted = range_removed.back().y - range_removed.front().y;
+
+        self.edit(range_removed, new_text);
+
+        let new_pos = Position::position_after_edit(range_removed, new_text);
+        *current_cursor = Cursor::new(new_pos.y, new_pos.x);
+
+        for c in past_cursors {
+            if num_newlines_inserted > num_newlines_deleted {
+                c.selection_mut().start.y += num_newlines_inserted - num_newlines_deleted;
+                c.selection_mut().end.y -= num_newlines_deleted - num_newlines_inserted;
+            } else {
+                c.selection_mut().start.y -= num_newlines_deleted - num_newlines_inserted;
+                c.selection_mut().end.y -= num_newlines_deleted - num_newlines_inserted;
+            }
+
+            if new_pos.y == c.selection().end.y {
+                // c.
+            }
+        }
     }
 
     /// Returns the character index in the rope.

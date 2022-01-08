@@ -234,6 +234,10 @@ impl Cursor {
         self.selection
     }
 
+    pub(crate) fn selection_mut(&mut self) -> &mut Range {
+        &mut self.selection
+    }
+
     pub fn front(&self) -> Position {
         self.selection.front()
     }
