@@ -348,8 +348,6 @@ impl<'a> GraphemeIter<'a> {
     /// Runs in amortized O(K) time and worst-case O(log N + K) time, where K
     /// is the length in bytes of the grapheme.
     pub fn prev(&mut self) -> Option<ArrayString<16>> {
-        dbg!("----------------");
-
         let mut tmp = ArrayString::<4>::new();
         // Not sure if `std::usize::MAX` cause problems.
         let mut cursor = GraphemeCursor::new(std::usize::MAX, std::usize::MAX, false);
@@ -358,7 +356,6 @@ impl<'a> GraphemeIter<'a> {
         loop {
             let (chunk, ch_len) = match self.iter.prev() {
                 Some(ch) => {
-                    dbg!(ch);
                     tmp.clear();
                     tmp.push(ch);
                     (tmp.as_str(), ch.len_utf8())
@@ -392,7 +389,6 @@ impl<'a> GraphemeIter<'a> {
 
             match cursor.prev_boundary(chunk, std::usize::MAX - offset - ch_len) {
                 Ok(Some(n)) => {
-                    dbg!(std::usize::MAX - n);
                     // Characters comes in reverse order "CBA".
                     let mut reversed = ArrayString::<16>::new();
                     while reversed.len() < std::usize::MAX - n {
@@ -422,7 +418,6 @@ impl<'a> GraphemeIter<'a> {
                 }
                 Err(GraphemeIncomplete::PrevChunk) => {
                     // Continue this loop.
-                    dbg!("still need prev");
                 }
                 Err(GraphemeIncomplete::PreContext(_)) => {
                     todo!();
@@ -453,7 +448,6 @@ impl Iterator for GraphemeIter<'_> {
         loop {
             let (chunk, ch_len) = match self.iter.next() {
                 Some(ch) => {
-                    dbg!(ch);
                     tmp.clear();
                     tmp.push(ch);
                     (tmp.as_str(), ch.len_utf8())
