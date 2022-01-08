@@ -445,19 +445,19 @@ mod tests {
 
     #[bench]
     fn bench_highlight_few_spans(b: &mut test::Bencher) {
-        let (mut view, buffer) = create_view_and_buffer(4);
+        let (mut view, buffer) = create_view_and_buffer(16);
         let mut spans = Vec::new();
-        for i in 0..4 {
+        for i in 0..16 {
             spans.push(Span {
                 range: Range::new(i, 0, i, 1),
                 style: Style::default(),
             });
         }
 
-        view.layout(&buffer, 1, 120);
+        view.layout(&buffer, 16, 120);
         b.iter(|| {
-            view.clear_highlights(0..4);
-            view.highlight(0..4, &spans);
+            view.clear_highlights(0..16);
+            view.highlight(0..16, &spans);
         });
     }
 
@@ -472,7 +472,7 @@ mod tests {
             });
         }
 
-        view.layout(&buffer, 1, 120);
+        view.layout(&buffer, 2048, 120);
         b.iter(|| {
             view.clear_highlights(1024..(1024 + 128));
             view.highlight(1024..(1024 + 128), &spans);
