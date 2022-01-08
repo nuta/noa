@@ -306,6 +306,7 @@ mod tests {
         assert_eq!(b.text(), "ABC\nおは\nXY");
     }
 
+    /*
     #[test]
     fn test_multiple_cursors2() {
         // ABC
@@ -313,11 +314,12 @@ mod tests {
         // XY
         let mut b = Buffer::from_text("ABC\nおは\nXY");
         b.set_cursors(&[
-            Cursor::new_selection(0, b.line_len(0), 1, 0),
-            Cursor::new_selection(1, b.line_len(1), 2, 0),
+            Cursor::new_selection(0, 3, 1, 0),
+            Cursor::new_selection(1, 2, 2, 0),
         ]);
         b.insert("!");
         assert_eq!(b.text(), "ABC!おは!XY");
+        assert_eq!(b.cursors(), &[Cursor::new(0, 4), Cursor::new(0, 3)]);
     }
 
     #[test]
@@ -512,6 +514,7 @@ mod tests {
             &[Cursor::new(0, 3), Cursor::new(0, 4), Cursor::new(0, 5),]
         );
     }
+    */
 
     #[test]
     fn multibyte_characters_regression1() {
@@ -552,6 +555,7 @@ mod tests {
         assert_eq!(b.cursors(), &[Cursor::new(0, 3)]);
     }
 
+    /*
     #[test]
     fn multi_selections() {
         // ab|XYZ  =>  ab|
@@ -589,6 +593,7 @@ mod tests {
             &[Cursor::new(0, 2), Cursor::new(0, 4), Cursor::new(0, 6),]
         );
     }
+    */
 
     #[test]
     fn test_insert_newline_and_indent() {
