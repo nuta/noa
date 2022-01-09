@@ -316,7 +316,7 @@ impl CursorSet {
         debug_assert!(!self.cursors.is_empty());
     }
 
-    pub fn update_each<F>(&mut self, mut f: F)
+    pub fn foreach<F>(&mut self, mut f: F)
     where
         F: FnMut(&mut Cursor, &mut [Cursor]),
     {

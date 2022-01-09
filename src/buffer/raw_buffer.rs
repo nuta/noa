@@ -225,18 +225,6 @@ impl RawBuffer {
 
         self.rope.line_to_char(pos.y) + column
     }
-
-    /// Returns the position of the given rope character index.
-    ///
-    /// # Complexity
-    ///
-    /// Runs in O(log N) time, where N is the length of the rope.
-    fn _rope_index_to_pos(&self, char_index: usize) -> Position {
-        let y = self.rope.char_to_line(char_index);
-        let x = char_index - self.rope.line_to_char(y);
-
-        Position::new(y, x)
-    }
 }
 
 impl Default for RawBuffer {

@@ -95,10 +95,10 @@ impl Buffer {
     pub fn insert_newline_and_indent(&mut self) {
         // Insert a newline.
         self.cursors
-            .update_each(|c, past_cursors| self.buf.edit_cursor(c, past_cursors, "\n"));
+            .foreach(|c, past_cursors| self.buf.edit_cursor(c, past_cursors, "\n"));
 
         // Add indentation.
-        self.cursors.update_each(|c, past_cursors| {
+        self.cursors.foreach(|c, past_cursors| {
             let indent_size = compute_desired_indent_len(&self.buf, &self.config, c.front().y);
             self.buf.edit_cursor(
                 c,
@@ -134,7 +134,7 @@ impl Buffer {
 
         // Insert indentations.
         let mut increase_lens_iter = increase_lens.iter();
-        self.cursors.update_each(|c, past_cursors| {
+        self.cursors.foreach(|c, past_cursors| {
             let indent_size = *increase_lens_iter.next().unwrap();
             self.buf.edit_cursor(
                 c,
@@ -148,7 +148,7 @@ impl Buffer {
     }
 
     pub fn deindent(&mut self) {
-        self.cursors.update_each(|_c, _past_cursors| {
+        self.cursors.foreach(|_c, _past_cursors| {
             // let n = min(
             //     self.buf
             //         .char(Position::new(y, 0))
@@ -162,13 +162,13 @@ impl Buffer {
     }
 
     pub fn insert(&mut self, s: &str) {
-        self.cursors.update_each(|c, past_cursors| {
+        self.cursors.foreach(|c, past_cursors| {
             self.buf.edit_cursor(c, past_cursors, s);
         });
     }
 
     pub fn backspace(&mut self) {
-        self.cursors.update_each(|c, past_cursors| {
+        self.cursors.foreach(|c, past_cursors| {
             if c.selection().is_empty() {
                 c.expand_left(&self.buf);
             }
@@ -177,7 +177,7 @@ impl Buffer {
     }
 
     pub fn delete(&mut self) {
-        self.cursors.update_each(|c, past_cursors| {
+        self.cursors.foreach(|c, past_cursors| {
             if c.selection().is_empty() {
                 c.expand_right(&self.buf);
             }
