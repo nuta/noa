@@ -63,6 +63,11 @@ pub trait ClipboardProvider {
 static LAST_OUR_DATA: Lazy<Mutex<ClipboardData>> =
     Lazy::new(|| Mutex::new(ClipboardData::default()));
 
+/// Uses Cmd + V (or Ctrl + Shift + V in some Linux's terminal) to paste
+/// contents and uses the OSC52 escape sequence to copy contents into the
+/// system's clipboard.
+///
+/// This is quite useful when you're using noa in remote.
 struct Osc52Provider;
 
 impl Osc52Provider {
@@ -73,6 +78,8 @@ impl Osc52Provider {
 
 #[async_trait]
 impl ClipboardProvider for Osc52Provider {
+    // User should not use this: they should use Cmd + V to paste from the
+    // clipboard instead.
     async fn copy_from_clipboard(&self) -> Result<SystemClipboardData> {
         // Use LAST_OUR_DATA as clipboard.
         Ok(SystemClipboardData::Ours(LAST_OUR_DATA.lock().clone()))
@@ -150,8 +157,10 @@ impl ClipboardProvider for DummyProvider {
 }
 
 pub fn build_provider() -> Option<Box<dyn ClipboardProvider>> {
-    if let Some(provider) = Osc52Provider::probe() {
-        return Some(Box::new(provider));
+    if std::env::var("SSH_CONNECTION").is_ok() {
+        if let Some(provider) = Osc52Provider::probe() {
+            return Some(Box::new(provider));
+        }
     }
 
     if cfg!(target_os = "macos") {
