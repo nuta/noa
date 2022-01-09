@@ -81,12 +81,9 @@ impl ClipboardProvider for MacOsProvider {
         let mut buf = String::new();
         stdout.read_to_string(&mut buf).await?;
 
-        let last_data = LAST_OUR_DATA.lock();
-        if last_data.equals_to_str(&buf) {
-            Ok(SystemClipboardData::Ours(last_data.clone()))
-        } else {
-            Ok(SystemClipboardData::Others(buf))
-        }
+        Ok(get_last_clipboard_data(&buf)
+            .map(SystemClipboardData::Ours)
+            .unwrap_or_else(|| SystemClipboardData::Others(buf)))
     }
 
     async fn copy_into_clipboard(&self, data: ClipboardData) -> Result<()> {
@@ -105,10 +102,13 @@ struct DummyProvider;
 #[async_trait]
 impl ClipboardProvider for DummyProvider {
     async fn copy_from_clipboard(&self) -> Result<SystemClipboardData> {
-        bail!("No clipboard provider available");
+        // Use LAST_OUR_DATA as clipboard.
+        Ok(SystemClipboardData::Ours(LAST_OUR_DATA.lock().clone()))
     }
 
-    async fn copy_into_clipboard(&self, text: ClipboardData) -> Result<()> {
+    async fn copy_into_clipboard(&self, data: ClipboardData) -> Result<()> {
+        // Use LAST_OUR_DATA as clipboard.
+        *LAST_OUR_DATA.lock() = data;
         Ok(())
     }
 }
@@ -126,4 +126,14 @@ pub fn build_provider() -> Option<Box<dyn ClipboardProvider>> {
 
 pub fn build_dummy_provider() -> Box<dyn ClipboardProvider> {
     Box::new(DummyProvider)
+}
+
+/// Returns `ClipboardData` if `text` matches to the lastly pasted data.
+pub fn get_last_clipboard_data(text: &str) -> Option<ClipboardData> {
+    let last_data = LAST_OUR_DATA.lock();
+    if last_data.equals_to_str(text) {
+        Some(last_data.clone())
+    } else {
+        None
+    }
 }
