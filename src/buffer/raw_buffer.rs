@@ -130,7 +130,7 @@ impl RawBuffer {
     /// traversing words in the buffer back and forth.
     ///
     /// The iterator always returns the current word at the position first.
-    pub fn word(&self, pos: Position) -> WordIter<'_> {
+    pub fn word_iter(&self, pos: Position) -> WordIter<'_> {
         WordIter {
             iter: self.char_iter(pos),
         }

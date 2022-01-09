@@ -108,20 +108,20 @@ fn test_grapheme_iter_prev() {
 #[test]
 fn test_word() {
     let buffer = RawBuffer::from_text("");
-    let mut iter = buffer.word(Position::new(0, 0));
+    let mut iter = buffer.word_iter(Position::new(0, 0));
     assert_eq!(iter.next().map(|w| w.range()), None);
 
     let buffer = RawBuffer::from_text("A");
-    let mut iter = buffer.word(Position::new(0, 0));
+    let mut iter = buffer.word_iter(Position::new(0, 0));
     assert_eq!(iter.next().map(|w| w.range()), Some(Range::new(0, 0, 0, 1)));
     assert_eq!(iter.next().map(|w| w.range()), None);
 
     let buffer = RawBuffer::from_text("ABC DEF");
-    let mut iter = buffer.word(Position::new(0, 3));
+    let mut iter = buffer.word_iter(Position::new(0, 3));
     assert_eq!(iter.next().map(|w| w.range()), Some(Range::new(0, 0, 0, 3)));
 
     let buffer = RawBuffer::from_text("abc WXYZ   12");
-    let mut iter = buffer.word(Position::new(0, 0));
+    let mut iter = buffer.word_iter(Position::new(0, 0));
     assert_eq!(iter.next().map(|w| w.range()), Some(Range::new(0, 0, 0, 3)));
     assert_eq!(iter.next().map(|w| w.range()), Some(Range::new(0, 4, 0, 8)));
     assert_eq!(
@@ -130,9 +130,9 @@ fn test_word() {
     );
     assert_eq!(iter.next().map(|w| w.range()), None);
 
-    let mut iter = buffer.word(Position::new(0, 5));
+    let mut iter = buffer.word_iter(Position::new(0, 5));
     assert_eq!(iter.next().map(|w| w.range()), Some(Range::new(0, 4, 0, 8)));
 
-    let mut iter = buffer.word(Position::new(0, 8));
+    let mut iter = buffer.word_iter(Position::new(0, 8));
     assert_eq!(iter.next().map(|w| w.range()), Some(Range::new(0, 4, 0, 8)));
 }
