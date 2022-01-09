@@ -23,6 +23,8 @@ rayon = "1"
 arrayvec = "0"
 id-arena = "2"
 ropey = "1"
+which = "4"
+async-trait = "0"
 
 noa_common = { path = "../common" }
 noa_buffer = { path = "../buffer" }

@@ -17,6 +17,7 @@ use clap::Parser;
 use noa_common::logger::install_logger;
 use ui::{compositor::Compositor, terminal::Terminal};
 
+mod clipboard;
 mod document;
 mod editor;
 mod highlighting;
