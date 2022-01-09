@@ -514,6 +514,7 @@ dependencies = [
  "noa_common",
  "noa_editorconfig",
  "noa_languages",
+ "once_cell",
  "parking_lot",
  "pretty_assertions",
  "rayon",
