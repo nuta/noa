@@ -13,7 +13,7 @@ pub struct Editor {
 impl Editor {
     pub fn new(compositor: Compositor) -> Editor {
         let clipboard_provider =
-            clipboard::build_provider().unwrap_or_else(|| clipboard::build_dummy_provider());
+            clipboard::build_provider().unwrap_or_else(clipboard::build_dummy_provider);
         Editor {
             documents: DocumentManager::new(),
             compositor,

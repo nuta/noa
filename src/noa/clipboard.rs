@@ -64,7 +64,7 @@ struct MacOsProvider;
 
 impl MacOsProvider {
     fn probe() -> Option<MacOsProvider> {
-        if !which("pbcopy").is_ok() || !which("pbcopy").is_ok() {
+        if which("pbcopy").is_err() || which("pbcopy").is_err() {
             return None;
         }
 
