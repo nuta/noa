@@ -26,6 +26,7 @@ ropey = "1"
 which = "4"
 async-trait = "0"
 once_cell = "1"
+base64 = "0"
 
 noa_common = { path = "../common" }
 noa_buffer = { path = "../buffer" }

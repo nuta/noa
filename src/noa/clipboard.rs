@@ -29,11 +29,14 @@ impl ClipboardData {
     where
         W: AsyncWriteExt + Unpin,
     {
-        for text in &self.texts {
-            writer.write_all(text.as_bytes()).await?;
-            writer.write_all(b"\n").await?;
-        }
+        writer.write_all(self.to_string().as_bytes()).await?;
         Ok(())
+    }
+}
+
+impl ToString for ClipboardData {
+    fn to_string(&self) -> String {
+        self.texts.join("\n")
     }
 }
 
@@ -60,6 +63,39 @@ pub trait ClipboardProvider {
 static LAST_OUR_DATA: Lazy<Mutex<ClipboardData>> =
     Lazy::new(|| Mutex::new(ClipboardData::default()));
 
+struct Osc52Provider;
+
+impl Osc52Provider {
+    fn probe() -> Option<Osc52Provider> {
+        Some(Osc52Provider)
+    }
+}
+
+#[async_trait]
+impl ClipboardProvider for Osc52Provider {
+    async fn copy_from_clipboard(&self) -> Result<SystemClipboardData> {
+        // Use LAST_OUR_DATA as clipboard.
+        Ok(SystemClipboardData::Ours(LAST_OUR_DATA.lock().clone()))
+    }
+
+    async fn copy_into_clipboard(&self, data: ClipboardData) -> Result<()> {
+        use std::io::Write;
+
+        let mut stdout = std::io::stdout();
+
+        // OSC52
+        write!(
+            stdout,
+            "\x1b]52;c;{}\x07",
+            base64::encode(&data.to_string())
+        )
+        .ok();
+        stdout.flush().ok();
+
+        Ok(())
+    }
+}
+
 struct MacOsProvider;
 
 impl MacOsProvider {
@@ -68,7 +104,7 @@ impl MacOsProvider {
             return None;
         }
 
-        Some(MacOsProvider {})
+        Some(MacOsProvider)
     }
 }
 
@@ -92,7 +128,7 @@ impl ClipboardProvider for MacOsProvider {
         let mut stdin = child.stdin.take().unwrap();
         data.write_all(&mut stdin).await?;
 
-        *LAST_OUR_DATA.lock() = data;
+        save_last_clipboard_data(data);
         Ok(())
     }
 }
@@ -114,6 +150,10 @@ impl ClipboardProvider for DummyProvider {
 }
 
 pub fn build_provider() -> Option<Box<dyn ClipboardProvider>> {
+    if let Some(provider) = Osc52Provider::probe() {
+        return Some(Box::new(provider));
+    }
+
     if cfg!(target_os = "macos") {
         if let Some(provider) = MacOsProvider::probe() {
             return Some(Box::new(provider));
@@ -136,4 +176,8 @@ pub fn get_last_clipboard_data(text: &str) -> Option<ClipboardData> {
     } else {
         None
     }
+}
+
+fn save_last_clipboard_data(data: ClipboardData) {
+    *LAST_OUR_DATA.lock() = data;
 }
