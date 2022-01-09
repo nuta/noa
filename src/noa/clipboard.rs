@@ -60,8 +60,10 @@ impl ClipboardProvider for DummyProvider {
 }
 
 pub fn build_provider() -> Option<Box<dyn ClipboardProvider>> {
-    if let Some(provider) = MacOsProvider::probe() {
-        return Some(Box::new(provider));
+    if cfg!(target_os = "macos") {
+        if let Some(provider) = MacOsProvider::probe() {
+            return Some(Box::new(provider));
+        }
     }
 
     // No clipboard provider found.
