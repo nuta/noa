@@ -1,0 +1,91 @@
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
+
+use anyhow::Context;
+use noa_proxy::protocol::ToServer;
+use parking_lot::Mutex;
+use tokio::{
+    io::{AsyncBufReadExt, BufReader},
+    net::{UnixListener, UnixStream},
+    time::timeout,
+};
+
+/// If the server does not receive any requests from clients for this duration,
+/// the server will automatically exits.
+const IDLE_STATE_MAX_SECS: u64 = 360;
+
+pub struct Server {
+    sock_path: PathBuf,
+    progress: Arc<Mutex<bool>>,
+}
+
+impl Server {
+    pub fn new(sock_path: &Path) -> Server {
+        Server {
+            sock_path: sock_path.to_owned(),
+            progress: Arc::new(Mutex::new(false)),
+        }
+    }
+
+    pub async fn run(self) {
+        let listener = match UnixListener::bind(&self.sock_path) {
+            Ok(listener) => listener,
+            Err(err) => {
+                error!("Failed to bind to socket: {}", err);
+                return;
+            }
+        };
+
+        loop {
+            match timeout(Duration::from_secs(IDLE_STATE_MAX_SECS), listener.accept()).await {
+                Err(_) => {
+                    // Timed out.
+                    if !*self.progress.lock() {
+                        info!("idle state for a long while, exiting...");
+                        return;
+                    }
+
+                    // If the server is not idle, progress will be set to true
+                    // in next IDLE_STATE_MAX_SECS seconds.
+                    *self.progress.lock() = false;
+                }
+                Ok(Ok((new_client, _))) => {
+                    // New client.
+                    self.handle_client(new_client);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    pub fn handle_client(&self, client: UnixStream) {
+        let progress = self.progress.clone();
+        let (read_end, write_end) = client.into_split();
+        tokio::spawn(async move {
+            let mut reader = BufReader::new(read_end);
+            let mut buf = String::with_capacity(128 * 1024);
+            loop {
+                buf.clear();
+
+                // Receive a request from noa editor.
+                match reader.read_line(&mut buf).await {
+                    Ok(0) => break, // EOF
+                    Ok(_) => {
+                        let m: ToServer = serde_json::from_str(&buf)
+                            .with_context(|| format!("invalid request body: {}", buf))
+                            .unwrap();
+
+                        *progress.lock() = true;
+                    }
+                    Err(err) => {
+                        warn!("failed to read from a client: {}", err);
+                        break;
+                    }
+                }
+            }
+        });
+    }
+}

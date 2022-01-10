@@ -642,6 +642,7 @@ dependencies = [
  "log",
  "lsp-types",
  "noa_common",
+ "parking_lot",
  "pretty_assertions",
  "serde",
  "serde_json",

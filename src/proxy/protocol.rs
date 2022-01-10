@@ -4,14 +4,23 @@ use lsp_types::Diagnostic;
 use noa_common::fast_hash::FastHash;
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Copy, PartialEq, Debug, Deserialize, Serialize, Hash)]
+pub struct RequestId(usize);
+
+impl From<usize> for RequestId {
+    fn from(id: usize) -> Self {
+        Self(id)
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum ToServer {
-    Request { id: usize, body: Request },
+    Request { id: RequestId, body: Request },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum ToClient {
-    Response { id: usize, body: Response },
+    Response { id: RequestId, body: Response },
     Notification(Notification),
 }
 
