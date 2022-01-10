@@ -1,0 +1,25 @@
+[package]
+name = "noa_proxy"
+version = "0.0.0"
+authors = ["Seiya Nuta <nuta@seiya.me>"]
+edition = "2018"
+
+[lib]
+name = "noa_proxy"
+path = "lib.rs"
+
+[[bin]]
+name = "noa_proxy"
+path = "main.rs"
+
+[dev-dependencies]
+pretty_assertions = "0"
+
+[dependencies]
+log = "0"
+anyhow = "1"
+clap = { version = "3.0.1", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+futures = "0"
+
+noa_common = { path = "../common" }
