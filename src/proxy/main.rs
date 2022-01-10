@@ -1,3 +1,4 @@
+#![allow(unused)]
 #![feature(test)]
 
 extern crate test;
