@@ -53,7 +53,6 @@ impl Server {
                     *self.progress.lock() = false;
                 }
                 Ok(Ok((new_client, _))) => {
-                    // New client.
                     self.handle_client(new_client);
                 }
                 _ => {}
@@ -61,6 +60,7 @@ impl Server {
         }
     }
 
+    /// Spawns a new task to handle a client.
     pub fn handle_client(&self, client: UnixStream) {
         let progress = self.progress.clone();
         let (read_end, write_end) = client.into_split();
@@ -74,11 +74,11 @@ impl Server {
                 match reader.read_line(&mut buf).await {
                     Ok(0) => break, // EOF
                     Ok(_) => {
+                        *progress.lock() = true;
+
                         let m: ToServer = serde_json::from_str(&buf)
                             .with_context(|| format!("invalid request body: {}", buf))
                             .unwrap();
-
-                        *progress.lock() = true;
                     }
                     Err(err) => {
                         warn!("failed to read from a client: {}", err);
