@@ -13,3 +13,5 @@ simplelog = "0"
 log = "0"
 anyhow = "1"
 dirs = "3"
+serde = { version = "1.0", features = ["derive"] }
+fxhash = "0"

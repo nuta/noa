@@ -14,7 +14,7 @@ pretty_assertions = "0"
 [dependencies]
 log = "0"
 anyhow = "1"
-clap = { version = "3.0.1", features = ["derive"] }
+clap = { version = "3", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 futures = "0"
 crossterm = { version = "0", features = ["event-stream"] }

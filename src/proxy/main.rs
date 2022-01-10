@@ -1,4 +1,3 @@
-#![allow(unused)]
 #![feature(test)]
 
 extern crate test;
@@ -10,20 +9,17 @@ extern crate log;
 #[macro_use]
 extern crate pretty_assertions;
 
-use std::path::PathBuf;
+mod protocol;
 
 use clap::Parser;
 
 use noa_common::logger::install_logger;
 
 #[derive(Parser, Debug)]
-struct Args {
-    #[clap(name = "FILE", parse(from_os_str))]
-    files: Vec<PathBuf>,
-}
+struct Args {}
 
 #[tokio::main]
 async fn main() {
     install_logger("proxy");
-    let args = Args::parse();
+    let _args = Args::parse();
 }
