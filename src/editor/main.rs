@@ -15,12 +15,13 @@ use std::path::PathBuf;
 use clap::Parser;
 
 use noa_common::logger::install_logger;
-use noa_ui::{compositor::Compositor, terminal::Terminal};
+use noa_compositor::{Compositor, Terminal};
 
 mod clipboard;
 mod document;
 mod editor;
 mod highlighting;
+mod ui;
 mod view;
 
 #[derive(Parser, Debug)]
@@ -34,8 +35,7 @@ async fn main() {
     install_logger("main");
     let args = Args::parse();
 
-    let terminal = Terminal::new();
-    let compositor = Compositor::new(terminal);
-    let mut editor = editor::Editor::new(compositor);
+    let ui = ui::Ui::new();
+    let mut editor = editor::Editor::new(ui);
     editor.run().await;
 }

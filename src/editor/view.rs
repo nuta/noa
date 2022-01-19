@@ -7,7 +7,7 @@ use noa_buffer::{
     cursor::{Position, Range},
     display_width::DisplayWidth,
 };
-use noa_ui::canvas::{Grapheme, Style};
+use noa_compositor::canvas::{Grapheme, Style};
 
 use crate::highlighting::Highlighter;
 
@@ -265,9 +265,9 @@ impl View {
 
 #[cfg(test)]
 mod tests {
+    use noa_compositor::canvas::{Color, Grapheme, Style};
     use noa_editorconfig::EditorConfig;
     use noa_languages::definitions::PLAIN;
-    use noa_ui::canvas::{Color, Grapheme, Style};
 
     use super::*;
 

@@ -1,23 +1,22 @@
-use noa_ui::compositor::Compositor;
-
 use crate::{
     clipboard::{self, ClipboardProvider},
     document::DocumentManager,
+    ui::Ui,
 };
 
 pub struct Editor {
     documents: DocumentManager,
-    compositor: Compositor,
+    ui: Ui,
     clipboard_provider: Box<dyn ClipboardProvider>,
 }
 
 impl Editor {
-    pub fn new(compositor: Compositor) -> Editor {
+    pub fn new(ui: Ui) -> Editor {
         let clipboard_provider =
             clipboard::build_provider().unwrap_or_else(clipboard::build_dummy_provider);
         Editor {
             documents: DocumentManager::new(),
-            compositor,
+            ui,
             clipboard_provider,
         }
     }

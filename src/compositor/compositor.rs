@@ -7,7 +7,7 @@ use super::{
 };
 
 pub struct Layer {
-    pub surface: Box<dyn Surface>,
+    pub surface: Box<dyn Surface + Send>,
     /// If it's `false`, the surface won't receive key events.
     pub active: bool,
     pub canvas: Canvas,
