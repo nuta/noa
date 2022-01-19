@@ -1,5 +1,8 @@
 use noa_compositor::{surface::Surface, Compositor, Input, Terminal};
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
+use tokio::sync::{
+    mpsc::{unbounded_channel, UnboundedSender},
+    oneshot,
+};
 
 pub enum UiRequest {
     Quit,
@@ -22,8 +25,9 @@ pub struct Ui {
 }
 
 impl Ui {
-    pub fn new() -> Ui {
+    pub fn new() -> (Ui, oneshot::Receiver<()>) {
         let (request_tx, mut request_rx) = unbounded_channel();
+        let (quit_tx, quit_rx) = oneshot::channel();
 
         let terminal = Terminal::new({
             let request_tx = request_tx.clone();
@@ -38,6 +42,9 @@ impl Ui {
         tokio::task::spawn_blocking(move || {
             while let Some(req) = request_rx.blocking_recv() {
                 match req {
+                    UiRequest::Quit => {
+                        break;
+                    }
                     UiRequest::Input(input) => {
                         compositor.handle_input(input);
                     }
@@ -54,9 +61,11 @@ impl Ui {
                     }
                 }
             }
+
+            quit_tx.send(());
         });
 
-        Ui { request_tx }
+        (Ui { request_tx }, quit_rx)
     }
 
     pub fn quit(&self) {

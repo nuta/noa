@@ -20,8 +20,4 @@ impl Editor {
             clipboard_provider,
         }
     }
-
-    pub async fn run(self) {
-        //
-    }
 }
