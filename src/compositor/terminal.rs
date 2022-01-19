@@ -26,8 +26,6 @@ pub enum Input {
         screen_height: usize,
         screen_width: usize,
     },
-    Redraw,
-    Quit,
 }
 
 pub struct Terminal {

@@ -115,7 +115,7 @@ impl Compositor {
         drawer.flush();
     }
 
-    pub fn handle_input(&mut self, input: Input) -> bool {
+    pub fn handle_input(&mut self, input: Input) {
         trace!("input: {:?}", input);
         match input {
             Input::Key(key) => {
@@ -155,11 +155,7 @@ impl Compositor {
             } => {
                 self.resize_screen(screen_height, screen_width);
             }
-            Input::Redraw => {}
-            Input::Quit => return false,
         }
-
-        true
     }
 }
 

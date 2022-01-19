@@ -2,6 +2,7 @@ use noa_compositor::{surface::Surface, Compositor, Input, Terminal};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
 pub enum UiRequest {
+    Quit,
     Resize {
         height: usize,
         width: usize,
@@ -56,6 +57,10 @@ impl Ui {
         });
 
         Ui { request_tx }
+    }
+
+    pub fn quit(&self) {
+        self.request_tx.send(UiRequest::Quit);
     }
 
     pub fn push_layer(
