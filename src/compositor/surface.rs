@@ -1,6 +1,6 @@
 use crossterm::event::{KeyEvent, MouseEvent};
 
-use super::{canvas::CanvasViewMut, compositor::Compositor};
+use super::{canvas::CanvasViewMut};
 
 #[derive(Clone, Copy, Debug)]
 pub enum Layout {
