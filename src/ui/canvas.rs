@@ -1,6 +1,7 @@
 use arrayvec::ArrayString;
-use crossterm::style::Color;
 use noa_common::logger::backtrace;
+
+pub use crossterm::style::Color;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum DrawOp<'a> {

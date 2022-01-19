@@ -6,7 +6,7 @@ use std::{
 use crossterm::{
     cursor::{self, MoveTo},
     event::{
-        self, DisableMouseCapture, EnableMouseCapture, Event as TermEvent, EventStream, KeyCode,
+        DisableMouseCapture, EnableMouseCapture, Event as TermEvent, EventStream, KeyCode,
         KeyEvent, KeyModifiers, MouseEvent,
     },
     execute, queue,

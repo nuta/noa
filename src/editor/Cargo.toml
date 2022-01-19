@@ -17,7 +17,6 @@ anyhow = "1"
 clap = { version = "3", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 futures = "0"
-crossterm = { version = "0", features = ["event-stream"] }
 parking_lot = "0"
 rayon = "1"
 arrayvec = "0"
@@ -32,4 +31,4 @@ noa_common = { path = "../common" }
 noa_buffer = { path = "../buffer" }
 noa_languages = { path = "../languages" }
 noa_editorconfig = { path = "../editorconfig" }
-
+noa_ui = { path = "../ui" }

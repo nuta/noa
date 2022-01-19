@@ -1,7 +1,8 @@
+use noa_ui::compositor::Compositor;
+
 use crate::{
     clipboard::{self, ClipboardProvider},
     document::DocumentManager,
-    ui::compositor::Compositor,
 };
 
 pub struct Editor {

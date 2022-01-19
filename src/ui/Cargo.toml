@@ -1,0 +1,17 @@
+[package]
+name = "noa_ui"
+version = "0.0.0"
+authors = ["Seiya Nuta <nuta@seiya.me>"]
+edition = "2021"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+log = "0"
+tokio = { version = "1", features = ["full"] }
+futures = "0"
+crossterm = { version = "0", features = ["event-stream"] }
+arrayvec = "0"
+
+noa_common = { path = "../common" }

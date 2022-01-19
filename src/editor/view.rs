@@ -7,11 +7,9 @@ use noa_buffer::{
     cursor::{Position, Range},
     display_width::DisplayWidth,
 };
+use noa_ui::canvas::{Grapheme, Style};
 
-use crate::{
-    highlighting::Highlighter,
-    ui::canvas::{Grapheme, Style},
-};
+use crate::highlighting::Highlighter;
 
 #[derive(Debug, PartialEq)]
 pub struct Span {
@@ -267,9 +265,9 @@ impl View {
 
 #[cfg(test)]
 mod tests {
-    use crossterm::style::Color;
     use noa_editorconfig::EditorConfig;
     use noa_languages::definitions::PLAIN;
+    use noa_ui::canvas::{Color, Grapheme, Style};
 
     use super::*;
 
