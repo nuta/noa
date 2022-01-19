@@ -67,11 +67,22 @@ impl Compositor {
         self.terminal.clear();
     }
 
-    pub fn render_to_terminal(&mut self, cursor_pos: (usize, usize)) {
+    pub fn render_to_terminal(&mut self) {
+        // Get the cursor position.
+        let mut cursor = None;
+        for layer in self.layers.iter().rev() {
+            if layer.active {
+                if let Some((y, x)) = layer.surface.cursor_position() {
+                    cursor = Some((layer.screen_y + y, layer.screen_x + x));
+                    break;
+                }
+            }
+        }
+
         // Re-layout layers.
         for layer in &mut self.layers {
             let ((screen_y, screen_x), rect_size) =
-                relayout_layers(self.screen_size, &*layer.surface, cursor_pos);
+                relayout_layers(self.screen_size, &*layer.surface);
             layer.screen_x = screen_x;
             layer.screen_y = screen_y;
             layer.canvas = Canvas::new(rect_size.height, rect_size.width);
@@ -83,17 +94,6 @@ impl Compositor {
 
         // Render and composite layers.
         compose_layers(&mut self.screens[screen_index], self.layers.iter_mut());
-
-        // Get the cursor position.
-        let mut cursor = None;
-        for layer in self.layers.iter().rev() {
-            if layer.active {
-                if let Some((y, x)) = layer.surface.cursor_position() {
-                    cursor = Some((layer.screen_y + y, layer.screen_x + x));
-                    break;
-                }
-            }
-        }
 
         // Compute diffs.
 
@@ -189,9 +189,7 @@ fn compose_layers(screen: &mut Canvas, layers: slice::IterMut<'_, Layer>) {
 fn relayout_layers(
     screen_size: RectSize,
     surface: &(impl Surface + ?Sized),
-    cursor_pos: (usize, usize),
 ) -> ((usize, usize), RectSize) {
-    let (cursor_y, cursor_x) = cursor_pos;
     let (layout, rect) = surface.layout(screen_size);
 
     let (screen_y, screen_x) = match layout {
@@ -201,6 +199,8 @@ fn relayout_layers(
             (screen_size.width / 2).saturating_sub(rect.width / 2),
         ),
         Layout::AroundCursor => {
+            let (cursor_y, cursor_x) = surface.cursor_position().unwrap();
+
             let y = if cursor_y + rect.height + 1 > screen_size.height {
                 cursor_y.saturating_sub(rect.height + 1)
             } else {

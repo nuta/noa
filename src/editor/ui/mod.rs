@@ -33,6 +33,7 @@ impl Ui {
 
         // Spawn the UI thread.
         let mut compositor = Compositor::new(terminal);
+        compositor.render_to_terminal();
         tokio::task::spawn_blocking(move || {
             while let Some(req) = request_rx.blocking_recv() {
                 match req {
