@@ -22,12 +22,13 @@ impl Ui {
             }
         });
 
+        // Spawn the UI thread.
         let mut compositor = Compositor::new(terminal);
         tokio::task::spawn_blocking(move || {
             while let Some(req) = request_rx.blocking_recv() {
                 match req {
                     UiRequest::Input(input) => {
-                        // compositor.
+                        compositor.handle_event(input);
                     }
                     UiRequest::Resize { height, width } => {
                         compositor.resize_screen(height, width);
@@ -37,5 +38,9 @@ impl Ui {
         });
 
         Ui { request_tx }
+    }
+
+    pub fn send_request(&self, req: UiRequest) {
+        self.request_tx.send(req);
     }
 }

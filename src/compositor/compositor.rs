@@ -1,5 +1,7 @@
 use std::slice;
 
+use crate::{surface::HandledEvent, Input};
+
 use super::{
     canvas::Canvas,
     surface::{Layout, RectSize, Surface},
@@ -95,6 +97,53 @@ impl Compositor {
         }
 
         drawer.flush();
+    }
+
+    pub fn handle_event(&mut self, ev: Input) -> bool {
+        trace!("UI event: {:?}", ev);
+        match ev {
+            Input::Key(key) => {
+                for i in (0..self.layers.len()).rev() {
+                    let layer = &mut self.layers[i];
+                    if layer.active {
+                        if let HandledEvent::Consumed = layer.surface.handle_key_event(key) {
+                            break;
+                        }
+                    }
+                }
+            }
+            Input::Mouse(ev) => {
+                for i in (0..self.layers.len()).rev() {
+                    let layer = &mut self.layers[i];
+                    if layer.active {
+                        if let HandledEvent::Consumed = layer.surface.handle_mouse_event(ev) {
+                            break;
+                        }
+                    }
+                }
+            }
+            Input::KeyBatch(input) => {
+                for i in (0..self.layers.len()).rev() {
+                    let layer = &mut self.layers[i];
+                    if layer.active {
+                        if let HandledEvent::Consumed = layer.surface.handle_key_batch_event(&input)
+                        {
+                            break;
+                        }
+                    }
+                }
+            }
+            Input::Resize {
+                screen_height,
+                screen_width,
+            } => {
+                self.resize_screen(screen_height, screen_width);
+            }
+            Input::Redraw => {}
+            Input::Quit => return false,
+        }
+
+        true
     }
 }
 

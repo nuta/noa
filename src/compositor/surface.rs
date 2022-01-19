@@ -31,13 +31,9 @@ pub trait Surface {
     /// Render its contents into the canvas. It must fill the whole canvas; the
     /// canvas can be the newly created one due to, for example, screen resizing.
     fn render(&mut self, canvas: CanvasViewMut<'_>);
-    fn handle_key_event(&mut self, compositor: &mut Compositor, key: KeyEvent) -> HandledEvent;
-    fn handle_mouse_event(
-        &mut self,
-        _compositor: &mut Compositor,
-        _ev: MouseEvent,
-    ) -> HandledEvent {
+    fn handle_key_event(&mut self, key: KeyEvent) -> HandledEvent;
+    fn handle_mouse_event(&mut self, _ev: MouseEvent) -> HandledEvent {
         HandledEvent::Ignored
     }
-    fn handle_key_batch_event(&mut self, compositor: &mut Compositor, input: &str) -> HandledEvent;
+    fn handle_key_batch_event(&mut self, input: &str) -> HandledEvent;
 }
