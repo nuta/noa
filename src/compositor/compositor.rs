@@ -45,6 +45,22 @@ impl Compositor {
         }
     }
 
+    pub fn add_frontmost_layer(
+        &mut self,
+        surface: Box<dyn Surface + Send>,
+        active: bool,
+        screen_y: usize,
+        screen_x: usize,
+    ) {
+        self.layers.push(Layer {
+            surface,
+            active,
+            canvas: Canvas::new(0, 0),
+            screen_x,
+            screen_y,
+        });
+    }
+
     pub fn resize_screen(&mut self, height: usize, width: usize) {
         self.screen_size = RectSize { height, width };
         self.screens = [Canvas::new(height, width), Canvas::new(height, width)];

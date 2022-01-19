@@ -1,12 +1,21 @@
-use noa_compositor::{Compositor, Input, Terminal};
+use noa_compositor::{surface::Surface, Compositor, Input, Terminal};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
-#[derive(Clone, PartialEq, Debug)]
 pub enum UiRequest {
-    Resize { height: usize, width: usize },
+    Resize {
+        height: usize,
+        width: usize,
+    },
+    AddLayer {
+        surface: Box<dyn Surface + Send>,
+        active: bool,
+        screen_y: usize,
+        screen_x: usize,
+    },
     Input(Input),
 }
 
+#[derive(Clone)]
 pub struct Ui {
     request_tx: UnboundedSender<UiRequest>,
 }
@@ -33,6 +42,14 @@ impl Ui {
                     UiRequest::Resize { height, width } => {
                         compositor.resize_screen(height, width);
                     }
+                    UiRequest::AddLayer {
+                        surface,
+                        active,
+                        screen_y,
+                        screen_x,
+                    } => {
+                        compositor.add_frontmost_layer(surface, active, screen_y, screen_x);
+                    }
                 }
             }
         });
@@ -40,7 +57,18 @@ impl Ui {
         Ui { request_tx }
     }
 
-    pub fn send_request(&self, req: UiRequest) {
-        self.request_tx.send(req);
+    pub fn push_layer(
+        &self,
+        surface: impl Surface + Send + 'static,
+        active: bool,
+        screen_y: usize,
+        screen_x: usize,
+    ) {
+        self.request_tx.send(UiRequest::AddLayer {
+            surface: Box::new(surface),
+            active,
+            screen_y,
+            screen_x,
+        });
     }
 }
