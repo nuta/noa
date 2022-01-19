@@ -99,7 +99,7 @@ impl Compositor {
 }
 
 /// Renders each surfaces and copy the compose into the screen canvas.
-fn compose_layers<'a, 'b>(screen: &'a mut Canvas, layers: slice::IterMut<'b, Layer>) {
+fn compose_layers(screen: &mut Canvas, layers: slice::IterMut<'_, Layer>) {
     screen.view_mut().clear();
 
     for layer in layers {
