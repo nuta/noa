@@ -38,7 +38,7 @@ impl Ui {
             while let Some(req) = request_rx.blocking_recv() {
                 match req {
                     UiRequest::Input(input) => {
-                        compositor.handle_event(input);
+                        compositor.handle_input(input);
                     }
                     UiRequest::Resize { height, width } => {
                         compositor.resize_screen(height, width);

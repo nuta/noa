@@ -115,9 +115,9 @@ impl Compositor {
         drawer.flush();
     }
 
-    pub fn handle_event(&mut self, ev: Input) -> bool {
-        trace!("UI event: {:?}", ev);
-        match ev {
+    pub fn handle_input(&mut self, input: Input) -> bool {
+        trace!("input: {:?}", input);
+        match input {
             Input::Key(key) => {
                 for i in (0..self.layers.len()).rev() {
                     let layer = &mut self.layers[i];
