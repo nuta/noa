@@ -45,7 +45,7 @@ async fn main() {
     compositor.add_frontmost_layer(Box::new(BufferView::new(quit_tx)), true, 0, 0);
 
     loop {
-        compositor.render_to_terminal();
+        compositor.render_to_terminal(&mut editor);
 
         tokio::select! {
             biased;

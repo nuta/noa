@@ -81,13 +81,13 @@ impl<C> Compositor<C> {
         self.terminal.clear();
     }
 
-    pub fn render_to_terminal(&mut self) {
+    pub fn render_to_terminal(&mut self, ctx: &mut C) {
         // Get the cursor position.
         let mut cursor = None;
         let mut layers = self.layers.lock();
         for layer in layers.iter().rev() {
             if layer.active {
-                if let Some((y, x)) = layer.surface.cursor_position() {
+                if let Some((y, x)) = layer.surface.cursor_position(ctx) {
                     cursor = Some((layer.screen_y + y, layer.screen_x + x));
                     break;
                 }
@@ -97,7 +97,7 @@ impl<C> Compositor<C> {
         // Re-layout layers.
         for layer in layers.iter_mut() {
             let ((screen_y, screen_x), rect_size) =
-                relayout_layers(self.screen_size, &*layer.surface);
+                relayout_layers(ctx, &*layer.surface, self.screen_size);
             layer.screen_x = screen_x;
             layer.screen_y = screen_y;
             layer.canvas = Canvas::new(rect_size.height, rect_size.width);
@@ -108,7 +108,7 @@ impl<C> Compositor<C> {
         let screen_index = self.active_screen_index;
 
         // Render and composite layers.
-        compose_layers(&mut self.screens[screen_index], layers.iter_mut());
+        compose_layers(ctx, &mut self.screens[screen_index], layers.iter_mut());
 
         // Compute diffs.
 
@@ -169,11 +169,11 @@ impl<C> Compositor<C> {
 }
 
 /// Renders each surfaces and copy the compose into the screen canvas.
-fn compose_layers<C>(screen: &mut Canvas, layers: slice::IterMut<'_, Layer<C>>) {
+fn compose_layers<C>(ctx: &mut C, screen: &mut Canvas, layers: slice::IterMut<'_, Layer<C>>) {
     screen.view_mut().clear();
 
     for layer in layers {
-        if !layer.surface.is_visible() {
+        if !layer.surface.is_visible(ctx) {
             continue;
         }
 
@@ -186,16 +186,17 @@ fn compose_layers<C>(screen: &mut Canvas, layers: slice::IterMut<'_, Layer<C>>) 
             _ => continue,
         }
 
-        layer.surface.render(layer.canvas.view_mut());
+        layer.surface.render(ctx, layer.canvas.view_mut());
         screen.copy_from_other(layer.screen_y, layer.screen_x, &layer.canvas);
     }
 }
 
-fn relayout_layers(
+fn relayout_layers<C>(
+    ctx: &mut C,
+    surface: &(impl Surface<Context = C> + ?Sized),
     screen_size: RectSize,
-    surface: &(impl Surface + ?Sized),
 ) -> ((usize, usize), RectSize) {
-    let (layout, rect) = surface.layout(screen_size);
+    let (layout, rect) = surface.layout(ctx, screen_size);
 
     let (screen_y, screen_x) = match layout {
         Layout::Fixed { y, x } => (y, x),
@@ -204,7 +205,7 @@ fn relayout_layers(
             (screen_size.width / 2).saturating_sub(rect.width / 2),
         ),
         Layout::AroundCursor => {
-            let (cursor_y, cursor_x) = surface.cursor_position().unwrap();
+            let (cursor_y, cursor_x) = surface.cursor_position(ctx).unwrap();
 
             let y = if cursor_y + rect.height + 1 > screen_size.height {
                 cursor_y.saturating_sub(rect.height + 1)

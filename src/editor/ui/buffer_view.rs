@@ -29,19 +29,19 @@ impl Surface for BufferView {
         "buffer"
     }
 
-    fn is_visible(&self) -> bool {
+    fn is_visible(&self, _editor: &mut Editor) -> bool {
         true
     }
 
-    fn layout(&self, screen_size: RectSize) -> (Layout, RectSize) {
+    fn layout(&self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
         (Layout::Fixed { y: 0, x: 0 }, screen_size)
     }
 
-    fn cursor_position(&self) -> Option<(usize, usize)> {
+    fn cursor_position(&self, _editor: &mut Editor) -> Option<(usize, usize)> {
         Some(self.cursor_position)
     }
 
-    fn render(&mut self, mut canvas: CanvasViewMut<'_>) {
+    fn render(&mut self, editor: &mut Editor, mut canvas: CanvasViewMut<'_>) {
         canvas.clear();
     }
 
@@ -147,10 +147,10 @@ impl Surface for BufferView {
                 doc.buffer_mut().insert_newline_and_indent();
             }
             (KeyCode::Tab, NONE) => {
-                //                //                f.buffer.tab();
+                doc.buffer_mut().deindent();
             }
             (KeyCode::BackTab, NONE) => {
-                //                //                f.buffer.back_tab();
+                doc.buffer_mut().indent();
             }
             (KeyCode::Char(ch), NONE) => {
                 doc.buffer_mut().insert_char(ch);
