@@ -1,4 +1,4 @@
-use noa_compositor::{surface::Surface, Compositor, Input, Terminal};
+use noa_compositor::{surface::Surface, Compositor, Event, InputEvent, Terminal};
 use tokio::sync::{
     mpsc::{unbounded_channel, UnboundedSender},
     oneshot,
@@ -16,7 +16,7 @@ pub enum UiRequest {
         screen_y: usize,
         screen_x: usize,
     },
-    Input(Input),
+    Input(InputEvent),
 }
 
 #[derive(Clone)]
@@ -31,15 +31,20 @@ impl Ui {
 
         let terminal = Terminal::new({
             let request_tx = request_tx.clone();
-            move |ev| {
-                request_tx.send(UiRequest::Input(ev));
+            move |ev| match ev {
+                Event::Input(input) => {
+                    request_tx.send(UiRequest::Input(input));
+                }
+                Event::Resize { height, width } => {
+                    request_tx.send(UiRequest::Resize { height, width });
+                }
             }
         });
 
         // Spawn the UI thread.
         let mut compositor = Compositor::new(terminal);
-        compositor.render_to_terminal();
         tokio::task::spawn_blocking(move || {
+            compositor.render_to_terminal();
             while let Some(req) = request_rx.blocking_recv() {
                 match req {
                     UiRequest::Quit => {
@@ -60,6 +65,8 @@ impl Ui {
                         compositor.add_frontmost_layer(surface, active, screen_y, screen_x);
                     }
                 }
+
+                compositor.render_to_terminal();
             }
 
             quit_tx.send(());

@@ -8,4 +8,4 @@ mod terminal;
 mod widgets;
 
 pub use compositor::Compositor;
-pub use terminal::{Input, Terminal};
+pub use terminal::{Event, InputEvent, Terminal};

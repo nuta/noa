@@ -1,6 +1,8 @@
-use std::slice;
+use std::{slice, sync::Arc};
 
-use crate::{surface::HandledEvent, Input};
+use parking_lot::Mutex;
+
+use crate::{surface::HandledEvent, InputEvent};
 
 use super::{
     canvas::Canvas,
@@ -23,7 +25,7 @@ pub struct Compositor {
     screen_size: RectSize,
     active_screen_index: usize,
     /// The last element comes foreground.
-    layers: Vec<Layer>,
+    layers: Arc<Mutex<Vec<Layer>>>,
 }
 
 impl Compositor {
@@ -41,7 +43,7 @@ impl Compositor {
             ],
             screen_size,
             active_screen_index: 0,
-            layers: Vec::new(),
+            layers: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -52,7 +54,7 @@ impl Compositor {
         screen_y: usize,
         screen_x: usize,
     ) {
-        self.layers.push(Layer {
+        self.layers.lock().push(Layer {
             surface,
             active,
             canvas: Canvas::new(0, 0),
@@ -70,7 +72,8 @@ impl Compositor {
     pub fn render_to_terminal(&mut self) {
         // Get the cursor position.
         let mut cursor = None;
-        for layer in self.layers.iter().rev() {
+        let mut layers = self.layers.lock();
+        for layer in layers.iter().rev() {
             if layer.active {
                 if let Some((y, x)) = layer.surface.cursor_position() {
                     cursor = Some((layer.screen_y + y, layer.screen_x + x));
@@ -80,7 +83,7 @@ impl Compositor {
         }
 
         // Re-layout layers.
-        for layer in &mut self.layers {
+        for layer in layers.iter_mut() {
             let ((screen_y, screen_x), rect_size) =
                 relayout_layers(self.screen_size, &*layer.surface);
             layer.screen_x = screen_x;
@@ -93,7 +96,7 @@ impl Compositor {
         let screen_index = self.active_screen_index;
 
         // Render and composite layers.
-        compose_layers(&mut self.screens[screen_index], self.layers.iter_mut());
+        compose_layers(&mut self.screens[screen_index], layers.iter_mut());
 
         // Compute diffs.
 
@@ -115,47 +118,46 @@ impl Compositor {
         drawer.flush();
     }
 
-    pub fn handle_input(&mut self, input: Input) {
+    pub fn handle_input(&mut self, input: InputEvent) {
         trace!("input: {:?}", input);
-        match input {
-            Input::Key(key) => {
-                for i in (0..self.layers.len()).rev() {
-                    let layer = &mut self.layers[i];
-                    if layer.active {
-                        if let HandledEvent::Consumed = layer.surface.handle_key_event(key) {
-                            break;
+        let layers = self.layers.clone();
+        tokio::spawn(async move {
+            let mut layers = layers.lock();
+            match input {
+                InputEvent::Key(key) => {
+                    for i in (0..layers.len()).rev() {
+                        let layer = &mut layers[i];
+                        if layer.active {
+                            if let HandledEvent::Consumed = layer.surface.handle_key_event(key) {
+                                break;
+                            }
+                        }
+                    }
+                }
+                InputEvent::Mouse(ev) => {
+                    for i in (0..layers.len()).rev() {
+                        let layer = &mut layers[i];
+                        if layer.active {
+                            if let HandledEvent::Consumed = layer.surface.handle_mouse_event(ev) {
+                                break;
+                            }
+                        }
+                    }
+                }
+                InputEvent::KeyBatch(input) => {
+                    for i in (0..layers.len()).rev() {
+                        let layer = &mut layers[i];
+                        if layer.active {
+                            if let HandledEvent::Consumed =
+                                layer.surface.handle_key_batch_event(&input)
+                            {
+                                break;
+                            }
                         }
                     }
                 }
             }
-            Input::Mouse(ev) => {
-                for i in (0..self.layers.len()).rev() {
-                    let layer = &mut self.layers[i];
-                    if layer.active {
-                        if let HandledEvent::Consumed = layer.surface.handle_mouse_event(ev) {
-                            break;
-                        }
-                    }
-                }
-            }
-            Input::KeyBatch(input) => {
-                for i in (0..self.layers.len()).rev() {
-                    let layer = &mut self.layers[i];
-                    if layer.active {
-                        if let HandledEvent::Consumed = layer.surface.handle_key_batch_event(&input)
-                        {
-                            break;
-                        }
-                    }
-                }
-            }
-            Input::Resize {
-                screen_height,
-                screen_width,
-            } => {
-                self.resize_screen(screen_height, screen_width);
-            }
-        }
+        });
     }
 }
 

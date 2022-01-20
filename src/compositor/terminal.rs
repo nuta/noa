@@ -18,14 +18,16 @@ use futures::StreamExt;
 use super::canvas::DrawOp;
 
 #[derive(Clone, PartialEq, Debug)]
-pub enum Input {
+pub enum InputEvent {
     Key(KeyEvent),
     Mouse(MouseEvent),
     KeyBatch(String),
-    Resize {
-        screen_height: usize,
-        screen_width: usize,
-    },
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum Event {
+    Input(InputEvent),
+    Resize { height: usize, width: usize },
 }
 
 pub struct Terminal {
@@ -34,15 +36,15 @@ pub struct Terminal {
 }
 
 impl Terminal {
-    pub fn new<F>(input_handler: F) -> Terminal
+    pub fn new<F>(event_handler: F) -> Terminal
     where
-        F: Fn(Input) + Send + Sync + 'static,
+        F: Fn(Event) + Send + Sync + 'static,
     {
         enable_raw_mode().expect("failed to enable the raw mode");
         execute!(stdout(), EnterAlternateScreen).expect("failed to enter the alternative screen");
         execute!(stdout(), EnableMouseCapture).expect("failed to enable mouse capture");
         let (cols, rows) = size().expect("failed to get the terminal size");
-        listen_events(input_handler);
+        listen_events(event_handler);
         Terminal {
             height: rows as usize,
             width: cols as usize,
@@ -86,26 +88,26 @@ impl Drop for Terminal {
     }
 }
 
-fn listen_events<F>(input_handler: F)
+fn listen_events<F>(event_handler: F)
 where
-    F: Fn(Input) + Send + Sync + 'static,
+    F: Fn(Event) + Send + Sync + 'static,
 {
     tokio::spawn(async move {
-        fn handle_event<F>(input_handler: F, ev: TermEvent)
+        fn handle_event<F>(event_handler: F, ev: TermEvent)
         where
-            F: Fn(Input) + Send + Sync,
+            F: Fn(Event) + Send + Sync,
         {
             match ev {
                 TermEvent::Key(key) => {
-                    input_handler(Input::Key(key));
+                    event_handler(Event::Input(InputEvent::Key(key)));
                 }
                 TermEvent::Mouse(ev) => {
-                    input_handler(Input::Mouse(ev));
+                    event_handler(Event::Input(InputEvent::Mouse(ev)));
                 }
                 TermEvent::Resize(cols, rows) => {
-                    input_handler(Input::Resize {
-                        screen_width: cols as usize,
-                        screen_height: rows as usize,
+                    event_handler(Event::Resize {
+                        width: cols as usize,
+                        height: rows as usize,
                     });
                 }
             }
@@ -158,13 +160,13 @@ where
                             }
                         }
 
-                        input_handler(Input::KeyBatch(buf));
+                        event_handler(Event::Input(InputEvent::KeyBatch(buf)));
                         if let Some(ev) = next_event {
-                            handle_event(&input_handler, ev);
+                            handle_event(&event_handler, ev);
                         }
                     }
                     _ => {
-                        handle_event(&input_handler, ev);
+                        handle_event(&event_handler, ev);
                     }
                 }
             }
