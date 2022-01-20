@@ -4,6 +4,7 @@ use tokio::sync::oneshot;
 use crate::{
     clipboard::{self, ClipboardProvider},
     document::DocumentManager,
+    ui::buffer_view::BufferView,
 };
 
 pub struct Editor {
@@ -26,6 +27,9 @@ impl Editor {
     }
 
     pub async fn run(mut self) {
+        self.compositor
+            .add_frontmost_layer(Box::new(BufferView::new()), true, 0, 0);
+
         loop {
             self.compositor.render_to_terminal();
 

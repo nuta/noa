@@ -1,6 +1,5 @@
-use crossterm::event::{KeyEvent, MouseEvent};
-
-use super::{canvas::CanvasViewMut};
+use super::canvas::CanvasViewMut;
+pub use crossterm::event::{KeyEvent, MouseEvent};
 
 #[derive(Clone, Copy, Debug)]
 pub enum Layout {
