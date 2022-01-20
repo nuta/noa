@@ -20,4 +20,8 @@ impl Editor {
                 .unwrap_or_else(clipboard::build_dummy_provider),
         }
     }
+
+    pub fn documents_mut(&mut self) -> &mut DocumentManager {
+        &mut self.documents
+    }
 }

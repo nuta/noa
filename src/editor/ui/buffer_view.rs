@@ -51,20 +51,17 @@ impl Surface for BufferView {
         const ALT: KeyModifiers = KeyModifiers::ALT;
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
-        //        let buffers = self.buffers.write();
+        let mut doc = editor.documents_mut().current_mut();
 
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), CTRL) => {
                 self.quit_tx.take().unwrap().send(());
             }
             (KeyCode::Char('u'), CTRL) => {
-                //                //                f.buffer.undo();
+                doc.buffer_mut().undo();
             }
             (KeyCode::Char('y'), CTRL) => {
-                //                //                f.buffer.redo();
-            }
-            (KeyCode::Char('d'), CTRL) | (KeyCode::Delete, _) => {
-                //                //                f.buffer.delete();
+                doc.buffer_mut().redo();
             }
             (KeyCode::Char('c'), CTRL) => {
                 // TODO:
@@ -73,7 +70,7 @@ impl Surface for BufferView {
                 // TODO:
             }
             (KeyCode::Char('k'), CTRL) => {
-                //                //                f.buffer.truncate();
+                // doc.buffer_mut().truncate();
             }
             (KeyCode::Char('a'), CTRL) => {
                 //                //                f.buffer.move_to_beginning_of_line();
@@ -110,12 +107,13 @@ impl Surface for BufferView {
                 //                // f.buffer.duplicate_line_below();
             }
             (KeyCode::Char('w'), CTRL) => {
-                //                let selections = f.buffer.prev_word_ranges();
-                //                //                f.buffer.select_by_ranges(&selections);
-                //                //                f.buffer.backspace();
+                // doc.buffer_mut()
             }
             (KeyCode::Backspace, NONE) => {
-                //                //                f.buffer.backspace();
+                doc.buffer_mut().backspace();
+            }
+            (KeyCode::Char('d'), CTRL) | (KeyCode::Delete, _) => {
+                doc.buffer_mut().delete();
             }
             (KeyCode::Up, NONE) => {
                 //                f.move_cursors(-1, 0);
@@ -142,7 +140,7 @@ impl Surface for BufferView {
                 //                f.expand_selections(0, 1);
             }
             (KeyCode::Enter, NONE) => {
-                //                //                f.buffer.type_newline();
+                doc.buffer_mut().insert_newline_and_indent();
             }
             (KeyCode::Tab, NONE) => {
                 //                //                f.buffer.tab();
@@ -151,10 +149,10 @@ impl Surface for BufferView {
                 //                //                f.buffer.back_tab();
             }
             (KeyCode::Char(ch), NONE) => {
-                //                //                f.buffer.type_char(ch);
+                doc.buffer_mut().insert_char(ch);
             }
             (KeyCode::Char(ch), SHIFT) => {
-                //                //                f.buffer.type_char(ch);
+                doc.buffer_mut().insert_char(ch);
             }
             _ => {
                 trace!("unhandled key = {:?}", key);
@@ -165,7 +163,8 @@ impl Surface for BufferView {
     }
 
     fn handle_key_batch_event(&mut self, editor: &mut Editor, s: &str) -> HandledEvent {
-        todo!()
+        editor.documents_mut().current_mut().buffer_mut().insert(s);
+        HandledEvent::Consumed
     }
 
     fn handle_mouse_event(&mut self, editor: &mut Editor, _ev: MouseEvent) -> HandledEvent {

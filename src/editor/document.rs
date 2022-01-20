@@ -43,7 +43,11 @@ impl Document {
         Ok(())
     }
 
-    pub fn update(&mut self) {
+    pub fn buffer_mut(&mut self) -> &mut Buffer {
+        &mut self.buffer
+    }
+
+    pub fn run_post_update_jobs(&mut self) {
         self.view.update(&self.buffer);
     }
 }
@@ -71,22 +75,26 @@ impl DocumentManager {
         manager
     }
 
-    pub fn open_virtual_file(&mut self, doc: Document) {
+    pub fn open_virtual_file(&mut self, mut doc: Document) {
         // Allocate a document ID.
         let doc_id = DocumentId(
             NonZeroUsize::new(self.next_document_id.fetch_add(1, Ordering::SeqCst)).unwrap(),
         );
 
-        self.documents.insert(doc_id, doc);
-
         // First run of syntax highlighting, etc.
-        self.file_changed(doc_id);
+        doc.run_post_update_jobs();
+
+        self.documents.insert(doc_id, doc);
 
         // Switch to the buffer.
         self.current = doc_id;
     }
 
-    pub fn file_changed(&mut self, document_id: DocumentId) {
-        self.documents.get_mut(&document_id).unwrap().update();
+    pub fn current(&self) -> &Document {
+        self.documents.get(&self.current).unwrap()
+    }
+
+    pub fn current_mut(&mut self) -> &mut Document {
+        self.documents.get_mut(&self.current).unwrap()
     }
 }
