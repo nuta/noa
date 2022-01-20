@@ -51,11 +51,15 @@ impl Surface for BufferView {
         const ALT: KeyModifiers = KeyModifiers::ALT;
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
-        let mut doc = editor.documents_mut().current_mut();
+        let mut notifications = &mut editor.notifications;
+        let mut doc = editor.documents.current_mut();
 
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), CTRL) => {
                 self.quit_tx.take().unwrap().send(());
+            }
+            (KeyCode::Char('s'), CTRL) => {
+                notifications.maybe_error(doc.save_to_file());
             }
             (KeyCode::Char('u'), CTRL) => {
                 doc.buffer_mut().undo();
@@ -163,7 +167,7 @@ impl Surface for BufferView {
     }
 
     fn handle_key_batch_event(&mut self, editor: &mut Editor, s: &str) -> HandledEvent {
-        editor.documents_mut().current_mut().buffer_mut().insert(s);
+        editor.documents.current_mut().buffer_mut().insert(s);
         HandledEvent::Consumed
     }
 

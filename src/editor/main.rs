@@ -23,6 +23,7 @@ mod clipboard;
 mod document;
 mod editor;
 mod highlighting;
+mod notification;
 mod ui;
 mod view;
 

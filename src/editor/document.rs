@@ -35,7 +35,9 @@ impl Document {
         unimplemented!()
     }
 
-    pub fn save_to_file(&self) -> Result<()> {
+    pub fn save_to_file(&mut self) -> Result<()> {
+        self.buffer.save_undo();
+
         if let Some(ref path) = self.path {
             self.buffer.save_to_file(path)?;
         }
