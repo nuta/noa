@@ -1,22 +1,30 @@
 use noa_compositor::{
     canvas::CanvasViewMut,
-    surface::{HandledEvent, KeyEvent, Layout, RectSize, Surface},
+    surface::{HandledEvent, KeyEvent, Layout, MouseEvent, RectSize, Surface},
+    terminal::{KeyCode, KeyModifiers},
 };
+use tokio::sync::oneshot;
+
+use crate::editor::Editor;
 
 pub struct BufferView {
+    quit_tx: Option<oneshot::Sender<()>>,
     /// `(y, x)`.
     cursor_position: (usize, usize),
 }
 
 impl BufferView {
-    pub fn new() -> BufferView {
+    pub fn new(quit_tx: oneshot::Sender<()>) -> BufferView {
         BufferView {
+            quit_tx: Some(quit_tx),
             cursor_position: (0, 0),
         }
     }
 }
 
 impl Surface for BufferView {
+    type Context = Editor;
+
     fn name(&self) -> &str {
         "buffer"
     }
@@ -37,15 +45,130 @@ impl Surface for BufferView {
         canvas.clear();
     }
 
-    fn handle_key_event(&mut self, ev: KeyEvent) -> HandledEvent {
+    fn handle_key_event(&mut self, editor: &mut Editor, key: KeyEvent) -> HandledEvent {
+        const NONE: KeyModifiers = KeyModifiers::NONE;
+        const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        const ALT: KeyModifiers = KeyModifiers::ALT;
+        const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
+
+        //        let buffers = self.buffers.write();
+
+        match (key.code, key.modifiers) {
+            (KeyCode::Char('q'), CTRL) => {
+                self.quit_tx.take().unwrap().send(());
+            }
+            (KeyCode::Char('u'), CTRL) => {
+                //                //                f.buffer.undo();
+            }
+            (KeyCode::Char('y'), CTRL) => {
+                //                //                f.buffer.redo();
+            }
+            (KeyCode::Char('d'), CTRL) | (KeyCode::Delete, _) => {
+                //                //                f.buffer.delete();
+            }
+            (KeyCode::Char('c'), CTRL) => {
+                // TODO:
+            }
+            (KeyCode::Char('x'), CTRL) => {
+                // TODO:
+            }
+            (KeyCode::Char('k'), CTRL) => {
+                //                //                f.buffer.truncate();
+            }
+            (KeyCode::Char('a'), CTRL) => {
+                //                //                f.buffer.move_to_beginning_of_line();
+            }
+            (KeyCode::Char('e'), CTRL) => {
+                //                //                f.buffer.move_to_end_of_line();
+            }
+            (KeyCode::Char('f'), ALT) => {
+                //                //                f.buffer.move_to_next_word();
+            }
+            (KeyCode::Char('b'), ALT) => {
+                //                //                f.buffer.move_to_prev_word();
+            }
+            (KeyCode::Up, ALT) => {
+                //                //                f.buffer.move_current_line_above();
+            }
+            (KeyCode::Down, ALT) => {
+                //                //                f.buffer.move_current_line_below();
+            }
+            (KeyCode::Up, modifiers) if modifiers == (CTRL | ALT) => {
+                // TODO:
+                //                // f.buffer.add_cursor_above();
+            }
+            (KeyCode::Down, modifiers) if modifiers == (CTRL | ALT) => {
+                // TODO:
+                //                // f.buffer.add_cursor_below();
+            }
+            (KeyCode::Up, modifiers) if modifiers == (SHIFT | ALT) => {
+                // TODO:
+                //                // f.buffer.duplicate_line_above();
+            }
+            (KeyCode::Down, modifiers) if modifiers == (SHIFT | ALT) => {
+                // TODO:
+                //                // f.buffer.duplicate_line_below();
+            }
+            (KeyCode::Char('w'), CTRL) => {
+                //                let selections = f.buffer.prev_word_ranges();
+                //                //                f.buffer.select_by_ranges(&selections);
+                //                //                f.buffer.backspace();
+            }
+            (KeyCode::Backspace, NONE) => {
+                //                //                f.buffer.backspace();
+            }
+            (KeyCode::Up, NONE) => {
+                //                f.move_cursors(-1, 0);
+            }
+            (KeyCode::Down, NONE) => {
+                //                f.move_cursors(1, 0);
+            }
+            (KeyCode::Left, NONE) => {
+                //                f.move_cursors(0, -1);
+            }
+            (KeyCode::Right, NONE) => {
+                //                f.move_cursors(0, 1);
+            }
+            (KeyCode::Up, SHIFT) => {
+                //                f.expand_selections(-1, 0);
+            }
+            (KeyCode::Down, SHIFT) => {
+                //                f.expand_selections(1, 0);
+            }
+            (KeyCode::Left, SHIFT) => {
+                //                f.expand_selections(0, -1);
+            }
+            (KeyCode::Right, SHIFT) => {
+                //                f.expand_selections(0, 1);
+            }
+            (KeyCode::Enter, NONE) => {
+                //                //                f.buffer.type_newline();
+            }
+            (KeyCode::Tab, NONE) => {
+                //                //                f.buffer.tab();
+            }
+            (KeyCode::BackTab, NONE) => {
+                //                //                f.buffer.back_tab();
+            }
+            (KeyCode::Char(ch), NONE) => {
+                //                //                f.buffer.type_char(ch);
+            }
+            (KeyCode::Char(ch), SHIFT) => {
+                //                //                f.buffer.type_char(ch);
+            }
+            _ => {
+                trace!("unhandled key = {:?}", key);
+            }
+        }
+
+        HandledEvent::Consumed
+    }
+
+    fn handle_key_batch_event(&mut self, editor: &mut Editor, s: &str) -> HandledEvent {
         todo!()
     }
 
-    fn handle_key_batch_event(&mut self, s: &str) -> HandledEvent {
-        todo!()
-    }
-
-    fn handle_mouse_event(&mut self, _ev: noa_compositor::surface::MouseEvent) -> HandledEvent {
-        todo!()
+    fn handle_mouse_event(&mut self, editor: &mut Editor, _ev: MouseEvent) -> HandledEvent {
+        HandledEvent::Ignored
     }
 }

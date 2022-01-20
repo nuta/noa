@@ -3,7 +3,7 @@ use std::{slice, sync::Arc};
 use parking_lot::Mutex;
 use tokio::sync::mpsc;
 
-use crate::{surface::HandledEvent, InputEvent};
+use crate::{surface::HandledEvent, terminal::InputEvent};
 
 use super::{
     canvas::Canvas,
@@ -11,8 +11,8 @@ use super::{
     terminal::{self, Terminal},
 };
 
-pub struct Layer {
-    pub surface: Box<dyn Surface + Send>,
+pub struct Layer<C> {
+    pub surface: Box<dyn Surface<Context = C> + Send>,
     /// If it's `false`, the surface won't receive key events.
     pub active: bool,
     pub canvas: Canvas,
@@ -20,18 +20,18 @@ pub struct Layer {
     pub screen_x: usize,
 }
 
-pub struct Compositor {
+pub struct Compositor<C> {
     terminal: Terminal,
     term_rx: mpsc::UnboundedReceiver<terminal::Event>,
     screens: [Canvas; 2],
     screen_size: RectSize,
     active_screen_index: usize,
     /// The last element comes foreground.
-    layers: Arc<Mutex<Vec<Layer>>>,
+    layers: Arc<Mutex<Vec<Layer<C>>>>,
 }
 
-impl Compositor {
-    pub fn new() -> Compositor {
+impl<C> Compositor<C> {
+    pub fn new() -> Compositor<C> {
         let (term_tx, term_rx) = mpsc::unbounded_channel();
         let terminal = Terminal::new(move |ev| {
             term_tx.send(ev).ok();
@@ -61,7 +61,7 @@ impl Compositor {
 
     pub fn add_frontmost_layer(
         &mut self,
-        surface: Box<dyn Surface + Send>,
+        surface: Box<dyn Surface<Context = C> + Send>,
         active: bool,
         screen_y: usize,
         screen_x: usize,
@@ -130,7 +130,7 @@ impl Compositor {
         drawer.flush();
     }
 
-    pub fn handle_input(&mut self, input: InputEvent) {
+    pub fn handle_input(&mut self, ctx: &mut C, input: InputEvent) {
         trace!("input: {:?}", input);
         let layers = self.layers.clone();
         let mut layers = layers.lock();
@@ -138,7 +138,7 @@ impl Compositor {
             InputEvent::Key(key) => {
                 for layer in layers.iter_mut().rev() {
                     if layer.active {
-                        if let HandledEvent::Consumed = layer.surface.handle_key_event(key) {
+                        if let HandledEvent::Consumed = layer.surface.handle_key_event(ctx, key) {
                             break;
                         }
                     }
@@ -147,7 +147,7 @@ impl Compositor {
             InputEvent::Mouse(ev) => {
                 for layer in layers.iter_mut().rev() {
                     if layer.active {
-                        if let HandledEvent::Consumed = layer.surface.handle_mouse_event(ev) {
+                        if let HandledEvent::Consumed = layer.surface.handle_mouse_event(ctx, ev) {
                             break;
                         }
                     }
@@ -156,7 +156,8 @@ impl Compositor {
             InputEvent::KeyBatch(input) => {
                 for layer in layers.iter_mut().rev() {
                     if layer.active {
-                        if let HandledEvent::Consumed = layer.surface.handle_key_batch_event(&input)
+                        if let HandledEvent::Consumed =
+                            layer.surface.handle_key_batch_event(ctx, &input)
                         {
                             break;
                         }
@@ -168,7 +169,7 @@ impl Compositor {
 }
 
 /// Renders each surfaces and copy the compose into the screen canvas.
-fn compose_layers(screen: &mut Canvas, layers: slice::IterMut<'_, Layer>) {
+fn compose_layers<C>(screen: &mut Canvas, layers: slice::IterMut<'_, Layer<C>>) {
     screen.view_mut().clear();
 
     for layer in layers {

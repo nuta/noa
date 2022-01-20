@@ -21,6 +21,8 @@ pub enum HandledEvent {
 }
 
 pub trait Surface {
+    type Context;
+
     fn name(&self) -> &str;
     fn is_visible(&self) -> bool;
     fn layout(&self, screen_size: RectSize) -> (Layout, RectSize);
@@ -30,9 +32,9 @@ pub trait Surface {
     /// Render its contents into the canvas. It must fill the whole canvas; the
     /// canvas can be the newly created one due to, for example, screen resizing.
     fn render(&mut self, canvas: CanvasViewMut<'_>);
-    fn handle_key_event(&mut self, key: KeyEvent) -> HandledEvent;
-    fn handle_mouse_event(&mut self, _ev: MouseEvent) -> HandledEvent {
+    fn handle_key_event(&mut self, ctx: &mut Self::Context, key: KeyEvent) -> HandledEvent;
+    fn handle_mouse_event(&mut self, _ctx: &mut Self::Context, _ev: MouseEvent) -> HandledEvent {
         HandledEvent::Ignored
     }
-    fn handle_key_batch_event(&mut self, input: &str) -> HandledEvent;
+    fn handle_key_batch_event(&mut self, ctx: &mut Self::Context, input: &str) -> HandledEvent;
 }

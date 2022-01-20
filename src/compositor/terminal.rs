@@ -5,10 +5,7 @@ use std::{
 
 use crossterm::{
     cursor::{self, MoveTo},
-    event::{
-        DisableMouseCapture, EnableMouseCapture, Event as TermEvent, EventStream, KeyCode,
-        KeyEvent, KeyModifiers, MouseEvent,
-    },
+    event::{DisableMouseCapture, EnableMouseCapture, Event as TermEvent, EventStream},
     execute, queue,
     style::{Attribute, Print, SetAttribute, SetBackgroundColor, SetForegroundColor},
     terminal::*,
@@ -16,6 +13,8 @@ use crossterm::{
 use futures::StreamExt;
 
 use super::canvas::DrawOp;
+
+pub use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent};
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum InputEvent {
