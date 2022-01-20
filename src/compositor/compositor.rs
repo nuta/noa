@@ -1,13 +1,14 @@
 use std::{slice, sync::Arc};
 
 use parking_lot::Mutex;
+use tokio::sync::mpsc;
 
 use crate::{surface::HandledEvent, InputEvent};
 
 use super::{
     canvas::Canvas,
     surface::{Layout, RectSize, Surface},
-    terminal::Terminal,
+    terminal::{self, Terminal},
 };
 
 pub struct Layer {
@@ -21,6 +22,7 @@ pub struct Layer {
 
 pub struct Compositor {
     terminal: Terminal,
+    term_rx: mpsc::UnboundedReceiver<terminal::Event>,
     screens: [Canvas; 2],
     screen_size: RectSize,
     active_screen_index: usize,
@@ -29,7 +31,12 @@ pub struct Compositor {
 }
 
 impl Compositor {
-    pub fn new(terminal: Terminal) -> Compositor {
+    pub fn new() -> Compositor {
+        let (term_tx, term_rx) = mpsc::unbounded_channel();
+        let terminal = Terminal::new(move |ev| {
+            term_tx.send(ev).ok();
+        });
+
         let screen_size = RectSize {
             height: terminal.height(),
             width: terminal.width(),
@@ -37,6 +44,7 @@ impl Compositor {
 
         Compositor {
             terminal,
+            term_rx,
             screens: [
                 Canvas::new(screen_size.height, screen_size.width),
                 Canvas::new(screen_size.height, screen_size.width),
@@ -45,6 +53,10 @@ impl Compositor {
             active_screen_index: 0,
             layers: Arc::new(Mutex::new(Vec::new())),
         }
+    }
+
+    pub async fn recv_terminal_event(&mut self) -> Option<terminal::Event> {
+        self.term_rx.recv().await
     }
 
     pub fn add_frontmost_layer(

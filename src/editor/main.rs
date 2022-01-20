@@ -35,7 +35,6 @@ async fn main() {
     install_logger("main");
     let args = Args::parse();
 
-    let (ui, quit) = ui::Ui::new();
-    let mut editor = editor::Editor::new(ui);
-    quit.await;
+    let editor = editor::Editor::new();
+    editor.run().await;
 }
