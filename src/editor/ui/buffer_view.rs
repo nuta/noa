@@ -41,7 +41,7 @@ impl Surface for BufferView {
         Some(self.cursor_position)
     }
 
-    fn render<'a>(&mut self, mut canvas: CanvasViewMut<'a>) {
+    fn render(&mut self, mut canvas: CanvasViewMut<'_>) {
         canvas.clear();
     }
 
