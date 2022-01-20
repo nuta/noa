@@ -133,43 +133,37 @@ impl Compositor {
     pub fn handle_input(&mut self, input: InputEvent) {
         trace!("input: {:?}", input);
         let layers = self.layers.clone();
-        tokio::spawn(async move {
-            let mut layers = layers.lock();
-            match input {
-                InputEvent::Key(key) => {
-                    for i in (0..layers.len()).rev() {
-                        let layer = &mut layers[i];
-                        if layer.active {
-                            if let HandledEvent::Consumed = layer.surface.handle_key_event(key) {
-                                break;
-                            }
-                        }
-                    }
-                }
-                InputEvent::Mouse(ev) => {
-                    for i in (0..layers.len()).rev() {
-                        let layer = &mut layers[i];
-                        if layer.active {
-                            if let HandledEvent::Consumed = layer.surface.handle_mouse_event(ev) {
-                                break;
-                            }
-                        }
-                    }
-                }
-                InputEvent::KeyBatch(input) => {
-                    for i in (0..layers.len()).rev() {
-                        let layer = &mut layers[i];
-                        if layer.active {
-                            if let HandledEvent::Consumed =
-                                layer.surface.handle_key_batch_event(&input)
-                            {
-                                break;
-                            }
+        let mut layers = layers.lock();
+        match input {
+            InputEvent::Key(key) => {
+                for layer in layers.iter_mut().rev() {
+                    if layer.active {
+                        if let HandledEvent::Consumed = layer.surface.handle_key_event(key) {
+                            break;
                         }
                     }
                 }
             }
-        });
+            InputEvent::Mouse(ev) => {
+                for layer in layers.iter_mut().rev() {
+                    if layer.active {
+                        if let HandledEvent::Consumed = layer.surface.handle_mouse_event(ev) {
+                            break;
+                        }
+                    }
+                }
+            }
+            InputEvent::KeyBatch(input) => {
+                for layer in layers.iter_mut().rev() {
+                    if layer.active {
+                        if let HandledEvent::Consumed = layer.surface.handle_key_batch_event(&input)
+                        {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
