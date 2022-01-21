@@ -30,6 +30,7 @@ pub struct Compositor<C> {
     layers: Arc<Mutex<Vec<Layer<C>>>>,
 }
 
+#[allow(clippy::new_without_default)]
 impl<C> Compositor<C> {
     pub fn new() -> Compositor<C> {
         let (term_tx, term_rx) = mpsc::unbounded_channel();
