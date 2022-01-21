@@ -16,6 +16,15 @@ pub struct ClipboardData {
 }
 
 impl ClipboardData {
+    pub fn from_buffer(buffer: &Buffer) -> ClipboardData {
+        let mut texts = Vec::new();
+        for c in doc.buffer().cursors() {
+            texts.push(doc.buffer().substr(c.selection()));
+        }
+
+        ClipboardData { texts }
+    }
+
     pub fn equals_to_str(&self, text: &str) -> bool {
         self.texts.join("\n") == text
     }

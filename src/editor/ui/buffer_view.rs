@@ -71,14 +71,9 @@ impl Surface for BufferView {
                 doc.buffer_mut().redo();
             }
             (KeyCode::Char('c'), CTRL) => {
-                let mut texts = Vec::new();
-                for c in doc.buffer().cursors() {
-                    texts.push(doc.buffer().substr(c.selection()));
-                }
-
                 editor
                     .clipboard
-                    .copy_into_clipboard(ClipboardData { texts });
+                    .copy_into_clipboard(ClipboardData::from_buffer(doc.buffer()));
             }
             (KeyCode::Char('x'), CTRL) => {
                 let buffer = doc.buffer_mut();
