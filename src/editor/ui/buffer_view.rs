@@ -3,9 +3,12 @@ use noa_compositor::{
     surface::{HandledEvent, KeyEvent, Layout, MouseEvent, RectSize, Surface},
     terminal::{KeyCode, KeyModifiers},
 };
-use tokio::sync::oneshot;
+use tokio::{sync::oneshot, task};
 
-use crate::editor::Editor;
+use crate::{
+    clipboard::{ClipboardData, SystemClipboardData},
+    editor::Editor,
+};
 
 pub struct BufferView {
     quit_tx: Option<oneshot::Sender<()>>,
@@ -68,10 +71,29 @@ impl Surface for BufferView {
                 doc.buffer_mut().redo();
             }
             (KeyCode::Char('c'), CTRL) => {
-                // TODO:
+                let mut texts = Vec::new();
+                for c in doc.buffer().cursors() {
+                    texts.push(doc.buffer().substr(c.selection()));
+                }
+
+                editor
+                    .clipboard
+                    .copy_into_clipboard(ClipboardData { texts });
             }
             (KeyCode::Char('x'), CTRL) => {
-                // TODO:
+                let buffer = doc.buffer_mut();
+                match editor.clipboard.copy_from_clipboard() {
+                    Ok(SystemClipboardData::Ours(ClipboardData { texts })) => {
+                        let strs: Vec<&str> = texts.iter().map(|s| s.as_str()).collect();
+                        buffer.insert_multiple(&strs);
+                    }
+                    Ok(SystemClipboardData::Others(string)) => {
+                        buffer.insert(&string);
+                    }
+                    Err(err) => {
+                        error!("failed to copy from clipboard: {:?}", err);
+                    }
+                }
             }
             (KeyCode::Char('k'), CTRL) => {
                 // doc.buffer_mut().truncate();

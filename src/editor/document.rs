@@ -45,6 +45,10 @@ impl Document {
         Ok(())
     }
 
+    pub fn buffer(&self) -> &Buffer {
+        &self.buffer
+    }
+
     pub fn buffer_mut(&mut self) -> &mut Buffer {
         &mut self.buffer
     }

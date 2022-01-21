@@ -167,6 +167,18 @@ impl Buffer {
         });
     }
 
+    pub fn insert_multiple(&mut self, texts: &[&str]) {
+        if texts.len() == self.cursors().len() {
+            self.insert(&texts.join("\n"));
+        }
+
+        let mut texts_iter = texts.iter();
+        self.cursors.foreach(|c, past_cursors| {
+            self.buf
+                .edit_cursor(c, past_cursors, texts_iter.next().unwrap());
+        });
+    }
+
     pub fn backspace(&mut self) {
         self.cursors.foreach(|c, past_cursors| {
             if c.selection().is_empty() {

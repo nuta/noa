@@ -11,7 +11,7 @@ use crate::{
 pub struct Editor {
     pub documents: DocumentManager,
     pub notifications: NotificationManager,
-    pub clipboard_provider: Box<dyn ClipboardProvider>,
+    pub clipboard: Box<dyn ClipboardProvider>,
 }
 
 impl Editor {
@@ -19,8 +19,7 @@ impl Editor {
         Editor {
             documents: DocumentManager::new(),
             notifications: NotificationManager::new(),
-            clipboard_provider: clipboard::build_provider()
-                .unwrap_or_else(clipboard::build_dummy_provider),
+            clipboard: clipboard::build_provider().unwrap_or_else(clipboard::build_dummy_provider),
         }
     }
 }

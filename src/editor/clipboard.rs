@@ -1,11 +1,10 @@
-use std::process::Stdio;
+use std::io::prelude::*;
+use std::process::{Command, Stdio};
 
 use anyhow::{bail, Result};
-use async_trait::async_trait;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::process::Command;
+
 use which::which;
 
 /// Represents data in the clipboard with more detailed contexts.
@@ -25,11 +24,11 @@ impl ClipboardData {
         &self.texts
     }
 
-    async fn write_all<W>(&self, writer: &mut W) -> Result<()>
+    fn write_all<W>(&self, writer: &mut W) -> Result<()>
     where
-        W: AsyncWriteExt + Unpin,
+        W: Write + Unpin,
     {
-        writer.write_all(self.to_string().as_bytes()).await?;
+        writer.write_all(self.to_string().as_bytes())?;
         Ok(())
     }
 }
@@ -54,10 +53,9 @@ pub enum SystemClipboardData {
     Others(String),
 }
 
-#[async_trait]
 pub trait ClipboardProvider {
-    async fn copy_from_clipboard(&self) -> Result<SystemClipboardData>;
-    async fn copy_into_clipboard(&self, data: ClipboardData) -> Result<()>;
+    fn copy_from_clipboard(&self) -> Result<SystemClipboardData>;
+    fn copy_into_clipboard(&self, data: ClipboardData) -> Result<()>;
 }
 
 static LAST_OUR_DATA: Lazy<Mutex<ClipboardData>> =
@@ -76,16 +74,15 @@ impl Osc52Provider {
     }
 }
 
-#[async_trait]
 impl ClipboardProvider for Osc52Provider {
     // User should not use this: they should use Cmd + V to paste from the
     // clipboard instead.
-    async fn copy_from_clipboard(&self) -> Result<SystemClipboardData> {
+    fn copy_from_clipboard(&self) -> Result<SystemClipboardData> {
         // Use LAST_OUR_DATA as clipboard.
         Ok(SystemClipboardData::Ours(LAST_OUR_DATA.lock().clone()))
     }
 
-    async fn copy_into_clipboard(&self, data: ClipboardData) -> Result<()> {
+    fn copy_into_clipboard(&self, data: ClipboardData) -> Result<()> {
         use std::io::Write;
 
         let mut stdout = std::io::stdout();
@@ -115,25 +112,24 @@ impl MacOsProvider {
     }
 }
 
-#[async_trait]
 impl ClipboardProvider for MacOsProvider {
-    async fn copy_from_clipboard(&self) -> Result<SystemClipboardData> {
-        let mut child = Command::new("pbcopy").stdout(Stdio::piped()).spawn()?;
+    fn copy_from_clipboard(&self) -> Result<SystemClipboardData> {
+        let mut child = Command::new("pbpaste").stdout(Stdio::piped()).spawn()?;
 
         let mut stdout = child.stdout.take().unwrap();
         let mut buf = String::new();
-        stdout.read_to_string(&mut buf).await?;
+        stdout.read_to_string(&mut buf)?;
 
         Ok(get_last_clipboard_data(&buf)
             .map(SystemClipboardData::Ours)
             .unwrap_or_else(|| SystemClipboardData::Others(buf)))
     }
 
-    async fn copy_into_clipboard(&self, data: ClipboardData) -> Result<()> {
+    fn copy_into_clipboard(&self, data: ClipboardData) -> Result<()> {
         let mut child = Command::new("pbcopy").stdin(Stdio::piped()).spawn()?;
 
         let mut stdin = child.stdin.take().unwrap();
-        data.write_all(&mut stdin).await?;
+        data.write_all(&mut stdin)?;
 
         save_last_clipboard_data(data);
         Ok(())
@@ -142,14 +138,13 @@ impl ClipboardProvider for MacOsProvider {
 
 struct DummyProvider;
 
-#[async_trait]
 impl ClipboardProvider for DummyProvider {
-    async fn copy_from_clipboard(&self) -> Result<SystemClipboardData> {
+    fn copy_from_clipboard(&self) -> Result<SystemClipboardData> {
         // Use LAST_OUR_DATA as clipboard.
         Ok(SystemClipboardData::Ours(LAST_OUR_DATA.lock().clone()))
     }
 
-    async fn copy_into_clipboard(&self, data: ClipboardData) -> Result<()> {
+    fn copy_into_clipboard(&self, data: ClipboardData) -> Result<()> {
         // Use LAST_OUR_DATA as clipboard.
         *LAST_OUR_DATA.lock() = data;
         Ok(())
