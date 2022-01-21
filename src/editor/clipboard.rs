@@ -2,6 +2,7 @@ use std::io::prelude::*;
 use std::process::{Command, Stdio};
 
 use anyhow::{bail, Result};
+use noa_buffer::buffer::Buffer;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 
@@ -18,8 +19,8 @@ pub struct ClipboardData {
 impl ClipboardData {
     pub fn from_buffer(buffer: &Buffer) -> ClipboardData {
         let mut texts = Vec::new();
-        for c in doc.buffer().cursors() {
-            texts.push(doc.buffer().substr(c.selection()));
+        for c in buffer.cursors() {
+            texts.push(buffer.substr(c.selection()));
         }
 
         ClipboardData { texts }
