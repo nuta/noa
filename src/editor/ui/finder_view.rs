@@ -28,7 +28,7 @@ impl Surface for FinderView {
     }
 
     fn is_visible(&self, _editor: &mut Editor) -> bool {
-        true
+        false
     }
 
     fn layout(&self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
