@@ -326,6 +326,7 @@ mod tests {
         assert_eq!(
             view.rows,
             vec![DisplayRow {
+                lineno: 1,
                 graphemes: vec![g2("A", Red), g2("B", Red), g("C")],
                 positions: vec![p(0, 0), p(0, 1), p(0, 2)],
             },]
@@ -338,28 +339,28 @@ mod tests {
 
         let buffer = Buffer::from_text("");
         view.layout(&buffer, 3, 5);
-        assert_eq!(view.rows().len(), 1);
-        assert_eq!(view.rows()[0].graphemes, vec![]);
-        assert_eq!(view.rows()[0].positions, vec![]);
+        assert_eq!(view.rows.len(), 1);
+        assert_eq!(view.rows[0].graphemes, vec![]);
+        assert_eq!(view.rows[0].positions, vec![]);
 
         let buffer = Buffer::from_text("ABC\nX\nY");
         view.layout(&buffer, 3, 5);
-        assert_eq!(view.rows().len(), 3);
-        assert_eq!(view.rows()[0].graphemes, vec![g("A"), g("B"), g("C")]);
-        assert_eq!(view.rows()[0].positions, vec![p(0, 0), p(0, 1), p(0, 2)]);
-        assert_eq!(view.rows()[1].graphemes, vec![g("X")]);
-        assert_eq!(view.rows()[1].positions, vec![p(1, 0)]);
-        assert_eq!(view.rows()[2].graphemes, vec![g("Y")]);
-        assert_eq!(view.rows()[2].positions, vec![p(2, 0)]);
+        assert_eq!(view.rows.len(), 3);
+        assert_eq!(view.rows[0].graphemes, vec![g("A"), g("B"), g("C")]);
+        assert_eq!(view.rows[0].positions, vec![p(0, 0), p(0, 1), p(0, 2)]);
+        assert_eq!(view.rows[1].graphemes, vec![g("X")]);
+        assert_eq!(view.rows[1].positions, vec![p(1, 0)]);
+        assert_eq!(view.rows[2].graphemes, vec![g("Y")]);
+        assert_eq!(view.rows[2].positions, vec![p(2, 0)]);
 
         // Soft wrapping.
         let buffer = Buffer::from_text("ABC123XYZ");
         view.layout(&buffer, 2 /* at least 2 */, 3);
-        assert_eq!(view.rows().len(), 3);
-        assert_eq!(view.rows()[0].graphemes, vec![g("A"), g("B"), g("C")]);
-        assert_eq!(view.rows()[0].positions, vec![p(0, 0), p(0, 1), p(0, 2)]);
-        assert_eq!(view.rows()[1].graphemes, vec![g("1"), g("2"), g("3")]);
-        assert_eq!(view.rows()[1].positions, vec![p(0, 3), p(0, 4), p(0, 5)]);
+        assert_eq!(view.rows.len(), 3);
+        assert_eq!(view.rows[0].graphemes, vec![g("A"), g("B"), g("C")]);
+        assert_eq!(view.rows[0].positions, vec![p(0, 0), p(0, 1), p(0, 2)]);
+        assert_eq!(view.rows[1].graphemes, vec![g("1"), g("2"), g("3")]);
+        assert_eq!(view.rows[1].positions, vec![p(0, 3), p(0, 4), p(0, 5)]);
     }
 
     #[test]
@@ -374,35 +375,35 @@ mod tests {
         let mut buffer = Buffer::from_text("\tA");
         buffer.set_config(&config);
         view.layout(&buffer, 1, 16);
-        assert_eq!(view.rows().len(), 1);
+        assert_eq!(view.rows.len(), 1);
         assert_eq!(
-            view.rows()[0].graphemes,
+            view.rows[0].graphemes,
             vec![g(" "), g(" "), g(" "), g(" "), g("A")]
         );
         assert_eq!(
-            view.rows()[0].positions,
+            view.rows[0].positions,
             vec![p(0, 0), p(0, 0), p(0, 0), p(0, 0), p(0, 1)]
         );
 
         let mut buffer = Buffer::from_text("AB\tC");
         buffer.set_config(&config);
         view.layout(&buffer, 1, 16);
-        assert_eq!(view.rows().len(), 1);
+        assert_eq!(view.rows.len(), 1);
         assert_eq!(
-            view.rows()[0].graphemes,
+            view.rows[0].graphemes,
             vec![g("A"), g("B"), g(" "), g(" "), g("C")]
         );
         assert_eq!(
-            view.rows()[0].positions,
+            view.rows[0].positions,
             vec![p(0, 0), p(0, 1), p(0, 2), p(0, 2), p(0, 3)]
         );
 
         let mut buffer = Buffer::from_text("ABC\t\t");
         buffer.set_config(&config);
         view.layout(&buffer, 1, 16);
-        assert_eq!(view.rows().len(), 1);
+        assert_eq!(view.rows.len(), 1);
         assert_eq!(
-            view.rows()[0].graphemes,
+            view.rows[0].graphemes,
             vec![
                 g("A"),
                 g("B"),
@@ -415,7 +416,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            view.rows()[0].positions,
+            view.rows[0].positions,
             vec![
                 p(0, 0),
                 p(0, 1),

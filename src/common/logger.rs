@@ -13,7 +13,7 @@ pub fn install_logger(name: &str) {
                     Level::Warn => "\x1b[1;33m",
                     _ => "\x1b[34m",
                 },
-                record.file().unwrap_or(record.target()),
+                record.file().unwrap_or_else(|| record.target()),
                 record.line().unwrap_or(0),
                 match record.level() {
                     Level::Error => "\x1b[1;31m",
