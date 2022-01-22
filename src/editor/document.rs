@@ -74,6 +74,10 @@ impl Document {
     }
 
     pub fn run_post_update_jobs(&mut self) {
+        // TODO:
+        let updates_lines = 0..self.buffer.num_lines();
+
+        self.words.update_lines(&self.buffer, updates_lines);
         self.view.update(&self.buffer);
     }
 }

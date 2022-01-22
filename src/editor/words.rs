@@ -32,6 +32,12 @@ impl Words {
         self.fuzzy_set.query(pattern)
     }
 
+    pub fn update_lines(&mut self, buffer: &RawBuffer, ys: Range<usize>) {
+        for y in ys {
+            self.update_line(buffer, y);
+        }
+    }
+
     pub fn update_line(&mut self, buffer: &RawBuffer, y: usize) {
         for word in self
             .words_in_lines
@@ -63,12 +69,6 @@ impl Words {
                     word = String::with_capacity(8);
                 }
             }
-        }
-    }
-
-    pub fn update_lines(&mut self, buffer: &RawBuffer, ys: Range<usize>) {
-        for y in ys {
-            self.update_line(buffer, y);
         }
     }
 }
