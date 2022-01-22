@@ -236,6 +236,15 @@ impl Cursor {
         self.selection
     }
 
+    /// Returns the cursor position if it's not a selection.
+    pub fn position(&self) -> Option<Position> {
+        if self.selection.is_empty() {
+            Some(self.selection.start)
+        } else {
+            None
+        }
+    }
+
     pub(crate) fn selection_mut(&mut self) -> &mut Range {
         &mut self.selection
     }

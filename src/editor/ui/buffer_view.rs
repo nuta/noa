@@ -1,5 +1,6 @@
+use noa_buffer::display_width::DisplayWidth;
 use noa_compositor::{
-    canvas::CanvasViewMut,
+    canvas::{CanvasViewMut, Decoration, Style},
     surface::{HandledEvent, KeyEvent, Layout, MouseEvent, RectSize, Surface},
     terminal::{KeyCode, KeyModifiers},
 };
@@ -12,7 +13,7 @@ use crate::{
 
 pub struct BufferView {
     quit_tx: Option<oneshot::Sender<()>>,
-    /// `(y, x)`.
+    /// The cursor position in surface-local `(y, x)`.
     cursor_position: (usize, usize),
 }
 
@@ -46,6 +47,58 @@ impl Surface for BufferView {
 
     fn render(&mut self, editor: &mut Editor, mut canvas: CanvasViewMut<'_>) {
         canvas.clear();
+
+        let lineno_x;
+        let max_lineno_width;
+        let buffer_y;
+        let buffer_x;
+        let buffer_width;
+        let buffer_height;
+        {
+            let doc = editor.documents.current_mut();
+            let buffer = doc.buffer();
+            lineno_x = 1;
+            max_lineno_width = buffer.num_lines().display_width();
+            buffer_y = 0;
+            buffer_x = lineno_x + max_lineno_width + 1 /* line status */;
+            buffer_width = canvas.width() - buffer_x;
+            buffer_height = canvas.height() - 2 /* bottom line */;
+
+            doc.layout_view(buffer_height, buffer_width);
+        }
+
+        let doc = editor.documents.current();
+        let buffer = doc.buffer();
+
+        // Buffer contents.
+        let first_cursor_pos = buffer.cursors()[0].selection().start;
+        for (i_y, (row)) in doc.view().display_rows().enumerate() {
+            let y = buffer_y + i_y;
+
+            // Draw lineno.
+            let lineno_x = lineno_x + max_lineno_width - row.lineno.display_width();
+            canvas.write_str(y, lineno_x, &format!("{}", row.lineno));
+
+            // Draw each characters in the row.
+            for (i_x, (grapheme, pos)) in row.graphemes.iter().zip(row.positions.iter()).enumerate()
+            {
+                // Draw the character.
+                let x = buffer_x + i_x;
+                canvas.write(y, x, *grapheme);
+
+                if *pos == first_cursor_pos {
+                    self.cursor_position = (y, x);
+                }
+
+                // Update decoration if the cursor includes or is located at
+                // this position.
+                for (i, c) in buffer.cursors().iter().enumerate() {
+                    if c.selection().contains(*pos) || (i != 0 && c.position() == Some(*pos)) {
+                        canvas.set_decoration(y, x, x + 1, Decoration::inverted());
+                    }
+                }
+            }
+        }
     }
 
     fn handle_key_event(&mut self, editor: &mut Editor, key: KeyEvent) -> HandledEvent {

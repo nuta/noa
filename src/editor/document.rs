@@ -59,6 +59,14 @@ impl Document {
         &mut self.buffer
     }
 
+    pub fn view(&self) -> &View {
+        &self.view
+    }
+
+    pub fn layout_view(&mut self, rows: usize, cols: usize) {
+        self.view.layout(&self.buffer, rows, cols);
+    }
+
     pub fn run_post_update_jobs(&mut self) {
         self.view.update(&self.buffer);
     }

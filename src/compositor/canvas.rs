@@ -254,7 +254,7 @@ impl<'a> CanvasViewMut<'a> {
         }
     }
 
-    pub fn set_grapheme(&mut self, y: usize, x: usize, graph: Grapheme) {
+    pub fn write(&mut self, y: usize, x: usize, graph: Grapheme) {
         let in_bounds = y < self.height && x < self.width;
         if !in_bounds {
             warn!(
@@ -280,7 +280,7 @@ impl<'a> CanvasViewMut<'a> {
         let mut grapheme = ArrayString::new();
         grapheme.push(ch);
 
-        self.set_grapheme(
+        self.write(
             y,
             x,
             Grapheme {
@@ -304,11 +304,11 @@ impl<'a> CanvasViewMut<'a> {
         }
     }
 
-    pub fn draw_char(&mut self, y: usize, x: usize, ch: char) {
+    pub fn write_char(&mut self, y: usize, x: usize, ch: char) {
         self.set_char_with_attrs(y, x, ch, Color::Reset, Color::Reset, Default::default());
     }
 
-    pub fn draw_str(&mut self, y: usize, x: usize, string: &str) {
+    pub fn write_str(&mut self, y: usize, x: usize, string: &str) {
         self.set_str_with_attrs(y, x, string, Color::Reset, Color::Reset, Default::default());
     }
 
@@ -379,28 +379,28 @@ impl<'a> CanvasViewMut<'a> {
 
         let vertical_bar = Grapheme::new("\u{2502}" /* vertical bar */);
         for y in (y_top + 1)..(y_bottom - 1) {
-            self.set_grapheme(y, x_left, vertical_bar);
-            self.set_grapheme(y, x_right - 1, vertical_bar);
+            self.write(y, x_left, vertical_bar);
+            self.write(y, x_right - 1, vertical_bar);
         }
 
         let horizontal_bar = Grapheme::new("\u{2500}" /* horizontal bar */);
         for x in (x_left + 1)..(x_right - 1) {
-            self.set_grapheme(y_top, x, horizontal_bar);
-            self.set_grapheme(y_bottom - 1, x, horizontal_bar);
+            self.write(y_top, x, horizontal_bar);
+            self.write(y_bottom - 1, x, horizontal_bar);
         }
 
-        self.set_grapheme(y_top, x_left, Grapheme::new("\u{250d}" /* scroll */));
-        self.set_grapheme(
+        self.write(y_top, x_left, Grapheme::new("\u{250d}" /* scroll */));
+        self.write(
             y_top,
             x_right - 1,
             Grapheme::new("\u{2511}" /* top_right */),
         );
-        self.set_grapheme(
+        self.write(
             y_bottom - 1,
             x_left,
             Grapheme::new("\u{2515}" /* bottom_left */),
         );
-        self.set_grapheme(
+        self.write(
             y_bottom - 1,
             x_right - 1,
             Grapheme::new("\u{2519}" /* bottom_right */),

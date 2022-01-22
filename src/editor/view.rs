@@ -19,6 +19,8 @@ pub struct Span {
 
 #[derive(Debug, PartialEq)]
 pub struct DisplayRow {
+    // The line number. Starts at 1.
+    pub lineno: usize,
     /// The graphemes in this row.
     pub graphemes: Vec<Grapheme>,
     /// The positions in the buffer for each grapheme.
@@ -31,6 +33,7 @@ pub struct View {
     first_pos: Position,
     // The last grapheme's position in `rows`.
     last_pos: Position,
+    scroll: usize,
     // The logical position of the cursor.
     logical_x: usize,
     highlighter: Highlighter,
@@ -40,6 +43,7 @@ impl View {
     pub fn new(highlighter: Highlighter) -> View {
         View {
             rows: Vec::new(),
+            scroll: 0,
             logical_x: 0,
             highlighter,
             first_pos: Position::new(0, 0),
@@ -47,8 +51,8 @@ impl View {
         }
     }
 
-    pub fn rows(&self) -> &[DisplayRow] {
-        &self.rows
+    pub fn display_rows(&self) -> impl Iterator<Item = &'_ DisplayRow> {
+        self.rows.iter().skip(self.scroll)
     }
 
     /// Called when the buffer is modified.
@@ -158,6 +162,7 @@ impl View {
         })();
     }
 
+    /// Layouts a single physical (separated by "\n") line.
     fn layout_line(&self, buffer: &Buffer, y: usize, width: usize) -> Vec<DisplayRow> {
         let mut grapheme_iter = buffer.grapheme_iter(Position::new(y, 0));
         let mut unprocessed_grapheme = None;
@@ -243,6 +248,7 @@ impl View {
             }
 
             rows.push(DisplayRow {
+                lineno: y,
                 graphemes,
                 positions,
             });
