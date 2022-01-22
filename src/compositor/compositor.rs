@@ -93,6 +93,13 @@ impl<C> Compositor<C> {
             layer.canvas = Canvas::new(rect_size.height, rect_size.width);
         }
 
+        let prev_screen_index = self.active_screen_index;
+        self.active_screen_index = (self.active_screen_index + 1) % self.screens.len();
+        let screen_index = self.active_screen_index;
+
+        // Render and composite layers.
+        compose_layers(ctx, &mut self.screens[screen_index], layers.iter_mut());
+
         // Get the cursor position.
         let mut cursor = None;
         for layer in layers.iter().rev() {
@@ -104,27 +111,18 @@ impl<C> Compositor<C> {
             }
         }
 
-        let prev_screen_index = self.active_screen_index;
-        self.active_screen_index = (self.active_screen_index + 1) % self.screens.len();
-        let screen_index = self.active_screen_index;
-
-        // Render and composite layers.
-        compose_layers(ctx, &mut self.screens[screen_index], layers.iter_mut());
-
         // Compute diffs.
-
         let draw_ops =
             self.screens[screen_index].compute_draw_updates(&self.screens[prev_screen_index]);
 
         // Write into stdout.
         trace!("draw changes: {} items", draw_ops.len());
-
         let mut drawer = self.terminal.drawer();
         for op in draw_ops {
             drawer.draw(&op);
         }
-
         if let Some((screen_y, screen_x)) = cursor {
+            trace!("cursor: {} {}", screen_y, screen_x);
             drawer.show_cursor(screen_y, screen_x);
         }
 

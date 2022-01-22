@@ -103,7 +103,7 @@ impl Surface for BufferView {
             // The main cursor is at the end of line.
             if first_cursor_pos.y == row.lineno - 1 && first_cursor_pos.x == row.graphemes.len() {
                 self.cursor_position = (y, buffer_x + row.graphemes.len());
-                dbg!("self.cursor_position = {:?}", self.cursor_position);
+                trace!("self.cursor_position = {:?}", self.cursor_position);
             }
         }
     }
