@@ -17,6 +17,7 @@ pub fn install_logger(name: &str) {
             .unwrap(),
     )
     .unwrap();
+
     std::panic::set_hook(Box::new(|info| {
         error!("{}", info);
         prettify_backtrace(backtrace::Backtrace::new());

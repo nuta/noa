@@ -97,7 +97,7 @@ impl Surface for BufferView {
                 //                //                f.buffer.move_to_beginning_of_line();
             }
             (KeyCode::Char('e'), CTRL) => {
-                //                //                f.buffer.move_to_end_of_line();
+                //                //            ed    f.buffer.move_to_end_of_line();
             }
             (KeyCode::Char('f'), ALT) => {
                 //                //                f.buffer.move_to_next_word();

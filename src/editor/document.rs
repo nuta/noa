@@ -9,9 +9,9 @@ use std::{
 use anyhow::Result;
 
 use noa_buffer::buffer::Buffer;
-use noa_languages::language::Language;
+use noa_languages::{definitions::PLAIN, language::Language};
 
-use crate::view::View;
+use crate::{highlighting::Highlighter, view::View};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct DocumentId(NonZeroUsize);
@@ -26,9 +26,15 @@ pub struct Document {
 }
 
 impl Document {
-    pub fn new(name: &str) -> Result<Document> {
-        // let highlighter = Highlighter::new(doc.lang);
-        unimplemented!()
+    pub fn new(name: &str) -> Document {
+        let lang = &PLAIN;
+        Document {
+            path: None,
+            name: name.to_string(),
+            buffer: Buffer::new(),
+            lang,
+            view: View::new(Highlighter::new(lang)),
+        }
     }
 
     pub fn open_file(path: &Path) -> Result<Document> {
@@ -76,7 +82,7 @@ impl DocumentManager {
             documents: HashMap::new(),
         };
 
-        let scratch_doc = Document::new("**scratch**").unwrap();
+        let scratch_doc = Document::new("**scratch**");
         manager.open_virtual_file(scratch_doc);
         manager
     }
