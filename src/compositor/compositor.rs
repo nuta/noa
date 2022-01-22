@@ -1,6 +1,5 @@
-use std::{slice, sync::Arc};
+use std::slice;
 
-use parking_lot::Mutex;
 use tokio::sync::mpsc;
 
 use crate::{surface::HandledEvent, terminal::InputEvent};
@@ -27,7 +26,7 @@ pub struct Compositor<C> {
     screen_size: RectSize,
     active_screen_index: usize,
     /// The last element comes foreground.
-    layers: Arc<Mutex<Vec<Layer<C>>>>,
+    layers: Vec<Layer<C>>,
 }
 
 #[allow(clippy::new_without_default)]
@@ -52,7 +51,7 @@ impl<C> Compositor<C> {
             ],
             screen_size,
             active_screen_index: 0,
-            layers: Arc::new(Mutex::new(Vec::new())),
+            layers: Vec::new(),
         }
     }
 
@@ -67,7 +66,7 @@ impl<C> Compositor<C> {
         screen_y: usize,
         screen_x: usize,
     ) {
-        self.layers.lock().push(Layer {
+        self.layers.push(Layer {
             surface,
             active,
             canvas: Canvas::new(0, 0),
@@ -84,8 +83,7 @@ impl<C> Compositor<C> {
 
     pub fn render_to_terminal(&mut self, ctx: &mut C) {
         // Re-layout layers.
-        let mut layers = self.layers.lock();
-        for layer in layers.iter_mut() {
+        for layer in self.layers.iter_mut() {
             let ((screen_y, screen_x), rect_size) =
                 relayout_layers(ctx, &*layer.surface, self.screen_size);
             layer.screen_x = screen_x;
@@ -98,11 +96,11 @@ impl<C> Compositor<C> {
         let screen_index = self.active_screen_index;
 
         // Render and composite layers.
-        compose_layers(ctx, &mut self.screens[screen_index], layers.iter_mut());
+        compose_layers(ctx, &mut self.screens[screen_index], self.layers.iter_mut());
 
         // Get the cursor position.
         let mut cursor = None;
-        for layer in layers.iter().rev() {
+        for layer in self.layers.iter().rev() {
             if layer.active {
                 if let Some((y, x)) = layer.surface.cursor_position(ctx) {
                     cursor = Some((layer.screen_y + y, layer.screen_x + x));
@@ -130,11 +128,9 @@ impl<C> Compositor<C> {
 
     pub fn handle_input(&mut self, ctx: &mut C, input: InputEvent) {
         trace!("input: {:?}", input);
-        let layers = self.layers.clone();
-        let mut layers = layers.lock();
         match input {
             InputEvent::Key(key) => {
-                for layer in layers.iter_mut().rev() {
+                for layer in self.layers.iter_mut().rev() {
                     if layer.active {
                         if let HandledEvent::Consumed = layer.surface.handle_key_event(ctx, key) {
                             break;
@@ -143,7 +139,7 @@ impl<C> Compositor<C> {
                 }
             }
             InputEvent::Mouse(ev) => {
-                for layer in layers.iter_mut().rev() {
+                for layer in self.layers.iter_mut().rev() {
                     if layer.active {
                         if let HandledEvent::Consumed = layer.surface.handle_mouse_event(ctx, ev) {
                             break;
@@ -152,7 +148,7 @@ impl<C> Compositor<C> {
                 }
             }
             InputEvent::KeyBatch(input) => {
-                for layer in layers.iter_mut().rev() {
+                for layer in self.layers.iter_mut().rev() {
                     if layer.active {
                         if let HandledEvent::Consumed =
                             layer.surface.handle_key_batch_event(ctx, &input)

@@ -17,7 +17,7 @@ use clap::Parser;
 use noa_common::logger::install_logger;
 use noa_compositor::{terminal::Event, Compositor};
 use tokio::{sync::oneshot, time::Instant};
-use ui::buffer_view::BufferView;
+use ui::{buffer_view::BufferView, too_small_view::TooSmallView};
 
 mod clipboard;
 mod document;
@@ -42,6 +42,7 @@ async fn main() {
     let mut compositor = Compositor::new();
 
     let (quit_tx, mut quit) = oneshot::channel();
+    compositor.add_frontmost_layer(Box::new(TooSmallView::new("too small!")), true, 0, 0);
     compositor.add_frontmost_layer(Box::new(BufferView::new(quit_tx)), true, 0, 0);
 
     let mut started_at = Instant::now();

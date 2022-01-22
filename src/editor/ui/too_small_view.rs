@@ -1,14 +1,14 @@
 use noa_compositor::{
     canvas::CanvasViewMut,
     surface::{HandledEvent, Layout, RectSize, Surface},
-    terminal::KeyEvent,
+    terminal::{KeyEvent, MouseEvent},
 };
 
 use crate::editor::Editor;
 
 use super::helpers::truncate_to_width;
 
-struct TooSmallView {
+pub struct TooSmallView {
     text: String,
 }
 
@@ -42,5 +42,17 @@ impl Surface for TooSmallView {
     fn render(&mut self, _editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
         canvas.clear();
         canvas.write_str(0, 0, truncate_to_width(&self.text, canvas.width()));
+    }
+
+    fn handle_key_event(&mut self, _editor: &mut Editor, _key: KeyEvent) -> HandledEvent {
+        HandledEvent::Consumed
+    }
+
+    fn handle_key_batch_event(&mut self, _ctx: &mut Self::Context, _input: &str) -> HandledEvent {
+        HandledEvent::Consumed
+    }
+
+    fn handle_mouse_event(&mut self, _ctx: &mut Self::Context, _ev: MouseEvent) -> HandledEvent {
+        HandledEvent::Consumed
     }
 }
