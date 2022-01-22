@@ -17,18 +17,16 @@ impl TimeReport {
             started_at: Instant::now(),
         }
     }
+}
 
-    pub fn report(self) {
+impl Drop for TimeReport {
+    fn drop(&mut self) {
         if !ENABLED
             .get_or_init(|| std::option_env!("TIME_REPORT").is_some() || cfg!(debug_assertions))
         {
             return;
         }
 
-        info!(
-            "time_report: {} took {:?}",
-            self.title,
-            self.started_at.elapsed()
-        );
+        info!("{} = {:?}", self.title, self.started_at.elapsed());
     }
 }

@@ -63,15 +63,13 @@ impl<C> Compositor<C> {
         &mut self,
         surface: Box<dyn Surface<Context = C> + Send>,
         active: bool,
-        screen_y: usize,
-        screen_x: usize,
     ) {
         self.layers.push(Layer {
             surface,
             active,
             canvas: Canvas::new(0, 0),
-            screen_x,
-            screen_y,
+            screen_x: 0,
+            screen_y: 0,
         });
     }
 

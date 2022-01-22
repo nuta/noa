@@ -1,19 +1,21 @@
+use std::path::Path;
+
 use noa_compositor::{
     canvas::CanvasViewMut,
     surface::{HandledEvent, Layout, RectSize, Surface},
     terminal::KeyEvent,
 };
 
-use crate::editor::Editor;
+use crate::{editor::Editor, path::PathFinder};
 
-struct FinderView {
-    text: String,
+pub struct FinderView {
+    path_finder: PathFinder,
 }
 
 impl FinderView {
-    pub fn new(text: &str) -> FinderView {
+    pub fn new(workspace_dir: &Path) -> FinderView {
         FinderView {
-            text: text.to_string(),
+            path_finder: PathFinder::new(workspace_dir),
         }
     }
 }
