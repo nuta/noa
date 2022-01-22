@@ -7,15 +7,15 @@ pub fn install_logger(name: &str) {
     fern::Dispatch::new()
         .format(|out, message, record| {
             out.finish(format_args!(
-                "{}[{}:{}] {}\x1b[0m",
+                "\x1b[34m[{}:{}] {}{}\x1b[0m",
+                record.file().unwrap_or(record.target()),
+                record.line().unwrap_or(0),
                 match record.level() {
                     Level::Error => "\x1b[31m",
                     Level::Warn => "\x1b[33m",
                     Level::Info => "\x1b[36m",
-                    _ => "",
+                    _ => "\x1b[0m",
                 },
-                record.file().unwrap_or(record.target()),
-                record.line().unwrap_or(0),
                 message
             ))
         })
