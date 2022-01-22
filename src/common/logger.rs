@@ -1,22 +1,21 @@
-use std::fs::OpenOptions;
-
 use backtrace::Backtrace;
-use log::LevelFilter;
-use simplelog::{Config, WriteLogger};
 
 use crate::dirs::log_file_path;
 
 pub fn install_logger(name: &str) {
-    WriteLogger::init(
-        LevelFilter::Trace,
-        Config::default(),
-        OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(log_file_path(name))
-            .unwrap(),
-    )
-    .unwrap();
+    fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "[{}:{}] {}",
+                record.file().unwrap_or(record.target()),
+                record.line().unwrap_or(0),
+                message
+            ))
+        })
+        .level(log::LevelFilter::Trace)
+        .chain(fern::log_file(log_file_path(name)).unwrap())
+        .apply()
+        .expect("failed to initialize the logger");
 
     std::panic::set_hook(Box::new(|info| {
         error!("{}", info);
