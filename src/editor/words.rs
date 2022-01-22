@@ -49,14 +49,12 @@ impl Words {
                     || (!word.is_empty() && c.is_ascii_digit() || c == '-')
                 {
                     word.push(c);
-                } else {
-                    if !word.is_empty() {
-                        if word.len() >= WORD_MIN_LEN {
-                            self.fuzzy_set.insert(word);
-                        }
-
-                        word = String::with_capacity(8);
+                } else if !word.is_empty() {
+                    if word.len() >= WORD_MIN_LEN {
+                        self.fuzzy_set.insert(word);
                     }
+
+                    word = String::with_capacity(8);
                 }
             }
         }
