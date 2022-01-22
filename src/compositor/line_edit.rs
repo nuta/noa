@@ -137,6 +137,12 @@ impl LineEdit {
     }
 }
 
+impl Default for LineEdit {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
