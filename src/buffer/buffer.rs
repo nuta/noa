@@ -58,6 +58,13 @@ impl Buffer {
         }
     }
 
+    pub fn from_reader<T: std::io::Read>(reader: T) -> std::io::Result<Buffer> {
+        Ok(Buffer {
+            buf: RawBuffer::from_reader(reader)?,
+            ..Default::default()
+        })
+    }
+
     pub fn line_len(&self, y: usize) -> usize {
         self.buf.line_len(y)
     }

@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    fs::OpenOptions,
     num::NonZeroUsize,
     path::{Path, PathBuf},
     ptr::NonNull,
@@ -11,7 +12,7 @@ use anyhow::Result;
 use noa_buffer::buffer::Buffer;
 use noa_languages::{definitions::PLAIN, language::Language};
 
-use crate::{highlighting::Highlighter, view::View};
+use crate::{highlighting::Highlighter, view::View, words::Words};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct DocumentId(NonZeroUsize);
@@ -23,6 +24,7 @@ pub struct Document {
     buffer: Buffer,
     lang: &'static Language,
     view: View,
+    words: Words,
 }
 
 impl Document {
@@ -34,10 +36,14 @@ impl Document {
             buffer: Buffer::new(),
             lang,
             view: View::new(Highlighter::new(lang)),
+            words: Words::new(),
         }
     }
 
     pub fn open_file(path: &Path) -> Result<Document> {
+        let file = OpenOptions::new().read(true).create(true).open(path)?;
+        let buffer = Buffer::from_reader(file)?;
+        let words = Words::new_with_buffer(&buffer);
         unimplemented!()
     }
 

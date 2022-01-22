@@ -28,6 +28,12 @@ impl RawBuffer {
         }
     }
 
+    pub fn from_reader<T: std::io::Read>(reader: T) -> std::io::Result<RawBuffer> {
+        Ok(RawBuffer {
+            rope: ropey::Rope::from_reader(reader)?,
+        })
+    }
+
     pub fn rope(&self) -> &ropey::Rope {
         &self.rope
     }

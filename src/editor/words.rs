@@ -22,6 +22,12 @@ impl Words {
         }
     }
 
+    pub fn new_with_buffer(buffer: &RawBuffer) -> Words {
+        let mut words = Words::new();
+        words.update_lines(buffer, 0..buffer.num_lines());
+        words
+    }
+
     pub fn query(&self, pattern: &str) -> Vec<(Cow<'_, str>, i64)> {
         self.fuzzy_set.query(pattern)
     }
