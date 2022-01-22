@@ -74,7 +74,7 @@ impl<C> Compositor<C> {
     }
 
     pub fn render_to_terminal(&mut self, ctx: &mut C) {
-        let _time = TimeReport::new("rendering time");
+        let rendering_time = TimeReport::new("rendering time");
 
         // Re-layout layers.
         for layer in self.layers.iter_mut() {
@@ -106,6 +106,8 @@ impl<C> Compositor<C> {
             self.screens[screen_index].compute_draw_updates(&self.screens[prev_screen_index]);
 
         // Write into stdout.
+        drop(rendering_time);
+        let _drawer_time = TimeReport::new("drawer time");
         trace!("draw changes: {} items", draw_ops.len());
         let mut drawer = self.terminal.drawer();
         for op in draw_ops {
