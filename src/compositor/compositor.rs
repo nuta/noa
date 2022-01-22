@@ -122,7 +122,6 @@ impl<C> Compositor<C> {
             drawer.draw(&op);
         }
         if let Some((screen_y, screen_x)) = cursor {
-            trace!("cursor: {} {}", screen_y, screen_x);
             drawer.show_cursor(screen_y, screen_x);
         }
 
