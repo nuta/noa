@@ -25,6 +25,7 @@ mod editor;
 mod fuzzy;
 mod highlighting;
 mod notification;
+mod path;
 mod ui;
 mod view;
 mod words;

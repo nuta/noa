@@ -8,7 +8,7 @@ use crate::fuzzy::FuzzySet;
 const WORD_MIN_LEN: usize = 4;
 
 pub struct Words {
-    fuzzy_set: FuzzySet,
+    words: FuzzySet,
     words_in_lines: Vec<Vec<String>>,
     occurences: HashMap<String, usize>,
 }
@@ -16,7 +16,7 @@ pub struct Words {
 impl Words {
     pub fn new() -> Words {
         Words {
-            fuzzy_set: FuzzySet::new(),
+            words: FuzzySet::new(),
             words_in_lines: Vec::new(),
             occurences: HashMap::new(),
         }
@@ -28,8 +28,8 @@ impl Words {
         words
     }
 
-    pub fn query(&self, pattern: &str) -> Vec<(Cow<'_, str>, i64)> {
-        self.fuzzy_set.query(pattern)
+    pub fn words(&self) -> &FuzzySet {
+        &self.words
     }
 
     pub fn update_lines(&mut self, buffer: &RawBuffer, ys: Range<usize>) {
@@ -48,7 +48,7 @@ impl Words {
             let n = self.occurences.get_mut(word).unwrap();
             *n -= 1;
             if *n == 0 {
-                self.fuzzy_set.remove(word);
+                self.words.remove(word);
                 self.occurences.remove(word);
             }
         }
@@ -63,7 +63,7 @@ impl Words {
                     word.push(c);
                 } else if !word.is_empty() {
                     if word.len() >= WORD_MIN_LEN {
-                        self.fuzzy_set.insert(word);
+                        self.words.insert(word);
                     }
 
                     word = String::with_capacity(8);

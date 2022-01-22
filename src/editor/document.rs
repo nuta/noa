@@ -78,6 +78,7 @@ impl Document {
         let updates_lines = 0..self.buffer.num_lines();
 
         self.words.update_lines(&self.buffer, updates_lines);
+
         self.view.update(&self.buffer);
     }
 }
