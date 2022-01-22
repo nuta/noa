@@ -16,7 +16,7 @@ use clap::Parser;
 
 use noa_common::{logger::install_logger, time_report::TimeReport};
 use noa_compositor::{terminal::Event, Compositor};
-use tokio::{sync::oneshot, time::Instant};
+use tokio::sync::oneshot;
 use ui::{buffer_view::BufferView, finder_view::FinderView, too_small_view::TooSmallView};
 
 mod clipboard;
@@ -56,10 +56,8 @@ async fn main() {
     compositor.render_to_terminal(&mut editor);
     drop(boot_time);
 
-    let mut started_at = Instant::now();
     loop {
-        trace!("event tick = {}ms", started_at.elapsed().as_millis());
-
+        let mut started_at = None;
         tokio::select! {
             biased;
 
@@ -68,7 +66,7 @@ async fn main() {
             }
 
             Some(ev) = compositor.recv_terminal_event() => {
-                started_at = Instant::now();
+                started_at = Some(TimeReport::new("event tick"));
                 match ev {
                     Event::Input(input) => {
                         compositor.handle_input(&mut editor, input);
