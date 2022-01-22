@@ -56,7 +56,7 @@ impl View {
     }
 
     /// Called when the buffer is modified.
-    pub fn update(&mut self, buffer: &Buffer) {
+    pub fn post_update(&mut self, buffer: &Buffer) {
         self.highlighter.update(buffer);
     }
 

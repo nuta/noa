@@ -82,7 +82,7 @@ impl Document {
 
         self.words.update_lines(&self.buffer, updates_lines);
 
-        self.view.update(&self.buffer);
+        self.view.post_update(&self.buffer);
     }
 }
 
