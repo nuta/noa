@@ -10,26 +10,28 @@ use crate::fuzzy::FuzzySet;
 
 pub struct PathFinder {
     paths: Arc<RwLock<FuzzySet>>,
+    workspace_dir: PathBuf,
 }
 
 impl PathFinder {
-    pub async fn new_and_load(base_dir: &Path) -> PathFinder {
+    pub fn new<T: Into<PathBuf>>(workspace_dir: T) -> PathFinder {
         let paths = Arc::new(RwLock::new(FuzzySet::new()));
 
-        tokio::spawn(watch_fs_changes(base_dir.to_owned(), paths.clone()));
-        scan_paths(base_dir, &paths).await;
-
-        PathFinder { paths }
+        PathFinder {
+            paths,
+            workspace_dir: workspace_dir.into(),
+        }
     }
 
-    pub fn paths(&self) -> RwLockReadGuard<'_, FuzzySet> {
+    pub async fn scan(&self) -> RwLockReadGuard<'_, FuzzySet> {
+        scan_paths(&self.workspace_dir, &self.paths).await;
         self.paths.read()
     }
 }
 
-async fn scan_paths(base_dir: &Path, paths: &Arc<RwLock<FuzzySet>>) {
+async fn scan_paths(workspace_dir: &Path, paths: &Arc<RwLock<FuzzySet>>) {
     use ignore::{WalkBuilder, WalkState};
-    WalkBuilder::new(base_dir).build_parallel().run(|| {
+    WalkBuilder::new(workspace_dir).build_parallel().run(|| {
         Box::new(|dirent| {
             if let Ok(dirent) = dirent {
                 let meta = dirent.metadata().unwrap();
@@ -68,13 +70,8 @@ async fn scan_paths(base_dir: &Path, paths: &Arc<RwLock<FuzzySet>>) {
                     }
                 }
             }
+
             WalkState::Continue
         })
     });
-}
-
-async fn watch_fs_changes(base_dir: PathBuf, paths: Arc<RwLock<FuzzySet>>) -> ! {
-    loop {
-        unimplemented!()
-    }
 }
