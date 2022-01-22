@@ -14,7 +14,7 @@ impl LineEdit {
         }
     }
 
-    pub fn from_str(text: &str) -> LineEdit {
+    pub fn from_text(text: &str) -> LineEdit {
         let mut le = LineEdit::new();
         le.insert(text);
         le
