@@ -5,13 +5,12 @@ use once_cell::sync::OnceCell;
 static ENABLED: OnceCell<bool> = OnceCell::new();
 
 pub struct TimeReport {
-    title: String,
+    title: &'static str,
     started_at: Instant,
 }
 
 impl TimeReport {
-    pub fn new(title: &str) -> TimeReport {
-        let title = title.to_string();
+    pub fn new(title: &'static str) -> TimeReport {
         TimeReport {
             title,
             started_at: Instant::now(),

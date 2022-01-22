@@ -1,5 +1,6 @@
 use std::slice;
 
+use noa_common::time_report::TimeReport;
 use tokio::sync::mpsc;
 
 use crate::{surface::HandledEvent, terminal::InputEvent};
@@ -80,6 +81,8 @@ impl<C> Compositor<C> {
     }
 
     pub fn render_to_terminal(&mut self, ctx: &mut C) {
+        let _time = TimeReport::new("rendering time");
+
         // Re-layout layers.
         for layer in self.layers.iter_mut() {
             let ((screen_y, screen_x), rect_size) =

@@ -10,6 +10,7 @@ use std::{
 use anyhow::Result;
 
 use noa_buffer::buffer::Buffer;
+use noa_common::time_report::TimeReport;
 use noa_languages::{definitions::PLAIN, language::Language};
 
 use crate::{highlighting::Highlighter, view::View, words::Words};
@@ -74,6 +75,8 @@ impl Document {
     }
 
     pub fn run_post_update_jobs(&mut self) {
+        let time = TimeReport::new("post_update_jobs time");
+
         // TODO:
         let updates_lines = 0..self.buffer.num_lines();
 
