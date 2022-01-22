@@ -1,7 +1,7 @@
-pub struct Client {}
+// pub struct Client {}
 
-impl Client {
-    pub fn new() -> Client {
-        Client {}
-    }
-}
+// impl Client {
+//     pub fn new() -> Client {
+//         Client {}
+//     }
+// }
