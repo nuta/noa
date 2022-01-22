@@ -22,10 +22,12 @@ use ui::{buffer_view::BufferView, too_small_view::TooSmallView};
 mod clipboard;
 mod document;
 mod editor;
+mod fuzzy;
 mod highlighting;
 mod notification;
 mod ui;
 mod view;
+mod words;
 
 #[derive(Parser, Debug)]
 struct Args {
