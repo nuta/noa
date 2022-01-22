@@ -666,6 +666,7 @@ dependencies = [
  "fern",
  "fxhash",
  "log",
+ "once_cell",
  "serde",
 ]
 

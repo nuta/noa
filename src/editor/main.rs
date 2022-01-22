@@ -14,7 +14,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
-use noa_common::logger::install_logger;
+use noa_common::{logger::install_logger, time_report::TimeReport};
 use noa_compositor::{terminal::Event, Compositor};
 use tokio::{sync::oneshot, time::Instant};
 use ui::{buffer_view::BufferView, too_small_view::TooSmallView};
@@ -38,6 +38,8 @@ struct Args {
 
 #[tokio::main]
 async fn main() {
+    let boot_time = TimeReport::new("boot time");
+
     install_logger("main");
     let args = Args::parse();
 
@@ -48,9 +50,11 @@ async fn main() {
     compositor.add_frontmost_layer(Box::new(TooSmallView::new("too small!")), true, 0, 0);
     compositor.add_frontmost_layer(Box::new(BufferView::new(quit_tx)), true, 0, 0);
 
+    compositor.render_to_terminal(&mut editor);
+    drop(boot_time);
+
     let mut started_at = Instant::now();
     loop {
-        compositor.render_to_terminal(&mut editor);
         trace!("event tick = {}ms", started_at.elapsed().as_millis());
 
         tokio::select! {
@@ -72,5 +76,7 @@ async fn main() {
                 }
             }
         }
+
+        compositor.render_to_terminal(&mut editor);
     }
 }
