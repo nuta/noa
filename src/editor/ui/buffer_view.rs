@@ -86,6 +86,7 @@ impl Surface for BufferView {
                 let x = buffer_x + i_x;
                 canvas.write(y, x, *grapheme);
 
+                // Check if the main cursor is at this position.
                 if *pos == first_cursor_pos {
                     self.cursor_position = (y, x);
                 }
@@ -97,6 +98,12 @@ impl Surface for BufferView {
                         canvas.set_decoration(y, x, x + 1, Decoration::inverted());
                     }
                 }
+            }
+
+            // The main cursor is at the end of line.
+            if first_cursor_pos.y == row.lineno - 1 && first_cursor_pos.x == row.graphemes.len() {
+                self.cursor_position = (y, buffer_x + row.graphemes.len());
+                dbg!("self.cursor_position = {:?}", self.cursor_position);
             }
         }
     }

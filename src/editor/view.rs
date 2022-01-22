@@ -248,7 +248,7 @@ impl View {
             }
 
             rows.push(DisplayRow {
-                lineno: y,
+                lineno: y + 1,
                 graphemes,
                 positions,
             });

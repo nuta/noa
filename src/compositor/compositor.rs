@@ -83,9 +83,18 @@ impl<C> Compositor<C> {
     }
 
     pub fn render_to_terminal(&mut self, ctx: &mut C) {
+        // Re-layout layers.
+        let mut layers = self.layers.lock();
+        for layer in layers.iter_mut() {
+            let ((screen_y, screen_x), rect_size) =
+                relayout_layers(ctx, &*layer.surface, self.screen_size);
+            layer.screen_x = screen_x;
+            layer.screen_y = screen_y;
+            layer.canvas = Canvas::new(rect_size.height, rect_size.width);
+        }
+
         // Get the cursor position.
         let mut cursor = None;
-        let mut layers = self.layers.lock();
         for layer in layers.iter().rev() {
             if layer.active {
                 if let Some((y, x)) = layer.surface.cursor_position(ctx) {
@@ -93,15 +102,6 @@ impl<C> Compositor<C> {
                     break;
                 }
             }
-        }
-
-        // Re-layout layers.
-        for layer in layers.iter_mut() {
-            let ((screen_y, screen_x), rect_size) =
-                relayout_layers(ctx, &*layer.surface, self.screen_size);
-            layer.screen_x = screen_x;
-            layer.screen_y = screen_y;
-            layer.canvas = Canvas::new(rect_size.height, rect_size.width);
         }
 
         let prev_screen_index = self.active_screen_index;
