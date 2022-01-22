@@ -45,7 +45,7 @@ impl Surface for BufferView {
         Some(self.cursor_position)
     }
 
-    fn render(&mut self, editor: &mut Editor, mut canvas: CanvasViewMut<'_>) {
+    fn render(&mut self, editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
         canvas.clear();
 
         let lineno_x;
@@ -61,7 +61,7 @@ impl Surface for BufferView {
             max_lineno_width = buffer.num_lines().display_width();
             buffer_y = 0;
             buffer_x = lineno_x + max_lineno_width + 1 /* line status */;
-            buffer_width = canvas.width() - buffer_x;
+            buffer_width = canvas.width() - buffer_x - 1 /* mini map */;
             buffer_height = canvas.height() - 2 /* bottom line */;
 
             doc.layout_view(buffer_height, buffer_width);

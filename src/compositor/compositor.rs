@@ -184,7 +184,7 @@ fn compose_layers<C>(ctx: &mut C, screen: &mut Canvas, layers: slice::IterMut<'_
             _ => continue,
         }
 
-        layer.surface.render(ctx, layer.canvas.view_mut());
+        layer.surface.render(ctx, &mut layer.canvas.view_mut());
         screen.copy_from_other(layer.screen_y, layer.screen_x, &layer.canvas);
     }
 }

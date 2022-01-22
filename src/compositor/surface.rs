@@ -31,10 +31,17 @@ pub trait Surface {
     fn cursor_position(&self, ctx: &mut Self::Context) -> Option<(usize, usize)>;
     /// Render its contents into the canvas. It must fill the whole canvas; the
     /// canvas can be the newly created one due to, for example, screen resizing.
-    fn render(&mut self, ctx: &mut Self::Context, canvas: CanvasViewMut<'_>);
-    fn handle_key_event(&mut self, ctx: &mut Self::Context, key: KeyEvent) -> HandledEvent;
+    fn render(&mut self, ctx: &mut Self::Context, canvas: &mut CanvasViewMut<'_>);
+
+    fn handle_key_event(&mut self, _ctx: &mut Self::Context, _key: KeyEvent) -> HandledEvent {
+        HandledEvent::Ignored
+    }
+
     fn handle_mouse_event(&mut self, _ctx: &mut Self::Context, _ev: MouseEvent) -> HandledEvent {
         HandledEvent::Ignored
     }
-    fn handle_key_batch_event(&mut self, ctx: &mut Self::Context, input: &str) -> HandledEvent;
+
+    fn handle_key_batch_event(&mut self, _ctx: &mut Self::Context, _input: &str) -> HandledEvent {
+        HandledEvent::Ignored
+    }
 }
