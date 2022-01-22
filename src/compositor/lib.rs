@@ -3,8 +3,8 @@ extern crate log;
 
 pub mod canvas;
 mod compositor;
+pub mod line_edit;
 pub mod surface;
 pub mod terminal;
-mod widgets;
 
 pub use compositor::Compositor;

@@ -620,6 +620,7 @@ dependencies = [
  "crossterm",
  "futures",
  "log",
+ "noa_buffer",
  "noa_common",
  "parking_lot",
  "tokio",
