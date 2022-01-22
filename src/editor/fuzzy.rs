@@ -1,4 +1,7 @@
-use std::{borrow::Cow, collections::HashSet};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+};
 
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
@@ -6,6 +9,7 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 pub struct FuzzySet {
     matcher: SkimMatcherV2,
     entries: HashSet<String>,
+    extra_scores: HashMap<String, i64>,
 }
 
 impl FuzzySet {
@@ -13,6 +17,7 @@ impl FuzzySet {
         FuzzySet {
             matcher: SkimMatcherV2::default().smart_case().use_cache(true),
             entries: HashSet::new(),
+            extra_scores: HashMap::new(),
         }
     }
 
@@ -23,7 +28,7 @@ impl FuzzySet {
             .filter_map(|e| {
                 self.matcher
                     .fuzzy_match(e, pattern)
-                    .map(|score| (Cow::from(e), score))
+                    .map(|score| (Cow::from(e), score + self.extra_scores[e]))
             })
             .collect();
 
@@ -31,11 +36,14 @@ impl FuzzySet {
         filtered
     }
 
-    pub fn insert<T: Into<String>>(&mut self, entry: T) {
-        self.entries.insert(entry.into());
+    pub fn insert<T: Into<String>>(&mut self, entry: T, extra_score: i64) {
+        let string = entry.into();
+        self.entries.insert(string.clone());
+        self.extra_scores.insert(string, extra_score);
     }
 
     pub fn remove(&mut self, entry: &str) {
         self.entries.remove(entry);
+        self.extra_scores.remove(entry);
     }
 }

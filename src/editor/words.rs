@@ -63,7 +63,7 @@ impl Words {
                     word.push(c);
                 } else if !word.is_empty() {
                     if word.len() >= WORD_MIN_LEN {
-                        self.words.insert(word);
+                        self.words.insert(word, 0);
                     }
 
                     word = String::with_capacity(8);
