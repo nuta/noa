@@ -13,8 +13,6 @@ use super::{
 
 pub struct Layer<C> {
     pub surface: Box<dyn Surface<Context = C> + Send>,
-    /// If it's `false`, the surface won't receive key events.
-    pub active: bool,
     pub canvas: Canvas,
     pub screen_y: usize,
     pub screen_x: usize,
@@ -60,14 +58,9 @@ impl<C> Compositor<C> {
         self.term_rx.recv().await
     }
 
-    pub fn add_frontmost_layer(
-        &mut self,
-        surface: Box<dyn Surface<Context = C> + Send>,
-        active: bool,
-    ) {
+    pub fn add_frontmost_layer(&mut self, surface: Box<dyn Surface<Context = C> + Send>) {
         self.layers.push(Layer {
             surface,
-            active,
             canvas: Canvas::new(0, 0),
             screen_x: 0,
             screen_y: 0,
@@ -102,11 +95,9 @@ impl<C> Compositor<C> {
         // Get the cursor position.
         let mut cursor = None;
         for layer in self.layers.iter().rev() {
-            if layer.active {
-                if let Some((y, x)) = layer.surface.cursor_position(ctx) {
-                    cursor = Some((layer.screen_y + y, layer.screen_x + x));
-                    break;
-                }
+            if let Some((y, x)) = layer.surface.cursor_position(ctx) {
+                cursor = Some((layer.screen_y + y, layer.screen_x + x));
+                break;
             }
         }
 
@@ -132,30 +123,24 @@ impl<C> Compositor<C> {
         match input {
             InputEvent::Key(key) => {
                 for layer in self.layers.iter_mut().rev() {
-                    if layer.active {
-                        if let HandledEvent::Consumed = layer.surface.handle_key_event(ctx, key) {
-                            break;
-                        }
+                    if let HandledEvent::Consumed = layer.surface.handle_key_event(ctx, key) {
+                        break;
                     }
                 }
             }
             InputEvent::Mouse(ev) => {
                 for layer in self.layers.iter_mut().rev() {
-                    if layer.active {
-                        if let HandledEvent::Consumed = layer.surface.handle_mouse_event(ctx, ev) {
-                            break;
-                        }
+                    if let HandledEvent::Consumed = layer.surface.handle_mouse_event(ctx, ev) {
+                        break;
                     }
                 }
             }
             InputEvent::KeyBatch(input) => {
                 for layer in self.layers.iter_mut().rev() {
-                    if layer.active {
-                        if let HandledEvent::Consumed =
-                            layer.surface.handle_key_batch_event(ctx, &input)
-                        {
-                            break;
-                        }
+                    if let HandledEvent::Consumed =
+                        layer.surface.handle_key_batch_event(ctx, &input)
+                    {
+                        break;
                     }
                 }
             }

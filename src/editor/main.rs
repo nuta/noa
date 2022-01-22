@@ -49,9 +49,9 @@ async fn main() {
     let mut compositor = Compositor::new();
 
     let (quit_tx, mut quit) = oneshot::channel();
-    compositor.add_frontmost_layer(Box::new(TooSmallView::new("too small!")), true);
-    compositor.add_frontmost_layer(Box::new(BufferView::new(quit_tx)), true);
-    compositor.add_frontmost_layer(Box::new(FinderView::new(&workspace_dir)), false);
+    compositor.add_frontmost_layer(Box::new(TooSmallView::new("too small!")));
+    compositor.add_frontmost_layer(Box::new(BufferView::new(quit_tx)));
+    compositor.add_frontmost_layer(Box::new(FinderView::new(&workspace_dir)));
 
     compositor.render_to_terminal(&mut editor);
     drop(boot_time);
