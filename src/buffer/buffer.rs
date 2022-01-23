@@ -1,4 +1,9 @@
-use std::{fs::OpenOptions, ops::Deref, path::Path};
+use std::{
+    fs::OpenOptions,
+    ops::Deref,
+    path::Path,
+    process::{Command, Stdio},
+};
 
 use noa_editorconfig::{EditorConfig, IndentStyle};
 
@@ -96,6 +101,45 @@ impl Buffer {
             .truncate(true)
             .open(path)?;
         self.buf.write_to(f)?;
+        Ok(())
+    }
+
+    pub fn save_to_file_with_sudo(&self, path: &Path) -> std::io::Result<()> {
+        let magic = "sudo is available without password";
+        let check_sudo_output = Command::new("sudo")
+            .args(&["echo", magic])
+            .stdin(Stdio::null())
+            .output()?
+            .stdout;
+
+        match std::str::from_utf8(&check_sudo_output) {
+            Ok(output) => {
+                if !output.contains(magic) {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        "sudo requires an interaction (password?)",
+                    ));
+                }
+            }
+            Err(_) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "non UTF-8 output from sudo",
+                ))
+            }
+        }
+
+        let mut use_sudo = Command::new("sudo")
+            .arg("tee")
+            .arg(path)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()?;
+
+        let stdin = use_sudo.stdin.take().unwrap();
+        self.buf.write_to(stdin)?;
+
         Ok(())
     }
 

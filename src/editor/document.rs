@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     fs::OpenOptions,
+    io::ErrorKind,
     num::NonZeroUsize,
     path::{Path, PathBuf},
     ptr::NonNull,
@@ -52,7 +53,16 @@ impl Document {
         self.buffer.save_undo();
 
         if let Some(ref path) = self.path {
-            self.buffer.save_to_file(path)?;
+            match self.buffer.save_to_file(path) {
+                Ok(()) => {}
+                Err(err) if err.kind() == ErrorKind::PermissionDenied => {
+                    trace!("saving {} with sudo", path.display());
+                    self.buffer.save_to_file_with_sudo(path)?;
+                }
+                Err(err) => {
+                    return Err(anyhow::anyhow!("failed to save: {}", err));
+                }
+            }
         }
 
         Ok(())
