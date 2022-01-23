@@ -198,6 +198,18 @@ impl Drawer {
             DrawOp::NoBold => {
                 queue!(self.stdout, SetAttribute(Attribute::NoBold)).ok();
             }
+            DrawOp::Invert => {
+                queue!(self.stdout, SetAttribute(Attribute::Reverse)).ok();
+            }
+            DrawOp::NoInvert => {
+                queue!(self.stdout, SetAttribute(Attribute::NoReverse)).ok();
+            }
+            DrawOp::Underline => {
+                queue!(self.stdout, SetAttribute(Attribute::Underlined)).ok();
+            }
+            DrawOp::NoUnderline => {
+                queue!(self.stdout, SetAttribute(Attribute::NoUnderline)).ok();
+            }
         }
     }
 

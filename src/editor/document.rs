@@ -58,6 +58,10 @@ impl Document {
         Ok(())
     }
 
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
     pub fn buffer(&self) -> &Buffer {
         &self.buffer
     }

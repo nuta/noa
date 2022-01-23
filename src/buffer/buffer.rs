@@ -81,6 +81,10 @@ impl Buffer {
         self.cursors.as_slice()
     }
 
+    pub fn main_cursor(&self) -> &Cursor {
+        &self.cursors()[0]
+    }
+
     pub fn set_cursors(&mut self, new_cursors: &[Cursor]) {
         self.cursors.set_cursors(new_cursors);
     }

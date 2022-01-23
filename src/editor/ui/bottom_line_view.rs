@@ -11,6 +11,8 @@ use crate::{
     editor::Editor,
 };
 
+use super::helpers::truncate_to_width;
+
 pub struct BottomLineView {}
 
 impl BottomLineView {
@@ -52,6 +54,17 @@ impl Surface for BottomLineView {
 
         let doc = editor.documents.current();
         let buffer = doc.buffer();
+        let cursor_pos = buffer.main_cursor().selection().start;
+        let cursor_pos_str = format!("{}, {}", cursor_pos.y + 1, cursor_pos.x);
+        let cursor_pos_width = cursor_pos_str.display_width();
+        let filename_max_width = canvas.width() - cursor_pos_width - 2;
+
+        // File name.
+        canvas.write_str(0, 1, truncate_to_width(doc.name(), filename_max_width));
+        // Cursor position.
+        canvas.write_str(0, canvas.width() - 1 - cursor_pos_width, &cursor_pos_str);
+        // The first line.
+        canvas.set_decoration(0, 0, canvas.width(), Decoration::inverted());
     }
 
     fn handle_key_event(&mut self, editor: &mut Editor, key: KeyEvent) -> HandledEvent {
@@ -60,11 +73,13 @@ impl Surface for BottomLineView {
         const ALT: KeyModifiers = KeyModifiers::ALT;
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
-        let mut _doc = editor.documents.current_mut();
+        let mut _doc = editor.documents.current();
 
-        match (key.code, key.modifiers) {
-            _ => HandledEvent::Ignored,
-        }
+        // match (key.code, key.modifiers) {
+        // _ => HandledEvent::Ignored,
+        // }
+
+        HandledEvent::Ignored
     }
 
     fn handle_key_batch_event(&mut self, editor: &mut Editor, s: &str) -> HandledEvent {

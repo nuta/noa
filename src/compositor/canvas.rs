@@ -11,6 +11,10 @@ pub enum DrawOp<'a> {
     BgColor(Color),
     Bold,
     NoBold,
+    Invert,
+    NoInvert,
+    Underline,
+    NoUnderline,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -199,6 +203,22 @@ impl Canvas {
                             DrawOp::Bold
                         } else {
                             DrawOp::NoBold
+                        });
+                    }
+
+                    if new.style.deco.inverted != deco.inverted {
+                        ops.push(if new.style.deco.inverted {
+                            DrawOp::Invert
+                        } else {
+                            DrawOp::NoInvert
+                        });
+                    }
+
+                    if new.style.deco.underline != deco.underline {
+                        ops.push(if new.style.deco.underline {
+                            DrawOp::Underline
+                        } else {
+                            DrawOp::NoUnderline
                         });
                     }
                     deco = new.style.deco;

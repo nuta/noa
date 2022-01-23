@@ -77,7 +77,7 @@ impl Surface for BufferView {
         let buffer = doc.buffer();
 
         // Buffer contents.
-        let first_cursor_pos = buffer.cursors()[0].selection().start;
+        let main_cursor_pos = buffer.main_cursor().selection().start;
         for (i_y, (row)) in doc.view().display_rows().enumerate() {
             let y = buffer_y + i_y;
 
@@ -93,7 +93,7 @@ impl Surface for BufferView {
                 canvas.write(y, x, *grapheme);
 
                 // Check if the main cursor is at this position.
-                if *pos == first_cursor_pos {
+                if *pos == main_cursor_pos {
                     self.cursor_position = (y, x);
                 }
 
@@ -107,7 +107,7 @@ impl Surface for BufferView {
             }
 
             // The main cursor is at the end of line.
-            if first_cursor_pos.y == row.lineno - 1 && first_cursor_pos.x == row.graphemes.len() {
+            if main_cursor_pos.y == row.lineno - 1 && main_cursor_pos.x == row.graphemes.len() {
                 self.cursor_position = (y, buffer_x + row.graphemes.len());
             }
         }
