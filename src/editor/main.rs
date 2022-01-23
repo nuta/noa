@@ -17,7 +17,10 @@ use clap::Parser;
 use noa_common::{logger::install_logger, time_report::TimeReport};
 use noa_compositor::{terminal::Event, Compositor};
 use tokio::sync::oneshot;
-use ui::{buffer_view::BufferView, finder_view::FinderView, too_small_view::TooSmallView};
+use ui::{
+    bottom_line_view::BottomLineView, buffer_view::BufferView, finder_view::FinderView,
+    too_small_view::TooSmallView,
+};
 
 mod clipboard;
 mod document;
@@ -51,13 +54,13 @@ async fn main() {
     let (quit_tx, mut quit) = oneshot::channel();
     compositor.add_frontmost_layer(Box::new(TooSmallView::new("too small!")));
     compositor.add_frontmost_layer(Box::new(BufferView::new(quit_tx)));
+    compositor.add_frontmost_layer(Box::new(BottomLineView::new()));
     compositor.add_frontmost_layer(Box::new(FinderView::new(&workspace_dir)));
 
     compositor.render_to_terminal(&mut editor);
     drop(boot_time);
 
     loop {
-        let mut started_at = None;
         tokio::select! {
             biased;
 
@@ -66,7 +69,7 @@ async fn main() {
             }
 
             Some(ev) = compositor.recv_terminal_event() => {
-                started_at = Some(TimeReport::new("event tick"));
+                let _event_tick_time = Some(TimeReport::new("event tick"));
                 match ev {
                     Event::Input(input) => {
                         compositor.handle_input(&mut editor, input);
