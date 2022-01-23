@@ -1,6 +1,7 @@
 use noa_buffer::display_width::DisplayWidth;
 use noa_compositor::{
     canvas::{CanvasViewMut, Decoration, Style},
+    line_edit::LineEdit,
     surface::{HandledEvent, KeyEvent, Layout, MouseEvent, RectSize, Surface},
     terminal::{KeyCode, KeyModifiers},
 };
@@ -9,15 +10,20 @@ use tokio::{sync::oneshot, task};
 use crate::{
     clipboard::{ClipboardData, SystemClipboardData},
     editor::Editor,
+    notification::Notification,
 };
 
 use super::helpers::truncate_to_width;
 
-pub struct BottomLineView {}
+pub struct BottomLineView {
+    search_query: LineEdit,
+}
 
 impl BottomLineView {
     pub fn new() -> BottomLineView {
-        BottomLineView {}
+        BottomLineView {
+            search_query: LineEdit::new(),
+        }
     }
 }
 
@@ -58,6 +64,13 @@ impl Surface for BottomLineView {
         let cursor_pos_str = format!("{}, {}", cursor_pos.y + 1, cursor_pos.x);
         let cursor_pos_width = cursor_pos_str.display_width();
         let filename_max_width = canvas.width() - cursor_pos_width - 2;
+        let search_query = self.search_query.text();
+        let notification_max_width = canvas.width() - search_query.display_width() - 2;
+        let noti = editor
+            .notifications
+            .last_notification_as_str()
+            .unwrap_or_else(|| "".to_string());
+        let noti = truncate_to_width(&noti, notification_max_width);
 
         // File name.
         canvas.write_str(0, 1, truncate_to_width(doc.name(), filename_max_width));
@@ -65,6 +78,10 @@ impl Surface for BottomLineView {
         canvas.write_str(0, canvas.width() - 1 - cursor_pos_width, &cursor_pos_str);
         // The first line.
         canvas.set_decoration(0, 0, canvas.width(), Decoration::inverted());
+        // Search query.
+        canvas.write_str(0, 1, &search_query);
+        // Notification.
+        canvas.write_str(0, canvas.width() - 1 - noti.display_width(), &noti);
     }
 
     fn handle_key_event(&mut self, editor: &mut Editor, key: KeyEvent) -> HandledEvent {
