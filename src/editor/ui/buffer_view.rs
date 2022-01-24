@@ -202,28 +202,28 @@ impl Surface for BufferView {
                 doc.buffer_mut().delete();
             }
             (KeyCode::Up, NONE) => {
-                doc.view_mut().move_cursors_up(doc.buffer_mut());
+                doc.view_mut().move_cursors_up();
             }
             (KeyCode::Down, NONE) => {
-                //                f.move_cursors(1, 0);
+                doc.view_mut().move_cursors_down();
             }
             (KeyCode::Left, NONE) => {
-                //                f.move_cursors(0, -1);
+                doc.view_mut().move_cursors_left();
             }
             (KeyCode::Right, NONE) => {
-                //                f.move_cursors(0, 1);
+                doc.view_mut().move_cursors_right();
             }
             (KeyCode::Up, SHIFT) => {
-                //                f.expand_selections(-1, 0);
+                doc.view_mut().expand_up();
             }
             (KeyCode::Down, SHIFT) => {
-                //                f.expand_selections(1, 0);
+                doc.view_mut().expand_down();
             }
             (KeyCode::Left, SHIFT) => {
-                //                f.expand_selections(0, -1);
+                doc.view_mut().expand_left();
             }
             (KeyCode::Right, SHIFT) => {
-                //                f.expand_selections(0, 1);
+                doc.view_mut().expand_right();
             }
             (KeyCode::Enter, NONE) => {
                 doc.buffer_mut().insert_newline_and_indent();

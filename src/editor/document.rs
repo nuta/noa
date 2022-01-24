@@ -92,6 +92,38 @@ impl Document {
         self.view.layout(&self.buffer, rows, cols);
     }
 
+    pub fn move_cursors_up(&mut self) {
+        self.view.move_cursors_up(&mut self.buffer);
+    }
+
+    pub fn move_cursors_down(&mut self) {
+        self.view.move_cursors_down(&mut self.buffer);
+    }
+
+    pub fn move_cursors_left(&mut self) {
+        self.view.move_cursors_left(&mut self.buffer);
+    }
+
+    pub fn move_cursors_right(&mut self) {
+        self.view.move_cursors_right(&mut self.buffer);
+    }
+
+    pub fn expand_up(&mut self) {
+        self.view.expand_up(&mut self.buffer);
+    }
+
+    pub fn expand_down(&mut self) {
+        self.view.expand_down(&mut self.buffer);
+    }
+
+    pub fn expand_left(&mut self) {
+        self.view.expand_left(&mut self.buffer);
+    }
+
+    pub fn expand_right(&mut self) {
+        self.view.expand_right(&mut self.buffer);
+    }
+
     pub fn run_post_update_jobs(&mut self) {
         let time = TimeReport::new("post_update_jobs time");
 
