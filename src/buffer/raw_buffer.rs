@@ -698,4 +698,20 @@ mod tests {
         assert_eq!(iter.prev(), Some(ArrayString::from_str("C").unwrap()));
         assert_eq!(iter.position(), Position::new(0, 2));
     }
+
+    #[test]
+    fn test_grapheme_iter_newline() {
+        // ABC
+        // XY
+        let buffer = RawBuffer::from_text("ABC\nXY");
+        let mut iter = buffer.grapheme_iter(Position::new(0, 3));
+
+        assert_eq!(iter.position(), Position::new(0, 3));
+        assert_eq!(iter.next(), Some(ArrayString::from_str("\n").unwrap()));
+        assert_eq!(iter.position(), Position::new(1, 0));
+        assert_eq!(iter.prev(), Some(ArrayString::from_str("\n").unwrap()));
+        assert_eq!(iter.position(), Position::new(0, 3));
+        assert_eq!(iter.next(), Some(ArrayString::from_str("\n").unwrap()));
+        assert_eq!(iter.position(), Position::new(1, 0));
+    }
 }
