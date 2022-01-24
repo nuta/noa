@@ -121,6 +121,7 @@ impl RawBuffer {
             iter: self.rope.chars_at(self.pos_to_rope_index(pos)),
             buf: self,
             pos,
+            prev_was_newline: false,
         }
     }
 
@@ -271,6 +272,7 @@ pub struct CharIter<'a> {
     iter: ropey::iter::Chars<'a>,
     buf: &'a RawBuffer,
     pos: Position,
+    prev_was_newline: bool,
 }
 
 impl<'a> CharIter<'a> {
@@ -322,9 +324,14 @@ impl Iterator for CharIter<'_> {
             Some('\n') => {
                 self.pos.y += 1;
                 self.pos.x = 0;
+                self.prev_was_newline = true;
             }
             Some('\r') => {
                 // Do nothing.
+            }
+            Some(_) if self.prev_was_newline => {
+                // Don't advance the cursor if the previous character was a newline.
+                self.prev_was_newline = false;
             }
             Some(_) => {
                 self.pos.x += 1;
@@ -690,6 +697,26 @@ mod tests {
 
         buffer.edit(Range::new(0, 1, 0, 3), "");
         assert_eq!(buffer.text(), "ADEFG");
+    }
+
+    #[test]
+    fn test_grapheme_iter_next() {
+        // ABC
+        // XY
+        let buffer = RawBuffer::from_text("ABC\nXY");
+        let mut iter = buffer.grapheme_iter(Position::new(0, 0));
+
+        assert_eq!(iter.position(), Position::new(0, 0));
+        assert_eq!(iter.next(), Some(ArrayString::from_str("A").unwrap()));
+        assert_eq!(iter.position(), Position::new(0, 1));
+        assert_eq!(iter.next(), Some(ArrayString::from_str("B").unwrap()));
+        assert_eq!(iter.position(), Position::new(0, 2));
+        assert_eq!(iter.next(), Some(ArrayString::from_str("C").unwrap()));
+        assert_eq!(iter.position(), Position::new(0, 3));
+        assert_eq!(iter.next(), Some(ArrayString::from_str("\n").unwrap()));
+        assert_eq!(iter.position(), Position::new(1, 0));
+        assert_eq!(iter.next(), Some(ArrayString::from_str("X").unwrap()));
+        assert_eq!(iter.position(), Position::new(1, 0));
     }
 
     #[test]

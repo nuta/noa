@@ -14,7 +14,7 @@ fn test_line_len() {
 }
 
 #[test]
-fn insertion_and_deletion() {
+fn insertion_and_backspace() {
     let mut b = Buffer::new();
     b.backspace();
     b.insert("Hello");
@@ -24,6 +24,26 @@ fn insertion_and_deletion() {
     assert_eq!(b.text(), "Hello World");
     b.insert_char('!');
     assert_eq!(b.text(), "Hello World!");
+}
+
+#[test]
+fn deletion() {
+    // a|bc
+    let mut b = Buffer::new();
+    b.insert("abc");
+    b.set_cursors(&[Cursor::new(0, 1)]);
+    b.delete();
+    assert_eq!(b.text(), "ac");
+    assert_eq!(b.cursors(), &[Cursor::new(0, 1),]);
+
+    // a|
+    // b
+    let mut b = Buffer::new();
+    b.insert("a\nb");
+    b.set_cursors(&[Cursor::new(0, 1)]);
+    b.delete();
+    assert_eq!(b.text(), "ab");
+    assert_eq!(b.cursors(), &[Cursor::new(0, 1),]);
 }
 
 #[test]
