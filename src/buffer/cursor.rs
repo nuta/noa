@@ -67,7 +67,7 @@ impl Position {
 
         if left > 0 {
             let mut iter = buf.grapheme_iter(*self);
-            if let Some(_) = iter.prev() {
+            if iter.prev().is_some() {
                 *self = iter.position();
             }
         }
