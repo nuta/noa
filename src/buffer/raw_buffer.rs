@@ -1,5 +1,4 @@
 use arrayvec::ArrayString;
-use noa_common::int_traits::AddAndSub;
 use unicode_segmentation::{GraphemeCursor, GraphemeIncomplete};
 
 use crate::cursor::{Cursor, Position, Range};
