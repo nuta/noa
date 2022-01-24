@@ -48,20 +48,8 @@ impl Position {
         let num_lines = buf.num_lines();
         if right > 0 {
             let mut iter = buf.grapheme_iter(*self);
-            loop {
-                match iter.next() {
-                    Some(s) if s.as_str() == "\n" => {
-                        continue;
-                    }
-                    Some(_) => {
-                        *self = iter.position();
-                        break;
-                    }
-                    None => {
-                        // `self` is already at EOF. No need to update.
-                        break;
-                    }
-                }
+            if iter.next().is_some() {
+                *self = iter.position();
             }
         }
 
