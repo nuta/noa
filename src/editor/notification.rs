@@ -20,16 +20,19 @@ impl NotificationManager {
         self.last_notification().map(|noti| match noti {
             Notification::Info(message) => message.clone(),
             Notification::Error(err) => {
-                format!("")
+                format!("{}", err)
             }
         })
     }
 
     pub fn info<T: Into<String>>(&mut self, message: T) {
-        self.notification = Some(Notification::Info(message.into()));
+        let message = message.into();
+        info!("notification: {}", message);
+        self.notification = Some(Notification::Info(message));
     }
 
     pub fn error(&mut self, err: anyhow::Error) {
+        error!("notification: {}", err);
         self.notification = Some(Notification::Error(err));
     }
 

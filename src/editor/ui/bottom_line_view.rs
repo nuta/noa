@@ -81,7 +81,7 @@ impl Surface for BottomLineView {
         // Search query.
         canvas.write_str(0, 1, &search_query);
         // Notification.
-        canvas.write_str(0, canvas.width() - 1 - noti.display_width(), &noti);
+        canvas.write_str(0, canvas.width() - 1 - noti.display_width(), noti);
     }
 
     fn handle_key_event(&mut self, editor: &mut Editor, key: KeyEvent) -> HandledEvent {
