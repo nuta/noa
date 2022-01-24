@@ -84,6 +84,10 @@ impl Document {
         &self.view
     }
 
+    pub fn view_mut(&mut self) -> &mut View {
+        &mut self.view
+    }
+
     pub fn layout_view(&mut self, rows: usize, cols: usize) {
         self.view.layout(&self.buffer, rows, cols);
     }

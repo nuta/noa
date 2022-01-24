@@ -202,7 +202,7 @@ impl Surface for BufferView {
                 doc.buffer_mut().delete();
             }
             (KeyCode::Up, NONE) => {
-                //                f.move_cursors(-1, 0);
+                doc.view_mut().move_cursors_up(doc.buffer_mut());
             }
             (KeyCode::Down, NONE) => {
                 //                f.move_cursors(1, 0);

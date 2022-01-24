@@ -238,6 +238,31 @@ impl Cursor {
         self.selection.back()
     }
 
+    pub fn move_to(&mut self, pos: Position) {
+        self.selection.start = pos;
+        self.selection.end = pos;
+    }
+
+    pub fn move_left(&mut self, buf: &RawBuffer) {
+        if self.selection.is_empty() {
+            self.selection.start.move_by(buf, 0, 0, 0, 1);
+            self.selection.end.move_by(buf, 0, 0, 0, 1);
+            assert_eq!(self.selection.start, self.selection.end);
+        } else {
+            self.move_to(self.selection.front());
+        }
+    }
+
+    pub fn move_right(&mut self, buf: &RawBuffer) {
+        if self.selection.is_empty() {
+            self.selection.start.move_by(buf, 0, 0, 1, 0);
+            self.selection.end.move_by(buf, 0, 0, 1, 0);
+            assert_eq!(self.selection.start, self.selection.end);
+        } else {
+            self.move_to(self.selection.back());
+        }
+    }
+
     pub fn expand_left(&mut self, buf: &RawBuffer) {
         self.selection.front_mut().move_by(buf, 0, 0, 1, 0)
     }

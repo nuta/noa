@@ -4,7 +4,7 @@ use std::cmp::min;
 use arrayvec::ArrayString;
 use noa_buffer::{
     buffer::Buffer,
-    cursor::{Position, Range},
+    cursor::{Cursor, Position, Range},
     display_width::DisplayWidth,
 };
 use noa_compositor::canvas::{Grapheme, Style};
@@ -117,6 +117,45 @@ impl View {
                 col_i += 1;
             }
         }
+    }
+
+    /// Moves the cursor to left by one grapheme.
+    pub fn move_cursors_left(&self, buffer: &mut Buffer) {
+        let mut new_cursors = Vec::new();
+        for c in buffer.cursors().iter().map(|c| c.clone()) {
+            c.move_left(buffer);
+        }
+        buffer.set_cursors(new_cursors);
+    }
+
+    /// Moves the cursor to right by one grapheme.
+    pub fn move_cursors_right(&self, buffer: &mut Buffer) {
+        let mut new_cursors = Vec::new();
+        for c in buffer.cursors().iter().map(|c| c.clone()) {
+            c.move_right(buffer);
+        }
+        buffer.set_cursors(new_cursors);
+    }
+
+    /// Moves the cursor to up by one display row (respecting soft wrapping).
+    pub fn move_cursors_up(&self, buffer: &mut Buffer) {
+        let mut new_cursors = Vec::new();
+        for c in buffer.cursors().iter().map(|c| c.clone()) {
+            for l in self.display_rows() {
+                buffer.set_cursors(new_cursors);
+            }
+
+            // c.move_up(buffer);
+        }
+    }
+
+    /// Moves the cursor to down by one display row (respecting soft wrapping).
+    pub fn move_cursors_down(&self, buffer: &mut Buffer) {
+        let mut new_cursors = Vec::new();
+        for c in buffer.cursors().iter().map(|c| c.clone()) {
+            // c.move_down(buffer);
+        }
+        buffer.set_cursors(new_cursors);
     }
 
     /// Computes the grapheme layout (text wrapping).
