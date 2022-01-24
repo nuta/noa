@@ -47,6 +47,19 @@ fn deletion() {
 }
 
 #[test]
+fn delete_selection() {
+    // ab|XY        ab|cd
+    // Z|cd|   =>
+    let mut b = Buffer::new();
+    b.insert("abXY\nZcd");
+    b.set_cursors(&[Cursor::new_selection(0, 2, 1, 1)]);
+    b.delete();
+    dbg!(b.text());
+    assert_eq!(b.text(), "abcd");
+    assert_eq!(b.cursors(), &[Cursor::new(0, 2)]);
+}
+
+#[test]
 fn multibyte_characters() {
     let mut b = Buffer::new();
     b.insert("Hello 世界!");
@@ -350,7 +363,6 @@ fn single_selection_including_newlines() {
     assert_eq!(b.cursors(), &[Cursor::new(0, 3)]);
 }
 
-/*
 #[test]
 fn multi_selections() {
     // ab|XYZ  =>  ab|
@@ -370,6 +382,19 @@ fn multi_selections() {
         &[Cursor::new(0, 2), Cursor::new(1, 2), Cursor::new(2, 2),]
     );
 
+    // ab|XY        ab|cd|ef
+    // Z|cd|XY  =>
+    // Z|ef
+    let mut b = Buffer::new();
+    b.insert("abXY\nZcdXY\nZef");
+    b.set_cursors(&[
+        Cursor::new_selection(0, 2, 1, 1),
+        Cursor::new_selection(1, 3, 2, 1),
+    ]);
+    b.backspace();
+    assert_eq!(b.text(), "abcdef");
+    assert_eq!(b.cursors(), &[Cursor::new(0, 2), Cursor::new(0, 4)]);
+
     // ab|XY        ab|cd|ef|g
     // Z|cd|XY  =>
     // Z|ef|XY
@@ -388,7 +413,6 @@ fn multi_selections() {
         &[Cursor::new(0, 2), Cursor::new(0, 4), Cursor::new(0, 6),]
     );
 }
-*/
 
 #[test]
 fn test_insert_newline_and_indent() {

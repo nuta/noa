@@ -198,12 +198,6 @@ impl RawBuffer {
             .map(|x| string_count - x - 1)
             .unwrap_or(string_count);
 
-        let prev_line_len = if range_removed.front().y != range_removed.back().y {
-            self.line_len(range_removed.front().y)
-        } else {
-            0
-        };
-
         self.edit(range_removed, new_text);
 
         // Move the current cursor.
@@ -225,10 +219,10 @@ impl RawBuffer {
             );
 
             if s.start.y == range_removed.back().y {
-                s.start.x = s.start.x.add_and_sub(prev_line_len + x_inserted, x_deleted);
+                s.start.x = new_pos.x + (s.start.x - range_removed.back().x);
             }
             if s.end.y == range_removed.back().y {
-                s.end.x = s.end.x.add_and_sub(prev_line_len + x_inserted, x_deleted);
+                s.end.x = new_pos.x + (s.end.x - range_removed.back().x);
             }
 
             s.start.y = s.start.y.add_and_sub(y_inserted, y_deleted);
