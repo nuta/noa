@@ -67,13 +67,8 @@ impl Position {
 
         if left > 0 {
             let mut iter = buf.grapheme_iter(*self);
-            match iter.prev() {
-                Some(_) => {
-                    *self = iter.position();
-                }
-                None => {
-                    // `self` is already at EOF. No need to update.
-                }
+            if let Some(_) = iter.prev() {
+                *self = iter.position();
             }
         }
 
