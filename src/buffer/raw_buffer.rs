@@ -180,23 +180,8 @@ impl RawBuffer {
         past_cursors: &mut [Cursor],
         new_text: &str,
     ) {
-        dbg!(&current_cursor);
         let range_removed = current_cursor.selection();
-
-        let y_inserted = new_text.chars().filter(|c| *c == '\n').count();
-        let y_deleted = range_removed.back().y - range_removed.front().y;
-
-        // Compute the number of characters deleted/inserted in the last line.
-        let string_count = new_text.chars().count();
-        let x_deleted = if range_removed.front().y == range_removed.back().y {
-            range_removed.back().x - range_removed.front().x
-        } else {
-            range_removed.back().x
-        };
-        let x_inserted = new_text
-            .rfind('\n')
-            .map(|x| string_count - x - 1)
-            .unwrap_or(string_count);
+        let prev_back_y = current_cursor.selection().back().y;
 
         self.edit(range_removed, new_text);
 
@@ -205,18 +190,9 @@ impl RawBuffer {
         *current_cursor = Cursor::new(new_pos.y, new_pos.x);
 
         // Adjust past cursors.
-        dbg!(&new_pos);
+        let y_diff = (new_pos.y as isize) - (prev_back_y as isize);
         for c in past_cursors {
-            dbg!(&c);
             let s = c.selection_mut();
-
-            dbg!(
-                range_removed.back().y,
-                y_inserted,
-                y_deleted,
-                x_inserted,
-                x_deleted
-            );
 
             if s.start.y == range_removed.back().y {
                 s.start.x = new_pos.x + (s.start.x - range_removed.back().x);
@@ -225,11 +201,8 @@ impl RawBuffer {
                 s.end.x = new_pos.x + (s.end.x - range_removed.back().x);
             }
 
-            s.start.y = s.start.y.add_and_sub(y_inserted, y_deleted);
-            s.end.y = s.end.y.add_and_sub(y_inserted, y_deleted);
-
-            dbg!("updated");
-            dbg!(&c);
+            s.start.y = ((s.start.y as isize) + y_diff) as usize;
+            s.end.y = ((s.end.y as isize) + y_diff) as usize;
         }
     }
 

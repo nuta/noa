@@ -319,7 +319,6 @@ impl CursorSet {
     where
         F: FnMut(&mut Cursor, &mut [Cursor]),
     {
-        dbg!(&self.cursors);
         let mut new_cursors = Vec::new();
         for mut cursor in self.cursors.drain(..).rev() {
             // Remove duplicated cursors.

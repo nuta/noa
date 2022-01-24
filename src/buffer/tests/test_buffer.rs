@@ -54,7 +54,6 @@ fn delete_selection() {
     b.insert("abXY\nZcd");
     b.set_cursors(&[Cursor::new_selection(0, 2, 1, 1)]);
     b.delete();
-    dbg!(b.text());
     assert_eq!(b.text(), "abcd");
     assert_eq!(b.cursors(), &[Cursor::new(0, 2)]);
 }
