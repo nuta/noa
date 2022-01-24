@@ -173,12 +173,13 @@ impl RawBuffer {
         }
     }
 
-    pub fn edit_cursor(
+    pub fn edit_at_cursor(
         &mut self,
         current_cursor: &mut Cursor,
         past_cursors: &mut [Cursor],
         new_text: &str,
     ) {
+        dbg!(&current_cursor);
         let range_removed = current_cursor.selection();
 
         let y_inserted = new_text.chars().filter(|c| *c == '\n').count();
@@ -189,12 +190,18 @@ impl RawBuffer {
         let x_deleted = if range_removed.front().y == range_removed.back().y {
             range_removed.back().x - range_removed.front().x
         } else {
-            range_removed.end.x
+            range_removed.back().x
         };
         let x_inserted = new_text
             .rfind('\n')
             .map(|x| string_count - x - 1)
             .unwrap_or(string_count);
+
+        let prev_line_len = if range_removed.front().y != range_removed.back().y {
+            self.line_len(range_removed.front().y)
+        } else {
+            0
+        };
 
         self.edit(range_removed, new_text);
 
@@ -203,17 +210,31 @@ impl RawBuffer {
         *current_cursor = Cursor::new(new_pos.y, new_pos.x);
 
         // Adjust past cursors.
+        dbg!(&new_pos);
         for c in past_cursors {
+            dbg!(&c);
             let s = c.selection_mut();
-            if range_removed.back().y == s.front().y {
-                s.front_mut().x = s.front_mut().x.add_and_sub(x_inserted, x_deleted);
-                if range_removed.back().y == s.back().y {
-                    s.back_mut().x = s.back_mut().x.add_and_sub(x_inserted, x_deleted);
-                }
+
+            dbg!(
+                range_removed.back().y,
+                y_inserted,
+                y_deleted,
+                x_inserted,
+                x_deleted
+            );
+
+            if s.start.y == range_removed.back().y {
+                s.start.x = s.start.x.add_and_sub(prev_line_len + x_inserted, x_deleted);
+            }
+            if s.end.y == range_removed.back().y {
+                s.end.x = s.end.x.add_and_sub(prev_line_len + x_inserted, x_deleted);
             }
 
             s.start.y = s.start.y.add_and_sub(y_inserted, y_deleted);
             s.end.y = s.end.y.add_and_sub(y_inserted, y_deleted);
+
+            dbg!("updated");
+            dbg!(&c);
         }
     }
 
@@ -647,6 +668,8 @@ impl<'a, 'b> DoubleEndedIterator for FindIter<'a, 'b> {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
 
     #[test]
@@ -667,5 +690,19 @@ mod tests {
 
         buffer.edit(Range::new(0, 1, 0, 3), "");
         assert_eq!(buffer.text(), "ADEFG");
+    }
+
+    #[test]
+    fn test_grapheme_iter_prev() {
+        // ABC
+        // XY
+        let buffer = RawBuffer::from_text("ABC\nXY");
+        let mut iter = buffer.grapheme_iter(Position::new(1, 0));
+
+        assert_eq!(iter.position(), Position::new(1, 0));
+        assert_eq!(iter.prev(), Some(ArrayString::from_str("\n").unwrap()));
+        assert_eq!(iter.position(), Position::new(0, 3));
+        assert_eq!(iter.prev(), Some(ArrayString::from_str("C").unwrap()));
+        assert_eq!(iter.position(), Position::new(0, 2));
     }
 }

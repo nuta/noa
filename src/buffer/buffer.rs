@@ -150,12 +150,12 @@ impl Buffer {
     pub fn insert_newline_and_indent(&mut self) {
         // Insert a newline.
         self.cursors
-            .foreach(|c, past_cursors| self.buf.edit_cursor(c, past_cursors, "\n"));
+            .foreach(|c, past_cursors| self.buf.edit_at_cursor(c, past_cursors, "\n"));
 
         // Add indentation.
         self.cursors.foreach(|c, past_cursors| {
             let indent_size = compute_desired_indent_len(&self.buf, &self.config, c.front().y);
-            self.buf.edit_cursor(
+            self.buf.edit_at_cursor(
                 c,
                 past_cursors,
                 &match self.config.indent_style {
@@ -191,7 +191,7 @@ impl Buffer {
         let mut increase_lens_iter = increase_lens.iter();
         self.cursors.foreach(|c, past_cursors| {
             let indent_size = *increase_lens_iter.next().unwrap();
-            self.buf.edit_cursor(
+            self.buf.edit_at_cursor(
                 c,
                 past_cursors,
                 &match self.config.indent_style {
@@ -218,10 +218,11 @@ impl Buffer {
 
     pub fn insert(&mut self, s: &str) {
         self.cursors.foreach(|c, past_cursors| {
-            self.buf.edit_cursor(c, past_cursors, s);
+            self.buf.edit_at_cursor(c, past_cursors, s);
         });
     }
 
+    /// A special insertion method for pasting different texts for each cursor.
     pub fn insert_multiple(&mut self, texts: &[&str]) {
         if texts.len() == self.cursors().len() {
             self.insert(&texts.join("\n"));
@@ -230,7 +231,7 @@ impl Buffer {
         let mut texts_iter = texts.iter();
         self.cursors.foreach(|c, past_cursors| {
             self.buf
-                .edit_cursor(c, past_cursors, texts_iter.next().unwrap());
+                .edit_at_cursor(c, past_cursors, texts_iter.next().unwrap());
         });
     }
 
@@ -239,7 +240,7 @@ impl Buffer {
             if c.selection().is_empty() {
                 c.expand_left(&self.buf);
             }
-            self.buf.edit_cursor(c, past_cursors, "");
+            self.buf.edit_at_cursor(c, past_cursors, "");
         });
     }
 
@@ -248,7 +249,7 @@ impl Buffer {
             if c.selection().is_empty() {
                 c.expand_right(&self.buf);
             }
-            self.buf.edit_cursor(c, past_cursors, "");
+            self.buf.edit_at_cursor(c, past_cursors, "");
         });
     }
 

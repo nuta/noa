@@ -637,7 +637,7 @@ dependencies = [
  "noa_languages",
  "once_cell",
  "parking_lot",
- "pretty_assertions",
+ "pretty_assertions 0.7.2",
  "rayon",
  "ropey",
  "tokio",
@@ -651,6 +651,7 @@ dependencies = [
  "arrayvec",
  "noa_common",
  "noa_editorconfig",
+ "pretty_assertions 1.0.0",
  "ropey",
  "unicode-segmentation",
  "unicode-width",
@@ -711,7 +712,7 @@ dependencies = [
  "lsp-types",
  "noa_common",
  "parking_lot",
- "pretty_assertions",
+ "pretty_assertions 0.7.2",
  "serde",
  "serde_json",
  "tokio",
@@ -817,6 +818,18 @@ name = "pretty_assertions"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1cab0e7c02cf376875e9335e0ba1da535775beb5450d21e1dffca068818ed98b"
+dependencies = [
+ "ansi_term",
+ "ctor",
+ "diff",
+ "output_vt100",
+]
+
+[[package]]
+name = "pretty_assertions"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec0cfe1b2403f172ba0f234e500906ee0a3e493fb81092dac23ebefe129301cc"
 dependencies = [
  "ansi_term",
  "ctor",

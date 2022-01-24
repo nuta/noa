@@ -69,9 +69,6 @@ impl Position {
             let mut iter = buf.grapheme_iter(*self);
             loop {
                 match iter.prev() {
-                    Some(s) if s.as_str() == "\n" => {
-                        continue;
-                    }
                     Some(_) => {
                         *self = iter.position();
                         break;
@@ -178,10 +175,11 @@ impl Range {
     }
 
     pub fn overlaps_with(&self, other: Range) -> bool {
-        !(self.back().y < other.front().y
-            || self.front().y > other.back().y
-            || (self.back().y == other.front().y && self.back().x <= other.front().x)
-            || (self.front().y == other.back().y && self.front().x >= other.back().x))
+        self == &other
+            || !(self.back().y < other.front().y
+                || self.front().y > other.back().y
+                || (self.back().y == other.front().y && self.back().x <= other.front().x)
+                || (self.front().y == other.back().y && self.front().x >= other.back().x))
     }
 }
 
@@ -208,11 +206,15 @@ pub struct Cursor {
 impl Debug for Cursor {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         if self.selection.is_empty() {
-            write!(f, "Cursor[{}]", self.selection.start)
+            write!(
+                f,
+                "Cursor<{}, {}>",
+                self.selection.start.y, self.selection.start.x
+            )
         } else {
             write!(
                 f,
-                "Selection[{}, {}]",
+                "Selection<{} - {}>",
                 self.selection.start, self.selection.end
             )
         }
@@ -308,20 +310,8 @@ impl CursorSet {
         // Sort and merge cursors.
         let mut new_cursors = new_cursors.to_vec();
         new_cursors.sort();
-        let duplicated = new_cursors.iter().enumerate().map(|(i, c)| {
-            (&new_cursors[..i])
-                .iter()
-                .any(|other| c.selection().overlaps_with(other.selection()))
-        });
-
-        // Update cursors.
-        self.cursors.clear();
-        for (cursor, skip) in new_cursors.iter().zip(duplicated) {
-            if !skip {
-                self.cursors.push(cursor.clone());
-            }
-        }
-
+        remove_duplicated_cursors(&mut new_cursors);
+        self.cursors = new_cursors;
         debug_assert!(!self.cursors.is_empty());
     }
 
@@ -329,12 +319,30 @@ impl CursorSet {
     where
         F: FnMut(&mut Cursor, &mut [Cursor]),
     {
+        dbg!(&self.cursors);
         let mut new_cursors = Vec::new();
         for mut cursor in self.cursors.drain(..).rev() {
+            // Remove duplicated cursors.
+            new_cursors.retain(|c: &Cursor| !c.selection().overlaps_with(cursor.selection()));
+
             f(&mut cursor, &mut new_cursors);
             new_cursors.push(cursor);
         }
         self.set_cursors(&new_cursors);
+    }
+}
+
+fn remove_duplicated_cursors(cursors: &mut Vec<Cursor>) {
+    let mut i = 0;
+    while i < cursors.len() - 1 {
+        if cursors[i]
+            .selection()
+            .overlaps_with(cursors[i + 1].selection())
+        {
+            cursors.remove(i + 1);
+        } else {
+            i += 1;
+        }
     }
 }
 
@@ -359,6 +367,10 @@ mod tests {
 
     #[test]
     fn range_overlaps_with() {
+        let a = Range::new(0, 1, 0, 1);
+        let b = Range::new(0, 1, 0, 1);
+        assert!(a.overlaps_with(b));
+
         let a = Range::new(0, 0, 0, 2);
         let b = Range::new(0, 1, 0, 3);
         assert!(a.overlaps_with(b));

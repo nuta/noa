@@ -1,3 +1,5 @@
+use pretty_assertions::assert_eq;
+
 use noa_buffer::buffer::*;
 use noa_buffer::cursor::*;
 use noa_editorconfig::IndentStyle;
@@ -71,7 +73,6 @@ fn test_multiple_cursors1() {
     assert_eq!(b.text(), "ABC\nおは\nXY");
 }
 
-/*
 #[test]
 fn test_multiple_cursors2() {
     // ABC
@@ -84,7 +85,17 @@ fn test_multiple_cursors2() {
     ]);
     b.insert("!");
     assert_eq!(b.text(), "ABC!おは!XY");
-    assert_eq!(b.cursors(), &[Cursor::new(0, 4), Cursor::new(0, 3)]);
+    assert_eq!(b.cursors(), &[Cursor::new(0, 4), Cursor::new(0, 7)]);
+}
+
+#[test]
+fn test_multiple_cursors3() {
+    // A|B| => |
+    let mut b = Buffer::from_text("AB");
+    b.set_cursors(&[Cursor::new(0, 1), Cursor::new(0, 2)]);
+    b.backspace();
+    assert_eq!(b.text(), "");
+    assert_eq!(b.cursors(), &[Cursor::new(0, 0)]);
 }
 
 #[test]
@@ -131,16 +142,16 @@ fn backspace_on_multi_cursors() {
     assert_eq!(b.cursors(), &[Cursor::new(0, 3)]);
 
     // a|bc      |bc|12
-    // |12   =>  xy|
-    // xyz|
+    // |12   =>  wxy|
+    // wxyz|
     let mut b = Buffer::new();
-    b.insert("abc\n12\nxyz");
-    b.set_cursors(&[Cursor::new(0, 1), Cursor::new(1, 0), Cursor::new(2, 3)]);
+    b.insert("abc\n12\nwxyz");
+    b.set_cursors(&[Cursor::new(0, 1), Cursor::new(1, 0), Cursor::new(2, 4)]);
     b.backspace();
-    assert_eq!(b.text(), "bc12\nxy");
+    assert_eq!(b.text(), "bc12\nwxy");
     assert_eq!(
         b.cursors(),
-        &[Cursor::new(0, 0), Cursor::new(0, 2), Cursor::new(1, 2),]
+        &[Cursor::new(0, 0), Cursor::new(0, 2), Cursor::new(1, 3)]
     );
 
     // 0
@@ -279,7 +290,6 @@ fn delete_on_multi_cursors() {
         &[Cursor::new(0, 3), Cursor::new(0, 4), Cursor::new(0, 5),]
     );
 }
-*/
 
 #[test]
 fn multibyte_characters_regression1() {

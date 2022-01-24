@@ -14,3 +14,7 @@ arrayvec = "0"
 
 noa_common = { path = "../common" }
 noa_editorconfig = { path = "../editorconfig" }
+
+
+[dev-dependencies]
+pretty_assertions = "1"
