@@ -1,12 +1,13 @@
 use std::{
     cmp::{max, min, Ordering},
     fmt::{Debug, Display},
+    hash::{Hash, Hasher},
 };
 
 use crate::raw_buffer::RawBuffer;
 
 /// The zero-based position in the buffer.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Position {
     /// The line number. 0-origin.
     pub y: usize,
@@ -106,7 +107,7 @@ impl PartialOrd for Position {
 ///
 /// Note that `start` don't have to be less (in respect to its `Ord` implementation)
 /// than `end`.
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Hash)]
 pub struct Range {
     /// The start position.
     pub start: Position,
@@ -226,6 +227,10 @@ impl Cursor {
         }
     }
 
+    pub fn moving_position(&self) -> Position {
+        self.selection.start
+    }
+
     pub(crate) fn selection_mut(&mut self) -> &mut Range {
         &mut self.selection
     }
@@ -245,8 +250,8 @@ impl Cursor {
 
     pub fn move_left(&mut self, buf: &RawBuffer) {
         if self.selection.is_empty() {
-            self.selection.start.move_by(buf, 0, 0, 0, 1);
-            self.selection.end.move_by(buf, 0, 0, 0, 1);
+            self.selection.start.move_by(buf, 0, 0, 1, 0);
+            self.selection.end.move_by(buf, 0, 0, 1, 0);
             assert_eq!(self.selection.start, self.selection.end);
         } else {
             self.move_to(self.selection.front());
@@ -255,8 +260,8 @@ impl Cursor {
 
     pub fn move_right(&mut self, buf: &RawBuffer) {
         if self.selection.is_empty() {
-            self.selection.start.move_by(buf, 0, 0, 1, 0);
-            self.selection.end.move_by(buf, 0, 0, 1, 0);
+            self.selection.start.move_by(buf, 0, 0, 0, 1);
+            self.selection.end.move_by(buf, 0, 0, 0, 1);
             assert_eq!(self.selection.start, self.selection.end);
         } else {
             self.move_to(self.selection.back());
@@ -275,6 +280,14 @@ impl Cursor {
 impl PartialEq for Cursor {
     fn eq(&self, other: &Cursor) -> bool {
         self.selection.front() == other.selection.front()
+    }
+}
+
+impl Hash for Cursor {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        // It's safe because no multiple cursors can be at the same position
+        // (self.selection.front()).
+        self.selection.front().hash(state);
     }
 }
 

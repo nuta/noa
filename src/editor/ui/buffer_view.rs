@@ -70,7 +70,7 @@ impl Surface for BufferView {
             buffer_width = canvas.width() - buffer_x - 1 /* mini map */;
             buffer_height = canvas.height() - 2 /* bottom line */;
 
-            doc.layout_view(buffer_height, buffer_width);
+            doc.layout_view(buffer_width);
         }
 
         let doc = editor.documents.current();
@@ -202,28 +202,28 @@ impl Surface for BufferView {
                 doc.buffer_mut().delete();
             }
             (KeyCode::Up, NONE) => {
-                doc.view_mut().move_cursors_up();
+                doc.move_cursors_up();
             }
             (KeyCode::Down, NONE) => {
-                doc.view_mut().move_cursors_down();
+                doc.move_cursors_down();
             }
             (KeyCode::Left, NONE) => {
-                doc.view_mut().move_cursors_left();
+                doc.move_cursors_left();
             }
             (KeyCode::Right, NONE) => {
-                doc.view_mut().move_cursors_right();
+                doc.move_cursors_right();
             }
             (KeyCode::Up, SHIFT) => {
-                doc.view_mut().expand_up();
+                doc.expand_up();
             }
             (KeyCode::Down, SHIFT) => {
-                doc.view_mut().expand_down();
+                doc.expand_down();
             }
             (KeyCode::Left, SHIFT) => {
-                doc.view_mut().expand_left();
+                doc.expand_left();
             }
             (KeyCode::Right, SHIFT) => {
-                doc.view_mut().expand_right();
+                doc.expand_right();
             }
             (KeyCode::Enter, NONE) => {
                 doc.buffer_mut().insert_newline_and_indent();

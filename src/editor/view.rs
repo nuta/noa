@@ -1,5 +1,8 @@
 use core::num;
-use std::cmp::min;
+use std::{
+    cmp::{max, min},
+    collections::HashMap,
+};
 
 use arrayvec::ArrayString;
 use noa_buffer::{
@@ -27,6 +30,51 @@ pub struct DisplayRow {
     pub positions: Vec<Position>,
 }
 
+impl DisplayRow {
+    pub fn first_position(&self) -> Position {
+        self.positions
+            .first()
+            .copied()
+            .unwrap_or_else(|| Position::new(self.lineno - 1, 0))
+    }
+
+    pub fn last_position(&self) -> Position {
+        self.positions
+            .last()
+            .copied()
+            .unwrap_or_else(|| Position::new(self.lineno - 1, 0))
+    }
+
+    pub fn end_of_row_position(&self) -> Position {
+        self.positions
+            .last()
+            .copied()
+            .map(|pos| Position::new(pos.y, pos.x + 1))
+            .unwrap_or_else(|| Position::new(self.lineno - 1, 0))
+    }
+
+    pub fn range(&self) -> Range {
+        Range::from_positions(self.first_position(), self.last_position())
+    }
+
+    pub fn locate_column_by_position(&self, pos: Position) -> Option<usize> {
+        if let Ok(pos) = self.positions.binary_search(&pos) {
+            return Some(pos);
+        }
+
+        if self.positions.is_empty() {
+            return Some(0);
+        }
+
+        let last_pos = self.last_position();
+        if last_pos.y == pos.y && last_pos.x + 1 == pos.x {
+            return Some(pos.x);
+        }
+
+        None
+    }
+}
+
 pub struct View {
     rows: Vec<DisplayRow>,
     // The first grapheme's position in `rows`.
@@ -34,9 +82,8 @@ pub struct View {
     // The last grapheme's position in `rows`.
     last_pos: Position,
     scroll: usize,
-    // The logical position of the cursor.
-    logical_x: usize,
     highlighter: Highlighter,
+    visual_xs: HashMap<Cursor, usize>,
 }
 
 impl View {
@@ -44,10 +91,10 @@ impl View {
         View {
             rows: Vec::new(),
             scroll: 0,
-            logical_x: 0,
             highlighter,
             first_pos: Position::new(0, 0),
             last_pos: Position::new(0, 0),
+            visual_xs: HashMap::new(),
         }
     }
 
@@ -120,50 +167,86 @@ impl View {
     }
 
     /// Moves the cursor to left by one grapheme.
-    pub fn move_cursors_left(&self, buffer: &mut Buffer) {
-        let mut new_cursors = Vec::new();
-        for mut c in buffer.cursors().iter().map(|c| c.clone()) {
-            c.move_left(buffer);
-        }
-        buffer.set_cursors(&new_cursors);
+    pub fn move_cursors_left(&mut self, buffer: &mut Buffer) {
+        self.move_cursors_with(buffer, |buffer, c| c.move_left(buffer));
+        self.visual_xs.clear();
     }
 
     /// Moves the cursor to right by one grapheme.
-    pub fn move_cursors_right(&self, buffer: &mut Buffer) {
-        let mut new_cursors = Vec::new();
-        for mut c in buffer.cursors().iter().map(|c| c.clone()) {
-            c.move_right(buffer);
-        }
-        buffer.set_cursors(&new_cursors);
+    pub fn move_cursors_right(&mut self, buffer: &mut Buffer) {
+        self.move_cursors_with(buffer, |buffer, c| c.move_right(buffer));
+        self.visual_xs.clear();
     }
 
     /// Moves the cursor to up by one display row (respecting soft wrapping).
-    pub fn move_cursors_up(&self, buffer: &mut Buffer) {
-        let mut new_cursors = Vec::new();
-        for mut c in buffer.cursors().iter().map(|c| c.clone()) {
-            for l in self.display_rows() {}
+    pub fn move_cursors_up(&mut self, buffer: &mut Buffer) {
+        let mut visual_xs = self.visual_xs.clone();
+        let mut new_visual_xs = HashMap::new();
+        self.move_cursors_with(buffer, |buffer, c| {
+            let (i_y, i_x) = self.locate_row_by_position(c.moving_position());
+            if i_y > 0 {
+                let next_row = &self.rows[i_y - 1];
+                let visual_x = visual_xs.get(c).copied();
+                let new_pos = i_x
+                    .and_then(|index| {
+                        next_row
+                            .positions
+                            .get(max(index, visual_x.unwrap_or(index)))
+                            .copied()
+                    })
+                    .unwrap_or_else(|| next_row.end_of_row_position());
 
-            // c.move_up(buffer);
-        }
-        buffer.set_cursors(&new_cursors);
+                c.move_to(new_pos);
+                new_visual_xs.insert(c.clone(), visual_x.or(i_x).unwrap());
+            }
+        });
+        self.visual_xs = new_visual_xs;
     }
 
     /// Moves the cursor to down by one display row (respecting soft wrapping).
-    pub fn move_cursors_down(&self, buffer: &mut Buffer) {
-        let mut new_cursors = Vec::new();
-        for mut c in buffer.cursors().iter().map(|c| c.clone()) {
-            // c.move_down(buffer);
+    pub fn move_cursors_down(&mut self, buffer: &mut Buffer) {
+        let mut visual_xs = self.visual_xs.clone();
+        let mut new_visual_xs = HashMap::new();
+        self.move_cursors_with(buffer, |buffer, c| {
+            let (i_y, i_x) = self.locate_row_by_position(c.moving_position());
+            if i_y < self.rows.len() - 1 {
+                let next_row = &self.rows[i_y + 1];
+                let visual_x = visual_xs.get(c).copied();
+                let new_pos = i_x
+                    .and_then(|index| {
+                        next_row
+                            .positions
+                            .get(max(index, visual_x.unwrap_or(index)))
+                            .copied()
+                    })
+                    .unwrap_or_else(|| next_row.end_of_row_position());
+
+                c.move_to(new_pos);
+                new_visual_xs.insert(c.clone(), visual_x.or(i_x).unwrap());
+            }
+        });
+        self.visual_xs = new_visual_xs;
+    }
+
+    fn move_cursors_with<F>(&self, buffer: &mut Buffer, mut f: F)
+    where
+        F: FnMut(&Buffer, &mut Cursor),
+    {
+        let mut new_cursors = buffer.cursors().to_vec();
+        for c in &mut new_cursors {
+            f(buffer, c);
         }
+
         buffer.set_cursors(&new_cursors);
     }
 
     /// Computes the grapheme layout (text wrapping).
     ///
     /// If you want to disable soft wrapping. Set `width` to `std::max::MAX`.
-    pub fn layout(&mut self, buffer: &Buffer, rows: usize, width: usize) {
+    pub fn layout(&mut self, buffer: &Buffer, width: usize) {
         use rayon::prelude::*;
 
-        self.rows = (0..min(rows, buffer.num_lines()))
+        self.rows = (0..buffer.num_lines())
             .into_par_iter()
             .map(|y| {
                 let rows = self.layout_line(buffer, y, width);
@@ -294,18 +377,18 @@ impl View {
 
         rows
     }
-}
 
-// tree_sitter_mapping: phf_map! {
-//     "comment" => SyntaxSpanType::Comment,
-//     "identifier" => SyntaxSpanType::Ident,
-//     "string_literal" => SyntaxSpanType::StringLiteral,
-//     "primitive_type" => SyntaxSpanType::PrimitiveType,
-//     "escape_sequence" => SyntaxSpanType::EscapeSequence,
-//     "preproc_include" => SyntaxSpanType::CMacro,
-//     "#include" => SyntaxSpanType::CMacro,
-//     "system_lib_string" => SyntaxSpanType::CIncludeArg,
-// },
+    /// Returns the index of the display row and the index within the row.
+    fn locate_row_by_position(&self, pos: Position) -> (usize, Option<usize>) {
+        let i_y = self
+            .rows
+            .partition_point(|row| pos >= row.first_position() || row.range().contains(pos));
+
+        debug_assert!(i_y > 0);
+        let row = &self.rows[i_y - 1];
+        (i_y - 1, row.locate_column_by_position(pos))
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -349,7 +432,7 @@ mod tests {
         let mut view = View::new(Highlighter::new(&PLAIN));
 
         let buffer = Buffer::from_text("ABC");
-        view.layout(&buffer, 1, 3);
+        view.layout(&buffer, 3);
         view.highlight(
             0..3,
             &[Span {
@@ -376,13 +459,13 @@ mod tests {
         let mut view = View::new(Highlighter::new(&PLAIN));
 
         let buffer = Buffer::from_text("");
-        view.layout(&buffer, 3, 5);
+        view.layout(&buffer, 5);
         assert_eq!(view.rows.len(), 1);
         assert_eq!(view.rows[0].graphemes, vec![]);
         assert_eq!(view.rows[0].positions, vec![]);
 
         let buffer = Buffer::from_text("ABC\nX\nY");
-        view.layout(&buffer, 3, 5);
+        view.layout(&buffer, 5);
         assert_eq!(view.rows.len(), 3);
         assert_eq!(view.rows[0].graphemes, vec![g("A"), g("B"), g("C")]);
         assert_eq!(view.rows[0].positions, vec![p(0, 0), p(0, 1), p(0, 2)]);
@@ -393,7 +476,7 @@ mod tests {
 
         // Soft wrapping.
         let buffer = Buffer::from_text("ABC123XYZ");
-        view.layout(&buffer, 2 /* at least 2 */, 3);
+        view.layout(&buffer, 3);
         assert_eq!(view.rows.len(), 3);
         assert_eq!(view.rows[0].graphemes, vec![g("A"), g("B"), g("C")]);
         assert_eq!(view.rows[0].positions, vec![p(0, 0), p(0, 1), p(0, 2)]);
@@ -412,7 +495,7 @@ mod tests {
 
         let mut buffer = Buffer::from_text("\tA");
         buffer.set_config(&config);
-        view.layout(&buffer, 1, 16);
+        view.layout(&buffer, 16);
         assert_eq!(view.rows.len(), 1);
         assert_eq!(
             view.rows[0].graphemes,
@@ -425,7 +508,7 @@ mod tests {
 
         let mut buffer = Buffer::from_text("AB\tC");
         buffer.set_config(&config);
-        view.layout(&buffer, 1, 16);
+        view.layout(&buffer, 16);
         assert_eq!(view.rows.len(), 1);
         assert_eq!(
             view.rows[0].graphemes,
@@ -438,7 +521,7 @@ mod tests {
 
         let mut buffer = Buffer::from_text("ABC\t\t");
         buffer.set_config(&config);
-        view.layout(&buffer, 1, 16);
+        view.layout(&buffer, 16);
         assert_eq!(view.rows.len(), 1);
         assert_eq!(
             view.rows[0].graphemes,
@@ -468,22 +551,180 @@ mod tests {
         );
     }
 
+    #[test]
+    fn locate_row_by_position() {
+        // ""
+        let buffer = Buffer::from_text("");
+        let mut view = View::new(Highlighter::new(&PLAIN));
+        view.layout(&buffer, 5);
+
+        assert_eq!(view.locate_row_by_position(p(0, 0)), (0, Some(0)));
+
+        // ABC
+        let buffer = Buffer::from_text("ABC");
+        let mut view = View::new(Highlighter::new(&PLAIN));
+        view.layout(&buffer, 5);
+
+        assert_eq!(view.locate_row_by_position(p(0, 0)), (0, Some(0)));
+
+        // ABC
+        // 12
+        // XYZ
+        let buffer = Buffer::from_text("ABC\n12\nXYZ");
+        let mut view = View::new(Highlighter::new(&PLAIN));
+        view.layout(&buffer, 5);
+
+        assert_eq!(view.locate_row_by_position(p(0, 0)), (0, Some(0)));
+        assert_eq!(view.locate_row_by_position(p(0, 1)), (0, Some(1)));
+        assert_eq!(view.locate_row_by_position(p(0, 3)), (0, Some(3)));
+        assert_eq!(view.locate_row_by_position(p(0, 4)), (0, None));
+        assert_eq!(view.locate_row_by_position(p(1, 0)), (1, Some(0)));
+        assert_eq!(view.locate_row_by_position(p(1, 1)), (1, Some(1)));
+        assert_eq!(view.locate_row_by_position(p(1, 2)), (1, Some(2)));
+        assert_eq!(view.locate_row_by_position(p(1, 3)), (1, None));
+        assert_eq!(view.locate_row_by_position(p(2, 0)), (2, Some(0)));
+        assert_eq!(view.locate_row_by_position(p(2, 1)), (2, Some(1)));
+        assert_eq!(view.locate_row_by_position(p(2, 3)), (2, Some(3)));
+    }
+
+    #[test]
+    fn cursor_movement() {
+        // ABC
+        // 12
+        // XYZ
+        let mut buffer = Buffer::from_text("ABC\n12\nXYZ");
+        let mut view = View::new(Highlighter::new(&PLAIN));
+        view.layout(&buffer, 5);
+
+        buffer.set_cursors(&[Cursor::new(2, 1)]);
+        view.move_cursors_up(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(1, 1)]);
+        view.move_cursors_up(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(0, 1)]);
+        view.move_cursors_up(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(0, 1)]);
+
+        buffer.set_cursors(&[Cursor::new(0, 1)]);
+        view.move_cursors_down(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(1, 1)]);
+        view.move_cursors_down(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(2, 1)]);
+        view.move_cursors_down(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(2, 1)]);
+    }
+
+    #[test]
+    fn cursor_movement_at_end_of_line() {
+        // ABC
+        // ABC
+        // ABC
+        let mut buffer = Buffer::from_text("ABC\nABC\nABC");
+        let mut view = View::new(Highlighter::new(&PLAIN));
+        view.layout(&buffer, 5);
+
+        buffer.set_cursors(&[Cursor::new(2, 3)]);
+        view.move_cursors_up(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(1, 3)]);
+        view.move_cursors_up(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(0, 3)]);
+        view.move_cursors_up(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(0, 3)]);
+
+        buffer.set_cursors(&[Cursor::new(0, 3)]);
+        view.move_cursors_down(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(1, 3)]);
+        view.move_cursors_down(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(2, 3)]);
+        view.move_cursors_down(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(2, 3)]);
+    }
+
+    #[test]
+    fn cursor_movement_through_empty_text() {
+        let mut buffer = Buffer::from_text("");
+        let mut view = View::new(Highlighter::new(&PLAIN));
+        view.layout(&buffer, 5);
+
+        buffer.set_cursors(&[Cursor::new(0, 0)]);
+        view.move_cursors_up(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(0, 0)]);
+        view.move_cursors_down(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(0, 0)]);
+    }
+
+    #[test]
+    fn cursor_movement_through_empty_lines() {
+        // ""
+        // ""
+        // ""
+        let mut buffer = Buffer::from_text("\n\n");
+        let mut view = View::new(Highlighter::new(&PLAIN));
+        view.layout(&buffer, 5);
+
+        buffer.set_cursors(&[Cursor::new(2, 0)]);
+        view.move_cursors_up(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(1, 0)]);
+        view.move_cursors_up(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(0, 0)]);
+        view.move_cursors_up(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(0, 0)]);
+
+        buffer.set_cursors(&[Cursor::new(0, 0)]);
+        view.move_cursors_down(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(1, 0)]);
+        view.move_cursors_down(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(2, 0)]);
+        view.move_cursors_down(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(2, 0)]);
+    }
+
+    #[test]
+    fn cursor_movement_preserving_visual_x() {
+        // "ABCDEFG"
+        // "123"
+        // ""
+        // "HIJKLMN"
+        let mut buffer = Buffer::from_text("ABCDEFG\n123\n\nHIJKLMN");
+        let mut view = View::new(Highlighter::new(&PLAIN));
+        view.layout(&buffer, 10);
+
+        buffer.set_cursors(&[Cursor::new(3, 5)]);
+        view.move_cursors_up(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(2, 0)]);
+        view.move_cursors_up(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(1, 3)]);
+        view.move_cursors_up(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(0, 5)]);
+        view.move_cursors_up(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(0, 5)]);
+
+        buffer.set_cursors(&[Cursor::new(0, 5)]);
+        view.move_cursors_down(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(1, 3)]);
+        view.move_cursors_down(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(2, 0)]);
+        view.move_cursors_down(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(3, 5)]);
+        view.move_cursors_down(&mut buffer);
+        assert_eq!(buffer.cursors(), &[Cursor::new(3, 5)]);
+    }
+
     #[bench]
     fn bench_layout_single_line(b: &mut test::Bencher) {
         let (mut view, buffer) = create_view_and_buffer(1);
-        b.iter(|| view.layout(&buffer, 1, 120));
+        b.iter(|| view.layout(&buffer, 120));
     }
 
     #[bench]
     fn bench_layout_small_line(b: &mut test::Bencher) {
         let (mut view, buffer) = create_view_and_buffer(64);
-        b.iter(|| view.layout(&buffer, 64, 120));
+        b.iter(|| view.layout(&buffer, 120));
     }
 
     #[bench]
     fn bench_layout_medium_text(b: &mut test::Bencher) {
         let (mut view, buffer) = create_view_and_buffer(2048);
-        b.iter(|| view.layout(&buffer, 2048, 120));
+        b.iter(|| view.layout(&buffer, 120));
     }
 
     #[bench]
@@ -497,7 +738,7 @@ mod tests {
             });
         }
 
-        view.layout(&buffer, 16, 120);
+        view.layout(&buffer, 120);
         b.iter(|| {
             view.clear_highlights(0..16);
             view.highlight(0..16, &spans);
@@ -515,7 +756,7 @@ mod tests {
             });
         }
 
-        view.layout(&buffer, 2048, 120);
+        view.layout(&buffer, 120);
         b.iter(|| {
             view.clear_highlights(1024..(1024 + 128));
             view.highlight(1024..(1024 + 128), &spans);

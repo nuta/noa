@@ -88,8 +88,8 @@ impl Document {
         &mut self.view
     }
 
-    pub fn layout_view(&mut self, rows: usize, cols: usize) {
-        self.view.layout(&self.buffer, rows, cols);
+    pub fn layout_view(&mut self, cols: usize) {
+        self.view.layout(&self.buffer, cols);
     }
 
     pub fn move_cursors_up(&mut self) {
@@ -109,19 +109,23 @@ impl Document {
     }
 
     pub fn expand_up(&mut self) {
-        self.view.expand_up(&mut self.buffer);
+        todo!();
+        // self.view.expand_up(&mut self.buffer);
     }
 
     pub fn expand_down(&mut self) {
-        self.view.expand_down(&mut self.buffer);
+        todo!();
+        // self.view.expand_down(&mut self.buffer);
     }
 
     pub fn expand_left(&mut self) {
-        self.view.expand_left(&mut self.buffer);
+        todo!();
+        // self.view.expand_left(&mut self.buffer);
     }
 
     pub fn expand_right(&mut self) {
-        self.view.expand_right(&mut self.buffer);
+        todo!();
+        // self.view.expand_right(&mut self.buffer);
     }
 
     pub fn run_post_update_jobs(&mut self) {
