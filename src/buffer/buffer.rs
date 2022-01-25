@@ -94,6 +94,36 @@ impl Buffer {
         self.cursors.set_cursors(new_cursors);
     }
 
+    pub fn update_main_cursor_with<F>(&mut self, f: F)
+    where
+        F: FnOnce(&mut Cursor, &RawBuffer),
+    {
+        let mut c = self.main_cursor().clone();
+        f(&mut c, &self.buf);
+        self.cursors.set_cursors(&[c]);
+    }
+
+    pub fn move_to_end_of_line(&mut self) {
+        self.cursors.foreach(|c, _past_cursors| {
+            let y = c.moving_position().y;
+            *c = Cursor::new(y, self.buf.line_len(y));
+        });
+    }
+
+    pub fn move_to_beginning_of_line(&mut self) {
+        self.cursors.foreach(|c, _past_cursors| {
+            *c = Cursor::new(c.moving_position().y, 0);
+        });
+    }
+
+    pub fn move_to_next_word(&mut self) {
+        todo!()
+    }
+
+    pub fn move_to_prev_word(&mut self) {
+        todo!()
+    }
+
     pub fn save_to_file(&self, path: &Path) -> std::io::Result<()> {
         let f = OpenOptions::new()
             .create(true)
@@ -198,7 +228,7 @@ impl Buffer {
                     IndentStyle::Tab => "\t".repeat(indent_size),
                     IndentStyle::Space => " ".repeat(indent_size),
                 },
-            )
+            );
         });
     }
 

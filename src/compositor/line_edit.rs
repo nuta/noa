@@ -68,27 +68,31 @@ impl LineEdit {
     }
 
     pub fn move_left(&mut self) {
-        todo!()
+        self.buffer.update_main_cursor_with(|c, buf| {
+            c.move_left(buf);
+        });
     }
 
     pub fn move_right(&mut self) {
-        todo!()
+        self.buffer.update_main_cursor_with(|c, buf| {
+            c.move_right(buf);
+        });
     }
 
     pub fn move_to_end_of_line(&mut self) {
-        todo!()
+        self.buffer.move_to_end_of_line();
     }
 
     pub fn move_to_beginning_of_line(&mut self) {
-        todo!()
+        self.buffer.move_to_beginning_of_line();
     }
 
     pub fn move_to_next_word(&mut self) {
-        todo!()
+        self.buffer.move_to_next_word();
     }
 
     pub fn move_to_prev_word(&mut self) {
-        todo!()
+        self.buffer.move_to_prev_word();
     }
 
     pub fn consume_key_event(&mut self, key: KeyEvent) -> bool {
