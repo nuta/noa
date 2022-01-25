@@ -478,3 +478,29 @@ fn test_indent() {
     b.indent();
     assert_eq!(b.text(), "if true {\n    while true {\n        ");
 }
+
+#[test]
+fn truncate() {
+    // ABCD
+    let mut b = Buffer::new();
+    b.insert("ABCD");
+    b.set_cursors(&[Cursor::new(0, 2)]);
+
+    b.truncate();
+    assert_eq!(b.text(), "AB");
+    assert_eq!(b.cursors(), &[Cursor::new(0, 2)]);
+    b.truncate();
+    assert_eq!(b.text(), "AB");
+    assert_eq!(b.cursors(), &[Cursor::new(0, 2)]);
+
+    // ABCD
+    //
+    // XYZ
+    let mut b = Buffer::new();
+    b.insert("ABCD\n\nXYZ");
+    b.set_cursors(&[Cursor::new(0, 4)]);
+
+    b.truncate();
+    assert_eq!(b.text(), "ABCD\nXYZ");
+    assert_eq!(b.cursors(), &[Cursor::new(0, 4)]);
+}

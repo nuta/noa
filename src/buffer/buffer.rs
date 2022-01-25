@@ -283,6 +283,25 @@ impl Buffer {
         });
     }
 
+    pub fn truncate(&mut self) {
+        self.cursors.foreach(|c, past_cursors| {
+            if c.selection().is_empty() {
+                // Select until the end of line.
+                let pos = c.moving_position();
+                let eol = self.buf.line_len(pos.y);
+                if pos.x == eol {
+                    // The cursor is already at the end of line, remove the
+                    // following newline instead.
+                    *c = Cursor::new_selection(pos.y, pos.x, pos.y + 1, 0);
+                } else {
+                    *c = Cursor::new_selection(pos.y, pos.x, pos.y, eol);
+                }
+            }
+
+            self.buf.edit_at_cursor(c, past_cursors, "");
+        });
+    }
+
     pub fn save_undo(&mut self) {
         if let Some(last_undo) = self.undo_stack.last() {
             if last_undo.buf == self.buf {

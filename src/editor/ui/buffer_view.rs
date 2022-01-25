@@ -156,19 +156,19 @@ impl Surface for BufferView {
                 }
             }
             (KeyCode::Char('k'), CTRL) => {
-                // doc.buffer_mut().truncate();
+                doc.buffer_mut().truncate();
             }
             (KeyCode::Char('a'), CTRL) => {
-                //                //                f.buffer.move_to_beginning_of_line();
+                doc.buffer_mut().move_to_beginning_of_line();
             }
             (KeyCode::Char('e'), CTRL) => {
-                //                //            ed    f.buffer.move_to_end_of_line();
+                doc.buffer_mut().move_to_end_of_line();
             }
             (KeyCode::Char('f'), ALT) => {
-                //                //                f.buffer.move_to_next_word();
+                doc.buffer_mut().move_to_next_word();
             }
             (KeyCode::Char('b'), ALT) => {
-                //                //                f.buffer.move_to_prev_word();
+                doc.buffer_mut().move_to_prev_word();
             }
             (KeyCode::Up, ALT) => {
                 //                //                f.buffer.move_current_line_above();
