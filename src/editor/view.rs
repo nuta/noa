@@ -57,21 +57,21 @@ impl DisplayRow {
         Range::from_positions(self.first_position(), self.last_position())
     }
 
-    pub fn locate_column_by_position(&self, pos: Position) -> Option<usize> {
+    pub fn locate_column_by_position(&self, pos: Position) -> usize {
         if let Ok(pos) = self.positions.binary_search(&pos) {
-            return Some(pos);
+            return pos;
         }
 
         if self.positions.is_empty() {
-            return Some(0);
+            return 0;
         }
 
         let last_pos = self.last_position();
         if last_pos.y == pos.y && last_pos.x + 1 == pos.x {
-            return Some(pos.x);
+            return pos.x;
         }
 
-        None
+        unreachable!("position is out of bounds in the view: {:?}", pos);
     }
 }
 
@@ -187,17 +187,14 @@ impl View {
             if i_y > 0 {
                 let next_row = &self.rows[i_y - 1];
                 let visual_x = visual_xs.get(c).copied();
-                let new_pos = i_x
-                    .and_then(|index| {
-                        next_row
-                            .positions
-                            .get(max(index, visual_x.unwrap_or(index)))
-                            .copied()
-                    })
+                let new_pos = next_row
+                    .positions
+                    .get(max(i_x, visual_x.unwrap_or(i_x)))
+                    .copied()
                     .unwrap_or_else(|| next_row.end_of_row_position());
 
                 c.move_to(new_pos);
-                new_visual_xs.insert(c.clone(), visual_x.or(i_x).unwrap());
+                new_visual_xs.insert(c.clone(), visual_x.unwrap_or(i_x));
             }
         });
         self.visual_xs = new_visual_xs;
@@ -212,17 +209,14 @@ impl View {
             if i_y < self.rows.len() - 1 {
                 let next_row = &self.rows[i_y + 1];
                 let visual_x = visual_xs.get(c).copied();
-                let new_pos = i_x
-                    .and_then(|index| {
-                        next_row
-                            .positions
-                            .get(max(index, visual_x.unwrap_or(index)))
-                            .copied()
-                    })
+                let new_pos = next_row
+                    .positions
+                    .get(max(i_x, visual_x.unwrap_or(i_x)))
+                    .copied()
                     .unwrap_or_else(|| next_row.end_of_row_position());
 
                 c.move_to(new_pos);
-                new_visual_xs.insert(c.clone(), visual_x.or(i_x).unwrap());
+                new_visual_xs.insert(c.clone(), visual_x.unwrap_or(i_x));
             }
         });
         self.visual_xs = new_visual_xs;
@@ -379,7 +373,7 @@ impl View {
     }
 
     /// Returns the index of the display row and the index within the row.
-    fn locate_row_by_position(&self, pos: Position) -> (usize, Option<usize>) {
+    fn locate_row_by_position(&self, pos: Position) -> (usize, usize) {
         let i_y = self
             .rows
             .partition_point(|row| pos >= row.first_position() || row.range().contains(pos));
@@ -558,14 +552,14 @@ mod tests {
         let mut view = View::new(Highlighter::new(&PLAIN));
         view.layout(&buffer, 5);
 
-        assert_eq!(view.locate_row_by_position(p(0, 0)), (0, Some(0)));
+        assert_eq!(view.locate_row_by_position(p(0, 0)), (0, 0));
 
         // ABC
         let buffer = Buffer::from_text("ABC");
         let mut view = View::new(Highlighter::new(&PLAIN));
         view.layout(&buffer, 5);
 
-        assert_eq!(view.locate_row_by_position(p(0, 0)), (0, Some(0)));
+        assert_eq!(view.locate_row_by_position(p(0, 0)), (0, 0));
 
         // ABC
         // 12
@@ -574,17 +568,15 @@ mod tests {
         let mut view = View::new(Highlighter::new(&PLAIN));
         view.layout(&buffer, 5);
 
-        assert_eq!(view.locate_row_by_position(p(0, 0)), (0, Some(0)));
-        assert_eq!(view.locate_row_by_position(p(0, 1)), (0, Some(1)));
-        assert_eq!(view.locate_row_by_position(p(0, 3)), (0, Some(3)));
-        assert_eq!(view.locate_row_by_position(p(0, 4)), (0, None));
-        assert_eq!(view.locate_row_by_position(p(1, 0)), (1, Some(0)));
-        assert_eq!(view.locate_row_by_position(p(1, 1)), (1, Some(1)));
-        assert_eq!(view.locate_row_by_position(p(1, 2)), (1, Some(2)));
-        assert_eq!(view.locate_row_by_position(p(1, 3)), (1, None));
-        assert_eq!(view.locate_row_by_position(p(2, 0)), (2, Some(0)));
-        assert_eq!(view.locate_row_by_position(p(2, 1)), (2, Some(1)));
-        assert_eq!(view.locate_row_by_position(p(2, 3)), (2, Some(3)));
+        assert_eq!(view.locate_row_by_position(p(0, 0)), (0, 0));
+        assert_eq!(view.locate_row_by_position(p(0, 1)), (0, 1));
+        assert_eq!(view.locate_row_by_position(p(0, 3)), (0, 3));
+        assert_eq!(view.locate_row_by_position(p(1, 0)), (1, 0));
+        assert_eq!(view.locate_row_by_position(p(1, 1)), (1, 1));
+        assert_eq!(view.locate_row_by_position(p(1, 2)), (1, 2));
+        assert_eq!(view.locate_row_by_position(p(2, 0)), (2, 0));
+        assert_eq!(view.locate_row_by_position(p(2, 1)), (2, 1));
+        assert_eq!(view.locate_row_by_position(p(2, 3)), (2, 3));
     }
 
     #[test]
