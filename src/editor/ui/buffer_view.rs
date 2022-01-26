@@ -171,10 +171,10 @@ impl Surface for BufferView {
                 doc.buffer_mut().move_to_prev_word();
             }
             (KeyCode::Up, ALT) => {
-                //                //                f.buffer.move_current_line_above();
+                doc.buffer_mut().move_lines_up();
             }
             (KeyCode::Down, ALT) => {
-                //                //                f.buffer.move_current_line_below();
+                doc.buffer_mut().move_lines_down();
             }
             (KeyCode::Up, modifiers) if modifiers == (CTRL | ALT) => {
                 // TODO:
