@@ -188,7 +188,7 @@ impl Surface for BufferView {
                 doc.buffer_mut().duplicate_line_up();
             }
             (KeyCode::Down, modifiers) if modifiers == (SHIFT | ALT) => {
-                doc.buffer_mut().duplicate_line_down();
+                doc.buffer_mut().duplicate_lines_down();
             }
             (KeyCode::Char('w'), CTRL) => {
                 // doc.buffer_mut()

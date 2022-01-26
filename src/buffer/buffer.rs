@@ -34,8 +34,8 @@ struct UndoState {
 }
 
 pub struct Buffer {
-    buf: RawBuffer,
-    cursors: CursorSet,
+    pub(crate) buf: RawBuffer,
+    pub(crate) cursors: CursorSet,
     config: EditorConfig,
     undo_stack: Vec<UndoState>,
     redo_stack: Vec<UndoState>,
@@ -300,16 +300,6 @@ impl Buffer {
 
             self.buf.edit_at_cursor(c, past_cursors, "");
         });
-    }
-
-    pub fn duplicate_line_up(&mut self) {
-        self.cursors.foreach(|c, past_cursors| {
-            c.select_overlapped_lines();
-        });
-    }
-
-    pub fn duplicate_line_down(&mut self) {
-        //
     }
 
     pub fn save_undo(&mut self) {

@@ -214,6 +214,10 @@ impl Cursor {
         }
     }
 
+    pub fn from_range(selection: Range) -> Cursor {
+        Cursor { selection }
+    }
+
     pub fn selection(&self) -> Range {
         self.selection
     }
@@ -277,7 +281,17 @@ impl Cursor {
     }
 
     pub fn select_overlapped_lines(&mut self) {
-        todo!()
+        let mut front = self.selection.front();
+        let mut back = self.selection.back();
+
+        front.x = 0;
+        if back.x > 0 {
+            back.y += 1;
+            back.x = 0;
+        }
+
+        self.selection.start = front;
+        self.selection.end = back;
     }
 }
 
