@@ -302,6 +302,16 @@ impl Buffer {
         });
     }
 
+    pub fn duplicate_line_up(&mut self) {
+        self.cursors.foreach(|c, past_cursors| {
+            c.select_overlapped_lines();
+        });
+    }
+
+    pub fn duplicate_line_down(&mut self) {
+        //
+    }
+
     pub fn save_undo(&mut self) {
         if let Some(last_undo) = self.undo_stack.last() {
             if last_undo.buf == self.buf {

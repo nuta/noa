@@ -275,6 +275,10 @@ impl Cursor {
     pub fn expand_right(&mut self, buf: &RawBuffer) {
         self.selection.back_mut().move_by(buf, 0, 0, 0, 1)
     }
+
+    pub fn select_overlapped_lines(&mut self) {
+        todo!()
+    }
 }
 
 impl PartialEq for Cursor {
@@ -327,7 +331,20 @@ impl CursorSet {
         // Sort and merge cursors.
         let mut new_cursors = new_cursors.to_vec();
         new_cursors.sort();
-        remove_duplicated_cursors(&mut new_cursors);
+
+        // Remove duplicates.
+        let mut i = 0;
+        while i < new_cursors.len() - 1 {
+            if new_cursors[i]
+                .selection()
+                .overlaps_with(new_cursors[i + 1].selection())
+            {
+                new_cursors.remove(i + 1);
+            } else {
+                i += 1;
+            }
+        }
+
         self.cursors = new_cursors;
         debug_assert!(!self.cursors.is_empty());
     }
@@ -345,20 +362,6 @@ impl CursorSet {
             new_cursors.push(cursor);
         }
         self.set_cursors(&new_cursors);
-    }
-}
-
-fn remove_duplicated_cursors(cursors: &mut Vec<Cursor>) {
-    let mut i = 0;
-    while i < cursors.len() - 1 {
-        if cursors[i]
-            .selection()
-            .overlaps_with(cursors[i + 1].selection())
-        {
-            cursors.remove(i + 1);
-        } else {
-            i += 1;
-        }
     }
 }
 

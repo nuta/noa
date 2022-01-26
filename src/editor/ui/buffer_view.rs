@@ -185,12 +185,10 @@ impl Surface for BufferView {
                 //                // f.buffer.add_cursor_below();
             }
             (KeyCode::Up, modifiers) if modifiers == (SHIFT | ALT) => {
-                // TODO:
-                //                // f.buffer.duplicate_line_above();
+                doc.buffer_mut().duplicate_line_up();
             }
             (KeyCode::Down, modifiers) if modifiers == (SHIFT | ALT) => {
-                // TODO:
-                //                // f.buffer.duplicate_line_below();
+                doc.buffer_mut().duplicate_line_down();
             }
             (KeyCode::Char('w'), CTRL) => {
                 // doc.buffer_mut()
