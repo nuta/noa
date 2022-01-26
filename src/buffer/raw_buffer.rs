@@ -211,6 +211,11 @@ impl RawBuffer {
     ///
     /// Runs in O(log N) time, where N is the length of the rope.
     fn pos_to_rope_index(&self, pos: Position) -> usize {
+        if pos.y == self.num_lines() && pos.x == 0 {
+            // EOF.
+            return self.rope.line_to_char(pos.y) + self.line_len(pos.y);
+        }
+
         let column = if pos.x == std::usize::MAX {
             self.line_len(pos.y)
         } else {

@@ -284,11 +284,11 @@ impl Cursor {
         let mut front = self.selection.front();
         let mut back = self.selection.back();
 
-        front.x = 0;
-        if back.x > 0 {
+        if front.y == back.y || back.x > 0 {
             back.y += 1;
             back.x = 0;
         }
+        front.x = 0;
 
         self.selection.start = front;
         self.selection.end = back;
@@ -419,5 +419,16 @@ mod tests {
         let a = Range::new(0, 0, 0, 2);
         let b = Range::new(0, 3, 0, 4);
         assert!(!a.overlaps_with(b));
+    }
+
+    #[test]
+    fn select_overlapped_lines() {
+        let mut cursor = Cursor::new(0, 0);
+        cursor.select_overlapped_lines();
+        assert_eq!(cursor.selection(), Range::new(0, 0, 1, 0));
+
+        let mut cursor = Cursor::new(0, 2);
+        cursor.select_overlapped_lines();
+        assert_eq!(cursor.selection(), Range::new(0, 0, 1, 0));
     }
 }
