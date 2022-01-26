@@ -14,18 +14,26 @@ impl Buffer {
 
             c.select_overlapped_lines();
             let mut text = self.buf.substr(c.selection());
+            let should_trim = !text.ends_with('\n');
             if !text.ends_with('\n') {
                 text.push('\n');
             }
+
             let prev_line = self
                 .buf
                 .substr(Range::new(c.front().y - 1, 0, c.front().y, 0));
-            dbg!(&prev_line);
-            dbg!(&text);
-            dbg!(&c.selection());
             text.push_str(&prev_line);
+            if should_trim && text.ends_with('\n') {
+                text.pop();
+            }
 
-            *c = Cursor::new_selection(s.front().y - 1, s.start.x, s.back().y, s.end.x);
+            *c = Cursor::new_selection(
+                s.front().y - 1,
+                0,
+                s.back().y,
+                self.buf.line_len(s.back().y),
+            );
+
             self.buf.edit_at_cursor(c, past_cursors, &text);
             *c = Cursor::new_selection(s.start.y - 1, s.start.x, s.end.y - 1, s.end.x);
         });
@@ -66,13 +74,29 @@ mod tests {
         let mut b = Buffer::from_text("abcd\nxyz");
         b.set_cursors(&[Cursor::new(1, 2)]);
         b.move_lines_up();
-        assert_eq!(b.text(), "abcd");
-        assert_eq!(b.cursors(), &[Cursor::new(1, 2)]);
+        assert_eq!(b.text(), "xyz\nabcd");
+        assert_eq!(b.cursors(), &[Cursor::new(0, 2)]);
     }
 
     #[test]
     fn move_multiple_lines_up() {
-        // ABCD
-        // EFGH
+        //
+        // abcd
+        // efgh
+        // xyz
+        let mut b = Buffer::from_text("\nabcd\nefgh\nxyz");
+        b.set_cursors(&[Cursor::new_selection(1, 2, 3, 1)]);
+        b.move_lines_up();
+        assert_eq!(b.text(), "abcd\nefgh\nxyz\n");
+        assert_eq!(b.cursors(), &[Cursor::new_selection(0, 2, 2, 1)]);
+
+        // ----
+        // abcd
+        // xyz
+        let mut b = Buffer::from_text("----\nabcd\nxyz");
+        b.set_cursors(&[Cursor::new_selection(1, 2, 2, 1)]);
+        b.move_lines_up();
+        assert_eq!(b.text(), "abcd\nxyz\n----");
+        assert_eq!(b.cursors(), &[Cursor::new_selection(0, 2, 1, 1)]);
     }
 }
