@@ -139,6 +139,7 @@ impl RawBuffer {
     pub fn word_iter(&self, pos: Position) -> WordIter<'_> {
         WordIter {
             iter: self.char_iter(pos),
+        range: None,
         }
     }
 
@@ -510,6 +511,22 @@ impl<'a> Word<'a> {
 #[derive(Clone)]
 pub struct WordIter<'a> {
     iter: CharIter<'a>,
+    range: Option<Range>,
+}
+
+impl<'a> WordIter<'a> {
+    pub fn position(&self) -> Position {
+        self.iter.position()
+    }
+
+    pub fn range(&self) -> Option<&Range> {
+        self.range.as_ref()
+    }
+
+    pub fn prev(&mut self) -> Option<Word<'_>> {
+        // TODO:
+        None
+    }
 }
 
 impl<'a> Iterator for WordIter<'a> {

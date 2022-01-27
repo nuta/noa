@@ -150,23 +150,24 @@ impl Document {
     }
 
     pub fn delete_current_word(&mut self) {
-        todo!()
+        self.buffer.select_current_word();
+        self.buffer.delete();
     }
 
     pub fn move_cursors_prev_word(&mut self) {
-        todo!()
+        self.buffer.move_to_prev_word();
     }
 
     pub fn move_cursors_next_word(&mut self) {
-        todo!()
+        self.buffer.move_to_next_word();
     }
 
     pub fn select_prev_word(&mut self) {
-        todo!()
+        self.buffer.select_prev_word();
     }
 
     pub fn select_next_word(&mut self) {
-        todo!()
+        self.buffer.select_prev_word();
     }
 
     pub fn post_update(&mut self) {

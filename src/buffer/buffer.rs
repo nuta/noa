@@ -103,6 +103,18 @@ impl Buffer {
         self.cursors.set_cursors(&[c]);
     }
 
+    pub fn update_cursors_with<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&Buffer, &mut Cursor),
+    {
+        let mut new_cursors = self.cursors().to_vec();
+        for c in &mut new_cursors {
+            f(self, c);
+        }
+
+        self.set_cursors(&new_cursors);
+    }
+
     pub fn move_to_end_of_line(&mut self) {
         self.cursors.foreach(|c, _past_cursors| {
             let y = c.moving_position().y;
@@ -120,14 +132,6 @@ impl Buffer {
         self.cursors.foreach(|c, _past_cursors| {
             *c = Cursor::new(c.moving_position().y, c.moving_position().x);
         });
-    }
-
-    pub fn move_to_next_word(&mut self) {
-        todo!()
-    }
-
-    pub fn move_to_prev_word(&mut self) {
-        todo!()
     }
 
     pub fn save_to_file(&self, path: &Path) -> std::io::Result<()> {

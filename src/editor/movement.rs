@@ -36,13 +36,13 @@ pub struct Movement<'a> {
 impl<'a> Movement<'a> {
     /// Moves the cursor to left by one grapheme.
     pub fn move_cursors_left(&mut self) {
-        self.move_cursors_with(|buffer, _, c| c.move_left(buffer));
+        self.update_cursors_with(|buffer, _, c| c.move_left(buffer));
         self.state.visual_xs.clear();
     }
 
     /// Moves the cursor to right by one grapheme.
     pub fn move_cursors_right(&mut self) {
-        self.move_cursors_with(|buffer, _, c| c.move_right(buffer));
+        self.update_cursors_with(|buffer, _, c| c.move_right(buffer));
         self.state.visual_xs.clear();
     }
 
@@ -52,7 +52,7 @@ impl<'a> Movement<'a> {
     {
         let mut visual_xs = self.state.visual_xs.clone();
         let mut new_visual_xs = HashMap::new();
-        self.move_cursors_with(|buffer, view, c| {
+        self.update_cursors_with(|buffer, view, c| {
             let (i_y, i_x) = view.locate_row_by_position(c.moving_position());
             let dest_row = view.display_rows_as_slice().get(if y_diff > 0 {
                 i_y.saturating_add(y_diff.abs() as usize)
@@ -84,7 +84,7 @@ impl<'a> Movement<'a> {
             (x_diff as usize, 0)
         };
 
-        self.move_cursors_with(|buffer, _, c| {
+        self.update_cursors_with(|buffer, _, c| {
             let mut new_pos = c.moving_position();
             new_pos.move_by(buffer, 0, 0, left, right);
             f(c, new_pos);
@@ -125,7 +125,7 @@ impl<'a> Movement<'a> {
     pub fn select_until_beginning_of_line(&mut self) {
         self.buffer.deselect_cursors();
 
-        self.move_cursors_with(|buffer, _, c| {
+        self.update_cursors_with(|buffer, _, c| {
             let pos = c.moving_position();
             let left = pos.x;
 
@@ -138,7 +138,7 @@ impl<'a> Movement<'a> {
     pub fn select_until_end_of_line(&mut self) {
         self.buffer.deselect_cursors();
 
-        self.move_cursors_with(|buffer, _, c| {
+        self.update_cursors_with(|buffer, _, c| {
             let pos = c.moving_position();
             let right = buffer.line_len(pos.y) - pos.x;
 
@@ -148,7 +148,9 @@ impl<'a> Movement<'a> {
         });
     }
 
-    fn move_cursors_with<F>(&mut self, mut f: F)
+    // TODO: Use Buffer::updater_cursors_with() once the borrow checker supports
+    //       using &mut self.view in its closure.
+    fn update_cursors_with<F>(&mut self, mut f: F)
     where
         F: FnMut(&Buffer, &View, &mut Cursor),
     {
@@ -156,7 +158,6 @@ impl<'a> Movement<'a> {
         for c in &mut new_cursors {
             f(&self.buffer, &self.view, c);
         }
-
         self.buffer.set_cursors(&new_cursors);
     }
 }
