@@ -108,20 +108,20 @@ impl Document {
         self.view.move_cursors_right(&mut self.buffer);
     }
 
-    pub fn expand_up(&mut self) {
-        self.view.expand_up(&mut self.buffer);
+    pub fn select_up(&mut self) {
+        self.view.select_up(&mut self.buffer);
     }
 
-    pub fn expand_down(&mut self) {
-        self.view.expand_down(&mut self.buffer);
+    pub fn select_down(&mut self) {
+        self.view.select_down(&mut self.buffer);
     }
 
-    pub fn expand_left(&mut self) {
-        self.view.expand_left(&mut self.buffer);
+    pub fn select_left(&mut self) {
+        self.view.select_left(&mut self.buffer);
     }
 
-    pub fn expand_right(&mut self) {
-        self.view.expand_right(&mut self.buffer);
+    pub fn select_right(&mut self) {
+        self.view.select_right(&mut self.buffer);
     }
 
     pub fn add_cursors_up(&mut self) {
@@ -144,19 +144,19 @@ impl Document {
         todo!()
     }
 
-    pub fn expand_until_beginning_of_line(&mut self) {
+    pub fn select_until_beginning_of_line(&mut self) {
         todo!()
     }
 
-    pub fn expand_until_end_of_line(&mut self) {
+    pub fn select_until_end_of_line(&mut self) {
         todo!()
     }
 
-    pub fn expand_prev_word(&mut self) {
+    pub fn select_prev_word(&mut self) {
         todo!()
     }
 
-    pub fn expand_next_word(&mut self) {
+    pub fn select_next_word(&mut self) {
         todo!()
     }
 

@@ -210,6 +210,23 @@ impl View {
         self.visual_xs = new_visual_xs;
     }
 
+    pub fn move_cursors_horizontally<F>(&mut self, buffer: &mut Buffer, x_diff: isize, f: F)
+    where
+        F: Fn(&mut Cursor, Position),
+    {
+        let (left, right) = if x_diff > 0 {
+            (0, x_diff as usize)
+        } else {
+            (x_diff as usize, 0)
+        };
+
+        self.move_cursors_with(buffer, |buffer, c| {
+            let mut new_pos = c.moving_position();
+            new_pos.move_by(buffer, 0, 0, left, right);
+            f(c, new_pos);
+        });
+    }
+
     /// Moves the cursor to up by one display row (respecting soft wrapping).
     pub fn move_cursors_up(&mut self, buffer: &mut Buffer) {
         self.move_cursors_vertically(buffer, -1, |c, pos| c.move_to(pos));
@@ -220,24 +237,24 @@ impl View {
         self.move_cursors_vertically(buffer, 1, |c, pos| c.move_to(pos));
     }
 
-    pub fn expand_up(&mut self, buffer: &mut Buffer) {
+    pub fn select_up(&mut self, buffer: &mut Buffer) {
         self.move_cursors_vertically(buffer, -1, |c, pos| {
             *c = Cursor::new_selection(pos.y, pos.x, c.fixed_position().y, c.fixed_position().x);
         });
     }
-    pub fn expand_down(&mut self, buffer: &mut Buffer) {
+    pub fn select_down(&mut self, buffer: &mut Buffer) {
         self.move_cursors_vertically(buffer, 1, |c, pos| {
             *c = Cursor::new_selection(pos.y, pos.x, c.fixed_position().y, c.fixed_position().x);
         });
     }
-    pub fn expand_left(&mut self, buffer: &mut Buffer) {
-        self.move_cursors_with(buffer, |buffer, c| {
-            c.expand_left(buffer);
+    pub fn select_left(&mut self, buffer: &mut Buffer) {
+        self.move_cursors_horizontally(buffer, -1, |c, pos| {
+            *c = Cursor::new_selection(pos.y, pos.x, c.fixed_position().y, c.fixed_position().x);
         });
     }
-    pub fn expand_right(&mut self, buffer: &mut Buffer) {
-        self.move_cursors_with(buffer, |buffer, c| {
-            c.expand_right(buffer);
+    pub fn select_right(&mut self, buffer: &mut Buffer) {
+        self.move_cursors_horizontally(buffer, 1, |c, pos| {
+            *c = Cursor::new_selection(pos.y, pos.x, c.fixed_position().y, c.fixed_position().x);
         });
     }
 

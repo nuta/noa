@@ -244,28 +244,28 @@ impl Surface for BufferView {
                 doc.move_cursors_next_word();
             }
             (KeyCode::Up, SHIFT) => {
-                doc.expand_up();
+                doc.select_up();
             }
             (KeyCode::Down, SHIFT) => {
-                doc.expand_down();
+                doc.select_down();
             }
             (KeyCode::Left, SHIFT) => {
-                doc.expand_left();
+                doc.select_left();
             }
             (KeyCode::Right, SHIFT) => {
-                doc.expand_right();
+                doc.select_right();
             }
             (KeyCode::Left, modifiers) if modifiers == (SHIFT | CTRL) => {
-                doc.expand_until_beginning_of_line();
+                doc.select_until_beginning_of_line();
             }
             (KeyCode::Right, modifiers) if modifiers == (SHIFT | CTRL) => {
-                doc.expand_until_end_of_line();
+                doc.select_until_end_of_line();
             }
             (KeyCode::Left, modifiers) if modifiers == (SHIFT | ALT) => {
-                doc.expand_prev_word();
+                doc.select_prev_word();
             }
             (KeyCode::Right, modifiers) if modifiers == (SHIFT | ALT) => {
-                doc.expand_next_word();
+                doc.select_next_word();
             }
             (KeyCode::Enter, NONE) => {
                 doc.buffer_mut().insert_newline_and_indent();
