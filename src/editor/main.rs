@@ -23,6 +23,7 @@ mod document;
 mod editor;
 mod fuzzy;
 mod highlighting;
+mod movement;
 mod notification;
 mod path;
 mod ui;
