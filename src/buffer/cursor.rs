@@ -151,7 +151,7 @@ impl Range {
     }
 
     pub fn contains(&self, pos: Position) -> bool {
-        self.start <= pos && pos < self.end
+        self.front() <= pos && pos < self.back()
     }
 
     pub fn overlaps_with(&self, other: Range) -> bool {

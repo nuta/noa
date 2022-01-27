@@ -1,4 +1,4 @@
-use noa_buffer::display_width::DisplayWidth;
+use noa_buffer::{cursor::Position, display_width::DisplayWidth};
 use noa_compositor::{
     canvas::{CanvasViewMut, Decoration, Style},
     surface::{HandledEvent, KeyEvent, Layout, MouseEvent, RectSize, Surface},
@@ -67,7 +67,7 @@ impl Surface for BufferView {
             max_lineno_width = buffer.num_lines().display_width();
             buffer_y = 0;
             buffer_x = lineno_x + max_lineno_width + 1 /* line status */;
-            buffer_width = canvas.width() - buffer_x - 1 /* mini map */;
+            buffer_width = canvas.width() - buffer_x  - 2 /* row_end_marker and mini map */;
             buffer_height = canvas.height() - 2 /* bottom line */;
 
             doc.layout_view(buffer_width);
@@ -86,10 +86,17 @@ impl Surface for BufferView {
             canvas.write_str(y, lineno_x, &format!("{}", row.lineno));
 
             // Draw each characters in the row.
+            let mut row_end_marker = None;
             for (i_x, (grapheme, pos)) in row.graphemes.iter().zip(row.positions.iter()).enumerate()
             {
-                // Draw the character.
                 let x = buffer_x + i_x;
+                if x >= canvas.width() {
+                    // The cursor may go beyond the right edge of the screen if
+                    // soft wrapping is disabled.
+                    continue;
+                }
+
+                // Draw the character.
                 canvas.write(y, x, *grapheme);
 
                 // Check if the main cursor is at this position.
@@ -102,8 +109,29 @@ impl Surface for BufferView {
                 for (i, c) in buffer.cursors().iter().enumerate() {
                     if c.selection().contains(*pos) || (i != 0 && c.position() == Some(*pos)) {
                         canvas.set_decoration(y, x, x + 1, Decoration::inverted());
+
+                        let mut next_pos = *pos;
+                        next_pos.move_by(buffer, 0, 0, 0, 1);
+                        if c.selection().contains(next_pos) {
+                            row_end_marker = Some((' ', x + 1));
+                        }
+
+                        break;
                     }
                 }
+            }
+
+            if row.is_empty()
+                && buffer
+                    .cursors()
+                    .iter()
+                    .any(|c| c.selection().contains(Position::new(row.lineno - 1, 0)))
+            {
+                row_end_marker = Some((' ', buffer_x));
+            }
+
+            if let Some((ch, x)) = row_end_marker {
+                canvas.set_decoration(y, x, x + 1, Decoration::inverted());
             }
 
             // The main cursor is at the end of line.

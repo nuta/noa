@@ -31,6 +31,10 @@ pub struct DisplayRow {
 }
 
 impl DisplayRow {
+    pub fn is_empty(&self) -> bool {
+        self.graphemes.is_empty()
+    }
+
     pub fn first_position(&self) -> Position {
         self.positions
             .first()
