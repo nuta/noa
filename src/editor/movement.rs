@@ -59,6 +59,7 @@ impl<'a> Movement<'a> {
     pub fn add_cursors_up(&mut self) {
         let mut new_pos = None;
         self.get_cursor_neighbor_vertically(-1, |c, pos| match new_pos {
+            // TODO: Get selection
             Some(p) if pos < p => {
                 new_pos = Some(pos);
             }
