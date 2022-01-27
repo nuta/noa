@@ -109,23 +109,55 @@ impl Document {
     }
 
     pub fn expand_up(&mut self) {
-        todo!();
-        // self.view.expand_up(&mut self.buffer);
+        self.view.expand_up(&mut self.buffer);
     }
 
     pub fn expand_down(&mut self) {
-        todo!();
-        // self.view.expand_down(&mut self.buffer);
+        self.view.expand_down(&mut self.buffer);
     }
 
     pub fn expand_left(&mut self) {
-        todo!();
-        // self.view.expand_left(&mut self.buffer);
+        self.view.expand_left(&mut self.buffer);
     }
 
     pub fn expand_right(&mut self) {
-        todo!();
-        // self.view.expand_right(&mut self.buffer);
+        self.view.expand_right(&mut self.buffer);
+    }
+
+    pub fn add_cursors_up(&mut self) {
+        todo!()
+    }
+
+    pub fn add_cursors_down(&mut self) {
+        todo!()
+    }
+
+    pub fn delete_current_word(&mut self) {
+        todo!()
+    }
+
+    pub fn move_cursors_prev_word(&mut self) {
+        todo!()
+    }
+
+    pub fn move_cursors_next_word(&mut self) {
+        todo!()
+    }
+
+    pub fn expand_until_beginning_of_line(&mut self) {
+        todo!()
+    }
+
+    pub fn expand_until_end_of_line(&mut self) {
+        todo!()
+    }
+
+    pub fn expand_prev_word(&mut self) {
+        todo!()
+    }
+
+    pub fn expand_next_word(&mut self) {
+        todo!()
     }
 
     pub fn run_post_update_jobs(&mut self) {

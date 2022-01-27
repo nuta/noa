@@ -222,6 +222,27 @@ impl View {
         self.visual_xs = new_visual_xs;
     }
 
+    pub fn expand_up(&mut self, buffer: &mut Buffer) {
+        self.move_cursors_with(buffer, |buffer, c| {
+            // c.expand_left(buf);
+        });
+    }
+    pub fn expand_down(&mut self, buffer: &mut Buffer) {
+        self.move_cursors_with(buffer, |buffer, c| {
+            // c.expand_left(buf);
+        });
+    }
+    pub fn expand_left(&mut self, buffer: &mut Buffer) {
+        self.move_cursors_with(buffer, |buffer, c| {
+            c.expand_left(buffer);
+        });
+    }
+    pub fn expand_right(&mut self, buffer: &mut Buffer) {
+        self.move_cursors_with(buffer, |buffer, c| {
+            c.expand_right(buffer);
+        });
+    }
+
     fn move_cursors_with<F>(&self, buffer: &mut Buffer, mut f: F)
     where
         F: FnMut(&Buffer, &mut Cursor),

@@ -177,12 +177,10 @@ impl Surface for BufferView {
                 doc.buffer_mut().move_lines_down();
             }
             (KeyCode::Up, modifiers) if modifiers == (CTRL | ALT) => {
-                // TODO:
-                //                // f.buffer.add_cursor_above();
+                doc.add_cursors_up();
             }
             (KeyCode::Down, modifiers) if modifiers == (CTRL | ALT) => {
-                // TODO:
-                //                // f.buffer.add_cursor_below();
+                doc.add_cursors_down();
             }
             (KeyCode::Up, modifiers) if modifiers == (SHIFT | ALT) => {
                 doc.buffer_mut().duplicate_lines_up();
@@ -191,7 +189,7 @@ impl Surface for BufferView {
                 doc.buffer_mut().duplicate_lines_down();
             }
             (KeyCode::Char('w'), CTRL) => {
-                // doc.buffer_mut()
+                doc.buffer_mut().delete_current_word();
             }
             (KeyCode::Backspace, NONE) => {
                 doc.buffer_mut().backspace();
@@ -211,6 +209,12 @@ impl Surface for BufferView {
             (KeyCode::Right, NONE) => {
                 doc.move_cursors_right();
             }
+            (KeyCode::Left, modifiers) if modifiers == ALT => {
+                doc.move_cursors_prev_word();
+            }
+            (KeyCode::Right, modifiers) if modifiers == ALT => {
+                doc.move_cursors_next_word();
+            }
             (KeyCode::Up, SHIFT) => {
                 doc.expand_up();
             }
@@ -222,6 +226,18 @@ impl Surface for BufferView {
             }
             (KeyCode::Right, SHIFT) => {
                 doc.expand_right();
+            }
+            (KeyCode::Left, modifiers) if modifiers == (SHIFT | CTRL) => {
+                doc.expand_until_beginning_of_line();
+            }
+            (KeyCode::Right, modifiers) if modifiers == (SHIFT | CTRL) => {
+                doc.expand_until_end_of_line();
+            }
+            (KeyCode::Left, modifiers) if modifiers == (SHIFT | ALT) => {
+                doc.expand_prev_word();
+            }
+            (KeyCode::Right, modifiers) if modifiers == (SHIFT | ALT) => {
+                doc.expand_next_word();
             }
             (KeyCode::Enter, NONE) => {
                 doc.buffer_mut().insert_newline_and_indent();

@@ -302,6 +302,10 @@ impl Buffer {
         });
     }
 
+    pub fn delete_current_word(&mut self) {
+        todo!()
+    }
+
     pub fn save_undo(&mut self) {
         if let Some(last_undo) = self.undo_stack.last() {
             if last_undo.buf == self.buf {
