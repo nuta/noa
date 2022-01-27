@@ -235,6 +235,10 @@ impl Cursor {
         self.selection.start
     }
 
+    pub fn fixed_position(&self) -> Position {
+        self.selection.end
+    }
+
     pub(crate) fn selection_mut(&mut self) -> &mut Range {
         &mut self.selection
     }

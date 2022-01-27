@@ -178,58 +178,52 @@ impl View {
         self.visual_xs.clear();
     }
 
-    /// Moves the cursor to up by one display row (respecting soft wrapping).
-    pub fn move_cursors_up(&mut self, buffer: &mut Buffer) {
+    pub fn move_cursors_vertically<F>(&mut self, buffer: &mut Buffer, y_diff: isize, f: F)
+    where
+        F: Fn(&mut Cursor, Position),
+    {
         let mut visual_xs = self.visual_xs.clone();
         let mut new_visual_xs = HashMap::new();
         self.move_cursors_with(buffer, |buffer, c| {
             let (i_y, i_x) = self.locate_row_by_position(c.moving_position());
-            if i_y > 0 {
-                let next_row = &self.rows[i_y - 1];
+            let dest_row = self.rows.get(if y_diff > 0 {
+                i_y.saturating_add(y_diff.abs() as usize)
+            } else {
+                i_y.saturating_sub(y_diff.abs() as usize)
+            });
+
+            if let Some(dest_row) = dest_row {
                 let visual_x = visual_xs.get(c).copied();
-                let new_pos = next_row
+                let new_pos = dest_row
                     .positions
                     .get(max(i_x, visual_x.unwrap_or(i_x)))
                     .copied()
-                    .unwrap_or_else(|| next_row.end_of_row_position());
-
-                c.move_to(new_pos);
+                    .unwrap_or_else(|| dest_row.end_of_row_position());
+                f(c, new_pos);
                 new_visual_xs.insert(c.clone(), visual_x.unwrap_or(i_x));
             }
         });
         self.visual_xs = new_visual_xs;
+    }
+
+    /// Moves the cursor to up by one display row (respecting soft wrapping).
+    pub fn move_cursors_up(&mut self, buffer: &mut Buffer) {
+        self.move_cursors_vertically(buffer, -1, |c, pos| c.move_to(pos));
     }
 
     /// Moves the cursor to down by one display row (respecting soft wrapping).
     pub fn move_cursors_down(&mut self, buffer: &mut Buffer) {
-        let mut visual_xs = self.visual_xs.clone();
-        let mut new_visual_xs = HashMap::new();
-        self.move_cursors_with(buffer, |buffer, c| {
-            let (i_y, i_x) = self.locate_row_by_position(c.moving_position());
-            if i_y < self.rows.len() - 1 {
-                let next_row = &self.rows[i_y + 1];
-                let visual_x = visual_xs.get(c).copied();
-                let new_pos = next_row
-                    .positions
-                    .get(max(i_x, visual_x.unwrap_or(i_x)))
-                    .copied()
-                    .unwrap_or_else(|| next_row.end_of_row_position());
-
-                c.move_to(new_pos);
-                new_visual_xs.insert(c.clone(), visual_x.unwrap_or(i_x));
-            }
-        });
-        self.visual_xs = new_visual_xs;
+        self.move_cursors_vertically(buffer, 1, |c, pos| c.move_to(pos));
     }
 
     pub fn expand_up(&mut self, buffer: &mut Buffer) {
-        self.move_cursors_with(buffer, |buffer, c| {
-            // c.expand_left(buf);
+        self.move_cursors_vertically(buffer, -1, |c, pos| {
+            *c = Cursor::new_selection(pos.y, pos.x, c.fixed_position().y, c.fixed_position().x);
         });
     }
     pub fn expand_down(&mut self, buffer: &mut Buffer) {
-        self.move_cursors_with(buffer, |buffer, c| {
-            // c.expand_left(buf);
+        self.move_cursors_vertically(buffer, 1, |c, pos| {
+            *c = Cursor::new_selection(pos.y, pos.x, c.fixed_position().y, c.fixed_position().x);
         });
     }
     pub fn expand_left(&mut self, buffer: &mut Buffer) {
