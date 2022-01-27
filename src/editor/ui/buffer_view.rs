@@ -205,10 +205,10 @@ impl Surface for BufferView {
                 doc.buffer_mut().move_lines_down();
             }
             (KeyCode::Up, modifiers) if modifiers == (CTRL | ALT) => {
-                doc.add_cursors_up();
+                doc.movement().add_cursors_up();
             }
             (KeyCode::Down, modifiers) if modifiers == (CTRL | ALT) => {
-                doc.add_cursors_down();
+                doc.movement().add_cursors_down();
             }
             (KeyCode::Up, modifiers) if modifiers == (SHIFT | ALT) => {
                 doc.buffer_mut().duplicate_lines_up();
@@ -226,46 +226,46 @@ impl Surface for BufferView {
                 doc.buffer_mut().delete();
             }
             (KeyCode::Up, NONE) => {
-                doc.move_cursors_up();
+                doc.movement().move_cursors_up();
             }
             (KeyCode::Down, NONE) => {
-                doc.move_cursors_down();
+                doc.movement().move_cursors_down();
             }
             (KeyCode::Left, NONE) => {
-                doc.move_cursors_left();
+                doc.movement().move_cursors_left();
             }
             (KeyCode::Right, NONE) => {
-                doc.move_cursors_right();
+                doc.movement().move_cursors_right();
             }
             (KeyCode::Left, modifiers) if modifiers == ALT => {
-                doc.move_cursors_prev_word();
+                doc.buffer_mut().move_to_prev_word();
             }
             (KeyCode::Right, modifiers) if modifiers == ALT => {
-                doc.move_cursors_next_word();
+                doc.buffer_mut().move_to_next_word();
             }
             (KeyCode::Up, SHIFT) => {
-                doc.select_up();
+                doc.movement().select_up();
             }
             (KeyCode::Down, SHIFT) => {
-                doc.select_down();
+                doc.movement().select_down();
             }
             (KeyCode::Left, SHIFT) => {
-                doc.select_left();
+                doc.movement().select_left();
             }
             (KeyCode::Right, SHIFT) => {
-                doc.select_right();
+                doc.movement().select_right();
             }
             (KeyCode::Left, modifiers) if modifiers == (SHIFT | CTRL) => {
-                doc.select_until_beginning_of_line();
+                doc.movement().select_until_beginning_of_line();
             }
             (KeyCode::Right, modifiers) if modifiers == (SHIFT | CTRL) => {
-                doc.select_until_end_of_line();
+                doc.movement().select_until_end_of_line();
             }
             (KeyCode::Left, modifiers) if modifiers == (SHIFT | ALT) => {
-                doc.select_prev_word();
+                doc.buffer_mut().select_prev_word();
             }
             (KeyCode::Right, modifiers) if modifiers == (SHIFT | ALT) => {
-                doc.select_next_word();
+                doc.buffer_mut().select_next_word();
             }
             (KeyCode::Enter, NONE) => {
                 doc.buffer_mut().insert_newline_and_indent();

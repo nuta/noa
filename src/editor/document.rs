@@ -97,76 +97,12 @@ impl Document {
         &mut self.view
     }
 
+    pub fn movement(&mut self) -> Movement<'_> {
+        self.movement_state.movement(&mut self.buffer, &self.view)
+    }
+
     pub fn layout_view(&mut self, cols: usize) {
         self.view.layout(&self.buffer, cols);
-    }
-
-    pub fn move_cursors_up(&mut self) {
-        self.movement().move_cursors_up();
-    }
-
-    pub fn move_cursors_down(&mut self) {
-        self.movement().move_cursors_down();
-    }
-
-    pub fn move_cursors_left(&mut self) {
-        self.movement().move_cursors_left();
-    }
-
-    pub fn move_cursors_right(&mut self) {
-        self.movement().move_cursors_right();
-    }
-
-    pub fn select_up(&mut self) {
-        self.movement().select_up();
-    }
-
-    pub fn select_down(&mut self) {
-        self.movement().select_down();
-    }
-
-    pub fn select_left(&mut self) {
-        self.movement().select_left();
-    }
-
-    pub fn select_right(&mut self) {
-        self.movement().select_right();
-    }
-
-    pub fn select_until_beginning_of_line(&mut self) {
-        self.movement().select_until_beginning_of_line();
-    }
-
-    pub fn select_until_end_of_line(&mut self) {
-        self.movement().select_until_end_of_line();
-    }
-
-    pub fn add_cursors_up(&mut self) {
-        todo!()
-    }
-
-    pub fn add_cursors_down(&mut self) {
-        todo!()
-    }
-
-    pub fn delete_current_word(&mut self) {
-        self.buffer.delete_current_word();
-    }
-
-    pub fn move_cursors_prev_word(&mut self) {
-        self.buffer.move_to_prev_word();
-    }
-
-    pub fn move_cursors_next_word(&mut self) {
-        self.buffer.move_to_next_word();
-    }
-
-    pub fn select_prev_word(&mut self) {
-        self.buffer.select_prev_word();
-    }
-
-    pub fn select_next_word(&mut self) {
-        self.buffer.select_prev_word();
     }
 
     pub fn post_update(&mut self) {
@@ -177,10 +113,6 @@ impl Document {
 
         self.words.update_lines(&self.buffer, updates_lines);
         self.highlighter.update(&self.buffer);
-    }
-
-    fn movement(&mut self) -> Movement<'_> {
-        self.movement_state.movement(&mut self.buffer, &self.view)
     }
 }
 
