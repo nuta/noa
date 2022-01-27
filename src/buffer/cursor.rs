@@ -44,9 +44,26 @@ impl Position {
         Position::new(new_y, new_x)
     }
 
-    /// Return the new position after moving up/down/left/right.
     pub fn move_by(&mut self, buf: &RawBuffer, up: usize, down: usize, left: usize, right: usize) {
-        let num_lines = buf.num_lines();
+        for _ in 0..left {
+            self.move_horizontally_by(buf, 1, 0);
+        }
+
+        for _ in 0..right {
+            self.move_horizontally_by(buf, 0, 1);
+        }
+
+        self.y = self.y.saturating_add(down);
+        self.y = self.y.saturating_sub(up);
+
+        self.y = min(self.y, buf.num_lines());
+        self.x = min(self.x, buf.line_len(self.y));
+    }
+
+    fn move_horizontally_by(&mut self, buf: &RawBuffer, left: usize, right: usize) {
+        debug_assert!(left <= 1);
+        debug_assert!(right <= 1);
+
         if right > 0 {
             let mut iter = buf.grapheme_iter(*self);
             if iter.next().is_some() {
@@ -60,12 +77,6 @@ impl Position {
                 *self = iter.position();
             }
         }
-
-        self.y = self.y.saturating_add(down);
-        self.y = self.y.saturating_sub(up);
-
-        self.y = min(self.y, num_lines);
-        self.x = min(self.x, buf.line_len(self.y));
     }
 }
 
@@ -254,6 +265,10 @@ impl Cursor {
     pub fn move_to(&mut self, pos: Position) {
         self.selection.start = pos;
         self.selection.end = pos;
+    }
+
+    pub fn move_moving_position_to(&mut self, pos: Position) {
+        self.selection.start = pos;
     }
 
     pub fn move_left(&mut self, buf: &RawBuffer) {

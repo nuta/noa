@@ -116,6 +116,12 @@ impl Buffer {
         });
     }
 
+    pub fn deselect_cursors(&mut self) {
+        self.cursors.foreach(|c, _past_cursors| {
+            *c = Cursor::new(c.moving_position().y, c.moving_position().x);
+        });
+    }
+
     pub fn move_to_next_word(&mut self) {
         todo!()
     }

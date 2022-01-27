@@ -124,6 +124,14 @@ impl Document {
         self.view.select_right(&mut self.buffer);
     }
 
+    pub fn select_until_beginning_of_line(&mut self) {
+        self.view.select_until_beginning_of_line(&mut self.buffer);
+    }
+
+    pub fn select_until_end_of_line(&mut self) {
+        self.view.select_until_end_of_line(&mut self.buffer);
+    }
+
     pub fn add_cursors_up(&mut self) {
         todo!()
     }
@@ -141,14 +149,6 @@ impl Document {
     }
 
     pub fn move_cursors_next_word(&mut self) {
-        todo!()
-    }
-
-    pub fn select_until_beginning_of_line(&mut self) {
-        todo!()
-    }
-
-    pub fn select_until_end_of_line(&mut self) {
         todo!()
     }
 

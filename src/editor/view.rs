@@ -239,22 +239,48 @@ impl View {
 
     pub fn select_up(&mut self, buffer: &mut Buffer) {
         self.move_cursors_vertically(buffer, -1, |c, pos| {
-            *c = Cursor::new_selection(pos.y, pos.x, c.fixed_position().y, c.fixed_position().x);
+            c.move_moving_position_to(pos);
         });
     }
     pub fn select_down(&mut self, buffer: &mut Buffer) {
         self.move_cursors_vertically(buffer, 1, |c, pos| {
-            *c = Cursor::new_selection(pos.y, pos.x, c.fixed_position().y, c.fixed_position().x);
+            c.move_moving_position_to(pos);
         });
     }
     pub fn select_left(&mut self, buffer: &mut Buffer) {
         self.move_cursors_horizontally(buffer, -1, |c, pos| {
-            *c = Cursor::new_selection(pos.y, pos.x, c.fixed_position().y, c.fixed_position().x);
+            c.move_moving_position_to(pos);
         });
     }
     pub fn select_right(&mut self, buffer: &mut Buffer) {
         self.move_cursors_horizontally(buffer, 1, |c, pos| {
-            *c = Cursor::new_selection(pos.y, pos.x, c.fixed_position().y, c.fixed_position().x);
+            c.move_moving_position_to(pos);
+        });
+    }
+
+    pub fn select_until_beginning_of_line(&mut self, buffer: &mut Buffer) {
+        buffer.deselect_cursors();
+
+        self.move_cursors_with(buffer, |buffer, c| {
+            let pos = c.moving_position();
+            let left = pos.x;
+
+            let mut new_pos = c.moving_position();
+            new_pos.move_by(buffer, 0, 0, left, 0);
+            c.move_moving_position_to(new_pos);
+        });
+    }
+
+    pub fn select_until_end_of_line(&mut self, buffer: &mut Buffer) {
+        buffer.deselect_cursors();
+
+        self.move_cursors_with(buffer, |buffer, c| {
+            let pos = c.moving_position();
+            let right = buffer.line_len(pos.y) - pos.x;
+
+            let mut new_pos = c.moving_position();
+            new_pos.move_by(buffer, 0, 0, 0, right);
+            c.move_moving_position_to(new_pos);
         });
     }
 
