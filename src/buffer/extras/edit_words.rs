@@ -1,6 +1,11 @@
 use crate::{buffer::Buffer, cursor::Cursor};
 
 impl Buffer {
+    pub fn delete_current_word(&mut self) {
+        self.select_current_word();
+        self.delete();
+    }
+
     pub fn select_current_word(&mut self) {
         self.update_cursors_with(|buffer, c| {
             let mut word_iter = buffer.word_iter(c.moving_position());

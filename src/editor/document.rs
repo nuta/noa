@@ -150,8 +150,7 @@ impl Document {
     }
 
     pub fn delete_current_word(&mut self) {
-        self.buffer.select_current_word();
-        self.buffer.delete();
+        self.buffer.delete_current_word();
     }
 
     pub fn move_cursors_prev_word(&mut self) {
