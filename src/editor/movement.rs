@@ -48,16 +48,31 @@ impl<'a> Movement<'a> {
 
     /// Moves the cursor to up by one display row (respecting soft wrapping).
     pub fn move_cursors_up(&mut self) {
-        self.move_cursors_vertically(-1, |c, pos| c.move_to(pos));
+        self.get_cursor_neighbor_vertically(-1, |c, pos| c.move_to(pos));
     }
 
     /// Moves the cursor to down by one display row (respecting soft wrapping).
     pub fn move_cursors_down(&mut self) {
-        self.move_cursors_vertically(1, |c, pos| c.move_to(pos));
+        self.get_cursor_neighbor_vertically(1, |c, pos| c.move_to(pos));
     }
 
     pub fn add_cursors_up(&mut self) {
-        todo!()
+        let mut new_pos = None;
+        self.get_cursor_neighbor_vertically(-1, |c, pos| match new_pos {
+            Some(p) if pos < p => {
+                new_pos = Some(pos);
+            }
+            Some(_) => {}
+            None => {
+                new_pos = Some(pos);
+            }
+        });
+
+        if let Some(new_pos) = new_pos {
+            self.buffer.add_cursor(Cursor::from_range(
+                noa_buffer::cursor::Range::from_positions(new_pos, new_pos),
+            ));
+        }
     }
 
     pub fn add_cursors_down(&mut self) {
@@ -65,22 +80,22 @@ impl<'a> Movement<'a> {
     }
 
     pub fn select_up(&mut self) {
-        self.move_cursors_vertically(-1, |c, pos| {
+        self.get_cursor_neighbor_vertically(-1, |c, pos| {
             c.move_moving_position_to(pos);
         });
     }
     pub fn select_down(&mut self) {
-        self.move_cursors_vertically(1, |c, pos| {
+        self.get_cursor_neighbor_vertically(1, |c, pos| {
             c.move_moving_position_to(pos);
         });
     }
     pub fn select_left(&mut self) {
-        self.move_cursors_horizontally(-1, |c, pos| {
+        self.get_cursor_neighbor_horizontally(-1, |c, pos| {
             c.move_moving_position_to(pos);
         });
     }
     pub fn select_right(&mut self) {
-        self.move_cursors_horizontally(1, |c, pos| {
+        self.get_cursor_neighbor_horizontally(1, |c, pos| {
             c.move_moving_position_to(pos);
         });
     }
@@ -111,9 +126,9 @@ impl<'a> Movement<'a> {
         });
     }
 
-    fn move_cursors_vertically<F>(&mut self, y_diff: isize, f: F)
+    fn get_cursor_neighbor_vertically<F>(&mut self, y_diff: isize, mut f: F)
     where
-        F: Fn(&mut Cursor, Position),
+        F: FnMut(&mut Cursor, Position),
     {
         let mut visual_xs = self.state.visual_xs.clone();
         let mut new_visual_xs = HashMap::new();
@@ -139,7 +154,7 @@ impl<'a> Movement<'a> {
         self.state.visual_xs = new_visual_xs;
     }
 
-    fn move_cursors_horizontally<F>(&mut self, x_diff: isize, f: F)
+    fn get_cursor_neighbor_horizontally<F>(&mut self, x_diff: isize, f: F)
     where
         F: Fn(&mut Cursor, Position),
     {

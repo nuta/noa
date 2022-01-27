@@ -94,6 +94,12 @@ impl Buffer {
         self.cursors.set_cursors(new_cursors);
     }
 
+    pub fn add_cursor(&mut self, cursor: Cursor) {
+        let mut new_cursors = self.cursors().to_vec();
+        new_cursors.push(cursor);
+        self.cursors.set_cursors(&new_cursors);
+    }
+
     pub fn update_main_cursor_with<F>(&mut self, f: F)
     where
         F: FnOnce(&mut Cursor, &RawBuffer),
