@@ -154,7 +154,7 @@ impl<C> Compositor<C> {
                         break;
                     }
                 }
-                self.layers.extend(self.past_layers.drain(..));
+                self.layers.append(&mut self.past_layers);
             }
             InputEvent::Mouse(ev) => {
                 self.past_layers = Vec::new();
@@ -163,23 +163,18 @@ impl<C> Compositor<C> {
                     let screen_x = ev.column as usize;
                     if layer.screen_y <= screen_y
                         && screen_y < layer.screen_y + layer.canvas.height()
-                        && layer.screen_x <= screen_x
-                        && screen_x < layer.screen_x + layer.canvas.width()
-                    {
-                        if layer.surface.handle_mouse_event(
+                        && layer.screen_x <= screen_x && screen_x < layer.screen_x + layer.canvas.width() && layer.surface.handle_mouse_event(
                             self,
                             ctx,
                             ev.kind,
                             ev.modifiers,
                             screen_y - layer.screen_y,
                             screen_x - layer.screen_x,
-                        ) == HandledEvent::Consumed
-                        {
-                            break;
-                        }
+                        ) == HandledEvent::Consumed {
+                        break;
                     }
                 }
-                self.layers.extend(self.past_layers.drain(..));
+                self.layers.append(&mut self.past_layers);
             }
             InputEvent::KeyBatch(input) => {
                 self.past_layers = Vec::new();
@@ -190,7 +185,7 @@ impl<C> Compositor<C> {
                         break;
                     }
                 }
-                self.layers.extend(self.past_layers.drain(..));
+                self.layers.append(&mut self.past_layers);
             }
         }
     }
