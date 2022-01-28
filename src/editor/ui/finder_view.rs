@@ -4,13 +4,14 @@ use std::{
     sync::Arc,
 };
 
+use anyhow::anyhow;
 use futures::{executor::block_on, stream::FuturesUnordered, StreamExt};
 use noa_common::prioritized_vec::PrioritizedVec;
 use noa_compositor::{
     canvas::CanvasViewMut,
     line_edit::LineEdit,
     surface::{HandledEvent, Layout, RectSize, Surface},
-    terminal::KeyEvent,
+    terminal::{KeyCode, KeyEvent, KeyModifiers},
     Compositor,
 };
 use parking_lot::RwLock;
@@ -32,6 +33,7 @@ pub struct FinderView {
     workspace_dir: PathBuf,
     active: bool,
     items: Arc<RwLock<PrioritizedVec<FinderItem>>>,
+    item_selected: usize,
     input: LineEdit,
 }
 
@@ -42,6 +44,7 @@ impl FinderView {
             workspace_dir: workspace_dir.to_path_buf(),
             active: false,
             items: Arc::new(RwLock::new(PrioritizedVec::new(32))),
+            item_selected: 0,
             input: LineEdit::new(),
         }
     }
@@ -56,9 +59,16 @@ impl FinderView {
         let render_request = self.render_request.clone();
         let items = self.items.clone();
         let query = self.input.text();
+
         tokio::spawn(async move {
+            let mut first_run = true;
             providers.push(scan_paths(workspace_dir));
             while let Some((results, into_item)) = providers.next().await {
+                if first_run {
+                    items.write().clear();
+                    first_run = false;
+                }
+
                 for (s, score) in results.query(&query) {
                     items.write().insert(score, into_item(s.to_string()));
                 }
@@ -130,12 +140,41 @@ impl Surface for FinderView {
     fn handle_key_event(
         &mut self,
         _compositor: &mut Compositor<Self::Context>,
-        _editor: &mut Editor,
+        editor: &mut Editor,
         key: KeyEvent,
     ) -> HandledEvent {
-        let result = self.input.consume_key_event(key);
-        self.update();
-        result
+        const NONE: KeyModifiers = KeyModifiers::NONE;
+        const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        const ALT: KeyModifiers = KeyModifiers::ALT;
+        const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
+
+        match (key.code, key.modifiers) {
+            (KeyCode::Enter, NONE) => {
+                match self.items.read().get(self.item_selected) {
+                    Some(item) => {
+                        info!("finder: selected item: {:?}", item.value);
+                    }
+                    None => {
+                        editor
+                            .notifications
+                            .error(anyhow!("items changed (try again!)"));
+                    }
+                };
+            }
+            (KeyCode::Down, NONE) => {
+                self.item_selected = min(self.item_selected - 1, self.items.read().len());
+            }
+            (KeyCode::Up, NONE) => {
+                self.item_selected = self.item_selected.saturating_sub(1);
+            }
+            _ => {
+                let result = self.input.consume_key_event(key);
+                self.update();
+                return result;
+            }
+        }
+
+        HandledEvent::Consumed
     }
 
     fn handle_key_batch_event(
@@ -144,7 +183,7 @@ impl Surface for FinderView {
         _editor: &mut Editor,
         input: &str,
     ) -> HandledEvent {
-        self.input.insert(input);
+        self.input.insert(&input.replace('\n', " "));
         self.update();
         HandledEvent::Consumed
     }

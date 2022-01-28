@@ -102,7 +102,6 @@ async fn main() {
             }
 
             _ = render_request.notified() => {
-                break;
             }
 
             _ = idle_timer.tick()  => {

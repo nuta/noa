@@ -47,12 +47,28 @@ impl<T> PrioritizedVec<T> {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.heap.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.heap.is_empty()
+    }
+
+    pub fn get(&self, index: usize) -> Option<&Entry<T>> {
+        self.heap.get(index)
+    }
+
     pub fn insert(&mut self, priority: isize, value: T) {
         self.heap.push(Entry { priority, value });
 
         while self.heap.len() >= self.capacity {
             self.heap.pop();
         }
+    }
+
+    pub fn clear(&mut self) {
+        self.heap.clear();
     }
 
     pub fn sorted_vec(&self) -> Vec<Entry<T>>
