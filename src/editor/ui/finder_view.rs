@@ -1,12 +1,14 @@
 use std::{
     cmp::{max, min},
+    io,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
 use anyhow::anyhow;
 use futures::{executor::block_on, stream::FuturesUnordered, StreamExt};
-use noa_common::prioritized_vec::PrioritizedVec;
+use grep::searcher::SinkError;
+use noa_common::{oops::OopsExt, prioritized_vec::PrioritizedVec};
 use noa_compositor::{
     canvas::CanvasViewMut,
     line_edit::LineEdit,
@@ -73,7 +75,10 @@ impl FinderView {
 
         tokio::spawn(async move {
             let mut all_items = PrioritizedVec::new(32);
-            providers.push(scan_paths(workspace_dir));
+            // TODO: providers.push(scan_paths(workspace_dir));
+            if query.len() > 3 {
+                providers.push(search_globally(workspace_dir, query.clone()));
+            }
             while let Some((results, into_item)) = providers.next().await {
                 for (s, score) in results.query(&query) {
                     all_items.insert(score, into_item(s.to_string()));
@@ -252,6 +257,108 @@ async fn scan_paths(workspace_dir: PathBuf) -> (FuzzySet, impl Fn(String) -> Fin
                         warn!("non-utf8 path: {:?}", dirent.path());
                     }
                 }
+            }
+
+            WalkState::Continue
+        })
+    });
+
+    (paths.into_inner(), FinderItem::File)
+}
+
+pub struct Utf8Sink<F>(F)
+where
+    F: FnMut(u64, std::ops::Range<usize>, &str) -> Result<bool, io::Error>;
+
+impl<F> grep::searcher::Sink for Utf8Sink<F>
+where
+    F: FnMut(u64, std::ops::Range<usize>, &str) -> Result<bool, io::Error>,
+{
+    type Error = io::Error;
+
+    fn matched(
+        &mut self,
+        _searcher: &grep::searcher::Searcher,
+        mat: &grep::searcher::SinkMatch<'_>,
+    ) -> Result<bool, io::Error> {
+        let text = match std::str::from_utf8(mat.bytes()) {
+            Ok(text) => text,
+            Err(err) => {
+                return Err(io::Error::error_message(err));
+            }
+        };
+        (self.0)(
+            mat.line_number().unwrap(),
+            mat.bytes_range_in_buffer(),
+            text,
+        )
+    }
+}
+
+async fn search_globally(
+    workspace_dir: PathBuf,
+    query: String,
+) -> (FuzzySet, impl Fn(String) -> FinderItem) {
+    let mut paths = RwLock::new(FuzzySet::new());
+
+    use grep::{matcher::Matcher, regex::RegexMatcherBuilder, searcher::Searcher};
+    use ignore::{WalkBuilder, WalkState};
+
+    let matcher = match RegexMatcherBuilder::new().case_smart(true).build(&query) {
+        Ok(matcher) => matcher,
+        Err(err) => {
+            warn!("invalid regex: {}", err);
+            return (paths.into_inner(), FinderItem::File);
+        }
+    };
+
+    WalkBuilder::new(workspace_dir).build_parallel().run(|| {
+        Box::new(|dirent| {
+            if let Ok(dirent) = dirent {
+                let meta = dirent.metadata().unwrap();
+                if !meta.is_file() {
+                    return WalkState::Continue;
+                }
+
+                trace!("grep: {}", dirent.path().display());
+                let text = match std::fs::read_to_string(dirent.path()) {
+                    Ok(text) => text,
+                    Err(err) => {
+                        warn!("failed to read {}: {}", dirent.path().display(), err);
+                        return WalkState::Continue;
+                    }
+                };
+
+                Searcher::new()
+                    .search_slice(
+                        &matcher,
+                        text.as_bytes(),
+                        Utf8Sink(|lineno, range, line| {
+                            matcher
+                                .find_iter(line.as_bytes(), |m| {
+                                    let before_text = &line[..m.start()];
+                                    let matched_text = &line[m.start()..m.end()];
+                                    let after_text = &line[m.end()..];
+                                    // matches.push(range.start + m.start()..range.start + m.end());
+                                    trace!(
+                                        "{}:{}: {}\x1b[1;31m{}\x1b[0m{}",
+                                        dirent.path().display(),
+                                        lineno,
+                                        before_text,
+                                        matched_text,
+                                        after_text
+                                    );
+
+                                    /* continue finding */
+                                    true
+                                })
+                                .unwrap();
+
+                            /* continue searching */
+                            Ok(true)
+                        }),
+                    )
+                    .oops();
             }
 
             WalkState::Continue
