@@ -11,8 +11,11 @@ use std::{
 use anyhow::Result;
 
 use noa_buffer::buffer::Buffer;
-use noa_common::time_report::TimeReport;
-use noa_languages::{definitions::PLAIN, language::Language};
+use noa_common::{dirs::backup_dir, oops::OopsExt, time_report::TimeReport};
+use noa_languages::{
+    definitions::{guess_language, PLAIN},
+    language::Language,
+};
 
 use crate::{
     highlighting::Highlighter,
@@ -27,6 +30,7 @@ pub struct DocumentId(NonZeroUsize);
 pub struct Document {
     /// It's `None` if the document is not backed by a file (e.g. a scrach buffer).
     path: Option<PathBuf>,
+    backup_path: Option<PathBuf>,
     name: String,
     buffer: Buffer,
     lang: &'static Language,
@@ -41,6 +45,7 @@ impl Document {
         let lang = &PLAIN;
         Document {
             path: None,
+            backup_path: None,
             name: name.to_string(),
             buffer: Buffer::new(),
             lang,
@@ -52,10 +57,36 @@ impl Document {
     }
 
     pub fn open_file(path: &Path) -> Result<Document> {
-        let file = OpenOptions::new().read(true).create(true).open(path)?;
-        let buffer = Buffer::from_reader(file)?;
+        let buffer = match OpenOptions::new().read(true).open(path) {
+            Ok(file) => Buffer::from_reader(file)?,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Buffer::new(),
+            Err(err) => return Err(err.into()),
+        };
+
+        // TODO: Create parent directories.
+        let abs_path = path.canonicalize()?;
+        let backup_path = backup_dir().join(abs_path.strip_prefix("/")?);
+
+        // TODO:
+        let name = path
+            .file_name()
+            .unwrap_or_else(|| path.as_os_str())
+            .to_str()
+            .unwrap();
+
+        let lang = guess_language(&abs_path);
         let words = Words::new_with_buffer(&buffer);
-        unimplemented!()
+        Ok(Document {
+            path: Some(path.to_owned()),
+            backup_path: Some(backup_path),
+            name: name.to_string(),
+            buffer,
+            lang,
+            view: View::new(),
+            highlighter: Highlighter::new(lang),
+            movement_state: MovementState::new(),
+            words,
+        })
     }
 
     pub fn save_to_file(&mut self) -> Result<()> {
@@ -101,11 +132,11 @@ impl Document {
         self.movement_state.movement(&mut self.buffer, &self.view)
     }
 
-    pub fn layout_view(&mut self, cols: usize) {
-        self.view.layout(&self.buffer, cols);
+    pub fn layout_view(&mut self, height: usize, width: usize) {
+        self.view.layout(&self.buffer, height, width);
     }
 
-    pub fn post_update(&mut self) {
+    pub fn post_update_job(&mut self) {
         let time = TimeReport::new("post_update_jobs time");
 
         // TODO:
@@ -113,6 +144,14 @@ impl Document {
 
         self.words.update_lines(&self.buffer, updates_lines);
         self.highlighter.update(&self.buffer);
+    }
+
+    pub fn idle_job(&mut self) {
+        self.buffer.save_undo();
+
+        if let Some(ref backup_path) = self.backup_path {
+            self.buffer.save_to_file(backup_path).oops();
+        }
     }
 }
 
@@ -135,18 +174,24 @@ impl DocumentManager {
         };
 
         let scratch_doc = Document::new("**scratch**");
-        manager.open_virtual_file(scratch_doc);
+        manager.open(scratch_doc);
         manager
     }
 
-    pub fn open_virtual_file(&mut self, mut doc: Document) {
+    pub fn open_file(&mut self, path: &Path) -> Result<()> {
+        let doc = Document::open_file(path)?;
+        self.open(doc);
+        Ok(())
+    }
+
+    pub fn open(&mut self, mut doc: Document) {
         // Allocate a document ID.
         let doc_id = DocumentId(
             NonZeroUsize::new(self.next_document_id.fetch_add(1, Ordering::SeqCst)).unwrap(),
         );
 
         // First run of syntax highlighting, etc.
-        doc.post_update();
+        doc.post_update_job();
 
         self.documents.insert(doc_id, doc);
 

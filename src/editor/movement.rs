@@ -135,7 +135,7 @@ impl<'a> Movement<'a> {
         let mut new_visual_xs = HashMap::new();
         self.update_cursors_with(|buffer, view, c| {
             let (i_y, i_x) = view.locate_row_by_position(c.moving_position());
-            let dest_row = view.display_rows_as_slice().get(if y_diff > 0 {
+            let dest_row = view.all_rows().get(if y_diff > 0 {
                 i_y.saturating_add(y_diff.abs() as usize)
             } else {
                 i_y.saturating_sub(y_diff.abs() as usize)
@@ -149,6 +149,7 @@ impl<'a> Movement<'a> {
                     .copied()
                     .unwrap_or_else(|| dest_row.end_of_row_position());
                 f(c, new_pos);
+                new_visual_xs.insert(c.clone(), visual_x.unwrap_or(i_x));
             }
         });
         self.state.visual_xs = new_visual_xs;
@@ -196,7 +197,7 @@ mod tests {
         // XYZ
         let mut buffer = Buffer::from_text("ABC\n12\nXYZ");
         let mut view = View::new();
-        view.layout(&buffer, 5);
+        view.layout(&buffer, 16, 5);
         let mut movement_state = MovementState::new();
         let mut movement = movement_state.movement(&mut buffer, &mut view);
 
@@ -224,7 +225,7 @@ mod tests {
         // ABC
         let mut buffer = Buffer::from_text("ABC\nABC\nABC");
         let mut view = View::new();
-        view.layout(&buffer, 5);
+        view.layout(&buffer, 16, 5);
         let mut movement_state = MovementState::new();
         let mut movement = movement_state.movement(&mut buffer, &mut view);
 
@@ -249,7 +250,7 @@ mod tests {
     fn cursor_movement_through_empty_text() {
         let mut buffer = Buffer::from_text("");
         let mut view = View::new();
-        view.layout(&buffer, 5);
+        view.layout(&buffer, 16, 5);
         let mut movement_state = MovementState::new();
         let mut movement = movement_state.movement(&mut buffer, &mut view);
 
@@ -267,7 +268,7 @@ mod tests {
         // ""
         let mut buffer = Buffer::from_text("\n\n");
         let mut view = View::new();
-        view.layout(&buffer, 5);
+        view.layout(&buffer, 16, 5);
         let mut movement_state = MovementState::new();
         let mut movement = movement_state.movement(&mut buffer, &mut view);
 
@@ -296,7 +297,7 @@ mod tests {
         // "HIJKLMN"
         let mut buffer = Buffer::from_text("ABCDEFG\n123\n\nHIJKLMN");
         let mut view = View::new();
-        view.layout(&buffer, 10);
+        view.layout(&buffer, 16, 10);
         let mut movement_state = MovementState::new();
         let mut movement = movement_state.movement(&mut buffer, &mut view);
 

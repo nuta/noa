@@ -59,9 +59,42 @@ impl Surface for BottomLineView {
         canvas.clear();
 
         let doc = editor.documents.current();
+        let view = doc.view();
         let buffer = doc.buffer();
         let cursor_pos = buffer.main_cursor().selection().start;
-        let cursor_pos_str = format!("{}, {}", cursor_pos.y + 1, cursor_pos.x);
+        let cursor_pos_str = if buffer.cursors().len() > 1 {
+            let num_invisible_cursors = buffer
+                .cursors()
+                .iter()
+                .filter(|c| {
+                    let pos = c.moving_position();
+
+                    // Handle the case when the cursor is at EOF.
+                    let mut last_pos = view.last_visible_position();
+                    last_pos.x += 1;
+
+                    pos < view.first_visible_position() || pos > last_pos
+                })
+                .count();
+            if num_invisible_cursors > 0 {
+                format!(
+                    "{}, {} [{}+{}]",
+                    cursor_pos.y + 1,
+                    cursor_pos.x,
+                    buffer.cursors().len(),
+                    num_invisible_cursors
+                )
+            } else {
+                format!(
+                    "{}, {} [{}]",
+                    cursor_pos.y + 1,
+                    cursor_pos.x,
+                    buffer.cursors().len()
+                )
+            }
+        } else {
+            format!("{}, {}", cursor_pos.y + 1, cursor_pos.x)
+        };
         let cursor_pos_width = cursor_pos_str.display_width();
         let filename_max_width = canvas.width() - cursor_pos_width - 2;
         let search_query = self.search_query.text();
@@ -79,9 +112,9 @@ impl Surface for BottomLineView {
         // The first line.
         canvas.set_decoration(0, 0, canvas.width(), Decoration::inverted());
         // Search query.
-        canvas.write_str(0, 1, &search_query);
+        canvas.write_str(1, 1, &search_query);
         // Notification.
-        canvas.write_str(0, canvas.width() - 1 - noti.display_width(), noti);
+        canvas.write_str(1, canvas.width() - 1 - noti.display_width(), noti);
     }
 
     fn handle_key_event(&mut self, editor: &mut Editor, key: KeyEvent) -> HandledEvent {
@@ -100,10 +133,6 @@ impl Surface for BottomLineView {
     }
 
     fn handle_key_batch_event(&mut self, editor: &mut Editor, s: &str) -> HandledEvent {
-        HandledEvent::Ignored
-    }
-
-    fn handle_mouse_event(&mut self, editor: &mut Editor, _ev: MouseEvent) -> HandledEvent {
         HandledEvent::Ignored
     }
 }

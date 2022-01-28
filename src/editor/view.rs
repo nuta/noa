@@ -22,8 +22,10 @@ pub struct Span {
 
 #[derive(Debug, PartialEq)]
 pub struct DisplayRow {
-    // The line number. Starts at 1.
+    /// The line number. Starts at 1.
     pub lineno: usize,
+    /// The number of characters (not graphemes) in the row.
+    pub len_chars: usize,
     /// The graphemes in this row.
     pub graphemes: Vec<Grapheme>,
     /// The positions in the buffer for each grapheme.
@@ -31,6 +33,10 @@ pub struct DisplayRow {
 }
 
 impl DisplayRow {
+    pub fn len_chars(&self) -> usize {
+        self.len_chars
+    }
+
     pub fn is_empty(&self) -> bool {
         self.graphemes.is_empty()
     }
@@ -81,11 +87,8 @@ impl DisplayRow {
 
 pub struct View {
     rows: Vec<DisplayRow>,
-    // The first grapheme's position in `rows`.
-    first_pos: Position,
-    // The last grapheme's position in `rows`.
-    last_pos: Position,
     scroll: usize,
+    height: usize,
 }
 
 impl View {
@@ -93,17 +96,30 @@ impl View {
         View {
             rows: Vec::new(),
             scroll: 0,
-            first_pos: Position::new(0, 0),
-            last_pos: Position::new(0, 0),
+            height: 0,
         }
     }
 
-    pub fn display_rows(&self) -> impl Iterator<Item = &'_ DisplayRow> {
-        self.rows.iter().skip(self.scroll)
+    pub fn visible_rows(&self) -> &[DisplayRow] {
+        &self.rows[self.scroll..min(self.rows.len(), self.scroll + self.height)]
     }
 
-    pub fn display_rows_as_slice(&self) -> &[DisplayRow] {
+    pub fn all_rows(&self) -> &[DisplayRow] {
         &self.rows
+    }
+
+    pub fn first_visible_position(&self) -> Position {
+        self.visible_rows()
+            .first()
+            .map(|row| row.first_position())
+            .unwrap_or_else(|| Position::new(0, 0))
+    }
+
+    pub fn last_visible_position(&self) -> Position {
+        self.visible_rows()
+            .last()
+            .map(|row| row.last_position())
+            .unwrap_or_else(|| Position::new(0, 0))
     }
 
     /// Clears highlights in the given rows.
@@ -126,7 +142,7 @@ impl View {
         // Skip out-of-bounds spans.
         let mut spans_iter = spans.iter();
         while let Some(span) = spans_iter.next() {
-            if span.range.back() > self.first_pos {
+            if span.range.back() > self.first_visible_position() {
                 spans_iter.next_back();
                 break;
             }
@@ -136,7 +152,7 @@ impl View {
         let mut row_i = rows.start;
         let mut col_i = 0;
         for span in spans {
-            if span.range.front() > self.last_pos {
+            if span.range.front() > self.last_visible_position() {
                 // Reached to the out-of-bounds span.
                 break;
             }
@@ -168,9 +184,10 @@ impl View {
     /// Computes the grapheme layout (text wrapping).
     ///
     /// If you want to disable soft wrapping. Set `width` to `std::max::MAX`.
-    pub fn layout(&mut self, buffer: &Buffer, width: usize) {
+    pub fn layout(&mut self, buffer: &Buffer, height: usize, width: usize) {
         use rayon::prelude::*;
 
+        self.height = height;
         self.rows = (0..buffer.num_lines())
             .into_par_iter()
             .map(|y| {
@@ -180,32 +197,6 @@ impl View {
             })
             .flatten()
             .collect();
-
-        // Locate the first grapheme's position in the given display rows.
-        self.first_pos = (|| {
-            for i in 0..self.rows.len() {
-                match self.rows[i].positions.first() {
-                    Some(pos) => return *pos,
-                    None => continue,
-                }
-            }
-
-            // No graphemes in `self.rows`.
-            Position::new(0, 0)
-        })();
-
-        // Locate the last grapheme's position in the given display rows.
-        self.last_pos = (|| {
-            for i in (0..self.rows.len()).rev() {
-                match self.rows[i].positions.last() {
-                    Some(pos) => return *pos,
-                    None => continue,
-                }
-            }
-
-            // No graphemes in `self.rows`.
-            Position::new(0, 0)
-        })();
     }
 
     /// Layouts a single physical (separated by "\n") line.
@@ -218,6 +209,7 @@ impl View {
         while !should_return {
             let mut graphemes = Vec::with_capacity(width);
             let mut positions = Vec::with_capacity(width);
+            let mut len_chars = 0;
             let mut width_remaining = width;
 
             // Fill `graphemes`.
@@ -260,6 +252,7 @@ impl View {
                                 style: Style::default(),
                             });
                             positions.push(pos);
+                            len_chars += 1;
                         }
 
                         pos.x += 1;
@@ -286,6 +279,7 @@ impl View {
                             style: Style::default(),
                         });
                         positions.push(pos);
+                        len_chars += chars.chars().count();
 
                         width_remaining -= grapheme_width;
                         pos.x += 1;
@@ -295,6 +289,7 @@ impl View {
 
             rows.push(DisplayRow {
                 lineno: y + 1,
+                len_chars,
                 graphemes,
                 positions,
             });
@@ -312,6 +307,15 @@ impl View {
         debug_assert!(i_y > 0);
         let row = &self.rows[i_y - 1];
         (i_y - 1, row.locate_column_by_position(pos))
+    }
+
+    pub fn get_position_from_yx(&self, y: usize, x: usize) -> Option<Position> {
+        self.rows.get(self.scroll + y).map(|row| {
+            row.positions
+                .get(x)
+                .copied()
+                .unwrap_or_else(|| Position::new(row.lineno - 1, row.len_chars()))
+        })
     }
 }
 
@@ -357,7 +361,7 @@ mod tests {
         let mut view = View::new();
 
         let buffer = Buffer::from_text("ABC");
-        view.layout(&buffer, 3);
+        view.layout(&buffer, 1, 3);
         view.highlight(
             0..3,
             &[Span {
@@ -373,6 +377,7 @@ mod tests {
             view.rows,
             vec![DisplayRow {
                 lineno: 1,
+                len_chars: 3,
                 graphemes: vec![g2("A", Red), g2("B", Red), g("C")],
                 positions: vec![p(0, 0), p(0, 1), p(0, 2)],
             },]
@@ -384,13 +389,13 @@ mod tests {
         let mut view = View::new();
 
         let buffer = Buffer::from_text("");
-        view.layout(&buffer, 5);
+        view.layout(&buffer, 1, 5);
         assert_eq!(view.rows.len(), 1);
         assert_eq!(view.rows[0].graphemes, vec![]);
         assert_eq!(view.rows[0].positions, vec![]);
 
         let buffer = Buffer::from_text("ABC\nX\nY");
-        view.layout(&buffer, 5);
+        view.layout(&buffer, 5, 5);
         assert_eq!(view.rows.len(), 3);
         assert_eq!(view.rows[0].graphemes, vec![g("A"), g("B"), g("C")]);
         assert_eq!(view.rows[0].positions, vec![p(0, 0), p(0, 1), p(0, 2)]);
@@ -401,7 +406,7 @@ mod tests {
 
         // Soft wrapping.
         let buffer = Buffer::from_text("ABC123XYZ");
-        view.layout(&buffer, 3);
+        view.layout(&buffer, 1, 3);
         assert_eq!(view.rows.len(), 3);
         assert_eq!(view.rows[0].graphemes, vec![g("A"), g("B"), g("C")]);
         assert_eq!(view.rows[0].positions, vec![p(0, 0), p(0, 1), p(0, 2)]);
@@ -420,7 +425,7 @@ mod tests {
 
         let mut buffer = Buffer::from_text("\tA");
         buffer.set_config(&config);
-        view.layout(&buffer, 16);
+        view.layout(&buffer, 1, 16);
         assert_eq!(view.rows.len(), 1);
         assert_eq!(
             view.rows[0].graphemes,
@@ -433,7 +438,7 @@ mod tests {
 
         let mut buffer = Buffer::from_text("AB\tC");
         buffer.set_config(&config);
-        view.layout(&buffer, 16);
+        view.layout(&buffer, 1, 16);
         assert_eq!(view.rows.len(), 1);
         assert_eq!(
             view.rows[0].graphemes,
@@ -446,7 +451,7 @@ mod tests {
 
         let mut buffer = Buffer::from_text("ABC\t\t");
         buffer.set_config(&config);
-        view.layout(&buffer, 16);
+        view.layout(&buffer, 1, 16);
         assert_eq!(view.rows.len(), 1);
         assert_eq!(
             view.rows[0].graphemes,
@@ -481,14 +486,14 @@ mod tests {
         // ""
         let buffer = Buffer::from_text("");
         let mut view = View::new();
-        view.layout(&buffer, 5);
+        view.layout(&buffer, 1, 5);
 
         assert_eq!(view.locate_row_by_position(p(0, 0)), (0, 0));
 
         // ABC
         let buffer = Buffer::from_text("ABC");
         let mut view = View::new();
-        view.layout(&buffer, 5);
+        view.layout(&buffer, 1, 5);
 
         assert_eq!(view.locate_row_by_position(p(0, 0)), (0, 0));
 
@@ -497,7 +502,7 @@ mod tests {
         // XYZ
         let buffer = Buffer::from_text("ABC\n12\nXYZ");
         let mut view = View::new();
-        view.layout(&buffer, 5);
+        view.layout(&buffer, 3, 5);
 
         assert_eq!(view.locate_row_by_position(p(0, 0)), (0, 0));
         assert_eq!(view.locate_row_by_position(p(0, 1)), (0, 1));
@@ -513,19 +518,19 @@ mod tests {
     #[bench]
     fn bench_layout_single_line(b: &mut test::Bencher) {
         let (mut view, buffer) = create_view_and_buffer(1);
-        b.iter(|| view.layout(&buffer, 120));
+        b.iter(|| view.layout(&buffer, 4096, 120));
     }
 
     #[bench]
     fn bench_layout_small_line(b: &mut test::Bencher) {
         let (mut view, buffer) = create_view_and_buffer(64);
-        b.iter(|| view.layout(&buffer, 120));
+        b.iter(|| view.layout(&buffer, 4096, 120));
     }
 
     #[bench]
     fn bench_layout_medium_text(b: &mut test::Bencher) {
         let (mut view, buffer) = create_view_and_buffer(2048);
-        b.iter(|| view.layout(&buffer, 120));
+        b.iter(|| view.layout(&buffer, 4096, 120));
     }
 
     #[bench]
@@ -539,7 +544,7 @@ mod tests {
             });
         }
 
-        view.layout(&buffer, 120);
+        view.layout(&buffer, 4096, 120);
         b.iter(|| {
             view.clear_highlights(0..16);
             view.highlight(0..16, &spans);
@@ -557,7 +562,7 @@ mod tests {
             });
         }
 
-        view.layout(&buffer, 120);
+        view.layout(&buffer, 4096, 120);
         b.iter(|| {
             view.clear_highlights(1024..(1024 + 128));
             view.highlight(1024..(1024 + 128), &spans);

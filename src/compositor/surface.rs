@@ -1,5 +1,6 @@
 use super::canvas::CanvasViewMut;
 pub use crossterm::event::{KeyEvent, MouseEvent};
+use crossterm::event::{KeyModifiers, MouseEventKind};
 
 #[derive(Clone, Copy, Debug)]
 pub enum Layout {
@@ -37,7 +38,14 @@ pub trait Surface {
         HandledEvent::Ignored
     }
 
-    fn handle_mouse_event(&mut self, _ctx: &mut Self::Context, _ev: MouseEvent) -> HandledEvent {
+    fn handle_mouse_event(
+        &mut self,
+        _ctx: &mut Self::Context,
+        _kind: MouseEventKind,
+        _modifiers: KeyModifiers,
+        _surface_y: usize,
+        _surface_x: usize,
+    ) -> HandledEvent {
         HandledEvent::Ignored
     }
 

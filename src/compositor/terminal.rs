@@ -14,7 +14,9 @@ use futures::StreamExt;
 
 use super::canvas::DrawOp;
 
-pub use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent};
+pub use crossterm::event::{
+    KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum InputEvent {

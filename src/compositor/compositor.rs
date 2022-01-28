@@ -1,5 +1,6 @@
 use std::slice;
 
+use crossterm::event::MouseEvent;
 use noa_common::time_report::TimeReport;
 use tokio::sync::mpsc;
 
@@ -132,8 +133,22 @@ impl<C> Compositor<C> {
             }
             InputEvent::Mouse(ev) => {
                 for layer in self.layers.iter_mut().rev() {
-                    if let HandledEvent::Consumed = layer.surface.handle_mouse_event(ctx, ev) {
-                        break;
+                    let screen_y = ev.row as usize;
+                    let screen_x = ev.column as usize;
+                    if layer.screen_y <= screen_y
+                        && screen_y < layer.screen_y + layer.canvas.height()
+                        && layer.screen_x <= screen_x
+                        && screen_x < layer.screen_x + layer.canvas.width()
+                    {
+                        if let HandledEvent::Consumed = layer.surface.handle_mouse_event(
+                            ctx,
+                            ev.kind,
+                            ev.modifiers,
+                            screen_y - layer.screen_y,
+                            screen_x - layer.screen_x,
+                        ) {
+                            break;
+                        }
                     }
                 }
             }

@@ -1,8 +1,13 @@
-use noa_buffer::{cursor::Position, display_width::DisplayWidth};
+use std::time::{Duration, Instant};
+
+use noa_buffer::{
+    cursor::{Cursor, Position},
+    display_width::DisplayWidth,
+};
 use noa_compositor::{
     canvas::{CanvasViewMut, Decoration, Style},
     surface::{HandledEvent, KeyEvent, Layout, MouseEvent, RectSize, Surface},
-    terminal::{KeyCode, KeyModifiers},
+    terminal::{KeyCode, KeyModifiers, MouseButton, MouseEventKind},
 };
 use tokio::{sync::oneshot, task};
 
@@ -15,6 +20,10 @@ pub struct BufferView {
     quit_tx: Option<oneshot::Sender<()>>,
     /// The cursor position in surface-local `(y, x)`.
     cursor_position: (usize, usize),
+    selection_start: Option<Position>,
+    time_last_clicked: Instant,
+    num_clicked: usize,
+    buffer_x: usize,
 }
 
 impl BufferView {
@@ -22,6 +31,12 @@ impl BufferView {
         BufferView {
             quit_tx: Some(quit_tx),
             cursor_position: (0, 0),
+            selection_start: None,
+            time_last_clicked: Instant::now()
+                .checked_sub(Duration::from_secs(10000 /* long time before */))
+                .unwrap(),
+            num_clicked: 0,
+            buffer_x: 0,
         }
     }
 }
@@ -70,15 +85,17 @@ impl Surface for BufferView {
             buffer_width = canvas.width() - buffer_x  - 2 /* row_end_marker and mini map */;
             buffer_height = canvas.height() - 2 /* bottom line */;
 
-            doc.layout_view(buffer_width);
+            doc.layout_view(buffer_height, buffer_width);
         }
+
+        self.buffer_x = buffer_x;
 
         let doc = editor.documents.current();
         let buffer = doc.buffer();
 
         // Buffer contents.
         let main_cursor_pos = buffer.main_cursor().selection().start;
-        for (i_y, (row)) in doc.view().display_rows().enumerate() {
+        for (i_y, (row)) in doc.view().visible_rows().iter().enumerate() {
             let y = buffer_y + i_y;
 
             // Draw lineno.
@@ -123,15 +140,15 @@ impl Surface for BufferView {
 
             // Cursors at a empty row.
             if row.is_empty()
-                && buffer
-                    .cursors()
-                    .iter()
-                    .any(|c| c.selection().overlaps(Position::new(row.lineno - 1, 0)))
+                && buffer.cursors().iter().enumerate().any(|(i, c)| {
+                    i != 0 && c.selection().overlaps(Position::new(row.lineno - 1, 0))
+                })
             {
                 row_end_marker = Some((' ', buffer_x));
             }
 
             // Cursors at the end of a row.
+            // TODO: Merge above if block
             if !row.is_empty() {
                 let last_pos = row.last_position();
                 let end_of_row_pos = Position::new(last_pos.y, last_pos.x + 1);
@@ -141,7 +158,7 @@ impl Surface for BufferView {
                     .enumerate()
                     .any(|(i, c)| i != 0 && c.position() == Some(end_of_row_pos))
                 {
-                    row_end_marker = Some((' ', buffer_x + row.graphemes.len()));
+                    row_end_marker = Some((' ', buffer_x + row.len_chars()));
                 }
             }
 
@@ -150,8 +167,8 @@ impl Surface for BufferView {
             }
 
             // The main cursor is at the end of line.
-            if main_cursor_pos.y == row.lineno - 1 && main_cursor_pos.x == row.graphemes.len() {
-                self.cursor_position = (y, buffer_x + row.graphemes.len());
+            if main_cursor_pos.y == row.lineno - 1 && main_cursor_pos.x == row.len_chars() {
+                self.cursor_position = (y, buffer_x + row.len_chars());
             }
         }
     }
@@ -310,7 +327,63 @@ impl Surface for BufferView {
         HandledEvent::Consumed
     }
 
-    fn handle_mouse_event(&mut self, editor: &mut Editor, _ev: MouseEvent) -> HandledEvent {
-        HandledEvent::Ignored
+    fn handle_mouse_event(
+        &mut self,
+        editor: &mut Editor,
+        kind: MouseEventKind,
+        modifiers: KeyModifiers,
+        surface_y: usize,
+        surface_x: usize,
+    ) -> HandledEvent {
+        const NONE: KeyModifiers = KeyModifiers::NONE;
+        const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        const ALT: KeyModifiers = KeyModifiers::ALT;
+        const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
+
+        let mut doc = editor.documents.current_mut();
+
+        if surface_x >= self.buffer_x {
+            if let Some(pos) = doc
+                .view()
+                .get_position_from_yx(surface_y, surface_x - self.buffer_x)
+            {
+                match (kind, modifiers) {
+                    (MouseEventKind::Down(MouseButton::Left), NONE) => {
+                        self.selection_start = Some(pos);
+                    }
+                    // Single click.
+                    (MouseEventKind::Up(MouseButton::Left), NONE) => {
+                        // Move cursor.
+                        if matches!(self.selection_start, Some(start) if start == pos) {
+                            doc.buffer_mut().set_cursors(&[Cursor::new(pos.y, pos.x)]);
+                        }
+
+                        self.time_last_clicked = Instant::now();
+                        self.num_clicked = 1;
+                        self.selection_start = None;
+                    }
+                    // Double click.
+                    (MouseEventKind::Up(MouseButton::Left), NONE)
+                        if self.num_clicked == 1
+                            && self.time_last_clicked.elapsed() < Duration::from_millis(400) =>
+                    {
+                        doc.buffer_mut().select_current_word();
+                    }
+                    // Dragging
+                    (MouseEventKind::Drag(MouseButton::Left), NONE) => match self.selection_start {
+                        Some(start) if start != pos => {
+                            let c = Cursor::new_selection(start.y, start.x, pos.y, pos.x);
+                            doc.buffer_mut().set_cursors(&[c]);
+                        }
+                        _ => {}
+                    },
+                    _ => {
+                        return HandledEvent::Ignored;
+                    }
+                }
+            }
+        }
+
+        HandledEvent::Consumed
     }
 }

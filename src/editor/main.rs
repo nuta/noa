@@ -6,7 +6,7 @@ extern crate test;
 #[macro_use]
 extern crate log;
 
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Duration};
 
 use clap::Parser;
 
@@ -43,10 +43,21 @@ async fn main() {
     install_logger("main");
     let args = Args::parse();
 
-    let workspace_dir = PathBuf::from(".");
+    let workspace_dir = args
+        .files
+        .iter()
+        .find(|path| path.is_dir())
+        .cloned()
+        .unwrap_or_else(|| PathBuf::from("."));
 
     let mut editor = editor::Editor::new();
     let mut compositor = Compositor::new();
+
+    for path in args.files {
+        if !path.is_dir() {
+            editor.open_file(&path);
+        }
+    }
 
     let (quit_tx, mut quit) = oneshot::channel();
     compositor.add_frontmost_layer(Box::new(TooSmallView::new("too small!")));
@@ -57,7 +68,9 @@ async fn main() {
     compositor.render_to_terminal(&mut editor);
     drop(boot_time);
 
+    let mut idle_timer = tokio::time::interval(Duration::from_millis(1200));
     loop {
+        let mut skip_rendering = false;
         tokio::select! {
             biased;
 
@@ -76,8 +89,16 @@ async fn main() {
                     }
                 }
             }
+
+            _ = idle_timer.tick()  => {
+                editor.documents.current_mut().idle_job();
+                skip_rendering = true;
+            }
         }
 
-        compositor.render_to_terminal(&mut editor);
+        if !skip_rendering {
+            compositor.render_to_terminal(&mut editor);
+        }
+        idle_timer.reset();
     }
 }
