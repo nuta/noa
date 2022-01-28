@@ -26,6 +26,10 @@ impl FuzzySet {
             .entries
             .par_iter()
             .filter_map(|e| {
+                if pattern.is_empty() {
+                    return Some((Cow::from(e), self.extra_scores[e]));
+                }
+
                 self.matcher
                     .fuzzy_match(e, pattern)
                     .map(|score| (Cow::from(e), (score as isize) + self.extra_scores[e]))

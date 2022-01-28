@@ -39,14 +39,17 @@ pub struct FinderView {
 
 impl FinderView {
     pub fn new(render_request: Arc<Notify>, workspace_dir: &Path) -> FinderView {
-        FinderView {
+        let mut finder = FinderView {
             render_request,
             workspace_dir: workspace_dir.to_path_buf(),
             active: false,
             items: Arc::new(RwLock::new(Vec::new())),
             item_selected: 0,
             input: LineEdit::new(),
-        }
+        };
+
+        finder.update();
+        finder
     }
 
     pub fn set_active(&mut self, active: bool) {
@@ -227,6 +230,7 @@ async fn scan_paths(workspace_dir: PathBuf) -> (FuzzySet, impl Fn(String) -> Fin
                             }
                         }
 
+                        let path = path.strip_prefix("./").unwrap_or(path);
                         paths.write().insert(path, extra);
                     }
                     None => {
