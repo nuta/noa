@@ -1,5 +1,10 @@
-use std::{cmp::min, path::Path};
+use std::{
+    cmp::min,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
+use futures::{executor::block_on, stream::FuturesUnordered, StreamExt};
 use noa_compositor::{
     canvas::CanvasViewMut,
     line_edit::LineEdit,
@@ -7,21 +12,24 @@ use noa_compositor::{
     terminal::KeyEvent,
     Compositor,
 };
+use tokio::sync::{mpsc::UnboundedSender, Notify};
 
-use crate::{editor::Editor, path::PathFinder};
+use crate::{editor::Editor, path::scan_paths};
 
 use super::helpers::truncate_to_width;
 
 pub struct FinderView {
-    path_finder: PathFinder,
+    render_request: Arc<Notify>,
+    workspace_dir: PathBuf,
     active: bool,
     input: LineEdit,
 }
 
 impl FinderView {
-    pub fn new(workspace_dir: &Path) -> FinderView {
+    pub fn new(render_request: Arc<Notify>, workspace_dir: &Path) -> FinderView {
         FinderView {
-            path_finder: PathFinder::new(workspace_dir),
+            render_request,
+            workspace_dir: workspace_dir.to_path_buf(),
             active: false,
             input: LineEdit::new(),
         }
@@ -32,7 +40,16 @@ impl FinderView {
     }
 
     pub fn update(&mut self) {
-        //
+        let mut providers = FuturesUnordered::new();
+        let workspace_dir = self.workspace_dir.clone();
+        let render_request = self.render_request.clone();
+        tokio::spawn(async move {
+            providers.push(scan_paths(workspace_dir));
+            while let Some(results) = providers.next().await {
+                //
+                render_request.notify_one();
+            }
+        });
     }
 }
 
@@ -96,6 +113,7 @@ impl Surface for FinderView {
         input: &str,
     ) -> HandledEvent {
         self.input.insert(input);
+        self.update();
         HandledEvent::Consumed
     }
 

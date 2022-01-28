@@ -6,13 +6,13 @@ extern crate test;
 #[macro_use]
 extern crate log;
 
-use std::{path::PathBuf, time::Duration};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use clap::Parser;
 
 use noa_common::{logger::install_logger, time_report::TimeReport};
 use noa_compositor::{terminal::Event, Compositor};
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, Notify};
 use ui::{
     bottom_line_view::BottomLineView, buffer_view::BufferView, finder_view::FinderView,
     too_small_view::TooSmallView,
@@ -61,11 +61,15 @@ async fn main() {
         }
     }
 
-    let (quit_tx, mut quit) = oneshot::channel();
+    let (quit_tx, mut quit_rx) = oneshot::channel();
+    let render_request = Arc::new(Notify::new());
     compositor.add_frontmost_layer(Box::new(TooSmallView::new("too small!")));
     compositor.add_frontmost_layer(Box::new(BufferView::new(quit_tx)));
     compositor.add_frontmost_layer(Box::new(BottomLineView::new()));
-    compositor.add_frontmost_layer(Box::new(FinderView::new(&workspace_dir)));
+    compositor.add_frontmost_layer(Box::new(FinderView::new(
+        render_request.clone(),
+        &workspace_dir,
+    )));
 
     if open_finder {
         compositor
@@ -82,7 +86,7 @@ async fn main() {
         tokio::select! {
             biased;
 
-            _ = &mut quit => {
+            _ = &mut quit_rx => {
                 break;
             }
 
@@ -96,6 +100,10 @@ async fn main() {
                         compositor.resize_screen(height, width);
                     }
                 }
+            }
+
+            _ = render_request.notified() => {
+                break;
             }
 
             _ = idle_timer.tick()  => {

@@ -8,28 +8,8 @@ use parking_lot::{RwLock, RwLockReadGuard};
 
 use crate::fuzzy::FuzzySet;
 
-pub struct PathFinder {
-    paths: Arc<RwLock<FuzzySet>>,
-    workspace_dir: PathBuf,
-}
-
-impl PathFinder {
-    pub fn new<T: Into<PathBuf>>(workspace_dir: T) -> PathFinder {
-        let paths = Arc::new(RwLock::new(FuzzySet::new()));
-
-        PathFinder {
-            paths,
-            workspace_dir: workspace_dir.into(),
-        }
-    }
-
-    pub async fn scan(&self) -> RwLockReadGuard<'_, FuzzySet> {
-        scan_paths(&self.workspace_dir, &self.paths).await;
-        self.paths.read()
-    }
-}
-
-async fn scan_paths(workspace_dir: &Path, paths: &Arc<RwLock<FuzzySet>>) {
+pub async fn scan_paths(workspace_dir: PathBuf) -> FuzzySet {
+    let mut paths = RwLock::new(FuzzySet::new());
     use ignore::{WalkBuilder, WalkState};
     WalkBuilder::new(workspace_dir).build_parallel().run(|| {
         Box::new(|dirent| {
@@ -74,4 +54,6 @@ async fn scan_paths(workspace_dir: &Path, paths: &Arc<RwLock<FuzzySet>>) {
             WalkState::Continue
         })
     });
+
+    paths.into_inner()
 }
