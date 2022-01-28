@@ -5,6 +5,7 @@ use std::{
 };
 
 use futures::{executor::block_on, stream::FuturesUnordered, StreamExt};
+use noa_common::prioritized_vec::PrioritizedVec;
 use noa_compositor::{
     canvas::CanvasViewMut,
     line_edit::LineEdit,
@@ -20,13 +21,16 @@ use crate::{editor::Editor, fuzzy::FuzzySet};
 use super::helpers::truncate_to_width;
 
 enum FinderItem {
-    Path { path: String },
+    Path(String),
 }
+
+type IntoFinderItem = fn(String) -> FinderItem;
 
 pub struct FinderView {
     render_request: Arc<Notify>,
     workspace_dir: PathBuf,
     active: bool,
+    items: Arc<RwLock<PrioritizedVec<FinderItem>>>,
     input: LineEdit,
 }
 
@@ -36,6 +40,7 @@ impl FinderView {
             render_request,
             workspace_dir: workspace_dir.to_path_buf(),
             active: false,
+            items: Arc::new(RwLock::new(PrioritizedVec::new(32))),
             input: LineEdit::new(),
         }
     }
@@ -48,10 +53,14 @@ impl FinderView {
         let mut providers = FuturesUnordered::new();
         let workspace_dir = self.workspace_dir.clone();
         let render_request = self.render_request.clone();
+        let items = self.items.clone();
+        let query = self.input.text();
         tokio::spawn(async move {
             providers.push(scan_paths(workspace_dir));
-            while let Some(results) = providers.next().await {
-                //
+            while let Some((results, into_item)) = providers.next().await {
+                for (s, score) in results.query(&query) {
+                    items.write().insert(score, into_item(s.to_string()));
+                }
                 render_request.notify_one();
             }
         });
@@ -136,7 +145,7 @@ impl Surface for FinderView {
     }
 }
 
-pub async fn scan_paths(workspace_dir: PathBuf) -> FuzzySet {
+async fn scan_paths(workspace_dir: PathBuf) -> (FuzzySet, impl Fn(String) -> FinderItem) {
     let mut paths = RwLock::new(FuzzySet::new());
     use ignore::{WalkBuilder, WalkState};
     WalkBuilder::new(workspace_dir).build_parallel().run(|| {
@@ -153,8 +162,8 @@ pub async fn scan_paths(workspace_dir: PathBuf) -> FuzzySet {
                         // Recently used.
                         if let Ok(atime) = meta.accessed() {
                             if let Ok(elapsed) = atime.elapsed() {
-                                extra += (100 / max(1, min(elapsed.as_secs(), 360))) as i64;
-                                extra += (100 / max(1, elapsed.as_secs())) as i64;
+                                extra += (100 / max(1, min(elapsed.as_secs(), 360))) as isize;
+                                extra += (100 / max(1, elapsed.as_secs())) as isize;
                             }
                         }
 
@@ -165,9 +174,9 @@ pub async fn scan_paths(workspace_dir: PathBuf) -> FuzzySet {
                                     / max(
                                         1,
                                         min(elapsed.as_secs() / (3600 * 24 * 30), 3600 * 24 * 30),
-                                    )) as i64;
-                                extra += (100 / max(1, min(elapsed.as_secs(), 360))) as i64;
-                                extra += (100 / max(1, elapsed.as_secs())) as i64;
+                                    )) as isize;
+                                extra += (100 / max(1, min(elapsed.as_secs(), 360))) as isize;
+                                extra += (100 / max(1, elapsed.as_secs())) as isize;
                             }
                         }
 
@@ -183,5 +192,5 @@ pub async fn scan_paths(workspace_dir: PathBuf) -> FuzzySet {
         })
     });
 
-    paths.into_inner()
+    (paths.into_inner(), |path| FinderItem::Path(path))
 }
