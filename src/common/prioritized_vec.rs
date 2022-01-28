@@ -47,18 +47,6 @@ impl<T> PrioritizedVec<T> {
         }
     }
 
-    pub fn len(&self) -> usize {
-        self.heap.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.heap.is_empty()
-    }
-
-    pub fn get(&self, index: usize) -> Option<&Entry<T>> {
-        self.heap.get(index)
-    }
-
     pub fn insert(&mut self, priority: isize, value: T) {
         self.heap.push(Entry { priority, value });
 
@@ -71,11 +59,11 @@ impl<T> PrioritizedVec<T> {
         self.heap.clear();
     }
 
-    pub fn sorted_vec(&self) -> Vec<Entry<T>>
+    pub fn sorted_vec(&self) -> Vec<T>
     where
         T: Clone,
     {
         let heap = self.heap.clone();
-        heap.into_sorted_vec()
+        heap.into_sorted_vec().drain(..).map(|e| e.value).collect()
     }
 }

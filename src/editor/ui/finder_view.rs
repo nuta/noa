@@ -21,7 +21,7 @@ use crate::{editor::Editor, fuzzy::FuzzySet};
 
 use super::helpers::truncate_to_width;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum FinderItem {
     Path(String),
 }
@@ -32,7 +32,7 @@ pub struct FinderView {
     render_request: Arc<Notify>,
     workspace_dir: PathBuf,
     active: bool,
-    items: Arc<RwLock<PrioritizedVec<FinderItem>>>,
+    items: Arc<RwLock<Vec<FinderItem>>>,
     item_selected: usize,
     input: LineEdit,
 }
@@ -43,7 +43,7 @@ impl FinderView {
             render_request,
             workspace_dir: workspace_dir.to_path_buf(),
             active: false,
-            items: Arc::new(RwLock::new(PrioritizedVec::new(32))),
+            items: Arc::new(RwLock::new(Vec::new())),
             item_selected: 0,
             input: LineEdit::new(),
         }
@@ -61,17 +61,14 @@ impl FinderView {
         let query = self.input.text();
 
         tokio::spawn(async move {
-            let mut first_run = true;
+            let mut all_items = PrioritizedVec::new(32);
             providers.push(scan_paths(workspace_dir));
             while let Some((results, into_item)) = providers.next().await {
-                if first_run {
-                    items.write().clear();
-                    first_run = false;
+                for (s, score) in results.query(&query) {
+                    all_items.insert(score, into_item(s.to_string()));
                 }
 
-                for (s, score) in results.query(&query) {
-                    items.write().insert(score, into_item(s.to_string()));
-                }
+                *items.write() = all_items.sorted_vec();
                 render_request.notify_one();
             }
         });
@@ -121,15 +118,8 @@ impl Surface for FinderView {
             truncate_to_width(&self.input.text(), canvas.width() - 4),
         );
 
-        for (i, item) in self
-            .items
-            .read()
-            .sorted_vec()
-            .drain(..)
-            .take(max_num_items)
-            .enumerate()
-        {
-            match item.value {
+        for (i, item) in self.items.read().iter().take(max_num_items).enumerate() {
+            match item {
                 FinderItem::Path(path) => {
                     canvas.write_str(2 + i, 1, truncate_to_width(&path, canvas.width() - 2));
                 }
@@ -152,7 +142,7 @@ impl Surface for FinderView {
             (KeyCode::Enter, NONE) => {
                 match self.items.read().get(self.item_selected) {
                     Some(item) => {
-                        info!("finder: selected item: {:?}", item.value);
+                        info!("finder: selected item: {:?}", item);
                     }
                     None => {
                         editor
