@@ -166,6 +166,7 @@ impl Range {
     }
 
     pub fn overlaps(&self, pos: Position) -> bool {
+        // FIXME: Merge contains
         self.overlaps_with(Range::from_positions(pos, pos))
     }
 

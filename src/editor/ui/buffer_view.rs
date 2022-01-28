@@ -126,7 +126,7 @@ impl Surface for BufferView {
                 && buffer
                     .cursors()
                     .iter()
-                    .any(|c| c.selection().contains(Position::new(row.lineno - 1, 0)))
+                    .any(|c| c.selection().overlaps(Position::new(row.lineno - 1, 0)))
             {
                 row_end_marker = Some((' ', buffer_x));
             }
