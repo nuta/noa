@@ -68,13 +68,13 @@ impl Surface for FinderView {
     fn render(&mut self, _editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
         canvas.clear();
 
-        self.input.relocate_scroll(canvas.width() - 2);
+        self.input.relocate_scroll(canvas.width() - 4);
 
         canvas.draw_borders(0, 0, canvas.height() - 1, canvas.width() - 1);
         canvas.write_str(
-            2,
             1,
-            truncate_to_width(&self.input.text(), canvas.width() - 2),
+            2,
+            truncate_to_width(&self.input.text(), canvas.width() - 4),
         );
     }
 
