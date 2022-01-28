@@ -1,7 +1,7 @@
 use std::slice;
 
 use noa_common::time_report::TimeReport;
-use tokio::{runtime::Handle, sync::mpsc};
+use tokio::{sync::mpsc};
 
 use crate::{surface::HandledEvent, terminal::InputEvent};
 
