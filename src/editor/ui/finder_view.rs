@@ -23,7 +23,15 @@ use super::helpers::truncate_to_width;
 
 #[derive(Clone, Debug)]
 enum FinderItem {
-    Path(String),
+    File(String),
+    FileLocation {
+        /// The file path.
+        path: String,
+        /// 0-based line number.
+        line: usize,
+        /// 0-based column number.
+        column: usize,
+    },
 }
 
 type IntoFinderItem = fn(String) -> FinderItem;
@@ -123,8 +131,15 @@ impl Surface for FinderView {
 
         for (i, item) in self.items.read().iter().take(max_num_items).enumerate() {
             match item {
-                FinderItem::Path(path) => {
+                FinderItem::File(path) => {
                     canvas.write_str(2 + i, 1, truncate_to_width(&path, canvas.width() - 2));
+                }
+                FinderItem::FileLocation { path, line, column } => {
+                    canvas.write_str(
+                        2 + i,
+                        1,
+                        truncate_to_width(&format!("{path}:{line}:{column}"), canvas.width() - 2),
+                    );
                 }
             }
         }
@@ -243,5 +258,5 @@ async fn scan_paths(workspace_dir: PathBuf) -> (FuzzySet, impl Fn(String) -> Fin
         })
     });
 
-    (paths.into_inner(), FinderItem::Path)
+    (paths.into_inner(), FinderItem::File)
 }
