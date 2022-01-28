@@ -20,6 +20,7 @@ use crate::{editor::Editor, fuzzy::FuzzySet};
 
 use super::helpers::truncate_to_width;
 
+#[derive(Clone)]
 enum FinderItem {
     Path(String),
 }
@@ -101,12 +102,29 @@ impl Surface for FinderView {
 
         self.input.relocate_scroll(canvas.width() - 4);
 
+        let max_num_items = min(canvas.height() / 2, 16);
+
         canvas.draw_borders(0, 0, canvas.height() - 1, canvas.width() - 1);
         canvas.write_str(
             1,
             2,
             truncate_to_width(&self.input.text(), canvas.width() - 4),
         );
+
+        for (i, item) in self
+            .items
+            .read()
+            .sorted_vec()
+            .drain(..)
+            .take(max_num_items)
+            .enumerate()
+        {
+            match item.value {
+                FinderItem::Path(path) => {
+                    canvas.write_str(2 + i, 1, truncate_to_width(&path, canvas.width() - 2));
+                }
+            }
+        }
     }
 
     fn handle_key_event(
@@ -192,5 +210,5 @@ async fn scan_paths(workspace_dir: PathBuf) -> (FuzzySet, impl Fn(String) -> Fin
         })
     });
 
-    (paths.into_inner(), |path| FinderItem::Path(path))
+    (paths.into_inner(), FinderItem::Path)
 }

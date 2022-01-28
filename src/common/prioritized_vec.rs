@@ -25,6 +25,15 @@ impl<T> PartialEq for Entry<T> {
 
 impl<T> Eq for Entry<T> {}
 
+impl<T: Clone> Clone for Entry<T> {
+    fn clone(&self) -> Self {
+        Entry {
+            priority: self.priority,
+            value: self.value.clone(),
+        }
+    }
+}
+
 pub struct PrioritizedVec<T> {
     heap: BinaryHeap<Entry<T>>,
     capacity: usize,
@@ -46,7 +55,11 @@ impl<T> PrioritizedVec<T> {
         }
     }
 
-    pub fn into_vec(self) -> Vec<Entry<T>> {
-        self.heap.into_sorted_vec()
+    pub fn sorted_vec(&self) -> Vec<Entry<T>>
+    where
+        T: Clone,
+    {
+        let heap = self.heap.clone();
+        heap.into_sorted_vec()
     }
 }
