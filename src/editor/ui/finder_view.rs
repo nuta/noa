@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{cmp::min, path::Path};
 
 use noa_compositor::{
     canvas::CanvasViewMut,
@@ -43,14 +43,23 @@ impl Surface for FinderView {
     }
 
     fn layout(&self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
-        (Layout::Fixed { x: 0, y: 0 }, screen_size)
+        (
+            Layout::Center,
+            RectSize {
+                height: min(32, screen_size.height.saturating_sub(5)),
+                width: min(80, screen_size.width),
+            },
+        )
     }
 
     fn cursor_position(&self, _editor: &mut Editor) -> Option<(usize, usize)> {
         None
     }
 
-    fn render(&mut self, _editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {}
+    fn render(&mut self, _editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
+        canvas.clear();
+        canvas.draw_borders(0, 0, canvas.height() - 1, canvas.width() - 1);
+    }
 
     fn handle_key_event(
         &mut self,
@@ -68,5 +77,18 @@ impl Surface for FinderView {
         _input: &str,
     ) -> HandledEvent {
         HandledEvent::Ignored
+    }
+
+    fn handle_mouse_event(
+        &mut self,
+        _compositor: &mut Compositor<Self::Context>,
+        _ctx: &mut Self::Context,
+        _kind: noa_compositor::terminal::MouseEventKind,
+        _modifiers: noa_compositor::terminal::KeyModifiers,
+        _surface_y: usize,
+        _surface_x: usize,
+    ) -> HandledEvent {
+        trace!("_kind={:?}", _kind);
+        HandledEvent::Consumed
     }
 }

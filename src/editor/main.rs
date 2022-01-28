@@ -53,9 +53,11 @@ async fn main() {
     let mut editor = editor::Editor::new();
     let mut compositor = Compositor::new();
 
+    let mut open_finder = true;
     for path in args.files {
         if !path.is_dir() {
             editor.open_file(&path);
+            open_finder = false;
         }
     }
 
@@ -64,6 +66,12 @@ async fn main() {
     compositor.add_frontmost_layer(Box::new(BufferView::new(quit_tx)));
     compositor.add_frontmost_layer(Box::new(BottomLineView::new()));
     compositor.add_frontmost_layer(Box::new(FinderView::new(&workspace_dir)));
+
+    if open_finder {
+        compositor
+            .get_mut_surface_by_name::<FinderView>("finder")
+            .set_active(true);
+    }
 
     compositor.render_to_terminal(&mut editor);
     drop(boot_time);

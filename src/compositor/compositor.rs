@@ -1,7 +1,7 @@
 use std::slice;
 
 use noa_common::time_report::TimeReport;
-use tokio::{sync::mpsc};
+use tokio::sync::mpsc;
 
 use crate::{surface::HandledEvent, terminal::InputEvent};
 
@@ -156,7 +156,7 @@ impl<C> Compositor<C> {
                         break;
                     }
                 }
-                self.layers.append(&mut self.past_layers);
+                self.layers.extend(self.past_layers.drain(..).rev());
             }
             InputEvent::Mouse(ev) => {
                 self.past_layers = Vec::new();
@@ -186,7 +186,7 @@ impl<C> Compositor<C> {
                         break;
                     }
                 }
-                self.layers.append(&mut self.past_layers);
+                self.layers.extend(self.past_layers.drain(..).rev());
             }
             InputEvent::KeyBatch(input) => {
                 self.past_layers = Vec::new();
@@ -202,7 +202,7 @@ impl<C> Compositor<C> {
                         break;
                     }
                 }
-                self.layers.append(&mut self.past_layers);
+                self.layers.extend(self.past_layers.drain(..).rev());
             }
         }
     }
