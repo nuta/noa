@@ -121,6 +121,7 @@ impl Surface for BufferView {
                 }
             }
 
+            // Cursors at a empty row.
             if row.is_empty()
                 && buffer
                     .cursors()
@@ -128,6 +129,20 @@ impl Surface for BufferView {
                     .any(|c| c.selection().contains(Position::new(row.lineno - 1, 0)))
             {
                 row_end_marker = Some((' ', buffer_x));
+            }
+
+            // Cursors at the end of a row.
+            if !row.is_empty() {
+                let last_pos = row.last_position();
+                let end_of_row_pos = Position::new(last_pos.y, last_pos.x + 1);
+                if buffer
+                    .cursors()
+                    .iter()
+                    .enumerate()
+                    .any(|(i, c)| i != 0 && c.position() == Some(end_of_row_pos))
+                {
+                    row_end_marker = Some((' ', buffer_x + row.graphemes.len()));
+                }
             }
 
             if let Some((ch, x)) = row_end_marker {

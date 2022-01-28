@@ -165,6 +165,10 @@ impl Range {
         self.front() <= pos && pos < self.back()
     }
 
+    pub fn overlaps(&self, pos: Position) -> bool {
+        self.overlaps_with(Range::from_positions(pos, pos))
+    }
+
     pub fn overlaps_with(&self, other: Range) -> bool {
         self == &other
             || !(self.back().y < other.front().y
