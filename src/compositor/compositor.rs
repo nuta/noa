@@ -1,6 +1,6 @@
 use std::slice;
 
-use crossterm::event::MouseEvent;
+
 use noa_common::time_report::TimeReport;
 use tokio::sync::mpsc;
 

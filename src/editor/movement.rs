@@ -180,7 +180,7 @@ impl<'a> Movement<'a> {
     {
         let mut new_cursors = self.buffer.cursors().to_vec();
         for c in &mut new_cursors {
-            f(&self.buffer, &self.view, c);
+            f(self.buffer, self.view, c);
         }
         self.buffer.set_cursors(&new_cursors);
     }
@@ -199,7 +199,7 @@ mod tests {
         let mut view = View::new();
         view.layout(&buffer, 16, 5);
         let mut movement_state = MovementState::new();
-        let mut movement = movement_state.movement(&mut buffer, &mut view);
+        let mut movement = movement_state.movement(&mut buffer, &view);
 
         movement.buffer.set_cursors(&[Cursor::new(2, 1)]);
         movement.move_cursors_up();
@@ -227,7 +227,7 @@ mod tests {
         let mut view = View::new();
         view.layout(&buffer, 16, 5);
         let mut movement_state = MovementState::new();
-        let mut movement = movement_state.movement(&mut buffer, &mut view);
+        let mut movement = movement_state.movement(&mut buffer, &view);
 
         movement.buffer.set_cursors(&[Cursor::new(2, 3)]);
         movement.move_cursors_up();
@@ -252,7 +252,7 @@ mod tests {
         let mut view = View::new();
         view.layout(&buffer, 16, 5);
         let mut movement_state = MovementState::new();
-        let mut movement = movement_state.movement(&mut buffer, &mut view);
+        let mut movement = movement_state.movement(&mut buffer, &view);
 
         movement.buffer.set_cursors(&[Cursor::new(0, 0)]);
         movement.move_cursors_up();
@@ -270,7 +270,7 @@ mod tests {
         let mut view = View::new();
         view.layout(&buffer, 16, 5);
         let mut movement_state = MovementState::new();
-        let mut movement = movement_state.movement(&mut buffer, &mut view);
+        let mut movement = movement_state.movement(&mut buffer, &view);
 
         movement.buffer.set_cursors(&[Cursor::new(2, 0)]);
         movement.move_cursors_up();
@@ -299,7 +299,7 @@ mod tests {
         let mut view = View::new();
         view.layout(&buffer, 16, 10);
         let mut movement_state = MovementState::new();
-        let mut movement = movement_state.movement(&mut buffer, &mut view);
+        let mut movement = movement_state.movement(&mut buffer, &view);
 
         movement.buffer.set_cursors(&[Cursor::new(3, 5)]);
         movement.move_cursors_up();
