@@ -32,7 +32,7 @@ impl Surface for TooSmallView {
         self
     }
 
-    fn is_visible(&self, _editor: &mut Editor) -> bool {
+    fn is_active(&self, _editor: &mut Editor) -> bool {
         true
     }
 

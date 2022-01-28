@@ -15,6 +15,7 @@ use tokio::{sync::oneshot, task};
 use crate::{
     clipboard::{ClipboardData, SystemClipboardData},
     editor::Editor,
+    ui::finder_view::FinderView,
 };
 
 pub struct BufferView {
@@ -53,7 +54,7 @@ impl Surface for BufferView {
         self
     }
 
-    fn is_visible(&self, _editor: &mut Editor) -> bool {
+    fn is_active(&self, _editor: &mut Editor) -> bool {
         true
     }
 
@@ -180,7 +181,7 @@ impl Surface for BufferView {
 
     fn handle_key_event(
         &mut self,
-        _compositor: &mut Compositor<Self::Context>,
+        compositor: &mut Compositor<Self::Context>,
         editor: &mut Editor,
         key: KeyEvent,
     ) -> HandledEvent {
@@ -197,7 +198,9 @@ impl Surface for BufferView {
                 self.quit_tx.take().unwrap().send(());
             }
             (KeyCode::Char('f'), CTRL) => {
-                // editor.
+                compositor
+                    .get_mut_surface_by_name::<FinderView>("finder")
+                    .set_active(true);
             }
             (KeyCode::Char('s'), CTRL) => {
                 notifications.maybe_error(doc.save_to_file());

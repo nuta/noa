@@ -11,13 +11,19 @@ use crate::{editor::Editor, path::PathFinder};
 
 pub struct FinderView {
     path_finder: PathFinder,
+    active: bool,
 }
 
 impl FinderView {
     pub fn new(workspace_dir: &Path) -> FinderView {
         FinderView {
             path_finder: PathFinder::new(workspace_dir),
+            active: false,
         }
+    }
+
+    pub fn set_active(&mut self, active: bool) {
+        self.active = active;
     }
 }
 
@@ -32,8 +38,8 @@ impl Surface for FinderView {
         self
     }
 
-    fn is_visible(&self, _editor: &mut Editor) -> bool {
-        false
+    fn is_active(&self, _editor: &mut Editor) -> bool {
+        self.active
     }
 
     fn layout(&self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {

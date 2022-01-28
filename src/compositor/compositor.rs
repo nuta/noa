@@ -1,7 +1,7 @@
 use std::slice;
 
 use noa_common::time_report::TimeReport;
-use tokio::sync::mpsc;
+use tokio::{runtime::Handle, sync::mpsc};
 
 use crate::{surface::HandledEvent, terminal::InputEvent};
 
@@ -70,23 +70,21 @@ impl<C> Compositor<C> {
         });
     }
 
-    pub fn get_mut_surface_by_name<S>(&mut self, name: &str) -> Option<&mut S>
+    pub fn get_mut_surface_by_name<S>(&mut self, name: &str) -> &mut S
     where
         S: Surface<Context = C>,
     {
         for layer in self.layers.iter_mut() {
             if layer.surface.name() == name {
-                return Some(
-                    layer
-                        .surface
-                        .as_any_mut()
-                        .downcast_mut::<S>()
-                        .expect("surface type mismatch"),
-                );
+                return layer
+                    .surface
+                    .as_any_mut()
+                    .downcast_mut::<S>()
+                    .expect("surface type mismatch");
             }
         }
 
-        None
+        unreachable!("surface {} not found", name);
     }
 
     pub fn resize_screen(&mut self, height: usize, width: usize) {
@@ -148,7 +146,11 @@ impl<C> Compositor<C> {
             InputEvent::Key(key) => {
                 self.past_layers = Vec::new();
                 while let Some(mut layer) = self.layers.pop() {
-                    let result = layer.surface.handle_key_event(self, ctx, key);
+                    let result = if layer.surface.is_active(ctx) {
+                        layer.surface.handle_key_event(self, ctx, key)
+                    } else {
+                        HandledEvent::Ignored
+                    };
                     self.past_layers.push(layer);
                     if result == HandledEvent::Consumed {
                         break;
@@ -161,16 +163,26 @@ impl<C> Compositor<C> {
                 while let Some(mut layer) = self.layers.pop() {
                     let screen_y = ev.row as usize;
                     let screen_x = ev.column as usize;
-                    if layer.screen_y <= screen_y
+                    let in_bounds = layer.screen_y <= screen_y
                         && screen_y < layer.screen_y + layer.canvas.height()
-                        && layer.screen_x <= screen_x && screen_x < layer.screen_x + layer.canvas.width() && layer.surface.handle_mouse_event(
+                        && layer.screen_x <= screen_x
+                        && screen_x < layer.screen_x + layer.canvas.width();
+
+                    let result = if layer.surface.is_active(ctx) && in_bounds {
+                        layer.surface.handle_mouse_event(
                             self,
                             ctx,
                             ev.kind,
                             ev.modifiers,
                             screen_y - layer.screen_y,
                             screen_x - layer.screen_x,
-                        ) == HandledEvent::Consumed {
+                        )
+                    } else {
+                        HandledEvent::Ignored
+                    };
+
+                    self.past_layers.push(layer);
+                    if result == HandledEvent::Consumed {
                         break;
                     }
                 }
@@ -179,7 +191,12 @@ impl<C> Compositor<C> {
             InputEvent::KeyBatch(input) => {
                 self.past_layers = Vec::new();
                 while let Some(mut layer) = self.layers.pop() {
-                    let result = layer.surface.handle_key_batch_event(self, ctx, &input);
+                    let result = if layer.surface.is_active(ctx) {
+                        layer.surface.handle_key_batch_event(self, ctx, &input)
+                    } else {
+                        HandledEvent::Ignored
+                    };
+
                     self.past_layers.push(layer);
                     if result == HandledEvent::Consumed {
                         break;
@@ -196,7 +213,7 @@ fn compose_layers<C>(ctx: &mut C, screen: &mut Canvas, layers: slice::IterMut<'_
     screen.view_mut().clear();
 
     for layer in layers {
-        if !layer.surface.is_visible(ctx) {
+        if !layer.surface.is_active(ctx) {
             continue;
         }
 
