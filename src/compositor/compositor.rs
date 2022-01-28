@@ -1,6 +1,5 @@
 use std::slice;
 
-
 use noa_common::time_report::TimeReport;
 use tokio::sync::mpsc;
 
@@ -27,6 +26,8 @@ pub struct Compositor<C> {
     active_screen_index: usize,
     /// The last element comes foreground.
     layers: Vec<Layer<C>>,
+    /// A temporary vec to avoid mutual borrowing of self.
+    past_layers: Vec<Layer<C>>,
 }
 
 #[allow(clippy::new_without_default)]
@@ -52,6 +53,7 @@ impl<C> Compositor<C> {
             screen_size,
             active_screen_index: 0,
             layers: Vec::new(),
+            past_layers: Vec::new(),
         }
     }
 
@@ -66,6 +68,25 @@ impl<C> Compositor<C> {
             screen_x: 0,
             screen_y: 0,
         });
+    }
+
+    pub fn get_mut_surface_by_name<S>(&mut self, name: &str) -> Option<&mut S>
+    where
+        S: Surface<Context = C>,
+    {
+        for layer in self.layers.iter_mut() {
+            if layer.surface.name() == name {
+                return Some(
+                    layer
+                        .surface
+                        .as_any_mut()
+                        .downcast_mut::<S>()
+                        .expect("surface type mismatch"),
+                );
+            }
+        }
+
+        None
     }
 
     pub fn resize_screen(&mut self, height: usize, width: usize) {
@@ -125,14 +146,19 @@ impl<C> Compositor<C> {
         trace!("input: {:?}", input);
         match input {
             InputEvent::Key(key) => {
-                for layer in self.layers.iter_mut().rev() {
-                    if let HandledEvent::Consumed = layer.surface.handle_key_event(ctx, key) {
+                self.past_layers = Vec::new();
+                while let Some(mut layer) = self.layers.pop() {
+                    let result = layer.surface.handle_key_event(self, ctx, key);
+                    self.past_layers.push(layer);
+                    if result == HandledEvent::Consumed {
                         break;
                     }
                 }
+                self.layers.extend(self.past_layers.drain(..));
             }
             InputEvent::Mouse(ev) => {
-                for layer in self.layers.iter_mut().rev() {
+                self.past_layers = Vec::new();
+                while let Some(mut layer) = self.layers.pop() {
                     let screen_y = ev.row as usize;
                     let screen_x = ev.column as usize;
                     if layer.screen_y <= screen_y
@@ -140,26 +166,31 @@ impl<C> Compositor<C> {
                         && layer.screen_x <= screen_x
                         && screen_x < layer.screen_x + layer.canvas.width()
                     {
-                        if let HandledEvent::Consumed = layer.surface.handle_mouse_event(
+                        if layer.surface.handle_mouse_event(
+                            self,
                             ctx,
                             ev.kind,
                             ev.modifiers,
                             screen_y - layer.screen_y,
                             screen_x - layer.screen_x,
-                        ) {
+                        ) == HandledEvent::Consumed
+                        {
                             break;
                         }
                     }
                 }
+                self.layers.extend(self.past_layers.drain(..));
             }
             InputEvent::KeyBatch(input) => {
-                for layer in self.layers.iter_mut().rev() {
-                    if let HandledEvent::Consumed =
-                        layer.surface.handle_key_batch_event(ctx, &input)
-                    {
+                self.past_layers = Vec::new();
+                while let Some(mut layer) = self.layers.pop() {
+                    let result = layer.surface.handle_key_batch_event(self, ctx, &input);
+                    self.past_layers.push(layer);
+                    if result == HandledEvent::Consumed {
                         break;
                     }
                 }
+                self.layers.extend(self.past_layers.drain(..));
             }
         }
     }

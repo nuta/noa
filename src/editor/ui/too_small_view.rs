@@ -2,6 +2,7 @@ use noa_compositor::{
     canvas::CanvasViewMut,
     surface::{HandledEvent, Layout, RectSize, Surface},
     terminal::{KeyEvent, KeyModifiers, MouseEvent, MouseEventKind},
+    Compositor,
 };
 
 use crate::editor::Editor;
@@ -27,6 +28,10 @@ impl Surface for TooSmallView {
         "too_small"
     }
 
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
     fn is_visible(&self, _editor: &mut Editor) -> bool {
         true
     }
@@ -44,16 +49,27 @@ impl Surface for TooSmallView {
         canvas.write_str(0, 0, truncate_to_width(&self.text, canvas.width()));
     }
 
-    fn handle_key_event(&mut self, _editor: &mut Editor, _key: KeyEvent) -> HandledEvent {
+    fn handle_key_event(
+        &mut self,
+        _compositor: &mut Compositor<Self::Context>,
+        _editor: &mut Editor,
+        _key: KeyEvent,
+    ) -> HandledEvent {
         HandledEvent::Consumed
     }
 
-    fn handle_key_batch_event(&mut self, _ctx: &mut Self::Context, _input: &str) -> HandledEvent {
+    fn handle_key_batch_event(
+        &mut self,
+        _compositor: &mut Compositor<Editor>,
+        _ctx: &mut Self::Context,
+        _input: &str,
+    ) -> HandledEvent {
         HandledEvent::Consumed
     }
 
     fn handle_mouse_event(
         &mut self,
+        _compositor: &mut Compositor<Self::Context>,
         _ctx: &mut Self::Context,
         _kind: MouseEventKind,
         _modifiers: KeyModifiers,

@@ -8,6 +8,7 @@ use noa_compositor::{
     canvas::{CanvasViewMut, Decoration, Style},
     surface::{HandledEvent, KeyEvent, Layout, MouseEvent, RectSize, Surface},
     terminal::{KeyCode, KeyModifiers, MouseButton, MouseEventKind},
+    Compositor,
 };
 use tokio::{sync::oneshot, task};
 
@@ -46,6 +47,10 @@ impl Surface for BufferView {
 
     fn name(&self) -> &str {
         "buffer"
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
     }
 
     fn is_visible(&self, _editor: &mut Editor) -> bool {
@@ -173,7 +178,12 @@ impl Surface for BufferView {
         }
     }
 
-    fn handle_key_event(&mut self, editor: &mut Editor, key: KeyEvent) -> HandledEvent {
+    fn handle_key_event(
+        &mut self,
+        _compositor: &mut Compositor<Self::Context>,
+        editor: &mut Editor,
+        key: KeyEvent,
+    ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
         const CTRL: KeyModifiers = KeyModifiers::CONTROL;
         const ALT: KeyModifiers = KeyModifiers::ALT;
@@ -185,6 +195,9 @@ impl Surface for BufferView {
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), CTRL) => {
                 self.quit_tx.take().unwrap().send(());
+            }
+            (KeyCode::Char('f'), CTRL) => {
+                // editor.
             }
             (KeyCode::Char('s'), CTRL) => {
                 notifications.maybe_error(doc.save_to_file());
@@ -322,13 +335,19 @@ impl Surface for BufferView {
         HandledEvent::Consumed
     }
 
-    fn handle_key_batch_event(&mut self, editor: &mut Editor, s: &str) -> HandledEvent {
+    fn handle_key_batch_event(
+        &mut self,
+        _compositor: &mut Compositor<Editor>,
+        editor: &mut Editor,
+        s: &str,
+    ) -> HandledEvent {
         editor.documents.current_mut().buffer_mut().insert(s);
         HandledEvent::Consumed
     }
 
     fn handle_mouse_event(
         &mut self,
+        _compositor: &mut Compositor<Self::Context>,
         editor: &mut Editor,
         kind: MouseEventKind,
         modifiers: KeyModifiers,

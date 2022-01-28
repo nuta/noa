@@ -1,3 +1,7 @@
+use std::any::Any;
+
+use crate::Compositor;
+
 use super::canvas::CanvasViewMut;
 pub use crossterm::event::{KeyEvent, MouseEvent};
 use crossterm::event::{KeyModifiers, MouseEventKind};
@@ -15,16 +19,17 @@ pub struct RectSize {
     pub width: usize,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum HandledEvent {
     Consumed,
     Ignored,
 }
 
-pub trait Surface {
+pub trait Surface: Any {
     type Context;
 
     fn name(&self) -> &str;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
     fn is_visible(&self, ctx: &mut Self::Context) -> bool;
     fn layout(&self, ctx: &mut Self::Context, screen_size: RectSize) -> (Layout, RectSize);
     /// Returns the cursor position in surface-local `(y, x)`. `None` if the cursor
@@ -34,12 +39,18 @@ pub trait Surface {
     /// canvas can be the newly created one due to, for example, screen resizing.
     fn render(&mut self, ctx: &mut Self::Context, canvas: &mut CanvasViewMut<'_>);
 
-    fn handle_key_event(&mut self, _ctx: &mut Self::Context, _key: KeyEvent) -> HandledEvent {
+    fn handle_key_event(
+        &mut self,
+        _compositor: &mut Compositor<Self::Context>,
+        _ctx: &mut Self::Context,
+        _key: KeyEvent,
+    ) -> HandledEvent {
         HandledEvent::Ignored
     }
 
     fn handle_mouse_event(
         &mut self,
+        _compositor: &mut Compositor<Self::Context>,
         _ctx: &mut Self::Context,
         _kind: MouseEventKind,
         _modifiers: KeyModifiers,
@@ -48,8 +59,12 @@ pub trait Surface {
     ) -> HandledEvent {
         HandledEvent::Ignored
     }
-
-    fn handle_key_batch_event(&mut self, _ctx: &mut Self::Context, _input: &str) -> HandledEvent {
+    fn handle_key_batch_event(
+        &mut self,
+        _compositor: &mut Compositor<Self::Context>,
+        _ctx: &mut Self::Context,
+        _input: &str,
+    ) -> HandledEvent {
         HandledEvent::Ignored
     }
 }

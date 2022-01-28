@@ -4,6 +4,7 @@ use noa_compositor::{
     canvas::CanvasViewMut,
     surface::{HandledEvent, Layout, RectSize, Surface},
     terminal::KeyEvent,
+    Compositor,
 };
 
 use crate::{editor::Editor, path::PathFinder};
@@ -27,6 +28,10 @@ impl Surface for FinderView {
         "finder"
     }
 
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
     fn is_visible(&self, _editor: &mut Editor) -> bool {
         false
     }
@@ -41,11 +46,21 @@ impl Surface for FinderView {
 
     fn render(&mut self, _editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {}
 
-    fn handle_key_event(&mut self, _editor: &mut Editor, _key: KeyEvent) -> HandledEvent {
+    fn handle_key_event(
+        &mut self,
+        _compositor: &mut Compositor<Self::Context>,
+        _editor: &mut Editor,
+        _key: KeyEvent,
+    ) -> HandledEvent {
         HandledEvent::Ignored
     }
 
-    fn handle_key_batch_event(&mut self, _editor: &mut Editor, _input: &str) -> HandledEvent {
+    fn handle_key_batch_event(
+        &mut self,
+        _compositor: &mut Compositor<Editor>,
+        _editor: &mut Editor,
+        _input: &str,
+    ) -> HandledEvent {
         HandledEvent::Ignored
     }
 }

@@ -4,6 +4,7 @@ use noa_compositor::{
     line_edit::LineEdit,
     surface::{HandledEvent, KeyEvent, Layout, MouseEvent, RectSize, Surface},
     terminal::{KeyCode, KeyModifiers},
+    Compositor,
 };
 use tokio::{sync::oneshot, task};
 
@@ -32,6 +33,10 @@ impl Surface for BottomLineView {
 
     fn name(&self) -> &str {
         "bottom_line"
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
     }
 
     fn is_visible(&self, _editor: &mut Editor) -> bool {
@@ -117,7 +122,12 @@ impl Surface for BottomLineView {
         canvas.write_str(1, canvas.width() - 1 - noti.display_width(), noti);
     }
 
-    fn handle_key_event(&mut self, editor: &mut Editor, key: KeyEvent) -> HandledEvent {
+    fn handle_key_event(
+        &mut self,
+        _compositor: &mut Compositor<Self::Context>,
+        editor: &mut Editor,
+        key: KeyEvent,
+    ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
         const CTRL: KeyModifiers = KeyModifiers::CONTROL;
         const ALT: KeyModifiers = KeyModifiers::ALT;
@@ -132,7 +142,12 @@ impl Surface for BottomLineView {
         HandledEvent::Ignored
     }
 
-    fn handle_key_batch_event(&mut self, editor: &mut Editor, s: &str) -> HandledEvent {
+    fn handle_key_batch_event(
+        &mut self,
+        _compositor: &mut Compositor<Editor>,
+        editor: &mut Editor,
+        s: &str,
+    ) -> HandledEvent {
         HandledEvent::Ignored
     }
 }
