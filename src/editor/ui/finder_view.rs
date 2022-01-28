@@ -2,6 +2,7 @@ use std::{cmp::min, path::Path};
 
 use noa_compositor::{
     canvas::CanvasViewMut,
+    line_edit::LineEdit,
     surface::{HandledEvent, Layout, RectSize, Surface},
     terminal::KeyEvent,
     Compositor,
@@ -9,9 +10,12 @@ use noa_compositor::{
 
 use crate::{editor::Editor, path::PathFinder};
 
+use super::helpers::truncate_to_width;
+
 pub struct FinderView {
     path_finder: PathFinder,
     active: bool,
+    input: LineEdit,
 }
 
 impl FinderView {
@@ -19,11 +23,16 @@ impl FinderView {
         FinderView {
             path_finder: PathFinder::new(workspace_dir),
             active: false,
+            input: LineEdit::new(),
         }
     }
 
     pub fn set_active(&mut self, active: bool) {
         self.active = active;
+    }
+
+    pub fn update(&mut self) {
+        //
     }
 }
 
@@ -53,30 +62,41 @@ impl Surface for FinderView {
     }
 
     fn cursor_position(&self, _editor: &mut Editor) -> Option<(usize, usize)> {
-        None
+        Some((1, 2 + self.input.cursor_position()))
     }
 
     fn render(&mut self, _editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
         canvas.clear();
+
+        self.input.relocate_scroll(canvas.width() - 2);
+
         canvas.draw_borders(0, 0, canvas.height() - 1, canvas.width() - 1);
+        canvas.write_str(
+            2,
+            1,
+            truncate_to_width(&self.input.text(), canvas.width() - 2),
+        );
     }
 
     fn handle_key_event(
         &mut self,
         _compositor: &mut Compositor<Self::Context>,
         _editor: &mut Editor,
-        _key: KeyEvent,
+        key: KeyEvent,
     ) -> HandledEvent {
-        HandledEvent::Ignored
+        let result = self.input.consume_key_event(key);
+        self.update();
+        result
     }
 
     fn handle_key_batch_event(
         &mut self,
         _compositor: &mut Compositor<Editor>,
         _editor: &mut Editor,
-        _input: &str,
+        input: &str,
     ) -> HandledEvent {
-        HandledEvent::Ignored
+        self.input.insert(input);
+        HandledEvent::Consumed
     }
 
     fn handle_mouse_event(

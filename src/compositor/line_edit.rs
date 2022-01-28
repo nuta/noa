@@ -1,6 +1,8 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use noa_buffer::buffer::Buffer;
 
+use crate::surface::HandledEvent;
+
 pub struct LineEdit {
     buffer: Buffer,
     scroll: usize,
@@ -53,6 +55,11 @@ impl LineEdit {
         self.buffer.delete();
     }
 
+    pub fn cursor_position(&self) -> usize {
+        let x = self.buffer.cursors()[0].selection().start.x;
+        x - self.scroll
+    }
+
     pub fn relocate_scroll(&mut self, width: usize) {
         let x = self.buffer.cursors()[0].selection().start.x;
 
@@ -95,7 +102,7 @@ impl LineEdit {
         self.buffer.move_to_prev_word();
     }
 
-    pub fn consume_key_event(&mut self, key: KeyEvent) -> bool {
+    pub fn consume_key_event(&mut self, key: KeyEvent) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
         const CTRL: KeyModifiers = KeyModifiers::CONTROL;
         const ALT: KeyModifiers = KeyModifiers::ALT;
@@ -133,11 +140,11 @@ impl LineEdit {
                 self.move_to_prev_word();
             }
             _ => {
-                return false;
+                return HandledEvent::Ignored;
             }
         }
 
-        true
+        HandledEvent::Consumed
     }
 }
 
