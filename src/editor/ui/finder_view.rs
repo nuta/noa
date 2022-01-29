@@ -129,11 +129,15 @@ impl Surface for FinderView {
     }
 
     fn layout(&self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
+        trace!(
+            "finder layout = {}",
+            min(80, screen_size.width.saturating_sub(4))
+        );
         (
             Layout::Center,
             RectSize {
-                height: min(32, screen_size.height.saturating_sub(5)),
-                width: min(80, screen_size.width.saturating_sub(4)),
+                height: max(4, min(32, screen_size.height.saturating_sub(5))),
+                width: max(4, min(200, screen_size.width.saturating_sub(4))),
             },
         )
     }
@@ -144,6 +148,7 @@ impl Surface for FinderView {
 
     fn render(&mut self, _editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
         canvas.clear();
+        trace!("finder layout2 = {}", canvas.width());
 
         self.input.relocate_scroll(canvas.width() - 4);
 
@@ -159,7 +164,7 @@ impl Surface for FinderView {
         for (i, item) in self.items.read().iter().take(max_num_items).enumerate() {
             match item {
                 FinderItem::File(path) => {
-                    canvas.write_str(2 + i, 1, truncate_to_width(path, canvas.width() - 2));
+                    canvas.write_str(2 + i, 1, truncate_to_width(path, canvas.width() - 4));
                 }
                 FinderItem::SearchMatch {
                     path,
