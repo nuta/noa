@@ -129,10 +129,6 @@ impl Surface for FinderView {
     }
 
     fn layout(&self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
-        trace!(
-            "finder layout = {}",
-            min(80, screen_size.width.saturating_sub(4))
-        );
         (
             Layout::Center,
             RectSize {
@@ -148,7 +144,6 @@ impl Surface for FinderView {
 
     fn render(&mut self, _editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
         canvas.clear();
-        trace!("finder layout2 = {}", canvas.width());
 
         self.input.relocate_scroll(canvas.width() - 4);
 
