@@ -170,7 +170,7 @@ impl Canvas {
             let dst_end = dst_start + other.width;
             let src_start = y_off * other.width;
             let src_end = src_start + other.width;
-            (&mut self.graphs[dst_start..dst_end])
+            self.graphs[dst_start..dst_end]
                 .copy_from_slice(&other.graphs[src_start..src_end]);
         }
     }

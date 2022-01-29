@@ -97,7 +97,7 @@ fn parse_config(body: &str) -> ConfigFile {
                     rule.pattern = pattern;
                     rules.push(rule);
                 }
-                pattern = Some((&line[1..index]).to_string());
+                pattern = Some(line[1..index].to_string());
                 rule = Default::default();
             }
         } else if line.starts_with('#') {
@@ -105,8 +105,8 @@ fn parse_config(body: &str) -> ConfigFile {
         } else if let Some(index) = line.find('=') {
             // key = value
             if index < line.len() {
-                let key = (&line[..index]).trim();
-                let mut value = (&line[(index + 1)..]).trim();
+                let key = line[..index].trim();
+                let mut value = line[(index + 1)..].trim();
 
                 // Remove a comment.
                 if let Some(index) = value.find('#') {
@@ -202,7 +202,7 @@ fn matches_pattern(pattern: &str, path: &str) -> bool {
                 return true;
             }
 
-            if (&pattern[comma..]).starts_with('}') {
+            if pattern[comma..].starts_with('}') {
                 break;
             }
 

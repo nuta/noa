@@ -159,7 +159,7 @@ impl Surface for FinderView {
         for (i, item) in self.items.read().iter().take(max_num_items).enumerate() {
             match item {
                 FinderItem::File(path) => {
-                    canvas.write_str(2 + i, 1, truncate_to_width(&path, canvas.width() - 2));
+                    canvas.write_str(2 + i, 1, truncate_to_width(path, canvas.width() - 2));
                 }
                 FinderItem::SearchMatch {
                     path,
@@ -213,10 +213,10 @@ impl Surface for FinderView {
                         info!("finder: selected item: {:?}", item);
                         match item {
                             FinderItem::File(path) => {
-                                editor.open_file(&Path::new(path));
+                                editor.open_file(Path::new(path));
                             }
                             FinderItem::SearchMatch { path, y, x, .. } => {
-                                editor.open_file(&Path::new(path));
+                                editor.open_file(Path::new(path));
                                 editor
                                     .documents
                                     .current_mut()
@@ -364,7 +364,7 @@ async fn search_globally(workspace_dir: &Path, raw_query: &str) -> Result<Vec<Fi
     use grep::{matcher::Matcher, regex::RegexMatcherBuilder, searcher::Searcher};
     use ignore::{WalkBuilder, WalkState};
 
-    let query = regex::escape(&raw_query);
+    let query = regex::escape(raw_query);
 
     let matcher = match RegexMatcherBuilder::new().case_smart(true).build(&query) {
         Ok(matcher) => matcher,
