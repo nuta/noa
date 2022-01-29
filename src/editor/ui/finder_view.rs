@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail, Result};
 use futures::{executor::block_on, stream::FuturesUnordered, StreamExt};
 use grep::searcher::SinkError;
 use noa_common::{oops::OopsExt, prioritized_vec::PrioritizedVec};
@@ -26,13 +26,13 @@ use super::helpers::truncate_to_width;
 #[derive(Clone, Debug)]
 enum FinderItem {
     File(String),
-    FileLocation {
-        /// The file path.
+    SearchMatch {
         path: String,
-        /// 0-based line number.
-        line: usize,
-        /// 0-based column number.
-        column: usize,
+        lineno: usize,
+        line_text: String,
+        before_text: std::ops::RangeTo<usize>,
+        matched_text: std::ops::Range<usize>,
+        after_text: std::ops::RangeFrom<usize>,
     },
 }
 
@@ -75,10 +75,25 @@ impl FinderView {
 
         tokio::spawn(async move {
             let mut all_items = PrioritizedVec::new(32);
-            // TODO: providers.push(scan_paths(workspace_dir));
-            if query.len() > 3 {
-                providers.push(search_globally(workspace_dir, query.clone()));
+            match query.chars().next() {
+                Some('/') => {
+                    match search_globally(&workspace_dir, &query).await {
+                        Ok(new_items) => {
+                            *items.write() = new_items;
+                        }
+                        Err(err) => {
+                            // TODO:
+                            warn!("failed to search globally: {}", err);
+                        }
+                    }
+                    render_request.notify_one();
+                    return;
+                }
+                _ => {
+                    providers.push(scan_paths(workspace_dir));
+                }
             }
+
             while let Some((results, into_item)) = providers.next().await {
                 for (s, score) in results.query(&query) {
                     all_items.insert(score, into_item(s.to_string()));
@@ -139,11 +154,11 @@ impl Surface for FinderView {
                 FinderItem::File(path) => {
                     canvas.write_str(2 + i, 1, truncate_to_width(&path, canvas.width() - 2));
                 }
-                FinderItem::FileLocation { path, line, column } => {
+                FinderItem::SearchMatch { path, lineno, .. } => {
                     canvas.write_str(
                         2 + i,
                         1,
-                        truncate_to_width(&format!("{path}:{line}:{column}"), canvas.width() - 2),
+                        truncate_to_width(&format!("{path}:{lineno}"), canvas.width() - 2),
                     );
                 }
             }
@@ -295,23 +310,22 @@ where
     }
 }
 
-async fn search_globally(
-    workspace_dir: PathBuf,
-    query: String,
-) -> (FuzzySet, impl Fn(String) -> FinderItem) {
+async fn search_globally(workspace_dir: &Path, raw_query: &str) -> Result<Vec<FinderItem>> {
     let mut paths = RwLock::new(FuzzySet::new());
 
     use grep::{matcher::Matcher, regex::RegexMatcherBuilder, searcher::Searcher};
     use ignore::{WalkBuilder, WalkState};
 
+    let query = regex::escape(&raw_query);
+
     let matcher = match RegexMatcherBuilder::new().case_smart(true).build(&query) {
         Ok(matcher) => matcher,
         Err(err) => {
-            warn!("invalid regex: {}", err);
-            return (paths.into_inner(), FinderItem::File);
+            bail!("invalid regex: {}", err);
         }
     };
 
+    let mut items = Arc::new(RwLock::new(PrioritizedVec::new(32)));
     WalkBuilder::new(workspace_dir).build_parallel().run(|| {
         Box::new(|dirent| {
             if let Ok(dirent) = dirent {
@@ -349,6 +363,18 @@ async fn search_globally(
                                         after_text
                                     );
 
+                                    items.write().insert(
+                                        0,
+                                        FinderItem::SearchMatch {
+                                            path: dirent.path().to_str().unwrap().to_owned(),
+                                            lineno: lineno as usize,
+                                            line_text: line.to_owned(),
+                                            before_text: ..m.start(),
+                                            matched_text: m.start()..m.end(),
+                                            after_text: m.end()..,
+                                        },
+                                    );
+
                                     /* continue finding */
                                     true
                                 })
@@ -365,5 +391,6 @@ async fn search_globally(
         })
     });
 
-    (paths.into_inner(), FinderItem::File)
+    let results = items.read().sorted_vec();
+    Ok(results)
 }

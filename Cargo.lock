@@ -759,6 +759,7 @@ dependencies = [
  "parking_lot",
  "pretty_assertions 0.7.2",
  "rayon",
+ "regex",
  "ropey",
  "tokio",
  "which",
