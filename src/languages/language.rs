@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use crate::lsp::Lsp;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SyntaxSpanType {
+pub enum SyntaxSpan {
     Comment,
     Ident,
     StringLiteral,
@@ -20,6 +20,7 @@ pub struct Language {
     pub formatter: Option<&'static [&'static str]>,
     pub lsp: Option<Lsp>,
     pub tree_sitter_language: Option<fn() -> tree_sitter::Language>,
+    pub tree_sitter_mapping: phf::Map<&'static str, SyntaxSpan>,
 }
 
 impl Hash for Language {
