@@ -122,6 +122,14 @@ impl View {
             .unwrap_or_else(|| Position::new(0, 0))
     }
 
+    pub fn scroll_up(&mut self) {
+        self.scroll = self.scroll.saturating_sub(1);
+    }
+
+    pub fn scroll_down(&mut self) {
+        self.scroll = min(self.scroll + 1, self.rows.len());
+    }
+
     /// Clears highlights in the given rows.
     pub fn clear_highlights(&mut self, rows: std::ops::Range<usize>) {
         for i in rows.start..min(rows.end, self.rows.len()) {

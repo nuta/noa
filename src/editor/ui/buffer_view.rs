@@ -364,6 +364,16 @@ impl Surface for BufferView {
 
         let mut doc = editor.documents.current_mut();
 
+        if kind == MouseEventKind::ScrollDown {
+            doc.movement().scroll_down();
+            return HandledEvent::Consumed;
+        }
+
+        if kind == MouseEventKind::ScrollUp {
+            doc.movement().scroll_up();
+            return HandledEvent::Consumed;
+        }
+
         if surface_x >= self.buffer_x {
             if let Some(pos) = doc
                 .view()

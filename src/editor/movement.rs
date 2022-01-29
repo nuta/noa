@@ -18,7 +18,7 @@ impl MovementState {
         }
     }
 
-    pub fn movement<'a>(&'a mut self, buffer: &'a mut Buffer, view: &'a View) -> Movement<'a> {
+    pub fn movement<'a>(&'a mut self, buffer: &'a mut Buffer, view: &'a mut View) -> Movement<'a> {
         Movement {
             state: self,
             buffer,
@@ -30,7 +30,7 @@ impl MovementState {
 pub struct Movement<'a> {
     state: &'a mut MovementState,
     buffer: &'a mut Buffer,
-    view: &'a View,
+    view: &'a mut View,
 }
 
 impl<'a> Movement<'a> {
@@ -54,6 +54,20 @@ impl<'a> Movement<'a> {
     /// Moves the cursor to down by one display row (respecting soft wrapping).
     pub fn move_cursors_down(&mut self) {
         self.move_cursors_vertically(1, |c, pos| c.move_to(pos));
+    }
+
+    pub fn scroll_up(&mut self) {
+        for _ in 0..5 {
+            self.move_cursors_up();
+            self.view.scroll_up();
+        }
+    }
+
+    pub fn scroll_down(&mut self) {
+        for _ in 0..5 {
+            self.move_cursors_down();
+            self.view.scroll_down();
+        }
     }
 
     pub fn add_cursors_up(&mut self) {

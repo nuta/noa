@@ -129,7 +129,8 @@ impl Document {
     }
 
     pub fn movement(&mut self) -> Movement<'_> {
-        self.movement_state.movement(&mut self.buffer, &self.view)
+        self.movement_state
+            .movement(&mut self.buffer, &mut self.view)
     }
 
     pub fn layout_view(&mut self, height: usize, width: usize) {
