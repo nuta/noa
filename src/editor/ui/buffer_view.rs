@@ -89,7 +89,7 @@ impl Surface for BufferView {
             buffer_y = 0;
             buffer_x = lineno_x + max_lineno_width + 1 /* line status */;
             buffer_width = canvas.width() - buffer_x  - 2 /* row_end_marker and mini map */;
-            buffer_height = canvas.height() - 2 /* bottom line */;
+            buffer_height = canvas.height();
 
             doc.layout_view(buffer_height, buffer_width);
         }

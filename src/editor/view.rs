@@ -197,6 +197,17 @@ impl View {
             })
             .flatten()
             .collect();
+
+        let main_pos = buffer.main_cursor().moving_position();
+        while main_pos < self.first_visible_position() {
+            self.scroll -= 1;
+        }
+
+        while main_pos > self.last_visible_position() {
+            self.scroll += 1;
+        }
+
+        debug_assert!(self.scroll < self.rows.len());
     }
 
     /// Layouts a single physical (separated by "\n") line.
