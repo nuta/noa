@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    fs::OpenOptions,
+    fs::{create_dir_all, OpenOptions},
     io::ErrorKind,
     num::NonZeroUsize,
     path::{Path, PathBuf},
@@ -69,7 +69,8 @@ impl Document {
 
         // TODO:
         let name = path
-            .file_name().unwrap_or(path.as_os_str())
+            .file_name()
+            .unwrap_or(path.as_os_str())
             .to_str()
             .unwrap();
 
@@ -149,6 +150,9 @@ impl Document {
         self.buffer.save_undo();
 
         if let Some(ref backup_path) = self.backup_path {
+            if let Some(parent_dir) = backup_path.parent() {
+                create_dir_all(parent_dir).oops();
+            }
             self.buffer.save_to_file(backup_path).oops();
         }
     }

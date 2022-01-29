@@ -1,5 +1,5 @@
 use arrayvec::ArrayString;
-use noa_common::logger::backtrace;
+use noa_common::logger::{self, backtrace};
 
 pub use crossterm::style::Color;
 
@@ -71,6 +71,14 @@ impl Decoration {
             bold: true,
             inverted: false,
             underline: false,
+        }
+    }
+
+    pub const fn underline() -> Decoration {
+        Decoration {
+            bold: false,
+            inverted: false,
+            underline: true,
         }
     }
 
@@ -282,6 +290,12 @@ impl<'a> CanvasViewMut<'a> {
                 y, x, self.height, self.width,
             );
             backtrace();
+            return;
+        }
+
+        if graph.chars.contains('\n') {
+            warn!("tried to draw '\\n'");
+            logger::backtrace();
             return;
         }
 

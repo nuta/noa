@@ -8,9 +8,10 @@ use std::{
 use anyhow::{anyhow, bail, Result};
 use futures::{executor::block_on, stream::FuturesUnordered, StreamExt};
 use grep::searcher::SinkError;
+use noa_buffer::{cursor::Cursor, display_width::DisplayWidth};
 use noa_common::{oops::OopsExt, prioritized_vec::PrioritizedVec};
 use noa_compositor::{
-    canvas::CanvasViewMut,
+    canvas::{CanvasViewMut, Color, Decoration, Style},
     line_edit::LineEdit,
     surface::{HandledEvent, Layout, RectSize, Surface},
     terminal::{KeyCode, KeyEvent, KeyModifiers},
@@ -28,11 +29,12 @@ enum FinderItem {
     File(String),
     SearchMatch {
         path: String,
-        lineno: usize,
+        y: usize,
+        x: usize,
         line_text: String,
-        before_text: std::ops::RangeTo<usize>,
-        matched_text: std::ops::Range<usize>,
-        after_text: std::ops::RangeFrom<usize>,
+        before: std::ops::RangeTo<usize>,
+        matched: std::ops::Range<usize>,
+        after: std::ops::RangeFrom<usize>,
     },
 }
 
@@ -77,7 +79,12 @@ impl FinderView {
             let mut all_items = PrioritizedVec::new(32);
             match query.chars().next() {
                 Some('/') => {
-                    match search_globally(&workspace_dir, &query).await {
+                    if query.len() < 4 {
+                        warn!("too short query");
+                        return;
+                    }
+
+                    match search_globally(&workspace_dir, &query[1..]).await {
                         Ok(new_items) => {
                             *items.write() = new_items;
                         }
@@ -154,11 +161,34 @@ impl Surface for FinderView {
                 FinderItem::File(path) => {
                     canvas.write_str(2 + i, 1, truncate_to_width(&path, canvas.width() - 2));
                 }
-                FinderItem::SearchMatch { path, lineno, .. } => {
-                    canvas.write_str(
+                FinderItem::SearchMatch {
+                    path,
+                    y,
+                    x,
+                    line_text,
+                    before,
+                    after,
+                    matched,
+                } => {
+                    let before_text = &line_text[..before.end];
+                    let matched_text = &line_text[matched.start..matched.end];
+                    let after_text = &line_text[after.start..];
+                    let s = format!(
+                        "{before_text}{matched_text}{after_text} ({path}:{lineno})",
+                        lineno = y + 1
+                    );
+                    canvas.write_str(2 + i, 1, truncate_to_width(&s, canvas.width() - 4));
+
+                    let x = 1 + before_text.display_width();
+                    canvas.set_style(
                         2 + i,
-                        1,
-                        truncate_to_width(&format!("{path}:{lineno}"), canvas.width() - 2),
+                        x,
+                        min(canvas.width(), x + matched_text.display_width()),
+                        &Style {
+                            fg: Color::Red,
+                            bg: Color::Reset,
+                            deco: Decoration::underline(),
+                        },
                     );
                 }
             }
@@ -181,6 +211,24 @@ impl Surface for FinderView {
                 match self.items.read().get(self.item_selected) {
                     Some(item) => {
                         info!("finder: selected item: {:?}", item);
+                        match item {
+                            FinderItem::File(path) => {
+                                editor.open_file(&Path::new(path));
+                            }
+                            FinderItem::SearchMatch { path, y, x, .. } => {
+                                editor.open_file(&Path::new(path));
+                                editor
+                                    .documents
+                                    .current_mut()
+                                    .buffer_mut()
+                                    .update_main_cursor_with(|c, _| {
+                                        *c = Cursor::new(*y, *x);
+                                    });
+                            }
+                        }
+
+                        self.active = false;
+                        return HandledEvent::Consumed;
                     }
                     None => {
                         editor
@@ -190,7 +238,7 @@ impl Surface for FinderView {
                 };
             }
             (KeyCode::Down, NONE) => {
-                self.item_selected = min(self.item_selected - 1, self.items.read().len());
+                self.item_selected = min(self.item_selected + 1, self.items.read().len());
             }
             (KeyCode::Up, NONE) => {
                 self.item_selected = self.item_selected.saturating_sub(1);
@@ -363,20 +411,29 @@ async fn search_globally(workspace_dir: &Path, raw_query: &str) -> Result<Vec<Fi
                                         after_text
                                     );
 
-                                    items.write().insert(
+                                    let line_text = line.trim_end().to_owned();
+                                    let m_start = min(m.start(), line_text.len());
+                                    let m_end = min(m.end(), line_text.len());
+                                    let x = min(
+                                        m.start(), /* TODO: use char index */
+                                        line_text.chars().count(),
+                                    );
+                                    let mut items = items.write();
+                                    items.insert(
                                         0,
                                         FinderItem::SearchMatch {
                                             path: dirent.path().to_str().unwrap().to_owned(),
-                                            lineno: lineno as usize,
-                                            line_text: line.to_owned(),
-                                            before_text: ..m.start(),
-                                            matched_text: m.start()..m.end(),
-                                            after_text: m.end()..,
+                                            y: (lineno as usize) - 1,
+                                            x,
+                                            line_text,
+                                            before: ..m_start,
+                                            matched: m_start..m_end,
+                                            after: m_end..,
                                         },
                                     );
 
                                     /* continue finding */
-                                    true
+                                    items.len() < 32
                                 })
                                 .unwrap();
 

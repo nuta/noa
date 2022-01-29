@@ -47,6 +47,14 @@ impl<T> PrioritizedVec<T> {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.heap.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.heap.len()
+    }
+
     pub fn insert(&mut self, priority: isize, value: T) {
         self.heap.push(Entry { priority, value });
 

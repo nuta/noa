@@ -115,9 +115,11 @@ impl<C> Compositor<C> {
         // Get the cursor position.
         let mut cursor = None;
         for layer in self.layers.iter().rev() {
-            if let Some((y, x)) = layer.surface.cursor_position(ctx) {
-                cursor = Some((layer.screen_y + y, layer.screen_x + x));
-                break;
+            if layer.surface.is_active(ctx) {
+                if let Some((y, x)) = layer.surface.cursor_position(ctx) {
+                    cursor = Some((layer.screen_y + y, layer.screen_x + x));
+                    break;
+                }
             }
         }
 
