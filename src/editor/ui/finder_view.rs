@@ -133,7 +133,7 @@ impl Surface for FinderView {
             Layout::Center,
             RectSize {
                 height: min(32, screen_size.height.saturating_sub(5)),
-                width: min(80, screen_size.width),
+                width: min(80, screen_size.width.saturating_sub(4)),
             },
         )
     }
