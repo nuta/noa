@@ -1,7 +1,19 @@
-use noa_buffer::buffer::Buffer;
+use std::cmp::{max, min};
+
+use noa_buffer::{
+    buffer::Buffer,
+    cursor::{Position, Range},
+};
+use noa_compositor::canvas::Style;
 use noa_languages::{language::Language, tree_sitter};
 
+use crate::{
+    theme::{theme_for, Theme, ThemeKey},
+    view::View,
+};
+
 pub struct Highlighter {
+    lang: &'static Language,
     tree: Option<tree_sitter::Tree>,
     parser: Option<tree_sitter::Parser>,
 }
@@ -19,7 +31,11 @@ impl Highlighter {
             }
         });
 
-        Highlighter { tree: None, parser }
+        Highlighter {
+            lang,
+            tree: None,
+            parser,
+        }
     }
 
     pub fn update(&mut self, buffer: &Buffer) {
@@ -38,6 +54,40 @@ impl Highlighter {
                 // https://github.com/mcobzarenco/zee/blob/8c21f387ee7805a185c3321f6a982bd3332701d3/core/src/syntax/parse.rs#L173-L183
                 None,
             );
+        }
+    }
+
+    fn walk_ts_node<'a, 'b, 'tree>(
+        &self,
+        view: &'a mut View,
+        parent: tree_sitter::Node<'tree>,
+        cursor: &'b mut tree_sitter::TreeCursor<'tree>,
+    ) {
+        for node in parent.children(cursor) {
+            let node_start = node.start_position();
+            let node_end = node.end_position();
+            let start_pos = Position::new(node_start.row, node_start.column);
+            let end_pos = Position::new(node_end.row, node_end.column);
+            let range = Range::from_positions(start_pos, end_pos);
+
+            if let Some(span) = self.lang.tree_sitter_mapping.get(node.kind()).copied() {
+                let style = theme_for(ThemeKey::SyntaxSpan(span));
+                if style != Style::default() {
+                    view.highlight(range, style);
+                }
+            }
+
+            let mut node_cursor = node.walk();
+            if node.child_count() > 0 {
+                self.walk_ts_node(view, node, &mut node_cursor);
+            }
+        }
+    }
+
+    pub fn highlight(&mut self, view: &mut View) {
+        if let Some(tree) = self.tree.as_ref() {
+            let root = tree.root_node();
+            self.walk_ts_node(view, root, &mut root.walk());
         }
     }
 }

@@ -139,52 +139,26 @@ impl View {
         }
     }
 
-    /// Apply highlights. Caller must ensure that:
-    ///
-    /// - `spans` are sorted by their `range`s.
-    /// - Ranges in `spans` do not overlap.
-    /// - `rows` are not out of bounds: [`View::layout`] must be called before.
-    pub fn highlight(&mut self, rows: std::ops::Range<usize>, spans: &[Span]) {
-        let rows = rows.start..min(rows.end, self.rows.len());
+    /// Update characters' styles in the given range.
+    pub fn highlight(&mut self, range: Range, style: Style) {
+        trace!("highlight: range={:?}, color={:?}", range, style.fg);
+        let (start_y, start_x) = self.locate_row_by_position(range.front());
+        let (end_y, end_x) = self.locate_row_by_position(range.back());
+        for y in start_y..=end_y {
+            let row = &mut self.rows[y];
+            let xs = if y == start_y && y == end_y {
+                start_x..end_x
+            } else if y == start_y {
+                start_x..row.len_chars()
+            } else if y == end_y {
+                0..end_x
+            } else {
+                0..row.len_chars()
+            };
 
-        // Skip out-of-bounds spans.
-        let mut spans_iter = spans.iter();
-        while let Some(span) = spans_iter.next() {
-            if span.range.back() > self.first_visible_position() {
-                spans_iter.next_back();
-                break;
-            }
-        }
-
-        // Apply spans.
-        let mut row_i = rows.start;
-        let mut col_i = 0;
-        for span in spans {
-            if span.range.front() > self.last_visible_position() {
-                // Reached to the out-of-bounds span.
-                break;
-            }
-
-            // Apply `span`.
-            loop {
-                if row_i >= self.rows.len() {
-                    break;
-                }
-
-                if col_i >= self.rows[row_i].positions.len() {
-                    row_i += 1;
-                    col_i = 0;
-                    continue;
-                }
-
-                let pos = self.rows[row_i].positions[col_i];
-                let grapheme = &mut self.rows[row_i].graphemes[col_i];
-                if !span.range.contains(pos) {
-                    break;
-                }
-
-                grapheme.style.merge(span.style);
-                col_i += 1;
+            trace!("highlight: y={y}, xs={xs:?}, color={:?}", style.fg);
+            for x in xs {
+                row.graphemes[x].style = style;
             }
         }
     }
@@ -381,16 +355,7 @@ mod tests {
 
         let buffer = Buffer::from_text("ABC");
         view.layout(&buffer, 1, 3);
-        view.highlight(
-            0..3,
-            &[Span {
-                range: Range::new(0, 0, 0, 2),
-                style: Style {
-                    fg: Red,
-                    ..Default::default()
-                },
-            }],
-        );
+        view.highlight(Range::new(0, 0, 0, 2));
 
         assert_eq!(
             view.rows,

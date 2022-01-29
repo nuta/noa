@@ -25,6 +25,7 @@ mod fuzzy;
 mod highlighting;
 mod movement;
 mod notification;
+mod theme;
 mod ui;
 mod view;
 mod words;

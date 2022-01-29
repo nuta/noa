@@ -18,6 +18,7 @@ use noa_languages::{
 };
 
 use crate::{
+    editor::Editor,
     highlighting::Highlighter,
     movement::{Movement, MovementState},
     view::View,
@@ -134,17 +135,22 @@ impl Document {
     }
 
     pub fn layout_view(&mut self, height: usize, width: usize) {
+        // TODO:
+        let updated_lines = 0..self.buffer.num_lines();
+
         self.view.layout(&self.buffer, height, width);
+        self.view.clear_highlights(updated_lines);
+        self.highlighter.update(&self.buffer);
+        self.highlighter.highlight(&mut self.view);
     }
 
     pub fn post_update_job(&mut self) {
         let time = TimeReport::new("post_update_jobs time");
 
         // TODO:
-        let updates_lines = 0..self.buffer.num_lines();
+        let updated_lines = 0..self.buffer.num_lines();
 
-        self.words.update_lines(&self.buffer, updates_lines);
-        self.highlighter.update(&self.buffer);
+        self.words.update_lines(&self.buffer, updated_lines.clone());
     }
 
     pub fn idle_job(&mut self) {
