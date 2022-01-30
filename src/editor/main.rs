@@ -27,7 +27,9 @@ mod document;
 mod editor;
 mod flash;
 mod fuzzy;
+mod git;
 mod highlighting;
+mod minimap;
 mod movement;
 mod theme;
 mod ui;
@@ -54,7 +56,8 @@ async fn main() {
         .cloned()
         .unwrap_or_else(|| PathBuf::from("."));
 
-    let mut editor = editor::Editor::new();
+    let render_request = Arc::new(Notify::new());
+    let mut editor = editor::Editor::new(&workspace_dir, render_request.clone());
     let mut compositor = Compositor::new();
 
     let mut open_finder = true;
@@ -68,7 +71,6 @@ async fn main() {
     }
 
     let (quit_tx, mut quit_rx) = oneshot::channel();
-    let render_request = Arc::new(Notify::new());
     compositor.add_frontmost_layer(Box::new(TooSmallView::new("too small!")));
     compositor.add_frontmost_layer(Box::new(BufferView::new(quit_tx, render_request.clone())));
     compositor.add_frontmost_layer(Box::new(BottomLineView::new()));

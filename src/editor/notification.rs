@@ -29,6 +29,7 @@ impl NotificationManager {
         self.notification.as_ref()
     }
 
+    // TODO: Stop cloning string.
     pub fn last_notification_as_str(&self) -> Option<(ThemeKey, String)> {
         self.last_notification().map(|noti| match noti {
             Notification::Info(message) => (ThemeKey::InfoNotification, message.clone()),

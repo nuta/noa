@@ -220,6 +220,7 @@ impl Surface for BufferView {
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
         let mut doc = editor.documents.current_mut();
+        let prev_rope = doc.buffer().raw_buffer().rope().clone();
 
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), CTRL) => {
@@ -363,6 +364,11 @@ impl Surface for BufferView {
             _ => {
                 trace!("unhandled key = {:?}", key);
             }
+        }
+
+        let current_rope = doc.buffer().raw_buffer().rope().clone();
+        if prev_rope == current_rope {
+            doc.post_update_job(&editor.repo, &editor.render_request);
         }
 
         HandledEvent::Consumed

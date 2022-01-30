@@ -5,7 +5,10 @@ use std::{
     num::NonZeroUsize,
     path::{Path, PathBuf},
     ptr::NonNull,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
 };
 
 use anyhow::Result;
@@ -16,11 +19,15 @@ use noa_languages::{
     definitions::{guess_language, PLAIN},
     language::Language,
 };
+use parking_lot::RwLock;
+use tokio::{sync::Notify, task::JoinHandle};
 
 use crate::{
     editor::Editor,
     flash::FlashManager,
+    git::Repo,
     highlighting::Highlighter,
+    minimap::MiniMap,
     movement::{Movement, MovementState},
     view::View,
     words::Words,
@@ -42,6 +49,8 @@ pub struct Document {
     movement_state: MovementState,
     words: Words,
     flashes: FlashManager,
+    minimap: Arc<RwLock<MiniMap>>,
+    post_update_job: Option<JoinHandle<()>>,
 }
 
 impl Document {
@@ -59,6 +68,8 @@ impl Document {
             movement_state: MovementState::new(),
             words: Words::new(),
             flashes: FlashManager::new(),
+            minimap: Arc::new(RwLock::new(MiniMap::new())),
+            post_update_job: None,
         }
     }
 
@@ -87,7 +98,7 @@ impl Document {
         let words = Words::new_with_buffer(&buffer);
         Ok(Document {
             id,
-            path: Some(path.to_owned()),
+            path: Some(abs_path),
             backup_path: Some(backup_path),
             name: name.to_string(),
             buffer,
@@ -97,6 +108,8 @@ impl Document {
             movement_state: MovementState::new(),
             words,
             flashes: FlashManager::new(),
+            minimap: Arc::new(RwLock::new(MiniMap::new())),
+            post_update_job: None,
         })
     }
 
@@ -162,18 +175,41 @@ impl Document {
 
         self.view.layout(&self.buffer, height, width);
         self.view.clear_highlights(updated_lines);
-        self.highlighter.update(&self.buffer);
+
         self.highlighter.highlight(&mut self.view);
         self.flashes.highlight(&mut self.view);
     }
 
-    pub fn post_update_job(&mut self) {
+    pub fn post_update_job(&mut self, repo: &Option<Arc<Repo>>, render_request: &Arc<Notify>) {
         let time = TimeReport::new("post_update_jobs time");
 
         // TODO:
         let updated_lines = 0..self.buffer.num_lines();
-
         self.words.update_lines(&self.buffer, updated_lines);
+        self.highlighter.update(&self.buffer);
+
+        if let Some(path) = &self.path {
+            if let Some(repo) = repo {
+                let minimap = self.minimap.clone();
+                let repo = repo.clone();
+                let buffer_path = path.to_path_buf();
+                let render_request = render_request.clone();
+                let raw_buffer = self.buffer.raw_buffer().clone();
+
+                if let Some(post_update_job) = self.post_update_job.take() {
+                    post_update_job.abort();
+                }
+
+                self.post_update_job = Some(tokio::spawn(async move {
+                    // This may take a time.
+                    let buffer_text = raw_buffer.text();
+                    warn!("taking time...");
+                    std::thread::sleep(std::time::Duration::from_secs(10));
+                    minimap.write().update(&repo, &buffer_path, &buffer_text);
+                    render_request.notify_one();
+                }));
+            }
+        }
     }
 
     pub fn idle_job(&mut self) {
@@ -232,7 +268,8 @@ impl DocumentManager {
 
     fn open(&mut self, mut doc: Document) {
         // First run of syntax highlighting, etc.
-        doc.post_update_job();
+        // FIXME:
+        // doc.post_update_job(editor);
 
         let doc_id = doc.id;
         debug_assert!(!self.documents.contains_key(&doc_id));

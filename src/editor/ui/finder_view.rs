@@ -12,7 +12,7 @@ use noa_buffer::{
     cursor::{Cursor, Position, Range},
     display_width::DisplayWidth,
 };
-use noa_common::{oops::OopsExt, prioritized_vec::PrioritizedVec};
+use noa_common::{collections::prioritized_vec::PrioritizedVec, oops::OopsExt};
 use noa_compositor::{
     canvas::{CanvasViewMut, Color, Decoration, Style},
     line_edit::LineEdit,
