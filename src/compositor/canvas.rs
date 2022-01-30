@@ -25,7 +25,8 @@ pub struct Style {
 }
 
 impl Style {
-    pub fn merge(&mut self, other: Style) {
+    #[must_use]
+    pub fn merge(mut self, other: Style) -> Self {
         if self.fg == Color::Reset {
             self.fg = other.fg;
         }
@@ -37,6 +38,8 @@ impl Style {
         if !self.deco.bold {
             self.deco.bold = other.deco.bold;
         }
+
+        self
     }
 }
 
@@ -170,8 +173,7 @@ impl Canvas {
             let dst_end = dst_start + other.width;
             let src_start = y_off * other.width;
             let src_end = src_start + other.width;
-            self.graphs[dst_start..dst_end]
-                .copy_from_slice(&other.graphs[src_start..src_end]);
+            self.graphs[dst_start..dst_end].copy_from_slice(&other.graphs[src_start..src_end]);
         }
     }
 
@@ -299,7 +301,11 @@ impl<'a> CanvasViewMut<'a> {
             return;
         }
 
-        self.graphs[(self.y + y) * self.canvas_width + self.x + x] = graph;
+        let index = (self.y + y) * self.canvas_width + self.x + x;
+        self.graphs[index] = Grapheme {
+            chars: graph.chars,
+            style: self.graphs[index].style.merge(graph.style),
+        };
     }
 
     pub fn set_char_with_attrs(

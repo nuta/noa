@@ -21,6 +21,7 @@ use tokio::{
 use crate::{
     clipboard::{ClipboardData, SystemClipboardData},
     editor::Editor,
+    theme::{theme_for, ThemeKey},
     ui::finder_view::FinderView,
 };
 
@@ -106,11 +107,22 @@ impl Surface for BufferView {
 
         let doc = editor.documents.current();
         let buffer = doc.buffer();
+        let main_cursor = buffer.main_cursor();
 
         // Buffer contents.
-        let main_cursor_pos = buffer.main_cursor().selection().start;
+        let main_cursor_pos = main_cursor.moving_position();
         for (i_y, (row)) in doc.view().visible_rows().iter().enumerate() {
             let y = buffer_y + i_y;
+
+            // Highlight the current line.
+            if main_cursor.selection().is_empty() && main_cursor_pos.y == row.lineno - 1 {
+                canvas.set_style(
+                    y,
+                    buffer_x,
+                    canvas.width() - 1,
+                    &theme_for(ThemeKey::CurrentLine),
+                );
+            }
 
             // Draw lineno.
             let lineno_x = lineno_x + max_lineno_width - row.lineno.display_width();
@@ -186,6 +198,7 @@ impl Surface for BufferView {
             }
         }
 
+        // Re-render to update flashing later.
         if let Some(duration) = doc.flashes().next_timeout() {
             let render_request = self.render_request.clone();
             tokio::spawn(async move {

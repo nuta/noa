@@ -9,6 +9,7 @@ use parking_lot::Mutex;
 pub enum ThemeKey {
     SyntaxSpan(SyntaxSpan),
     Flash,
+    CurrentLine,
 }
 
 pub struct Theme {
@@ -26,6 +27,18 @@ impl Theme {
                     r: 255,
                     g: 255,
                     b: 50,
+                },
+                ..Default::default()
+            },
+        );
+
+        mapping.insert(
+            ThemeKey::CurrentLine,
+            Style {
+                bg: Color::Rgb {
+                    r: 55,
+                    g: 55,
+                    b: 55,
                 },
                 ..Default::default()
             },
