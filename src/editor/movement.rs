@@ -213,7 +213,7 @@ mod tests {
         let mut view = View::new();
         view.layout(&buffer, 16, 5);
         let mut movement_state = MovementState::new();
-        let mut movement = movement_state.movement(&mut buffer, &view);
+        let mut movement = movement_state.movement(&mut buffer, &mut view);
 
         movement.buffer.set_cursors(&[Cursor::new(2, 1)]);
         movement.move_cursors_up();
@@ -241,7 +241,7 @@ mod tests {
         let mut view = View::new();
         view.layout(&buffer, 16, 5);
         let mut movement_state = MovementState::new();
-        let mut movement = movement_state.movement(&mut buffer, &view);
+        let mut movement = movement_state.movement(&mut buffer, &mut view);
 
         movement.buffer.set_cursors(&[Cursor::new(2, 3)]);
         movement.move_cursors_up();
@@ -266,7 +266,7 @@ mod tests {
         let mut view = View::new();
         view.layout(&buffer, 16, 5);
         let mut movement_state = MovementState::new();
-        let mut movement = movement_state.movement(&mut buffer, &view);
+        let mut movement = movement_state.movement(&mut buffer, &mut view);
 
         movement.buffer.set_cursors(&[Cursor::new(0, 0)]);
         movement.move_cursors_up();
@@ -284,7 +284,7 @@ mod tests {
         let mut view = View::new();
         view.layout(&buffer, 16, 5);
         let mut movement_state = MovementState::new();
-        let mut movement = movement_state.movement(&mut buffer, &view);
+        let mut movement = movement_state.movement(&mut buffer, &mut view);
 
         movement.buffer.set_cursors(&[Cursor::new(2, 0)]);
         movement.move_cursors_up();
@@ -313,7 +313,7 @@ mod tests {
         let mut view = View::new();
         view.layout(&buffer, 16, 10);
         let mut movement_state = MovementState::new();
-        let mut movement = movement_state.movement(&mut buffer, &view);
+        let mut movement = movement_state.movement(&mut buffer, &mut view);
 
         movement.buffer.set_cursors(&[Cursor::new(3, 5)]);
         movement.move_cursors_up();

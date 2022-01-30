@@ -374,7 +374,13 @@ mod tests {
 
         let buffer = Buffer::from_text("ABC");
         view.layout(&buffer, 1, 3);
-        view.highlight(Range::new(0, 0, 0, 2));
+        view.do_highlight(
+            Range::new(0, 0, 0, 2),
+            Style {
+                fg: Red,
+                ..Default::default()
+            },
+        );
 
         assert_eq!(
             view.rows,
@@ -534,41 +540,5 @@ mod tests {
     fn bench_layout_medium_text(b: &mut test::Bencher) {
         let (mut view, buffer) = create_view_and_buffer(2048);
         b.iter(|| view.layout(&buffer, 4096, 120));
-    }
-
-    #[bench]
-    fn bench_highlight_few_spans(b: &mut test::Bencher) {
-        let (mut view, buffer) = create_view_and_buffer(16);
-        let mut spans = Vec::new();
-        for i in 0..16 {
-            spans.push(Span {
-                range: Range::new(i, 0, i, 1),
-                style: Style::default(),
-            });
-        }
-
-        view.layout(&buffer, 4096, 120);
-        b.iter(|| {
-            view.clear_highlights(0..16);
-            view.highlight(0..16, &spans);
-        });
-    }
-
-    #[bench]
-    fn bench_highlight_medium_spans(b: &mut test::Bencher) {
-        let (mut view, buffer) = create_view_and_buffer(2048);
-        let mut spans = Vec::new();
-        for i in 0..4096 {
-            spans.push(Span {
-                range: Range::new(1024, 0, 1024, 1),
-                style: Style::default(),
-            });
-        }
-
-        view.layout(&buffer, 4096, 120);
-        b.iter(|| {
-            view.clear_highlights(1024..(1024 + 128));
-            view.highlight(1024..(1024 + 128), &spans);
-        });
     }
 }

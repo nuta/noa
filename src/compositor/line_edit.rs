@@ -56,12 +56,12 @@ impl LineEdit {
     }
 
     pub fn cursor_position(&self) -> usize {
-        let x = self.buffer.cursors()[0].selection().start.x;
+        let x = self.buffer.main_cursor().moving_position().x;
         x - self.scroll
     }
 
     pub fn relocate_scroll(&mut self, width: usize) {
-        let x = self.buffer.cursors()[0].selection().start.x;
+        let x = self.buffer.main_cursor().moving_position().x;
 
         // Scroll Right.
         if x > self.scroll + width {
