@@ -65,9 +65,9 @@ extern "C" fn diff_callback(
             ((start_y as usize)..(end_y as usize), DiffType::Added)
         } else if hunk.new_lines == 0 && hunk.old_lines > 0 {
             if start_y < 0 {
-                (0..0, DiffType::Removed)
+                (0..1, DiffType::Removed)
             } else {
-                ((start_y as usize)..(end_y as usize), DiffType::Removed)
+                ((start_y as usize)..(end_y as usize + 1), DiffType::Removed)
             }
         } else {
             ((start_y as usize)..(end_y as usize), DiffType::Modified)

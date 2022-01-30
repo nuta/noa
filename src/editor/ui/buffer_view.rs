@@ -126,7 +126,7 @@ impl Surface for BufferView {
             }
 
             // Draw line status.
-            if let Some(status) = minimap.get(row.lineno) {
+            if let Some(status) = minimap.get(row.lineno - 1) {
                 canvas.write_char_with_style(y, 0, ' ', theme_for(ThemeKey::LineStatus(status)));
             }
 

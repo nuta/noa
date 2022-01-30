@@ -214,9 +214,9 @@ impl Document {
             let buffer_text = raw_buffer.text();
 
             if let Some((path, repo)) = git_diff_ctx {
-                minimap
-                    .write()
-                    .update_git_line_statuses(&repo, &path, &buffer_text);
+                let mut minimap = minimap.write();
+                minimap.clear();
+                minimap.update_git_line_statuses(&repo, &path, &buffer_text);
             }
 
             render_request.notify_one();
