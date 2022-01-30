@@ -27,17 +27,17 @@ pub struct Style {
 impl Style {
     #[must_use]
     pub fn merge(mut self, other: Style) -> Self {
-        if self.fg == Color::Reset {
+        if other.fg != Color::Reset {
             self.fg = other.fg;
         }
 
-        if self.bg == Color::Reset {
+        if other.bg != Color::Reset {
             self.bg = other.bg;
         }
 
-        if !self.deco.bold {
-            self.deco.bold = other.deco.bold;
-        }
+        self.deco.bold |= other.deco.bold;
+        self.deco.underline |= other.deco.underline;
+        self.deco.inverted |= other.deco.inverted;
 
         self
     }
