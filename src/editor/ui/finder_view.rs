@@ -181,11 +181,11 @@ impl Surface for FinderView {
                     canvas.write_str(2 + i, 1, truncate_to_width(&s, canvas.width() - 4));
 
                     let x = 1 + before_text.display_width();
-                    canvas.set_style(
+                    canvas.apply_style(
                         2 + i,
                         x,
                         min(canvas.width(), x + matched_text.display_width()),
-                        &Style {
+                        Style {
                             fg: Color::Red,
                             bg: Color::Reset,
                             deco: Decoration::underline(),

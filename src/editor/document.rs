@@ -164,6 +164,10 @@ impl Document {
         &mut self.flashes
     }
 
+    pub fn minimap(&self) -> &Arc<RwLock<MiniMap>> {
+        &self.minimap
+    }
+
     pub fn movement(&mut self) -> Movement<'_> {
         self.movement_state
             .movement(&mut self.buffer, &mut self.view)

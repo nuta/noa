@@ -792,6 +792,7 @@ dependencies = [
  "arrayvec",
  "async-trait",
  "base64",
+ "bitflags",
  "clap",
  "futures",
  "fuzzy-matcher",

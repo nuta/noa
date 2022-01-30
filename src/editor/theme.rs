@@ -5,6 +5,8 @@ use noa_languages::language::SyntaxSpan;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 
+use crate::minimap::LineStatus;
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum ThemeKey {
     SyntaxSpan(SyntaxSpan),
@@ -13,6 +15,7 @@ pub enum ThemeKey {
     ErrorNotification,
     WarnNotification,
     InfoNotification,
+    LineStatus(LineStatus),
 }
 
 pub struct Theme {
@@ -22,6 +25,34 @@ pub struct Theme {
 impl Theme {
     pub fn default() -> Theme {
         let mut mapping = HashMap::new();
+
+        mapping.insert(
+            ThemeKey::LineStatus(LineStatus::ADDED),
+            Style {
+                bg: Color::Rgb { r: 0, g: 255, b: 0 },
+                ..Default::default()
+            },
+        );
+
+        mapping.insert(
+            ThemeKey::LineStatus(LineStatus::REMOVED),
+            Style {
+                bg: Color::Rgb { r: 255, g: 0, b: 0 },
+                ..Default::default()
+            },
+        );
+
+        mapping.insert(
+            ThemeKey::LineStatus(LineStatus::MODIFIED),
+            Style {
+                bg: Color::Rgb {
+                    r: 255,
+                    g: 255,
+                    b: 128,
+                },
+                ..Default::default()
+            },
+        );
 
         mapping.insert(
             ThemeKey::Flash,

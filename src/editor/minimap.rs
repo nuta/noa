@@ -1,65 +1,49 @@
 use std::{collections::BTreeMap, ops::Range, path::Path, sync::Arc};
 
+use bitflags::bitflags;
 use noa_buffer::buffer::Buffer;
-use noa_common::collections::interval_map::{self, IntervalMap};
 
 use crate::git::{DiffType, Repo};
 
-#[derive(Debug, Clone, Copy)]
-pub enum LineStatus {
-    AddedLine,
-    RemovedLine,
-    ModifiedLine,
-    Error,
-    Warning,
-    Cursor,
-}
+bitflags! {
+    pub struct LineStatus: u16 {
+        const NONE     = 0b0000_0000_0000_0000;
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum MiniMapCategory {
-    Diff,
-    Diagnosis,
-    Cursor,
+        // Git diff results:
+        const REPO_DIFF_MASK = 0b0000_0000_0000_0011;
+        const ADDED          = 0b0000_0000_0000_0001;
+        const REMOVED        = 0b0000_0000_0000_0010;
+        const MODIFIED       = 0b0000_0000_0000_0011;
+
+        // Cursors other than the main one:
+        const MULTI_CURSOR_MASK = 0b0000_0000_0000_0100;
+        const MULTI_CURSOR      = 0b0000_0000_0000_0100;
+    }
 }
 
 pub struct MiniMap {
-    maps: BTreeMap<MiniMapCategory, IntervalMap<usize, LineStatus>>,
+    /// Line status for each physical line.
+    lines: Vec<LineStatus>,
 }
 
 impl MiniMap {
     pub fn new() -> MiniMap {
-        let mut maps = BTreeMap::new();
-        maps.insert(MiniMapCategory::Diff, IntervalMap::new());
-        maps.insert(MiniMapCategory::Cursor, IntervalMap::new());
-        maps.insert(MiniMapCategory::Diagnosis, IntervalMap::new());
-        MiniMap { maps }
+        MiniMap {
+            lines: Vec::with_capacity(1024),
+        }
     }
 
-    pub fn insert(&mut self, category: MiniMapCategory, interval: Range<usize>, value: LineStatus) {
-        self.maps
-            .get_mut(&category)
-            .unwrap()
-            .insert(interval, value);
+    pub fn clear(&mut self) {
+        self.lines.fill(LineStatus::NONE);
     }
 
-    pub fn clear(&mut self, category: MiniMapCategory) {
-        self.maps.get_mut(&category).unwrap().clear();
+    pub fn get(&self, y: usize) -> Option<LineStatus> {
+        self.lines.get(y).copied()
     }
 
-    pub fn get_containing(
-        &self,
-        category: MiniMapCategory,
-        key: usize,
-    ) -> Option<&interval_map::Entry<usize, LineStatus>> {
-        self.maps[&category].get_containing(key)
-    }
-
-    pub fn iter_overlapping(
-        &self,
-        category: MiniMapCategory,
-        interval: Range<usize>,
-    ) -> impl Iterator<Item = &interval_map::Entry<usize, LineStatus>> {
-        self.maps[&category].iter_overlapping(interval)
+    pub fn insert_with_mask(&mut self, y: usize, status: LineStatus, clear_mask: LineStatus) {
+        self.lines.resize(y + 1, LineStatus::NONE);
+        self.lines[y] = status | (self.lines[y] & !clear_mask);
     }
 
     pub fn update_git_line_statuses(&mut self, repo: &Repo, buffer_path: &Path, text: &str) {
@@ -71,7 +55,6 @@ impl MiniMap {
             }
         };
 
-        self.clear(MiniMapCategory::Diff);
         for diff in diffs {
             trace!(
                 "git diff: range={:?}, type={:?}",
@@ -80,12 +63,14 @@ impl MiniMap {
             );
 
             let value = match diff.diff_type {
-                DiffType::Added => LineStatus::AddedLine,
-                DiffType::Removed => LineStatus::RemovedLine,
-                DiffType::Modified => LineStatus::ModifiedLine,
+                DiffType::Added => LineStatus::ADDED,
+                DiffType::Removed => LineStatus::REMOVED,
+                DiffType::Modified => LineStatus::MODIFIED,
             };
 
-            self.insert(MiniMapCategory::Diff, diff.range, value);
+            for y in diff.range {
+                self.insert_with_mask(y, value, LineStatus::REPO_DIFF_MASK);
+            }
         }
     }
 }

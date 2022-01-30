@@ -120,11 +120,11 @@ impl Surface for BottomLineView {
         canvas.write_str(1, 1, &search_query);
         // Notification.
         canvas.write_str(1, canvas.width() - 1 - noti.display_width(), noti);
-        canvas.set_style(
+        canvas.apply_style(
             1,
             canvas.width() - 1 - noti.display_width(),
             canvas.width(),
-            &theme_for(noti_theme_key),
+            theme_for(noti_theme_key),
         );
     }
 

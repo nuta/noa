@@ -58,7 +58,7 @@ extern "C" fn diff_callback(
         let ctx = &mut *(ctx as *mut DiffCallbackContext);
         let hunk = &*(hunk);
 
-        // Resolve hunks into LineRanegDiff. Ported from the Atom editor.
+        // Resolve hunks into LineRanegDiff. Based on Atom editor's algorithm.
         let start_y = hunk.new_start - 1;
         let end_y = hunk.new_start + hunk.new_lines - 1;
         let (range, diff_type) = if hunk.old_lines == 0 && hunk.new_lines > 0 {

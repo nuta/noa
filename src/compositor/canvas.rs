@@ -308,63 +308,31 @@ impl<'a> CanvasViewMut<'a> {
         };
     }
 
-    pub fn set_char_with_attrs(
-        &mut self,
-        y: usize,
-        x: usize,
-        ch: char,
-        fg: Color,
-        bg: Color,
-        deco: Decoration,
-    ) {
-        let mut grapheme = ArrayString::new();
-        grapheme.push(ch);
-
-        self.write(
-            y,
-            x,
-            Grapheme {
-                chars: grapheme,
-                style: Style { fg, bg, deco },
-            },
-        )
-    }
-
-    pub fn set_str_with_attrs(
-        &mut self,
-        y: usize,
-        x: usize,
-        string: &str,
-        fg: Color,
-        bg: Color,
-        deco: Decoration,
-    ) {
-        for (i, ch) in string.chars().enumerate() {
-            self.set_char_with_attrs(y, x + i, ch, fg, bg, deco);
-        }
-    }
-
     pub fn write_char(&mut self, y: usize, x: usize, ch: char) {
-        self.set_char_with_attrs(y, x, ch, Color::Reset, Color::Reset, Default::default());
+        self.write_char_with_style(y, x, ch, Style::default());
+    }
+
+    pub fn write_char_with_style(&mut self, y: usize, x: usize, ch: char, style: Style) {
+        let mut chars = ArrayString::new();
+        chars.push(ch);
+        self.write(y, x, Grapheme { chars, style })
     }
 
     pub fn write_str(&mut self, y: usize, x: usize, string: &str) {
-        self.set_str_with_attrs(y, x, string, Color::Reset, Color::Reset, Default::default());
+        self.write_str_with_style(y, x, string, Style::default());
     }
 
-    pub fn set_fg(&mut self, y: usize, x: usize, x_end: usize, fg: Color) {
-        self.update_range(y, x, y + 1, x_end, |graph| graph.style.fg = fg);
-    }
-
-    pub fn set_bg(&mut self, y: usize, x: usize, x_end: usize, bg: Color) {
-        self.update_range(y, x, y + 1, x_end, |graph| graph.style.bg = bg);
+    pub fn write_str_with_style(&mut self, y: usize, x: usize, string: &str, style: Style) {
+        for (i, ch) in string.chars().enumerate() {
+            self.write_char_with_style(y, x + i, ch, style);
+        }
     }
 
     pub fn set_decoration(&mut self, y: usize, x: usize, x_end: usize, deco: Decoration) {
         self.update_range(y, x, y + 1, x_end, |graph| graph.style.deco = deco);
     }
 
-    pub fn set_style(&mut self, y: usize, x: usize, x_end: usize, style: &Style) {
+    pub fn apply_style(&mut self, y: usize, x: usize, x_end: usize, style: Style) {
         self.update_range(y, x, y + 1, x_end, |graph| {
             graph.style.fg = style.fg;
             graph.style.bg = style.bg;

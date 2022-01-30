@@ -108,6 +108,7 @@ impl Surface for BufferView {
         let doc = editor.documents.current();
         let buffer = doc.buffer();
         let main_cursor = buffer.main_cursor();
+        let minimap = doc.minimap().read();
 
         // Buffer contents.
         let main_cursor_pos = main_cursor.moving_position();
@@ -116,12 +117,17 @@ impl Surface for BufferView {
 
             // Highlight the current line.
             if main_cursor.selection().is_empty() && main_cursor_pos.y == row.lineno - 1 {
-                canvas.set_style(
+                canvas.apply_style(
                     y,
                     buffer_x,
                     canvas.width() - 1,
-                    &theme_for(ThemeKey::CurrentLine),
+                    theme_for(ThemeKey::CurrentLine),
                 );
+            }
+
+            // Draw line status.
+            if let Some(status) = minimap.get(row.lineno) {
+                canvas.write_char_with_style(y, 0, ' ', theme_for(ThemeKey::LineStatus(status)));
             }
 
             // Draw lineno.

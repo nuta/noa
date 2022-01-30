@@ -19,6 +19,7 @@ tokio = { version = "1", features = ["full"] }
 futures = "0"
 parking_lot = "0"
 rayon = "1"
+bitflags = "1"
 arrayvec = "0"
 id-arena = "2"
 ropey = "1"
