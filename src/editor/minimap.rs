@@ -62,10 +62,6 @@ impl MiniMap {
         self.maps[&category].iter_overlapping(interval)
     }
 
-    pub fn update(&mut self, repo: &Arc<Repo>, buffer_path: &Path, buffer_text: &str) {
-        self.update_git_line_statuses(repo, buffer_path, buffer_text);
-    }
-
     pub fn update_git_line_statuses(&mut self, repo: &Repo, buffer_path: &Path, text: &str) {
         let diffs = match repo.compute_line_diffs(buffer_path, text) {
             Ok(diffs) => diffs,

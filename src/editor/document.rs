@@ -185,31 +185,38 @@ impl Document {
 
         // TODO:
         let updated_lines = 0..self.buffer.num_lines();
+
         self.words.update_lines(&self.buffer, updated_lines);
         self.highlighter.update(&self.buffer);
 
-        if let Some(path) = &self.path {
-            if let Some(repo) = repo {
-                let minimap = self.minimap.clone();
-                let repo = repo.clone();
-                let buffer_path = path.to_path_buf();
-                let render_request = render_request.clone();
-                let raw_buffer = self.buffer.raw_buffer().clone();
-
-                if let Some(post_update_job) = self.post_update_job.take() {
-                    post_update_job.abort();
-                }
-
-                self.post_update_job = Some(tokio::spawn(async move {
-                    // This may take a time.
-                    let buffer_text = raw_buffer.text();
-                    warn!("taking time...");
-                    std::thread::sleep(std::time::Duration::from_secs(10));
-                    minimap.write().update(&repo, &buffer_path, &buffer_text);
-                    render_request.notify_one();
-                }));
-            }
+        if let Some(post_update_job) = self.post_update_job.take() {
+            // Abort the previous run if it's still running.
+            // TODO: It's meaninguless unless we "await" in the closure below.
+            post_update_job.abort();
         }
+
+        let minimap = self.minimap.clone();
+        let render_request = render_request.clone();
+        let raw_buffer = self.buffer.raw_buffer().clone();
+        let git_diff_ctx = match (&self.path, repo) {
+            (Some(path), Some(repo)) => Some((path.to_owned(), repo.clone())),
+            _ => None,
+        };
+
+        self.post_update_job = Some(tokio::spawn(async move {
+            let time = TimeReport::new("backgroung_post_update_jobs time");
+
+            // This may take a time.
+            let buffer_text = raw_buffer.text();
+
+            if let Some((path, repo)) = git_diff_ctx {
+                minimap
+                    .write()
+                    .update_git_line_statuses(&repo, &path, &buffer_text);
+            }
+
+            render_request.notify_one();
+        }));
     }
 
     pub fn idle_job(&mut self) {
