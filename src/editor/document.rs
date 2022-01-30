@@ -72,6 +72,9 @@ impl Document {
         // TODO: Create parent directories.
         let abs_path = path.canonicalize()?;
         let backup_path = backup_dir().join(abs_path.strip_prefix("/")?);
+        if backup_path.exists() {
+            warn!("A backup file exists in {}", backup_dir().display());
+        }
 
         // TODO:
         let name = path
@@ -102,7 +105,11 @@ impl Document {
 
         if let Some(ref path) = self.path {
             match self.buffer.save_to_file(path) {
-                Ok(()) => {}
+                Ok(()) => {
+                    if let Some(backup_path) = &self.backup_path {
+                        std::fs::remove_file(backup_path).oops();
+                    }
+                }
                 Err(err) if err.kind() == ErrorKind::PermissionDenied => {
                     trace!("saving {} with sudo", path.display());
                     self.buffer.save_to_file_with_sudo(path)?;

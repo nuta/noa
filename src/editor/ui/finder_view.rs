@@ -215,7 +215,7 @@ impl Surface for FinderView {
                         match item {
                             FinderItem::File(path) => {
                                 if let Err(err) = editor.documents.open_file(Path::new(path)) {
-                                    editor.notifications.error(err);
+                                    notify_anyhow_error!(err);
                                 }
                             }
                             FinderItem::SearchMatch { path, pos, .. } => {
@@ -225,7 +225,7 @@ impl Surface for FinderView {
                                         doc.flashes_mut().flash(Range::from_positions(*pos, *pos));
                                     }
                                     Err(err) => {
-                                        editor.notifications.error(err);
+                                        notify_anyhow_error!(err);
                                     }
                                 }
                             }
@@ -235,9 +235,7 @@ impl Surface for FinderView {
                         return HandledEvent::Consumed;
                     }
                     None => {
-                        editor
-                            .notifications
-                            .error(anyhow!("items changed (try again!)"));
+                        notify_error!("items changed (try again!)");
                     }
                 };
             }

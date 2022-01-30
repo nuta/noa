@@ -11,7 +11,7 @@ use tokio::{sync::oneshot, task};
 use crate::{
     clipboard::{ClipboardData, SystemClipboardData},
     editor::Editor,
-    notification::Notification,
+    notification::{notification_manager, Notification},
     theme::{theme_for, ThemeKey},
 };
 
@@ -105,8 +105,8 @@ impl Surface for BottomLineView {
         let filename_max_width = canvas.width() - cursor_pos_width - 2;
         let search_query = self.search_query.text();
         let notification_max_width = canvas.width() - search_query.display_width() - 2;
-        let (noti_theme_key, noti) = editor
-            .notifications
+        let (noti_theme_key, noti) = notification_manager()
+            .lock()
             .last_notification_as_str()
             .unwrap_or_else(|| (ThemeKey::InfoNotification, "".to_string()));
         let noti = truncate_to_width(&noti, notification_max_width);

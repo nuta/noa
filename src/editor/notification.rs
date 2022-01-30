@@ -1,9 +1,19 @@
+use once_cell::sync::Lazy;
+use parking_lot::Mutex;
+
 use crate::theme::ThemeKey;
 
+#[derive(Debug)]
 pub enum Notification {
     Info(String),
     Warn(String),
-    Error(anyhow::Error),
+    Error(String),
+}
+
+impl From<anyhow::Error> for Notification {
+    fn from(err: anyhow::Error) -> Notification {
+        Notification::Error(format!("{}", err))
+    }
 }
 
 pub struct NotificationManager {
@@ -11,7 +21,7 @@ pub struct NotificationManager {
 }
 
 impl NotificationManager {
-    pub fn new() -> NotificationManager {
+    fn new() -> NotificationManager {
         NotificationManager { notification: None }
     }
 
@@ -27,26 +37,51 @@ impl NotificationManager {
         })
     }
 
-    pub fn info<T: Into<String>>(&mut self, message: T) {
-        let message = message.into();
-        info!("notification: {}", message);
-        self.notification = Some(Notification::Info(message));
+    pub fn push(&mut self, noti: Notification) {
+        info!("notification: {:?}", noti);
+        self.notification = Some(noti);
     }
+}
 
-    pub fn warn<T: Into<String>>(&mut self, message: T) {
-        let message = message.into();
-        warn!("notification: {}", message);
-        self.notification = Some(Notification::Warn(message));
-    }
+#[macro_export]
+macro_rules! notify_info {
+    ($($arg:tt)+) => {{
+        use $crate::notification::{Notification, notification_manager};
+        let noti = Notification::Info(format!($($arg)+));
+        notification_manager().lock().push(noti);
+    }}
+}
 
-    pub fn error(&mut self, err: anyhow::Error) {
-        error!("notification: {}", err);
-        self.notification = Some(Notification::Error(err));
-    }
+#[macro_export]
+macro_rules! notify_warn {
+    ($($arg:tt)+) => {{
+        use $crate::notification::{Notification, notification_manager};
+        let noti = Notification::Warn(format!($($arg)+));
+        notification_manager().lock().push(noti);
+    }}
+}
 
-    pub fn maybe_error<T>(&mut self, result: anyhow::Result<T>) {
-        if let Err(err) = result {
-            self.error(err);
-        }
-    }
+#[macro_export]
+macro_rules! notify_error {
+    ($($arg:tt)+) => {{
+        use $crate::notification::{Notification, notification_manager};
+        let noti = Notification::Error(format!($($arg)+));
+        notification_manager().lock().push(noti);
+    }}
+}
+
+#[macro_export]
+macro_rules! notify_anyhow_error {
+    ($err:expr) => {{
+        use $crate::notification::{notification_manager, Notification};
+        let noti = Notification::from($err);
+        notification_manager().lock().push(noti);
+    }};
+}
+
+static NOTIFICATIONS: Lazy<Mutex<NotificationManager>> =
+    Lazy::new(|| Mutex::new(NotificationManager::new()));
+
+pub fn notification_manager() -> &'static Lazy<Mutex<NotificationManager>> {
+    &NOTIFICATIONS
 }

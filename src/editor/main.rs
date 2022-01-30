@@ -19,6 +19,9 @@ use ui::{
     too_small_view::TooSmallView,
 };
 
+#[macro_use]
+mod notification;
+
 mod clipboard;
 mod document;
 mod editor;
@@ -26,7 +29,6 @@ mod flash;
 mod fuzzy;
 mod highlighting;
 mod movement;
-mod notification;
 mod theme;
 mod ui;
 mod view;
@@ -59,7 +61,7 @@ async fn main() {
     for path in args.files {
         if !path.is_dir() {
             if let Err(err) = editor.documents.open_file(&path) {
-                editor.notifications.error(err);
+                notify_anyhow_error!(err);
             }
             open_finder = false;
         }

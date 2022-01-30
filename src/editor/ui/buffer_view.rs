@@ -219,7 +219,6 @@ impl Surface for BufferView {
         const ALT: KeyModifiers = KeyModifiers::ALT;
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
-        let mut notifications = &mut editor.notifications;
         let mut doc = editor.documents.current_mut();
 
         match (key.code, key.modifiers) {
@@ -232,7 +231,9 @@ impl Surface for BufferView {
                     .set_active(true);
             }
             (KeyCode::Char('s'), CTRL) => {
-                notifications.maybe_error(doc.save_to_file());
+                if let Err(err) = doc.save_to_file() {
+                    notify_anyhow_error!(err);
+                }
             }
             (KeyCode::Char('u'), CTRL) => {
                 doc.buffer_mut().undo();
