@@ -230,6 +230,12 @@ impl Cursor {
         }
     }
 
+    pub fn from_position(pos: Position) -> Cursor {
+        Cursor {
+            selection: Range::from_positions(pos, pos),
+        }
+    }
+
     pub fn from_range(selection: Range) -> Cursor {
         Cursor { selection }
     }

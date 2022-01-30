@@ -10,7 +10,7 @@ use std::{
 
 use anyhow::Result;
 
-use noa_buffer::buffer::Buffer;
+use noa_buffer::{buffer::Buffer, cursor::Range};
 use noa_common::{dirs::backup_dir, oops::OopsExt, time_report::TimeReport};
 use noa_languages::{
     definitions::{guess_language, PLAIN},
@@ -19,6 +19,7 @@ use noa_languages::{
 
 use crate::{
     editor::Editor,
+    flash::FlashManager,
     highlighting::Highlighter,
     movement::{Movement, MovementState},
     view::View,
@@ -29,6 +30,7 @@ use crate::{
 pub struct DocumentId(NonZeroUsize);
 
 pub struct Document {
+    id: DocumentId,
     /// It's `None` if the document is not backed by a file (e.g. a scrach buffer).
     path: Option<PathBuf>,
     backup_path: Option<PathBuf>,
@@ -39,12 +41,14 @@ pub struct Document {
     highlighter: Highlighter,
     movement_state: MovementState,
     words: Words,
+    flashes: FlashManager,
 }
 
 impl Document {
-    pub fn new(name: &str) -> Document {
+    pub fn new(id: DocumentId, name: &str) -> Document {
         let lang = &PLAIN;
         Document {
+            id,
             path: None,
             backup_path: None,
             name: name.to_string(),
@@ -54,10 +58,11 @@ impl Document {
             highlighter: Highlighter::new(lang),
             movement_state: MovementState::new(),
             words: Words::new(),
+            flashes: FlashManager::new(),
         }
     }
 
-    pub fn open_file(path: &Path) -> Result<Document> {
+    pub fn open_file(id: DocumentId, path: &Path) -> Result<Document> {
         let buffer = match OpenOptions::new().read(true).open(path) {
             Ok(file) => Buffer::from_reader(file)?,
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => Buffer::new(),
@@ -78,6 +83,7 @@ impl Document {
         let lang = guess_language(&abs_path);
         let words = Words::new_with_buffer(&buffer);
         Ok(Document {
+            id,
             path: Some(path.to_owned()),
             backup_path: Some(backup_path),
             name: name.to_string(),
@@ -87,6 +93,7 @@ impl Document {
             highlighter: Highlighter::new(lang),
             movement_state: MovementState::new(),
             words,
+            flashes: FlashManager::new(),
         })
     }
 
@@ -129,6 +136,14 @@ impl Document {
         &mut self.view
     }
 
+    pub fn flashes(&self) -> &FlashManager {
+        &self.flashes
+    }
+
+    pub fn flashes_mut(&mut self) -> &mut FlashManager {
+        &mut self.flashes
+    }
+
     pub fn movement(&mut self) -> Movement<'_> {
         self.movement_state
             .movement(&mut self.buffer, &mut self.view)
@@ -142,6 +157,7 @@ impl Document {
         self.view.clear_highlights(updated_lines);
         self.highlighter.update(&self.buffer);
         self.highlighter.highlight(&mut self.view);
+        self.flashes.highlight(&mut self.view);
     }
 
     pub fn post_update_job(&mut self) {
@@ -173,40 +189,59 @@ pub struct DocumentManager {
 
 impl DocumentManager {
     pub fn new() -> DocumentManager {
+        let scratch_doc_id = DocumentId(
+            // Safety: Obviously 1 is not zero.
+            unsafe { NonZeroUsize::new_unchecked(1) },
+        );
         let mut manager = DocumentManager {
-            next_document_id: AtomicUsize::new(1),
-            current: DocumentId(
-                // Safety: Obviously 1 is not zero. This is a dummy value and
-                //         will be updated soon by a `open_virtual_file` call below.
-                unsafe { NonZeroUsize::new_unchecked(1) },
-            ),
+            next_document_id: AtomicUsize::new(2),
+            current: scratch_doc_id,
             documents: HashMap::new(),
         };
 
-        let scratch_doc = Document::new("**scratch**");
+        let scratch_doc = Document::new(scratch_doc_id, "**scratch**");
         manager.open(scratch_doc);
         manager
     }
 
-    pub fn open_file(&mut self, path: &Path) -> Result<()> {
-        let doc = Document::open_file(path)?;
-        self.open(doc);
-        Ok(())
+    pub fn open_file(&mut self, path: &Path) -> Result<&mut Document> {
+        let doc_id = if let Some(doc) = self.get_document_by_path(path) {
+            let doc_id = doc.id;
+            self.switch_current(doc_id);
+            doc_id
+        } else {
+            // Allocate a document ID.
+            let doc_id = DocumentId(
+                NonZeroUsize::new(self.next_document_id.fetch_add(1, Ordering::SeqCst)).unwrap(),
+            );
+
+            let doc = Document::open_file(doc_id, path)?;
+            self.open(doc);
+            doc_id
+        };
+
+        Ok(self.documents.get_mut(&doc_id).unwrap())
     }
 
-    pub fn open(&mut self, mut doc: Document) {
-        // Allocate a document ID.
-        let doc_id = DocumentId(
-            NonZeroUsize::new(self.next_document_id.fetch_add(1, Ordering::SeqCst)).unwrap(),
-        );
-
+    fn open(&mut self, mut doc: Document) {
         // First run of syntax highlighting, etc.
         doc.post_update_job();
 
+        let doc_id = doc.id;
+        debug_assert!(!self.documents.contains_key(&doc_id));
         self.documents.insert(doc_id, doc);
+        self.switch_current(doc_id);
+    }
 
-        // Switch to the buffer.
+    /// Switches the current buffer.
+    pub fn switch_current(&mut self, doc_id: DocumentId) {
         self.current = doc_id;
+    }
+
+    pub fn get_document_by_path(&self, path: &Path) -> Option<&Document> {
+        self.documents
+            .values()
+            .find(|doc| doc.path == Some(path.to_owned()))
     }
 
     pub fn current(&self) -> &Document {

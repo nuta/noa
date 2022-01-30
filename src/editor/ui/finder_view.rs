@@ -8,7 +8,10 @@ use std::{
 use anyhow::{anyhow, bail, Result};
 use futures::{executor::block_on, stream::FuturesUnordered, StreamExt};
 use grep::searcher::SinkError;
-use noa_buffer::{cursor::Cursor, display_width::DisplayWidth};
+use noa_buffer::{
+    cursor::{Cursor, Position, Range},
+    display_width::DisplayWidth,
+};
 use noa_common::{oops::OopsExt, prioritized_vec::PrioritizedVec};
 use noa_compositor::{
     canvas::{CanvasViewMut, Color, Decoration, Style},
@@ -29,8 +32,7 @@ enum FinderItem {
     File(String),
     SearchMatch {
         path: String,
-        y: usize,
-        x: usize,
+        pos: Position,
         line_text: String,
         before: std::ops::RangeTo<usize>,
         matched: std::ops::Range<usize>,
@@ -163,8 +165,7 @@ impl Surface for FinderView {
                 }
                 FinderItem::SearchMatch {
                     path,
-                    y,
-                    x,
+                    pos,
                     line_text,
                     before,
                     after,
@@ -175,7 +176,7 @@ impl Surface for FinderView {
                     let after_text = &line_text[after.start..];
                     let s = format!(
                         "{before_text}{matched_text}{after_text} ({path}:{lineno})",
-                        lineno = y + 1
+                        lineno = pos.y + 1
                     );
                     canvas.write_str(2 + i, 1, truncate_to_width(&s, canvas.width() - 4));
 
@@ -213,17 +214,20 @@ impl Surface for FinderView {
                         info!("finder: selected item: {:?}", item);
                         match item {
                             FinderItem::File(path) => {
-                                editor.open_file(Path::new(path));
+                                if let Err(err) = editor.documents.open_file(Path::new(path)) {
+                                    editor.notifications.error(err);
+                                }
                             }
-                            FinderItem::SearchMatch { path, y, x, .. } => {
-                                editor.open_file(Path::new(path));
-                                editor
-                                    .documents
-                                    .current_mut()
-                                    .buffer_mut()
-                                    .update_main_cursor_with(|c, _| {
-                                        *c = Cursor::new(*y, *x);
-                                    });
+                            FinderItem::SearchMatch { path, pos, .. } => {
+                                match editor.documents.open_file(Path::new(path)) {
+                                    Ok(doc) => {
+                                        doc.buffer_mut().move_main_cursor_to(*pos);
+                                        doc.flashes_mut().flash(Range::from_positions(*pos, *pos));
+                                    }
+                                    Err(err) => {
+                                        editor.notifications.error(err);
+                                    }
+                                }
                             }
                         }
 
@@ -423,8 +427,7 @@ async fn search_globally(workspace_dir: &Path, raw_query: &str) -> Result<Vec<Fi
                                         0,
                                         FinderItem::SearchMatch {
                                             path: dirent.path().to_str().unwrap().to_owned(),
-                                            y: (lineno as usize) - 1,
-                                            x,
+                                            pos: Position::new((lineno as usize) - 1, x),
                                             line_text,
                                             before: ..m_start,
                                             matched: m_start..m_end,

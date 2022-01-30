@@ -8,6 +8,7 @@ use parking_lot::Mutex;
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum ThemeKey {
     SyntaxSpan(SyntaxSpan),
+    Flash,
 }
 
 pub struct Theme {

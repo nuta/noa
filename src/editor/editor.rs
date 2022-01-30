@@ -1,11 +1,12 @@
 use std::path::Path;
 
+use anyhow::Result;
 use noa_compositor::terminal::Event;
 use tokio::sync::oneshot;
 
 use crate::{
     clipboard::{self, ClipboardProvider},
-    document::DocumentManager,
+    document::{Document, DocumentManager},
     notification::NotificationManager,
     theme::Theme,
     ui::buffer_view::BufferView,
@@ -26,10 +27,5 @@ impl Editor {
             notifications: NotificationManager::new(),
             clipboard: clipboard::build_provider().unwrap_or_else(clipboard::build_dummy_provider),
         }
-    }
-
-    pub fn open_file(&mut self, path: &Path) {
-        self.notifications
-            .maybe_error(self.documents.open_file(path));
     }
 }

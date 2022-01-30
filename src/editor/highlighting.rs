@@ -71,10 +71,7 @@ impl Highlighter {
             let range = Range::from_positions(start_pos, end_pos);
 
             if let Some(span) = self.lang.tree_sitter_mapping.get(node.kind()).copied() {
-                let style = theme_for(ThemeKey::SyntaxSpan(span));
-                if style != Style::default() {
-                    view.highlight(range, style);
-                }
+                view.highlight(range, ThemeKey::SyntaxSpan(span));
             }
 
             let mut node_cursor = node.walk();

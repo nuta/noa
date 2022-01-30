@@ -1,5 +1,6 @@
 #![allow(unused)]
 #![feature(test)]
+#![feature(vec_retain_mut)]
 
 extern crate test;
 
@@ -21,6 +22,7 @@ use ui::{
 mod clipboard;
 mod document;
 mod editor;
+mod flash;
 mod fuzzy;
 mod highlighting;
 mod movement;
@@ -56,7 +58,9 @@ async fn main() {
     let mut open_finder = true;
     for path in args.files {
         if !path.is_dir() {
-            editor.open_file(&path);
+            if let Err(err) = editor.documents.open_file(&path) {
+                editor.notifications.error(err);
+            }
             open_finder = false;
         }
     }

@@ -12,7 +12,10 @@ use noa_buffer::{
 };
 use noa_compositor::canvas::{Grapheme, Style};
 
-use crate::highlighting::Highlighter;
+use crate::{
+    highlighting::Highlighter,
+    theme::{theme_for, ThemeKey},
+};
 
 #[derive(Debug, PartialEq)]
 pub struct Span {
@@ -140,7 +143,12 @@ impl View {
     }
 
     /// Update characters' styles in the given range.
-    pub fn highlight(&mut self, range: Range, style: Style) {
+    pub fn highlight(&mut self, range: Range, theme_key: ThemeKey) {
+        let style = theme_for(theme_key);
+        if style == Style::default() {
+            return;
+        }
+
         trace!("highlight: range={:?}, color={:?}", range, style.fg);
         let (start_y, start_x) = self.locate_row_by_position(range.front());
         let (end_y, end_x) = self.locate_row_by_position(range.back());
