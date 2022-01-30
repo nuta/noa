@@ -101,10 +101,14 @@ impl Buffer {
     }
 
     pub fn move_main_cursor_to(&mut self, pos: Position) {
-        self.update_main_cursor_with(|cursor, _| cursor.move_to(pos));
+        self.set_main_cursor(Cursor::new(pos.y, pos.x));
     }
 
-    pub fn update_main_cursor_with<F>(&mut self, f: F)
+    pub fn set_main_cursor(&mut self, cursor: Cursor) {
+        self.set_main_cursor_with(|c, _| *c = cursor);
+    }
+
+    pub fn set_main_cursor_with<F>(&mut self, f: F)
     where
         F: FnOnce(&mut Cursor, &RawBuffer),
     {

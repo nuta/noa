@@ -413,22 +413,39 @@ impl Surface for BufferView {
                         self.selection_start = Some(pos);
                     }
                     // Single click.
-                    (MouseEventKind::Up(MouseButton::Left), NONE) => {
+                    (MouseEventKind::Up(MouseButton::Left), NONE)
+                        if self.time_last_clicked.elapsed() > Duration::from_millis(400) =>
+                    {
                         // Move cursor.
                         if matches!(self.selection_start, Some(start) if start == pos) {
                             doc.buffer_mut().set_cursors(&[Cursor::new(pos.y, pos.x)]);
                         }
 
+                        trace!("Single click");
                         self.time_last_clicked = Instant::now();
                         self.num_clicked = 1;
                         self.selection_start = None;
                     }
                     // Double click.
-                    (MouseEventKind::Up(MouseButton::Left), NONE)
-                        if self.num_clicked == 1
-                            && self.time_last_clicked.elapsed() < Duration::from_millis(400) =>
-                    {
+                    (MouseEventKind::Up(MouseButton::Left), NONE) if self.num_clicked == 1 => {
+                        trace!("Double click");
                         doc.buffer_mut().select_current_word();
+                        self.time_last_clicked = Instant::now();
+                        self.num_clicked += 1;
+                    }
+                    // Triple click.
+                    (MouseEventKind::Up(MouseButton::Left), NONE) if self.num_clicked == 2 => {
+                        trace!("Triple click");
+                        doc.buffer_mut().select_whole_line(pos);
+                        self.time_last_clicked = Instant::now();
+                        self.num_clicked += 1;
+                    }
+                    // 4-times click.
+                    (MouseEventKind::Up(MouseButton::Left), NONE) if self.num_clicked == 3 => {
+                        trace!("4-times click");
+                        doc.buffer_mut().select_whole_buffer();
+                        self.time_last_clicked = Instant::now();
+                        self.num_clicked += 1;
                     }
                     // Dragging
                     (MouseEventKind::Drag(MouseButton::Left), NONE) => match self.selection_start {

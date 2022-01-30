@@ -75,13 +75,13 @@ impl LineEdit {
     }
 
     pub fn move_left(&mut self) {
-        self.buffer.update_main_cursor_with(|c, buf| {
+        self.buffer.set_main_cursor_with(|c, buf| {
             c.move_left(buf);
         });
     }
 
     pub fn move_right(&mut self) {
-        self.buffer.update_main_cursor_with(|c, buf| {
+        self.buffer.set_main_cursor_with(|c, buf| {
             c.move_right(buf);
         });
     }
