@@ -166,7 +166,7 @@ impl Document {
         // TODO:
         let updated_lines = 0..self.buffer.num_lines();
 
-        self.words.update_lines(&self.buffer, updated_lines.clone());
+        self.words.update_lines(&self.buffer, updated_lines);
     }
 
     pub fn idle_job(&mut self) {
