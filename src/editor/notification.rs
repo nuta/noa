@@ -33,7 +33,7 @@ impl NotificationManager {
         self.last_notification().map(|noti| match noti {
             Notification::Info(message) => (ThemeKey::InfoNotification, message.clone()),
             Notification::Warn(message) => (ThemeKey::WarnNotification, message.clone()),
-            Notification::Error(err) => (ThemeKey::ErrorNotification, format!("{}", err)),
+            Notification::Error(err) => (ThemeKey::ErrorNotification, err.clone()),
         })
     }
 
