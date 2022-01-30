@@ -62,6 +62,7 @@ impl FinderView {
             input: LineEdit::new(),
         };
 
+        finder.input.insert("/Walk");
         finder.update();
         finder
     }

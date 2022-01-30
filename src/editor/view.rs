@@ -142,6 +142,10 @@ impl View {
         }
     }
 
+    pub fn clear_highlight(&mut self, range: Range) {
+        self.do_highlight(range, Style::default());
+    }
+
     /// Update characters' styles in the given range.
     pub fn highlight(&mut self, range: Range, theme_key: ThemeKey) {
         let style = theme_for(theme_key);
@@ -149,12 +153,19 @@ impl View {
             return;
         }
 
+        self.do_highlight(range, style);
+    }
+
+    /// Update characters' styles in the given range.
+    pub fn do_highlight(&mut self, range: Range, style: Style) {
         trace!("highlight: range={:?}, color={:?}", range, style.fg);
         let (start_y, start_x) = self.locate_row_by_position(range.front());
         let (end_y, end_x) = self.locate_row_by_position(range.back());
         for y in start_y..=end_y {
             let row = &mut self.rows[y];
-            let xs = if y == start_y && y == end_y {
+            let xs = if y == start_y && y == end_y && start_x == end_x {
+                start_x..(end_x + 1)
+            } else if y == start_y && y == end_y {
                 start_x..end_x
             } else if y == start_y {
                 start_x..row.len_chars()

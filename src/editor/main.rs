@@ -68,7 +68,7 @@ async fn main() {
     let (quit_tx, mut quit_rx) = oneshot::channel();
     let render_request = Arc::new(Notify::new());
     compositor.add_frontmost_layer(Box::new(TooSmallView::new("too small!")));
-    compositor.add_frontmost_layer(Box::new(BufferView::new(quit_tx)));
+    compositor.add_frontmost_layer(Box::new(BufferView::new(quit_tx, render_request.clone())));
     compositor.add_frontmost_layer(Box::new(BottomLineView::new()));
     compositor.add_frontmost_layer(Box::new(FinderView::new(
         render_request.clone(),

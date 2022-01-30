@@ -1,4 +1,7 @@
-use std::time::{Duration, Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use noa_buffer::{
     cursor::{Cursor, Position},
@@ -10,7 +13,10 @@ use noa_compositor::{
     terminal::{KeyCode, KeyModifiers, MouseButton, MouseEventKind},
     Compositor,
 };
-use tokio::{sync::oneshot, task};
+use tokio::{
+    sync::{oneshot, Notify},
+    task,
+};
 
 use crate::{
     clipboard::{ClipboardData, SystemClipboardData},
@@ -20,6 +26,7 @@ use crate::{
 
 pub struct BufferView {
     quit_tx: Option<oneshot::Sender<()>>,
+    render_request: Arc<Notify>,
     /// The cursor position in surface-local `(y, x)`.
     cursor_position: (usize, usize),
     selection_start: Option<Position>,
@@ -29,9 +36,10 @@ pub struct BufferView {
 }
 
 impl BufferView {
-    pub fn new(quit_tx: oneshot::Sender<()>) -> BufferView {
+    pub fn new(quit_tx: oneshot::Sender<()>, render_request: Arc<Notify>) -> BufferView {
         BufferView {
             quit_tx: Some(quit_tx),
+            render_request,
             cursor_position: (0, 0),
             selection_start: None,
             time_last_clicked: Instant::now()
@@ -176,6 +184,14 @@ impl Surface for BufferView {
             if main_cursor_pos.y == row.lineno - 1 && main_cursor_pos.x == row.len_chars() {
                 self.cursor_position = (y, buffer_x + row.len_chars());
             }
+        }
+
+        if let Some(duration) = doc.flashes().next_timeout() {
+            let render_request = self.render_request.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(duration).await;
+                render_request.notify_one();
+            });
         }
     }
 

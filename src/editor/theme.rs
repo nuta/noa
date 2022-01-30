@@ -20,6 +20,18 @@ impl Theme {
         let mut mapping = HashMap::new();
 
         mapping.insert(
+            ThemeKey::Flash,
+            Style {
+                bg: Color::Rgb {
+                    r: 255,
+                    g: 255,
+                    b: 50,
+                },
+                ..Default::default()
+            },
+        );
+
+        mapping.insert(
             ThemeKey::SyntaxSpan(SyntaxSpan::Comment),
             Style {
                 fg: Color::Green,
