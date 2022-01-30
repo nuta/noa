@@ -110,7 +110,6 @@ impl Surface for BottomLineView {
             .last_notification_as_str()
             .unwrap_or_else(|| (ThemeKey::InfoNotification, "".to_string()));
         let noti = truncate_to_width(&noti, notification_max_width);
-
         // File name.
         canvas.write_str(0, 1, truncate_to_width(doc.name(), filename_max_width));
         // Cursor position.

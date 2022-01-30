@@ -73,7 +73,7 @@ impl Document {
         let abs_path = path.canonicalize()?;
         let backup_path = backup_dir().join(abs_path.strip_prefix("/")?);
         if backup_path.exists() {
-            warn!("A backup file exists in {}", backup_dir().display());
+            notify_warn!("A backup file exists in {}", backup_dir().display());
         }
 
         // TODO:
