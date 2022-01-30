@@ -12,6 +12,7 @@ use crate::{
     clipboard::{ClipboardData, SystemClipboardData},
     editor::Editor,
     notification::Notification,
+    theme::{theme_for, ThemeKey},
 };
 
 use super::helpers::truncate_to_width;
@@ -104,10 +105,10 @@ impl Surface for BottomLineView {
         let filename_max_width = canvas.width() - cursor_pos_width - 2;
         let search_query = self.search_query.text();
         let notification_max_width = canvas.width() - search_query.display_width() - 2;
-        let noti = editor
+        let (noti_theme_key, noti) = editor
             .notifications
             .last_notification_as_str()
-            .unwrap_or_else(|| "".to_string());
+            .unwrap_or_else(|| (ThemeKey::InfoNotification, "".to_string()));
         let noti = truncate_to_width(&noti, notification_max_width);
 
         // File name.
@@ -120,6 +121,12 @@ impl Surface for BottomLineView {
         canvas.write_str(1, 1, &search_query);
         // Notification.
         canvas.write_str(1, canvas.width() - 1 - noti.display_width(), noti);
+        canvas.set_style(
+            1,
+            canvas.width() - 1 - noti.display_width(),
+            canvas.width(),
+            &theme_for(noti_theme_key),
+        );
     }
 
     fn handle_key_event(

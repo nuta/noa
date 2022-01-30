@@ -1,5 +1,8 @@
+use crate::theme::ThemeKey;
+
 pub enum Notification {
     Info(String),
+    Warn(String),
     Error(anyhow::Error),
 }
 
@@ -16,12 +19,11 @@ impl NotificationManager {
         self.notification.as_ref()
     }
 
-    pub fn last_notification_as_str(&self) -> Option<String> {
+    pub fn last_notification_as_str(&self) -> Option<(ThemeKey, String)> {
         self.last_notification().map(|noti| match noti {
-            Notification::Info(message) => message.clone(),
-            Notification::Error(err) => {
-                format!("{}", err)
-            }
+            Notification::Info(message) => (ThemeKey::InfoNotification, message.clone()),
+            Notification::Warn(message) => (ThemeKey::WarnNotification, message.clone()),
+            Notification::Error(err) => (ThemeKey::ErrorNotification, format!("{}", err)),
         })
     }
 
@@ -29,6 +31,12 @@ impl NotificationManager {
         let message = message.into();
         info!("notification: {}", message);
         self.notification = Some(Notification::Info(message));
+    }
+
+    pub fn warn<T: Into<String>>(&mut self, message: T) {
+        let message = message.into();
+        warn!("notification: {}", message);
+        self.notification = Some(Notification::Warn(message));
     }
 
     pub fn error(&mut self, err: anyhow::Error) {

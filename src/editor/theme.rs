@@ -10,6 +10,9 @@ pub enum ThemeKey {
     SyntaxSpan(SyntaxSpan),
     Flash,
     CurrentLine,
+    ErrorNotification,
+    WarnNotification,
+    InfoNotification,
 }
 
 pub struct Theme {
