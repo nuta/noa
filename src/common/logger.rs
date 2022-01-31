@@ -23,7 +23,11 @@ pub fn install_logger(name: &str) {
                 message
             ))
         })
-        .level(log::LevelFilter::Trace)
+        .level(if cfg!(debug_assertions) {
+            log::LevelFilter::Trace
+        } else {
+            log::LevelFilter::Info
+        })
         .chain(fern::log_file(log_file_path(name)).unwrap())
         .apply()
         .expect("failed to initialize the logger");

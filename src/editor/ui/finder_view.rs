@@ -379,7 +379,6 @@ impl Surface for FinderView {
         _surface_y: usize,
         _surface_x: usize,
     ) -> HandledEvent {
-        trace!("_kind={:?}", _kind);
         HandledEvent::Consumed
     }
 }
@@ -507,7 +506,6 @@ async fn search_globally(workspace_dir: &Path, raw_query: &str) -> Result<Vec<Fi
                                     let before_text = &line[..m.start()];
                                     let matched_text = &line[m.start()..m.end()];
                                     let after_text = &line[m.end()..];
-                                    // matches.push(range.start + m.start()..range.start + m.end());
                                     trace!(
                                         "{}:{}: {}\x1b[1;31m{}\x1b[0m{}",
                                         dirent.path().display(),
