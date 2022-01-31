@@ -16,6 +16,8 @@ pub enum ThemeKey {
     WarnNotification,
     InfoNotification,
     LineStatus(LineStatus),
+    FinderInput,
+    FinderSelectedItem,
 }
 
 pub struct Theme {
@@ -27,9 +29,17 @@ impl Theme {
         let mut mapping = HashMap::new();
 
         mapping.insert(
-            ThemeKey::LineStatus(LineStatus::ADDED),
+            ThemeKey::FinderInput,
             Style {
-                bg: Color::Rgb { r: 0, g: 255, b: 0 },
+                fg: Color::Magenta,
+                ..Default::default()
+            },
+        );
+
+        mapping.insert(
+            ThemeKey::FinderSelectedItem,
+            Style {
+                bg: Color::DarkGrey,
                 ..Default::default()
             },
         );
@@ -37,7 +47,7 @@ impl Theme {
         mapping.insert(
             ThemeKey::LineStatus(LineStatus::REMOVED),
             Style {
-                bg: Color::Rgb { r: 255, g: 0, b: 0 },
+                bg: Color::Red,
                 ..Default::default()
             },
         );
@@ -45,11 +55,7 @@ impl Theme {
         mapping.insert(
             ThemeKey::LineStatus(LineStatus::MODIFIED),
             Style {
-                bg: Color::Rgb {
-                    r: 255,
-                    g: 255,
-                    b: 128,
-                },
+                bg: Color::Yellow,
                 ..Default::default()
             },
         );
@@ -57,11 +63,7 @@ impl Theme {
         mapping.insert(
             ThemeKey::Flash,
             Style {
-                bg: Color::Rgb {
-                    r: 255,
-                    g: 255,
-                    b: 50,
-                },
+                bg: Color::Yellow,
                 ..Default::default()
             },
         );
@@ -69,11 +71,7 @@ impl Theme {
         mapping.insert(
             ThemeKey::CurrentLine,
             Style {
-                bg: Color::Rgb {
-                    r: 55,
-                    g: 55,
-                    b: 55,
-                },
+                bg: Color::DarkGrey,
                 ..Default::default()
             },
         );

@@ -2,13 +2,12 @@ use std::{borrow::Cow, collections::HashMap, ops::Range};
 
 use futures::StreamExt;
 use noa_buffer::raw_buffer::RawBuffer;
-
-use crate::fuzzy::FuzzySet;
+use noa_common::collections::fuzzy_set::FuzzySet;
 
 const WORD_MIN_LEN: usize = 4;
 
 pub struct Words {
-    words: FuzzySet,
+    words: FuzzySet<()>,
     words_in_lines: Vec<Vec<String>>,
     occurences: HashMap<String, usize>,
 }
@@ -28,7 +27,7 @@ impl Words {
         words
     }
 
-    pub fn words(&self) -> &FuzzySet {
+    pub fn words(&self) -> &FuzzySet<()> {
         &self.words
     }
 
@@ -63,7 +62,7 @@ impl Words {
                     word.push(c);
                 } else if !word.is_empty() {
                     if word.len() >= WORD_MIN_LEN {
-                        self.words.insert(word, 0);
+                        self.words.insert(word, (), 0);
                     }
 
                     word = String::with_capacity(8);

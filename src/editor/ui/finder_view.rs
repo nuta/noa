@@ -12,7 +12,10 @@ use noa_buffer::{
     cursor::{Cursor, Position, Range},
     display_width::DisplayWidth,
 };
-use noa_common::{collections::prioritized_vec::PrioritizedVec, oops::OopsExt};
+use noa_common::{
+    collections::{fuzzy_set::FuzzySet, prioritized_vec::PrioritizedVec},
+    oops::OopsExt,
+};
 use noa_compositor::{
     canvas::{CanvasViewMut, Color, Decoration, Style},
     line_edit::LineEdit,
@@ -23,13 +26,22 @@ use noa_compositor::{
 use parking_lot::RwLock;
 use tokio::sync::{mpsc::UnboundedSender, Notify};
 
-use crate::{editor::Editor, fuzzy::FuzzySet};
+use crate::{
+    document::DocumentId,
+    editor::Editor,
+    theme::{theme_for, ThemeKey},
+};
 
 use super::helpers::truncate_to_width;
 
 #[derive(Clone, Debug)]
 enum FinderItem {
     File(String),
+    Buffer {
+        name: String,
+        path: String,
+        id: DocumentId,
+    },
     SearchMatch {
         path: String,
         pos: Position,
@@ -48,34 +60,57 @@ pub struct FinderView {
     active: bool,
     items: Arc<RwLock<Vec<FinderItem>>>,
     item_selected: usize,
+    num_items_shown: usize,
     input: LineEdit,
 }
 
 impl FinderView {
-    pub fn new(render_request: Arc<Notify>, workspace_dir: &Path) -> FinderView {
+    pub fn new(editor: &Editor, render_request: Arc<Notify>, workspace_dir: &Path) -> FinderView {
         let mut finder = FinderView {
             render_request,
             workspace_dir: workspace_dir.to_path_buf(),
             active: false,
             items: Arc::new(RwLock::new(Vec::new())),
             item_selected: 0,
+            num_items_shown: 0,
             input: LineEdit::new(),
         };
 
-        finder.update();
+        finder.update(editor);
         finder
     }
 
     pub fn set_active(&mut self, active: bool) {
         self.active = active;
+        if active {
+            self.item_selected = 0;
+        }
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self, editor: &Editor) {
         let mut providers = FuturesUnordered::new();
         let workspace_dir = self.workspace_dir.clone();
         let render_request = self.render_request.clone();
         let items = self.items.clone();
         let query = self.input.text();
+
+        // Buffers.
+        let mut buffers = FuzzySet::new();
+        for (id, doc) in editor.documents.documents().iter() {
+            buffers.insert(
+                doc.name().to_owned(),
+                FinderItem::Buffer {
+                    name: doc.name().to_owned(),
+                    path: doc
+                        .path()
+                        .map(|p| p.to_str().unwrap())
+                        .unwrap_or(doc.name())
+                        .to_owned(),
+                    id: *id,
+                },
+                100,
+            );
+        }
 
         tokio::spawn(async move {
             let mut all_items = PrioritizedVec::new(32);
@@ -99,13 +134,37 @@ impl FinderView {
                     return;
                 }
                 _ => {
-                    providers.push(scan_paths(workspace_dir));
+                    providers.push(tokio::spawn(async move { buffers }));
+                    providers.push(tokio::task::spawn_blocking(|| scan_paths(workspace_dir)));
+
+                    // Files in the workspace directory.
                 }
             }
 
-            while let Some((results, into_item)) = providers.next().await {
-                for (s, score) in results.query(&query) {
-                    all_items.insert(score, into_item(s.to_string()));
+            while let Some(results) = providers.next().await {
+                let results = match results {
+                    Ok(results) => results,
+                    Err(err) => {
+                        warn!("failed to provide finder items: {}", err);
+                        continue;
+                    }
+                };
+
+                let mut visited_paths = Vec::new();
+                for (s, item, score) in results.query(&query) {
+                    // Ignore already opened files.
+                    match item {
+                        FinderItem::File(path) | FinderItem::Buffer { path, .. } => {
+                            if visited_paths.contains(path) {
+                                continue;
+                            }
+
+                            visited_paths.push(path.clone());
+                        }
+                        _ => {}
+                    }
+
+                    all_items.insert(score, item.to_owned());
                 }
 
                 *items.write() = all_items.sorted_vec();
@@ -134,8 +193,8 @@ impl Surface for FinderView {
         (
             Layout::Center,
             RectSize {
-                height: max(4, min(32, screen_size.height.saturating_sub(5))),
-                width: max(4, min(200, screen_size.width.saturating_sub(4))),
+                height: max(4, min(24, screen_size.height.saturating_sub(5))),
+                width: max(4, min(80, screen_size.width.saturating_sub(4))),
             },
         )
     }
@@ -149,7 +208,7 @@ impl Surface for FinderView {
 
         self.input.relocate_scroll(canvas.width() - 4);
 
-        let max_num_items = min(canvas.height() / 2, 16);
+        self.num_items_shown = canvas.height() - 4;
 
         canvas.draw_borders(0, 0, canvas.height() - 1, canvas.width() - 1);
         canvas.write_str(
@@ -157,11 +216,48 @@ impl Surface for FinderView {
             2,
             truncate_to_width(&self.input.text(), canvas.width() - 4),
         );
+        canvas.apply_style(1, 2, canvas.width() - 4, theme_for(ThemeKey::FinderInput));
 
-        for (i, item) in self.items.read().iter().take(max_num_items).enumerate() {
+        for (i, item) in self
+            .items
+            .read()
+            .iter()
+            .take(self.num_items_shown)
+            .enumerate()
+        {
+            if i == self.item_selected {
+                canvas.apply_style(
+                    2 + i,
+                    2,
+                    canvas.width() - 8,
+                    theme_for(ThemeKey::FinderSelectedItem),
+                );
+            }
+
             match item {
                 FinderItem::File(path) => {
-                    canvas.write_str(2 + i, 1, truncate_to_width(path, canvas.width() - 4));
+                    canvas.write_str(2 + i, 4, truncate_to_width(path, canvas.width() - 4));
+                    canvas.write_char_with_style(
+                        2 + i,
+                        2,
+                        'F',
+                        Style {
+                            bg: Color::Black,
+                            ..Default::default()
+                        },
+                    );
+                }
+                FinderItem::Buffer { name, .. } => {
+                    canvas.write_str(2 + i, 4, truncate_to_width(name, canvas.width() - 4));
+                    canvas.write_char_with_style(
+                        2 + i,
+                        2,
+                        'B',
+                        Style {
+                            bg: Color::Cyan,
+                            ..Default::default()
+                        },
+                    );
                 }
                 FinderItem::SearchMatch {
                     path,
@@ -178,9 +274,9 @@ impl Surface for FinderView {
                         "{before_text}{matched_text}{after_text} ({path}:{lineno})",
                         lineno = pos.y + 1
                     );
-                    canvas.write_str(2 + i, 1, truncate_to_width(&s, canvas.width() - 4));
+                    canvas.write_str(2 + i, 4, truncate_to_width(&s, canvas.width() - 4));
 
-                    let x = 1 + before_text.display_width();
+                    let x = 4 + before_text.display_width();
                     canvas.apply_style(
                         2 + i,
                         x,
@@ -218,6 +314,9 @@ impl Surface for FinderView {
                                     notify_anyhow_error!(err);
                                 }
                             }
+                            FinderItem::Buffer { id, .. } => {
+                                editor.documents.switch_current(*id);
+                            }
                             FinderItem::SearchMatch { path, pos, .. } => {
                                 match editor.documents.open_file(Path::new(path)) {
                                     Ok(doc) => {
@@ -240,15 +339,20 @@ impl Surface for FinderView {
                 };
             }
             (KeyCode::Down, NONE) => {
-                self.item_selected = min(self.item_selected + 1, self.items.read().len());
+                self.item_selected = min(
+                    self.item_selected + 1,
+                    min(self.num_items_shown, self.items.read().len()).saturating_sub(1),
+                );
             }
             (KeyCode::Up, NONE) => {
                 self.item_selected = self.item_selected.saturating_sub(1);
             }
+            (KeyCode::Char('q'), CTRL) => {
+                self.active = false;
+            }
             _ => {
-                let result = self.input.consume_key_event(key);
-                self.update();
-                return result;
+                self.input.consume_key_event(key);
+                self.update(editor);
             }
         }
 
@@ -258,11 +362,11 @@ impl Surface for FinderView {
     fn handle_key_batch_event(
         &mut self,
         _compositor: &mut Compositor<Editor>,
-        _editor: &mut Editor,
+        editor: &mut Editor,
         input: &str,
     ) -> HandledEvent {
         self.input.insert(&input.replace('\n', " "));
-        self.update();
+        self.update(editor);
         HandledEvent::Consumed
     }
 
@@ -280,7 +384,7 @@ impl Surface for FinderView {
     }
 }
 
-async fn scan_paths(workspace_dir: PathBuf) -> (FuzzySet, impl Fn(String) -> FinderItem) {
+fn scan_paths(workspace_dir: PathBuf) -> FuzzySet<FinderItem> {
     let mut paths = RwLock::new(FuzzySet::new());
     use ignore::{WalkBuilder, WalkState};
     WalkBuilder::new(workspace_dir).build_parallel().run(|| {
@@ -316,7 +420,9 @@ async fn scan_paths(workspace_dir: PathBuf) -> (FuzzySet, impl Fn(String) -> Fin
                         }
 
                         let path = path.strip_prefix("./").unwrap_or(path);
-                        paths.write().insert(path, extra);
+                        paths
+                            .write()
+                            .insert(path, FinderItem::File(path.to_owned()), extra);
                     }
                     None => {
                         warn!("non-utf8 path: {:?}", dirent.path());
@@ -328,7 +434,7 @@ async fn scan_paths(workspace_dir: PathBuf) -> (FuzzySet, impl Fn(String) -> Fin
         })
     });
 
-    (paths.into_inner(), FinderItem::File)
+    paths.into_inner()
 }
 
 pub struct Utf8Sink<F>(F)
@@ -361,8 +467,6 @@ where
 }
 
 async fn search_globally(workspace_dir: &Path, raw_query: &str) -> Result<Vec<FinderItem>> {
-    let mut paths = RwLock::new(FuzzySet::new());
-
     use grep::{matcher::Matcher, regex::RegexMatcherBuilder, searcher::Searcher};
     use ignore::{WalkBuilder, WalkState};
 

@@ -140,6 +140,10 @@ impl Document {
         &self.name
     }
 
+    pub fn path(&self) -> Option<&Path> {
+        self.path.as_ref().map(|path| path.as_ref())
+    }
+
     pub fn buffer(&self) -> &Buffer {
         &self.buffer
     }
@@ -297,6 +301,10 @@ impl DocumentManager {
         self.documents
             .values()
             .find(|doc| doc.path == Some(path.to_owned()))
+    }
+
+    pub fn documents(&self) -> &HashMap<DocumentId, Document> {
+        &self.documents
     }
 
     pub fn current(&self) -> &Document {

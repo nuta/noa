@@ -795,7 +795,6 @@ dependencies = [
  "bitflags",
  "clap",
  "futures",
- "fuzzy-matcher",
  "git2",
  "grep",
  "id-arena",
@@ -838,9 +837,11 @@ dependencies = [
  "backtrace",
  "dirs",
  "fern",
+ "fuzzy-matcher",
  "fxhash",
  "log",
  "once_cell",
+ "rayon",
  "serde",
 ]
 

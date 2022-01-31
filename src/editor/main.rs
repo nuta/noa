@@ -26,7 +26,6 @@ mod clipboard;
 mod document;
 mod editor;
 mod flash;
-mod fuzzy;
 mod git;
 mod highlighting;
 mod minimap;
@@ -75,6 +74,7 @@ async fn main() {
     compositor.add_frontmost_layer(Box::new(BufferView::new(quit_tx, render_request.clone())));
     compositor.add_frontmost_layer(Box::new(BottomLineView::new()));
     compositor.add_frontmost_layer(Box::new(FinderView::new(
+        &editor,
         render_request.clone(),
         &workspace_dir,
     )));

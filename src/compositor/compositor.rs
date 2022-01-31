@@ -84,6 +84,16 @@ impl<C> Compositor<C> {
             }
         }
 
+        for layer in self.past_layers.iter_mut() {
+            if layer.surface.name() == name {
+                return layer
+                    .surface
+                    .as_any_mut()
+                    .downcast_mut::<S>()
+                    .expect("surface type mismatch");
+            }
+        }
+
         unreachable!("surface {} not found", name);
     }
 
