@@ -13,6 +13,7 @@ use std::{
 
 use anyhow::Result;
 
+use arc_swap::ArcSwap;
 use noa_buffer::{buffer::Buffer, cursor::Range};
 use noa_common::{dirs::backup_dir, oops::OopsExt, time_report::TimeReport};
 use noa_languages::{
@@ -49,7 +50,7 @@ pub struct Document {
     movement_state: MovementState,
     words: Words,
     flashes: FlashManager,
-    minimap: Arc<RwLock<MiniMap>>,
+    minimap: Arc<ArcSwap<MiniMap>>,
     post_update_job: Option<JoinHandle<()>>,
 }
 
@@ -68,7 +69,7 @@ impl Document {
             movement_state: MovementState::new(),
             words: Words::new(),
             flashes: FlashManager::new(),
-            minimap: Arc::new(RwLock::new(MiniMap::new())),
+            minimap: Arc::new(ArcSwap::from_pointee(MiniMap::new())),
             post_update_job: None,
         }
     }
@@ -108,7 +109,7 @@ impl Document {
             movement_state: MovementState::new(),
             words,
             flashes: FlashManager::new(),
-            minimap: Arc::new(RwLock::new(MiniMap::new())),
+            minimap: Arc::new(ArcSwap::from_pointee(MiniMap::new())),
             post_update_job: None,
         })
     }
@@ -168,8 +169,8 @@ impl Document {
         &mut self.flashes
     }
 
-    pub fn minimap(&self) -> &Arc<RwLock<MiniMap>> {
-        &self.minimap
+    pub fn minimap(&self) -> arc_swap::Guard<Arc<MiniMap>> {
+        self.minimap.load()
     }
 
     pub fn movement(&mut self) -> Movement<'_> {
@@ -218,9 +219,9 @@ impl Document {
             let buffer_text = raw_buffer.text();
 
             if let Some((path, repo)) = git_diff_ctx {
-                let mut minimap = minimap.write();
-                minimap.clear();
-                minimap.update_git_line_statuses(&repo, &path, &buffer_text);
+                let mut new_minimap = MiniMap::new();
+                new_minimap.update_git_line_statuses(&repo, &path, &buffer_text);
+                minimap.store(Arc::new(new_minimap));
             }
 
             render_request.notify_one();

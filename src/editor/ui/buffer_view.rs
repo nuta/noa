@@ -108,7 +108,7 @@ impl Surface for BufferView {
         let doc = editor.documents.current();
         let buffer = doc.buffer();
         let main_cursor = buffer.main_cursor();
-        let minimap = doc.minimap().read();
+        let minimap = doc.minimap();
 
         // Buffer contents.
         let main_cursor_pos = main_cursor.moving_position();

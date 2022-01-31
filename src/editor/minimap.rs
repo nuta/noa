@@ -33,10 +33,6 @@ impl MiniMap {
         }
     }
 
-    pub fn clear(&mut self) {
-        self.lines.fill(LineStatus::NONE);
-    }
-
     pub fn get(&self, y: usize) -> Option<LineStatus> {
         self.lines.get(y).copied()
     }
