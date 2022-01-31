@@ -6,6 +6,7 @@ use std::{
 };
 
 use anyhow::{anyhow, bail, Result};
+use arc_swap::ArcSwap;
 use futures::{executor::block_on, stream::FuturesUnordered, StreamExt};
 use grep::searcher::SinkError;
 use noa_buffer::{
@@ -58,7 +59,7 @@ pub struct FinderView {
     render_request: Arc<Notify>,
     workspace_dir: PathBuf,
     active: bool,
-    items: Arc<RwLock<Vec<FinderItem>>>,
+    items: Arc<ArcSwap<Vec<FinderItem>>>,
     item_selected: usize,
     num_items_shown: usize,
     input: LineEdit,
@@ -70,7 +71,7 @@ impl FinderView {
             render_request,
             workspace_dir: workspace_dir.to_path_buf(),
             active: false,
-            items: Arc::new(RwLock::new(Vec::new())),
+            items: Arc::new(ArcSwap::from_pointee(Vec::new())),
             item_selected: 0,
             num_items_shown: 0,
             input: LineEdit::new(),
@@ -124,7 +125,7 @@ impl FinderView {
 
                     match search_globally(&workspace_dir, &query[1..]).await {
                         Ok(new_items) => {
-                            *items.write() = new_items;
+                            items.store(Arc::new(new_items));
                         }
                         Err(err) => {
                             // TODO:
@@ -168,7 +169,7 @@ impl FinderView {
                     all_items.insert(score, item.to_owned());
                 }
 
-                *items.write() = all_items.sorted_vec();
+                items.store(Arc::new(all_items.sorted_vec()));
                 render_request.notify_one();
             }
         });
@@ -224,7 +225,7 @@ impl Surface for FinderView {
 
         for (i, item) in self
             .items
-            .read()
+            .load()
             .iter()
             .take(self.num_items_shown)
             .enumerate()
@@ -309,7 +310,7 @@ impl Surface for FinderView {
 
         match (key.code, key.modifiers) {
             (KeyCode::Enter, NONE) => {
-                match self.items.read().get(self.item_selected) {
+                match self.items.load().get(self.item_selected) {
                     Some(item) => {
                         info!("finder: selected item: {:?}", item);
                         match item {
@@ -345,7 +346,7 @@ impl Surface for FinderView {
             (KeyCode::Down, NONE) => {
                 self.item_selected = min(
                     self.item_selected + 1,
-                    min(self.num_items_shown, self.items.read().len()).saturating_sub(1),
+                    min(self.num_items_shown, self.items.load().len()).saturating_sub(1),
                 );
             }
             (KeyCode::Up, NONE) => {
