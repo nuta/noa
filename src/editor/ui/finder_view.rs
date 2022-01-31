@@ -518,12 +518,18 @@ async fn search_globally(workspace_dir: &Path, raw_query: &str) -> Result<Vec<Fi
                                     );
 
                                     let line_text = line.trim_end().to_owned();
+                                    let mut x = 0;
+                                    for (char_i, (byte_i, _)) in
+                                        line_text.char_indices().enumerate()
+                                    {
+                                        x = char_i;
+                                        if m.start() == byte_i {
+                                            break;
+                                        }
+                                    }
+
                                     let m_start = min(m.start(), line_text.len());
                                     let m_end = min(m.end(), line_text.len());
-                                    let x = min(
-                                        m.start(), /* TODO: use char index */
-                                        line_text.chars().count(),
-                                    );
                                     let mut items = items.write();
                                     items.insert(
                                         0,
