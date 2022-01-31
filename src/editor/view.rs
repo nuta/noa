@@ -186,7 +186,6 @@ impl View {
                 0..row.len_chars()
             };
 
-            trace!("highlight: y={y}, xs={xs:?}, color={:?}", style.fg);
             for x in xs {
                 row.graphemes[x].style = style;
             }
