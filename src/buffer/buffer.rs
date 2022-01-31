@@ -197,6 +197,11 @@ impl Buffer {
         Ok(())
     }
 
+    pub fn clear(&mut self) {
+        self.buf = RawBuffer::new();
+        self.cursors = CursorSet::new();
+    }
+
     pub fn insert_char(&mut self, c: char) {
         self.insert(&c.to_string());
     }

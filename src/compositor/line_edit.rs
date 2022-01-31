@@ -47,6 +47,11 @@ impl LineEdit {
         self.buffer.insert_char(c);
     }
 
+    pub fn clear(&mut self) {
+        self.buffer.clear();
+        self.scroll = 0;
+    }
+
     pub fn backspace(&mut self) {
         self.buffer.backspace();
     }

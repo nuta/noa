@@ -139,7 +139,7 @@ impl RawBuffer {
     pub fn word_iter(&self, pos: Position) -> WordIter<'_> {
         WordIter {
             iter: self.char_iter(pos),
-        range: None,
+            range: None,
         }
     }
 

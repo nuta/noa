@@ -84,6 +84,7 @@ impl FinderView {
         self.active = active;
         if active {
             self.item_selected = 0;
+            self.input.clear();
         }
     }
 
@@ -190,11 +191,15 @@ impl Surface for FinderView {
     }
 
     fn layout(&self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
+        let height = min(24, screen_size.height);
         (
-            Layout::Center,
+            Layout::Fixed {
+                y: screen_size.height.saturating_sub(height),
+                x: 0,
+            },
             RectSize {
-                height: max(4, min(24, screen_size.height.saturating_sub(5))),
-                width: max(4, min(80, screen_size.width.saturating_sub(4))),
+                height,
+                width: screen_size.width,
             },
         )
     }
@@ -206,17 +211,16 @@ impl Surface for FinderView {
     fn render(&mut self, _editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
         canvas.clear();
 
-        self.input.relocate_scroll(canvas.width() - 4);
+        self.input.relocate_scroll(canvas.width());
 
-        self.num_items_shown = canvas.height() - 4;
+        self.num_items_shown = canvas.height() - 2;
 
-        canvas.draw_borders(0, 0, canvas.height() - 1, canvas.width() - 1);
         canvas.write_str(
+            0,
             1,
-            2,
-            truncate_to_width(&self.input.text(), canvas.width() - 4),
+            truncate_to_width(&self.input.text(), canvas.width() - 2),
         );
-        canvas.apply_style(1, 2, canvas.width() - 4, theme_for(ThemeKey::FinderInput));
+        canvas.apply_style(0, 1, canvas.width() - 2, theme_for(ThemeKey::FinderInput));
 
         for (i, item) in self
             .items
@@ -228,7 +232,7 @@ impl Surface for FinderView {
             if i == self.item_selected {
                 canvas.apply_style(
                     2 + i,
-                    2,
+                    1,
                     canvas.width() - 8,
                     theme_for(ThemeKey::FinderSelectedItem),
                 );
@@ -236,10 +240,10 @@ impl Surface for FinderView {
 
             match item {
                 FinderItem::File(path) => {
-                    canvas.write_str(2 + i, 4, truncate_to_width(path, canvas.width() - 4));
+                    canvas.write_str(2 + i, 2, truncate_to_width(path, canvas.width() - 2));
                     canvas.write_char_with_style(
                         2 + i,
-                        2,
+                        1,
                         'F',
                         Style {
                             bg: Color::Black,
@@ -248,10 +252,10 @@ impl Surface for FinderView {
                     );
                 }
                 FinderItem::Buffer { name, .. } => {
-                    canvas.write_str(2 + i, 4, truncate_to_width(name, canvas.width() - 4));
+                    canvas.write_str(2 + i, 2, truncate_to_width(name, canvas.width() - 2));
                     canvas.write_char_with_style(
                         2 + i,
-                        2,
+                        1,
                         'B',
                         Style {
                             bg: Color::Cyan,
@@ -274,9 +278,9 @@ impl Surface for FinderView {
                         "{before_text}{matched_text}{after_text} ({path}:{lineno})",
                         lineno = pos.y + 1
                     );
-                    canvas.write_str(2 + i, 4, truncate_to_width(&s, canvas.width() - 4));
+                    canvas.write_str(2 + i, 2, truncate_to_width(&s, canvas.width() - 2));
 
-                    let x = 4 + before_text.display_width();
+                    let x = 2 + before_text.display_width();
                     canvas.apply_style(
                         2 + i,
                         x,
