@@ -24,7 +24,7 @@ use noa_compositor::{
     terminal::{KeyCode, KeyEvent, KeyModifiers},
     Compositor,
 };
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use tokio::sync::{mpsc::UnboundedSender, Notify};
 
 use crate::{
@@ -389,7 +389,7 @@ impl Surface for FinderView {
 }
 
 fn scan_paths(workspace_dir: PathBuf) -> FuzzySet<FinderItem> {
-    let mut paths = RwLock::new(FuzzySet::new());
+    let mut paths = Mutex::new(FuzzySet::new());
     use ignore::{WalkBuilder, WalkState};
     WalkBuilder::new(workspace_dir).build_parallel().run(|| {
         Box::new(|dirent| {
@@ -425,7 +425,7 @@ fn scan_paths(workspace_dir: PathBuf) -> FuzzySet<FinderItem> {
 
                         let path = path.strip_prefix("./").unwrap_or(path);
                         paths
-                            .write()
+                            .lock()
                             .insert(path, FinderItem::File(path.to_owned()), extra);
                     }
                     None => {
