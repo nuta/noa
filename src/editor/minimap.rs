@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, ops::Range, path::Path, sync::Arc};
+use std::{collections::HashMap, ops::Range, path::Path, sync::Arc};
 
 use bitflags::bitflags;
 use noa_buffer::buffer::Buffer;
@@ -23,23 +23,27 @@ bitflags! {
 
 pub struct MiniMap {
     /// Line status for each physical line.
-    lines: Vec<LineStatus>,
+    lines: HashMap<usize /* y */, LineStatus>,
 }
 
 impl MiniMap {
     pub fn new() -> MiniMap {
         MiniMap {
-            lines: Vec::with_capacity(1024),
+            lines: HashMap::new(),
         }
     }
 
     pub fn get(&self, y: usize) -> Option<LineStatus> {
-        self.lines.get(y).copied()
+        self.lines.get(&y).copied()
     }
 
     pub fn insert_with_mask(&mut self, y: usize, status: LineStatus, clear_mask: LineStatus) {
-        self.lines.resize(y + 1, LineStatus::NONE);
-        self.lines[y] = status | (self.lines[y] & !clear_mask);
+        self.lines
+            .entry(y)
+            .and_modify(|v| {
+                *v = status | (*v & !clear_mask);
+            })
+            .or_insert(status);
     }
 
     pub fn update_git_line_statuses(&mut self, repo: &Repo, buffer_path: &Path, text: &str) {

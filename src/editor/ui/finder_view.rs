@@ -128,8 +128,7 @@ impl FinderView {
                             items.store(Arc::new(new_items));
                         }
                         Err(err) => {
-                            // TODO:
-                            warn!("failed to search globally: {}", err);
+                            notify_warn!("failed to search globally: {}", err);
                         }
                     }
                     render_request.notify_one();
@@ -138,8 +137,6 @@ impl FinderView {
                 _ => {
                     providers.push(tokio::spawn(async move { buffers }));
                     providers.push(tokio::task::spawn_blocking(|| scan_paths(workspace_dir)));
-
-                    // Files in the workspace directory.
                 }
             }
 
