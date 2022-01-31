@@ -3,14 +3,13 @@ use noa_compositor::{
     canvas::{CanvasViewMut, Decoration},
     line_edit::LineEdit,
     surface::{HandledEvent, KeyEvent, Layout, RectSize, Surface},
-    terminal::{KeyModifiers},
+    terminal::KeyModifiers,
     Compositor,
 };
 
-
 use crate::{
     editor::Editor,
-    notification::{notification_manager},
+    notification::notification_manager,
     theme::{theme_for, ThemeKey},
 };
 
@@ -130,17 +129,6 @@ impl Surface for BottomLineView {
         editor: &mut Editor,
         _key: KeyEvent,
     ) -> HandledEvent {
-        const NONE: KeyModifiers = KeyModifiers::NONE;
-        const CTRL: KeyModifiers = KeyModifiers::CONTROL;
-        const ALT: KeyModifiers = KeyModifiers::ALT;
-        const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
-
-        let mut _doc = editor.documents.current();
-
-        // match (key.code, key.modifiers) {
-        // _ => HandledEvent::Ignored,
-        // }
-
         HandledEvent::Ignored
     }
 

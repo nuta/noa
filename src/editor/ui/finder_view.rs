@@ -25,7 +25,7 @@ use noa_compositor::{
     Compositor,
 };
 use parking_lot::{Mutex, RwLock};
-use tokio::sync::{Notify};
+use tokio::sync::Notify;
 
 use crate::{
     document::DocumentId,
@@ -302,8 +302,8 @@ impl Surface for FinderView {
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
         const CTRL: KeyModifiers = KeyModifiers::CONTROL;
-        const ALT: KeyModifiers = KeyModifiers::ALT;
-        const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
+        // const ALT: KeyModifiers = KeyModifiers::ALT;
+        // const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
         match (key.code, key.modifiers) {
             (KeyCode::Enter, NONE) => {

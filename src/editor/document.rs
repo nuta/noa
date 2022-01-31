@@ -13,7 +13,7 @@ use std::{
 use anyhow::Result;
 
 use arc_swap::ArcSwap;
-use noa_buffer::{buffer::Buffer};
+use noa_buffer::buffer::Buffer;
 use noa_common::{dirs::backup_dir, oops::OopsExt, time_report::TimeReport};
 use noa_languages::{
     definitions::{guess_language, PLAIN},
@@ -153,10 +153,6 @@ impl Document {
 
     pub fn view(&self) -> &View {
         &self.view
-    }
-
-    pub fn view_mut(&mut self) -> &mut View {
-        &mut self.view
     }
 
     pub fn flashes(&self) -> &FlashManager {

@@ -1,7 +1,7 @@
 use std::io::prelude::*;
 use std::process::{Command, Stdio};
 
-use anyhow::{Result};
+use anyhow::Result;
 use noa_buffer::buffer::Buffer;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
@@ -93,8 +93,6 @@ impl ClipboardProvider for Osc52Provider {
     }
 
     fn copy_into_clipboard(&self, data: ClipboardData) -> Result<()> {
-        use std::io::Write;
-
         let mut stdout = std::io::stdout();
 
         // OSC52

@@ -1,6 +1,5 @@
 use std::{collections::HashMap, ops::Range};
 
-use futures::StreamExt;
 use noa_buffer::raw_buffer::RawBuffer;
 use noa_common::collections::fuzzy_set::FuzzySet;
 

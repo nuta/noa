@@ -13,9 +13,7 @@ use noa_compositor::{
     terminal::{KeyCode, KeyModifiers, MouseButton, MouseEventKind},
     Compositor,
 };
-use tokio::{
-    sync::{oneshot, Notify},
-};
+use tokio::sync::{oneshot, Notify};
 
 use crate::{
     clipboard::{ClipboardData, SystemClipboardData},
@@ -229,7 +227,7 @@ impl Surface for BufferView {
 
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), CTRL) => {
-                self.quit_tx.take().unwrap().send(());
+                self.quit_tx.take().unwrap().send(()).oops();
             }
             (KeyCode::Char('f'), CTRL) => {
                 compositor
@@ -248,9 +246,12 @@ impl Surface for BufferView {
                 doc.buffer_mut().redo();
             }
             (KeyCode::Char('c'), CTRL) => {
-                editor
+                if let Err(err) = editor
                     .clipboard
-                    .copy_into_clipboard(ClipboardData::from_buffer(doc.buffer()));
+                    .copy_into_clipboard(ClipboardData::from_buffer(doc.buffer()))
+                {
+                    notify_warn!("failed to copy to clipboard: {}", err);
+                }
             }
             (KeyCode::Char('x'), CTRL) => {
                 let buffer = doc.buffer_mut();
