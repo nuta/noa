@@ -2,6 +2,7 @@ use std::{
     cmp::{max, min, Ordering},
     fmt::{Debug, Display},
     hash::{Hash, Hasher},
+    sync::atomic::{self, AtomicUsize},
 };
 
 use crate::raw_buffer::RawBuffer;
@@ -194,6 +195,7 @@ impl Display for Range {
 /// A text cursor.
 #[derive(Clone)]
 pub struct Cursor {
+    id: usize,
     /// The range selected by the cursor. If the cursor is not a selection,
     /// the range is empty.
     selection: Range,
@@ -217,27 +219,51 @@ impl Debug for Cursor {
     }
 }
 
+const MAIN_CURSOR_ID: usize = 0;
+static NEXT_CURSOR_ID: AtomicUsize = AtomicUsize::new(1);
+
 impl Cursor {
+    fn new_main_cursor(y: usize, x: usize) -> Cursor {
+        Cursor {
+            id: MAIN_CURSOR_ID,
+            selection: Range::new(y, x, y, x),
+        }
+    }
+
     pub fn new(y: usize, x: usize) -> Cursor {
         Cursor {
+            id: NEXT_CURSOR_ID.fetch_add(1, atomic::Ordering::SeqCst),
             selection: Range::new(y, x, y, x),
         }
     }
 
     pub fn new_selection(start_y: usize, start_x: usize, end_y: usize, end_x: usize) -> Cursor {
         Cursor {
+            id: NEXT_CURSOR_ID.fetch_add(1, atomic::Ordering::SeqCst),
             selection: Range::new(start_y, start_x, end_y, end_x),
         }
     }
 
     pub fn from_position(pos: Position) -> Cursor {
         Cursor {
+            id: NEXT_CURSOR_ID.fetch_add(1, atomic::Ordering::SeqCst),
             selection: Range::from_positions(pos, pos),
         }
     }
 
     pub fn from_range(selection: Range) -> Cursor {
-        Cursor { selection }
+        Cursor {
+            id: NEXT_CURSOR_ID.fetch_add(1, atomic::Ordering::SeqCst),
+            selection,
+        }
+    }
+
+    pub fn is_main_cursor(&self) -> bool {
+        self.id == MAIN_CURSOR_ID
+    }
+
+    pub fn is_selection(&self) -> bool {
+        !self.selection.is_empty()
     }
 
     pub fn selection(&self) -> Range {
@@ -273,9 +299,21 @@ impl Cursor {
         self.selection.back()
     }
 
+    pub fn move_to_yx(&mut self, y: usize, x: usize) {
+        self.move_to(Position::new(y, x));
+    }
+
     pub fn move_to(&mut self, pos: Position) {
         self.selection.start = pos;
         self.selection.end = pos;
+    }
+
+    pub fn select_yx(&mut self, start_y: usize, start_x: usize, end_y: usize, end_x: usize) {
+        self.selection = Range::new(start_y, start_x, end_y, end_x);
+    }
+
+    pub fn select(&mut self, selection: Range) {
+        self.selection = selection;
     }
 
     pub fn move_moving_position_to(&mut self, pos: Position) {
@@ -361,12 +399,26 @@ pub struct CursorSet {
 impl CursorSet {
     pub fn new() -> CursorSet {
         CursorSet {
-            cursors: vec![Cursor::new(0, 0)],
+            cursors: vec![Cursor::new_main_cursor(0, 0)],
         }
+    }
+
+    pub fn main_cursor(&self) -> &Cursor {
+        self.cursors.iter().find(|c| c.is_main_cursor()).unwrap()
     }
 
     pub fn as_slice(&self) -> &[Cursor] {
         &self.cursors
+    }
+
+    pub fn add_cursor(&mut self, pos: Position) {
+        let mut new_cursors = self.cursors.to_vec();
+        new_cursors.push(Cursor::new(pos.y, pos.x));
+        self.set_cursors(&new_cursors);
+    }
+
+    pub fn clear_multiple_cursors(&mut self) {
+        self.set_cursors(&[self.main_cursor().clone()]);
     }
 
     pub fn set_cursors(&mut self, new_cursors: &[Cursor]) {
@@ -379,10 +431,25 @@ impl CursorSet {
         // Remove duplicates.
         let mut i = 0;
         while i < new_cursors.len() - 1 {
-            if new_cursors[i]
-                .selection()
-                .overlaps_with(new_cursors[i + 1].selection())
-            {
+            let c = &new_cursors[i];
+            let next_c = &new_cursors[i + 1];
+            if c.selection().overlaps_with(next_c.selection()) {
+                let next_is_main_cursor = next_c.is_main_cursor();
+
+                if c.is_selection() || next_c.is_selection() {
+                    let selection = Range::from_positions(
+                        min(c.front(), next_c.front()),
+                        max(c.back(), next_c.back()),
+                    );
+
+                    new_cursors[i].selection = selection;
+                }
+
+                if next_is_main_cursor {
+                    // next_c will be removed. Preserve the main cursor.
+                    new_cursors[i].id = MAIN_CURSOR_ID;
+                }
+
                 new_cursors.remove(i + 1);
             } else {
                 i += 1;

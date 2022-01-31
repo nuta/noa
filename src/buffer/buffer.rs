@@ -8,7 +8,7 @@ use std::{
 use noa_editorconfig::{EditorConfig, IndentStyle};
 
 use crate::{
-    cursor::{Cursor, CursorSet, Position},
+    cursor::{Cursor, CursorSet, Position, Range},
     raw_buffer::RawBuffer,
 };
 
@@ -87,43 +87,57 @@ impl Buffer {
     }
 
     pub fn main_cursor(&self) -> &Cursor {
-        &self.cursors()[0]
+        self.cursors.main_cursor()
     }
 
     pub fn set_cursors(&mut self, new_cursors: &[Cursor]) {
         self.cursors.set_cursors(new_cursors);
     }
 
-    pub fn add_cursor(&mut self, cursor: Cursor) {
-        let mut new_cursors = self.cursors().to_vec();
-        new_cursors.push(cursor);
-        self.cursors.set_cursors(&new_cursors);
+    pub fn add_cursor(&mut self, pos: Position) {
+        self.cursors.add_cursor(pos);
+    }
+
+    pub fn clear_multiple_cursors(&mut self) {
+        self.cursors.clear_multiple_cursors();
     }
 
     pub fn move_main_cursor_to(&mut self, pos: Position) {
-        self.set_main_cursor(Cursor::new(pos.y, pos.x));
+        self.set_main_cursor_with(|c, _| c.move_to(pos));
     }
 
-    pub fn set_main_cursor(&mut self, cursor: Cursor) {
-        self.set_main_cursor_with(|c, _| *c = cursor);
+    pub fn select_main_cursor_yx(
+        &mut self,
+        start_y: usize,
+        start_x: usize,
+        end_y: usize,
+        end_x: usize,
+    ) {
+        self.select_main_cursor(Range::new(start_y, start_x, end_y, end_x));
     }
 
-    pub fn set_main_cursor_with<F>(&mut self, f: F)
+    pub fn select_main_cursor(&mut self, selection: Range) {
+        self.set_main_cursor_with(|c, _| c.select(selection));
+    }
+
+    pub fn set_main_cursor_with<F>(&mut self, mut f: F)
     where
-        F: FnOnce(&mut Cursor, &RawBuffer),
+        F: FnMut(&mut Cursor, &RawBuffer),
     {
-        let mut c = self.main_cursor().clone();
-        f(&mut c, &self.buf);
-        self.cursors.set_cursors(&[c]);
+        self.cursors.foreach(|c, _past_cursors| {
+            if c.is_main_cursor() {
+                f(c, &self.buf);
+            }
+        });
     }
 
     pub fn update_cursors_with<F>(&mut self, mut f: F)
     where
-        F: FnMut(&Buffer, &mut Cursor),
+        F: FnMut(&mut Cursor, &Buffer),
     {
         let mut new_cursors = self.cursors().to_vec();
         for c in &mut new_cursors {
-            f(self, c);
+            f(c, self);
         }
 
         self.set_cursors(&new_cursors);
@@ -132,19 +146,19 @@ impl Buffer {
     pub fn move_to_end_of_line(&mut self) {
         self.cursors.foreach(|c, _past_cursors| {
             let y = c.moving_position().y;
-            *c = Cursor::new(y, self.buf.line_len(y));
+            c.move_to_yx(y, self.buf.line_len(y));
         });
     }
 
     pub fn move_to_beginning_of_line(&mut self) {
         self.cursors.foreach(|c, _past_cursors| {
-            *c = Cursor::new(c.moving_position().y, 0);
+            c.move_to_yx(c.moving_position().y, 0);
         });
     }
 
     pub fn deselect_cursors(&mut self) {
         self.cursors.foreach(|c, _past_cursors| {
-            *c = Cursor::new(c.moving_position().y, c.moving_position().x);
+            c.move_to_yx(c.moving_position().y, c.moving_position().x);
         });
     }
 
@@ -321,9 +335,9 @@ impl Buffer {
                 if pos.x == eol {
                     // The cursor is already at the end of line, remove the
                     // following newline instead.
-                    *c = Cursor::new_selection(pos.y, pos.x, pos.y + 1, 0);
+                    c.select_yx(pos.y, pos.x, pos.y + 1, 0);
                 } else {
-                    *c = Cursor::new_selection(pos.y, pos.x, pos.y, eol);
+                    c.select_yx(pos.y, pos.x, pos.y, eol);
                 }
             }
 

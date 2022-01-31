@@ -154,7 +154,9 @@ impl Surface for BufferView {
                 // Update decoration if the cursor includes or is located at
                 // this position.
                 for (i, c) in buffer.cursors().iter().enumerate() {
-                    if c.selection().contains(*pos) || (i != 0 && c.position() == Some(*pos)) {
+                    if c.selection().contains(*pos)
+                        || (!c.is_main_cursor() && c.position() == Some(*pos))
+                    {
                         canvas.set_decoration(y, x, x + 1, Decoration::inverted());
 
                         let mut next_pos = *pos;
@@ -171,7 +173,7 @@ impl Surface for BufferView {
             // Cursors at a empty row.
             if row.is_empty()
                 && buffer.cursors().iter().enumerate().any(|(i, c)| {
-                    i != 0 && c.selection().overlaps(Position::new(row.lineno - 1, 0))
+                    !c.is_main_cursor() && c.selection().overlaps(Position::new(row.lineno - 1, 0))
                 })
             {
                 row_end_marker = Some((' ', buffer_x));
@@ -186,7 +188,7 @@ impl Surface for BufferView {
                     .cursors()
                     .iter()
                     .enumerate()
-                    .any(|(i, c)| i != 0 && c.position() == Some(end_of_row_pos))
+                    .any(|(i, c)| !c.is_main_cursor() && c.position() == Some(end_of_row_pos))
                 {
                     row_end_marker = Some((' ', buffer_x + row.len_chars()));
                 }
@@ -229,6 +231,9 @@ impl Surface for BufferView {
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), CTRL) => {
                 self.quit_tx.take().unwrap().send(()).oops();
+            }
+            (KeyCode::Esc, NONE) => {
+                doc.buffer_mut().clear_multiple_cursors();
             }
             (KeyCode::Char('f'), CTRL) => {
                 compositor
@@ -466,8 +471,8 @@ impl Surface for BufferView {
                     // Dragging
                     (MouseEventKind::Drag(MouseButton::Left), NONE) => match self.selection_start {
                         Some(start) if start != pos => {
-                            let c = Cursor::new_selection(start.y, start.x, pos.y, pos.x);
-                            doc.buffer_mut().set_cursors(&[c]);
+                            doc.buffer_mut()
+                                .select_main_cursor_yx(start.y, start.x, pos.y, pos.x);
                         }
                         _ => {}
                     },

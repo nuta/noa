@@ -1,4 +1,4 @@
-use crate::{buffer::Buffer, cursor::Cursor};
+use crate::buffer::Buffer;
 
 impl Buffer {
     pub fn duplicate_lines_up(&mut self) {
@@ -11,9 +11,9 @@ impl Buffer {
                 text.push('\n');
             }
 
-            *c = Cursor::new(s.front().y, 0);
+            c.move_to_yx(s.front().y, 0);
             self.buf.edit_at_cursor(c, past_cursors, &text);
-            *c = Cursor::from_range(s);
+            c.select(s);
         });
     }
 
@@ -28,9 +28,9 @@ impl Buffer {
                 text.push('\n');
             }
 
-            *c = Cursor::new(c.front().y, 0);
+            c.move_to_yx(c.front().y, 0);
             self.buf.edit_at_cursor(c, past_cursors, &text);
-            *c = Cursor::new_selection(
+            c.select_yx(
                 s.start.y + num_lines,
                 s.start.x,
                 s.end.y + num_lines,
@@ -42,6 +42,8 @@ impl Buffer {
 
 #[cfg(test)]
 mod tests {
+    use crate::cursor::Cursor;
+
     use super::*;
     use pretty_assertions::assert_eq;
 

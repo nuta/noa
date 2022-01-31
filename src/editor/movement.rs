@@ -84,9 +84,8 @@ impl<'a> Movement<'a> {
         });
 
         if let Some(new_pos) = new_pos {
-            self.buffer.add_cursor(Cursor::from_range(
-                noa_buffer::cursor::Range::from_positions(new_pos, new_pos),
-            ));
+            trace!("new cursor: {:?}", new_pos);
+            self.buffer.add_cursor(new_pos);
         }
     }
 

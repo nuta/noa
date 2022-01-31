@@ -187,7 +187,7 @@ impl RawBuffer {
 
         // Move the current cursor.
         let new_pos = Position::position_after_edit(range_removed, new_text);
-        *current_cursor = Cursor::new(new_pos.y, new_pos.x);
+        current_cursor.move_to_yx(new_pos.y, new_pos.x);
 
         // Adjust past cursors.
         let y_diff = (new_pos.y as isize) - (prev_back_y as isize);

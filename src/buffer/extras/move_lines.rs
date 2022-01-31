@@ -1,7 +1,4 @@
-use crate::{
-    buffer::Buffer,
-    cursor::{Cursor, Range},
-};
+use crate::{buffer::Buffer, cursor::Range};
 
 impl Buffer {
     pub fn move_lines_up(&mut self) {
@@ -27,9 +24,9 @@ impl Buffer {
                 text.pop();
             }
 
-            *c = Cursor::new_selection(s.front().y - 1, 0, s.back().y + 1, 0);
+            c.select_yx(s.front().y - 1, 0, s.back().y + 1, 0);
             self.buf.edit_at_cursor(c, past_cursors, &text);
-            *c = Cursor::new_selection(s.start.y - 1, s.start.x, s.end.y - 1, s.end.x);
+            c.select_yx(s.start.y - 1, s.start.x, s.end.y - 1, s.end.x);
         });
     }
 
@@ -57,15 +54,17 @@ impl Buffer {
                 text.pop();
             }
 
-            *c = Cursor::new_selection(c.front().y, 0, c.back().y + 1, 0);
+            c.select_yx(c.front().y, 0, c.back().y + 1, 0);
             self.buf.edit_at_cursor(c, past_cursors, &text);
-            *c = Cursor::new_selection(s.start.y + 1, s.start.x, s.end.y + 1, s.end.x);
+            c.select_yx(s.start.y + 1, s.start.x, s.end.y + 1, s.end.x);
         });
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::cursor::Cursor;
+
     use super::*;
     use pretty_assertions::assert_eq;
 

@@ -1,4 +1,4 @@
-use crate::{buffer::Buffer, cursor::Cursor};
+use crate::buffer::Buffer;
 
 impl Buffer {
     pub fn delete_current_word(&mut self) {
@@ -7,20 +7,20 @@ impl Buffer {
     }
 
     pub fn select_current_word(&mut self) {
-        self.update_cursors_with(|buffer, c| {
+        self.update_cursors_with(|c, buffer| {
             let mut word_iter = buffer.word_iter(c.moving_position());
 
             // Move to current word.
             word_iter.next();
 
             if let Some(selection) = word_iter.range() {
-                *c = Cursor::from_range(*selection);
+                c.select(*selection);
             }
         });
     }
 
     pub fn select_next_word(&mut self) {
-        self.update_cursors_with(|buffer, c| {
+        self.update_cursors_with(|c, buffer| {
             let mut word_iter = buffer.word_iter(c.moving_position());
 
             // Skip current word.
@@ -33,7 +33,7 @@ impl Buffer {
     }
 
     pub fn select_prev_word(&mut self) {
-        self.update_cursors_with(|buffer, c| {
+        self.update_cursors_with(|c, buffer| {
             let mut word_iter = buffer.word_iter(c.moving_position());
 
             // Skip current word.
@@ -46,7 +46,7 @@ impl Buffer {
     }
 
     pub fn move_to_next_word(&mut self) {
-        self.update_cursors_with(|buffer, c| {
+        self.update_cursors_with(|c, buffer| {
             let mut word_iter = buffer.word_iter(c.moving_position());
 
             // Skip current word.
@@ -59,7 +59,7 @@ impl Buffer {
     }
 
     pub fn move_to_prev_word(&mut self) {
-        self.update_cursors_with(|buffer, c| {
+        self.update_cursors_with(|c, buffer| {
             let mut word_iter = buffer.word_iter(c.moving_position());
 
             // Skip current word.
