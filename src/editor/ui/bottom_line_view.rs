@@ -3,7 +3,6 @@ use noa_compositor::{
     canvas::{CanvasViewMut, Decoration},
     line_edit::LineEdit,
     surface::{HandledEvent, KeyEvent, Layout, RectSize, Surface},
-    terminal::KeyModifiers,
     Compositor,
 };
 
@@ -126,7 +125,7 @@ impl Surface for BottomLineView {
     fn handle_key_event(
         &mut self,
         _compositor: &mut Compositor<Self::Context>,
-        editor: &mut Editor,
+        _editor: &mut Editor,
         _key: KeyEvent,
     ) -> HandledEvent {
         HandledEvent::Ignored
