@@ -1,19 +1,17 @@
-use core::num;
+
 use std::{
-    cmp::{max, min},
-    collections::HashMap,
+    cmp::{min},
 };
 
 use arrayvec::ArrayString;
 use noa_buffer::{
     buffer::Buffer,
-    cursor::{Cursor, Position, Range},
+    cursor::{Position, Range},
     display_width::DisplayWidth,
 };
 use noa_compositor::canvas::{Grapheme, Style};
 
 use crate::{
-    highlighting::Highlighter,
     theme::{theme_for, ThemeKey},
 };
 
@@ -254,7 +252,7 @@ impl View {
 
                 // Turn the grapheme into a string `chars`.
                 let mut chars = ArrayString::new();
-                for mut ch in grapheme_rope.chars() {
+                for ch in grapheme_rope.chars() {
                     chars.push(ch);
                 }
 
@@ -344,7 +342,7 @@ impl View {
 mod tests {
     use noa_compositor::canvas::{Color, Grapheme, Style};
     use noa_editorconfig::EditorConfig;
-    use noa_languages::definitions::PLAIN;
+    
 
     use super::*;
 
@@ -369,7 +367,7 @@ mod tests {
         Position::new(y, x)
     }
 
-    fn create_view_and_buffer(num_lines: usize) -> (View, Buffer) {
+    fn create_view_and_buffer(_num_lines: usize) -> (View, Buffer) {
         let view = View::new();
         let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(2048));
         (view, buffer)

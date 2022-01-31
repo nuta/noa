@@ -5,12 +5,12 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Result};
 use arc_swap::ArcSwap;
-use futures::{executor::block_on, stream::FuturesUnordered, StreamExt};
+use futures::{stream::FuturesUnordered, StreamExt};
 use grep::searcher::SinkError;
 use noa_buffer::{
-    cursor::{Cursor, Position, Range},
+    cursor::{Position, Range},
     display_width::DisplayWidth,
 };
 use noa_common::{
@@ -25,7 +25,7 @@ use noa_compositor::{
     Compositor,
 };
 use parking_lot::{Mutex, RwLock};
-use tokio::sync::{mpsc::UnboundedSender, Notify};
+use tokio::sync::{Notify};
 
 use crate::{
     document::DocumentId,
@@ -150,7 +150,7 @@ impl FinderView {
                 };
 
                 let mut visited_paths = Vec::new();
-                for (s, item, score) in results.query(&query) {
+                for (_s, item, score) in results.query(&query) {
                     // Ignore already opened files.
                     match item {
                         FinderItem::File(path) | FinderItem::Buffer { path, .. } => {
@@ -386,7 +386,7 @@ impl Surface for FinderView {
 }
 
 fn scan_paths(workspace_dir: PathBuf) -> FuzzySet<FinderItem> {
-    let mut paths = Mutex::new(FuzzySet::new());
+    let paths = Mutex::new(FuzzySet::new());
     use ignore::{WalkBuilder, WalkState};
     WalkBuilder::new(workspace_dir).build_parallel().run(|| {
         Box::new(|dirent| {
@@ -480,7 +480,7 @@ async fn search_globally(workspace_dir: &Path, raw_query: &str) -> Result<Vec<Fi
         }
     };
 
-    let mut items = Arc::new(RwLock::new(PrioritizedVec::new(32)));
+    let items = Arc::new(RwLock::new(PrioritizedVec::new(32)));
     WalkBuilder::new(workspace_dir).build_parallel().run(|| {
         Box::new(|dirent| {
             if let Ok(dirent) = dirent {
@@ -502,7 +502,7 @@ async fn search_globally(workspace_dir: &Path, raw_query: &str) -> Result<Vec<Fi
                     .search_slice(
                         &matcher,
                         text.as_bytes(),
-                        Utf8Sink(|lineno, range, line| {
+                        Utf8Sink(|lineno, _range, line| {
                             matcher
                                 .find_iter(line.as_bytes(), |m| {
                                     let before_text = &line[..m.start()];

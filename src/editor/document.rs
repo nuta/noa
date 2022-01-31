@@ -4,7 +4,6 @@ use std::{
     io::ErrorKind,
     num::NonZeroUsize,
     path::{Path, PathBuf},
-    ptr::NonNull,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -14,17 +13,16 @@ use std::{
 use anyhow::Result;
 
 use arc_swap::ArcSwap;
-use noa_buffer::{buffer::Buffer, cursor::Range};
+use noa_buffer::{buffer::Buffer};
 use noa_common::{dirs::backup_dir, oops::OopsExt, time_report::TimeReport};
 use noa_languages::{
     definitions::{guess_language, PLAIN},
     language::Language,
 };
-use parking_lot::RwLock;
+
 use tokio::{sync::Notify, task::JoinHandle};
 
 use crate::{
-    editor::Editor,
     flash::FlashManager,
     git::Repo,
     highlighting::Highlighter,
@@ -190,7 +188,7 @@ impl Document {
     }
 
     pub fn post_update_job(&mut self, repo: &Option<Arc<Repo>>, render_request: &Arc<Notify>) {
-        let time = TimeReport::new("post_update_jobs time");
+        let _time = TimeReport::new("post_update_jobs time");
 
         // TODO:
         let updated_lines = 0..self.buffer.num_lines();
@@ -213,7 +211,7 @@ impl Document {
         };
 
         self.post_update_job = Some(tokio::spawn(async move {
-            let time = TimeReport::new("backgroung_post_update_jobs time");
+            let _time = TimeReport::new("backgroung_post_update_jobs time");
 
             // This may take a time.
             let buffer_text = raw_buffer.text();
@@ -282,7 +280,7 @@ impl DocumentManager {
         Ok(self.documents.get_mut(&doc_id).unwrap())
     }
 
-    fn open(&mut self, mut doc: Document) {
+    fn open(&mut self, doc: Document) {
         // First run of syntax highlighting, etc.
         // FIXME:
         // doc.post_update_job(editor);

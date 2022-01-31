@@ -1,14 +1,14 @@
-use std::cmp::{max, min};
+
 
 use noa_buffer::{
     buffer::Buffer,
     cursor::{Position, Range},
 };
-use noa_compositor::canvas::Style;
+
 use noa_languages::{language::Language, tree_sitter};
 
 use crate::{
-    theme::{theme_for, Theme, ThemeKey},
+    theme::{ThemeKey},
     view::View,
 };
 

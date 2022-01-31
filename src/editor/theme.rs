@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use noa_compositor::canvas::{Color, Decoration, Style};
+use noa_compositor::canvas::{Color, Style};
 use noa_languages::language::SyntaxSpan;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;

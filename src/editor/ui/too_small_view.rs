@@ -1,7 +1,7 @@
 use noa_compositor::{
     canvas::CanvasViewMut,
     surface::{HandledEvent, Layout, RectSize, Surface},
-    terminal::{KeyEvent, KeyModifiers, MouseEvent, MouseEventKind},
+    terminal::{KeyEvent, KeyModifiers, MouseEventKind},
     Compositor,
 };
 

@@ -8,14 +8,13 @@ use noa_buffer::{
     display_width::DisplayWidth,
 };
 use noa_compositor::{
-    canvas::{CanvasViewMut, Decoration, Style},
-    surface::{HandledEvent, KeyEvent, Layout, MouseEvent, RectSize, Surface},
+    canvas::{CanvasViewMut, Decoration},
+    surface::{HandledEvent, KeyEvent, Layout, RectSize, Surface},
     terminal::{KeyCode, KeyModifiers, MouseButton, MouseEventKind},
     Compositor,
 };
 use tokio::{
     sync::{oneshot, Notify},
-    task,
 };
 
 use crate::{
@@ -112,7 +111,7 @@ impl Surface for BufferView {
 
         // Buffer contents.
         let main_cursor_pos = main_cursor.moving_position();
-        for (i_y, (row)) in doc.view().visible_rows().iter().enumerate() {
+        for (i_y, row) in doc.view().visible_rows().iter().enumerate() {
             let y = buffer_y + i_y;
 
             // Highlight the current line.
@@ -194,7 +193,7 @@ impl Surface for BufferView {
                 }
             }
 
-            if let Some((ch, x)) = row_end_marker {
+            if let Some((_ch, x)) = row_end_marker {
                 canvas.set_decoration(y, x, x + 1, Decoration::inverted());
             }
 
@@ -225,7 +224,7 @@ impl Surface for BufferView {
         const ALT: KeyModifiers = KeyModifiers::ALT;
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
-        let mut doc = editor.documents.current_mut();
+        let doc = editor.documents.current_mut();
         let prev_rope = doc.buffer().raw_buffer().rope().clone();
 
         match (key.code, key.modifiers) {
@@ -406,7 +405,7 @@ impl Surface for BufferView {
         const ALT: KeyModifiers = KeyModifiers::ALT;
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
-        let mut doc = editor.documents.current_mut();
+        let doc = editor.documents.current_mut();
 
         if kind == MouseEventKind::ScrollDown {
             doc.movement().scroll_down();

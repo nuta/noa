@@ -1,17 +1,16 @@
 use noa_buffer::display_width::DisplayWidth;
 use noa_compositor::{
-    canvas::{CanvasViewMut, Decoration, Style},
+    canvas::{CanvasViewMut, Decoration},
     line_edit::LineEdit,
-    surface::{HandledEvent, KeyEvent, Layout, MouseEvent, RectSize, Surface},
-    terminal::{KeyCode, KeyModifiers},
+    surface::{HandledEvent, KeyEvent, Layout, RectSize, Surface},
+    terminal::{KeyModifiers},
     Compositor,
 };
-use tokio::{sync::oneshot, task};
+
 
 use crate::{
-    clipboard::{ClipboardData, SystemClipboardData},
     editor::Editor,
-    notification::{notification_manager, Notification},
+    notification::{notification_manager},
     theme::{theme_for, ThemeKey},
 };
 
@@ -129,7 +128,7 @@ impl Surface for BottomLineView {
         &mut self,
         _compositor: &mut Compositor<Self::Context>,
         editor: &mut Editor,
-        key: KeyEvent,
+        _key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
         const CTRL: KeyModifiers = KeyModifiers::CONTROL;
@@ -148,8 +147,8 @@ impl Surface for BottomLineView {
     fn handle_key_batch_event(
         &mut self,
         _compositor: &mut Compositor<Editor>,
-        editor: &mut Editor,
-        s: &str,
+        _editor: &mut Editor,
+        _s: &str,
     ) -> HandledEvent {
         HandledEvent::Ignored
     }

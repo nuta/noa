@@ -1,16 +1,14 @@
 use std::{path::Path, sync::Arc};
 
-use anyhow::Result;
-use noa_compositor::terminal::Event;
-use tokio::sync::{oneshot, Notify};
+
+
+use tokio::sync::{Notify};
 
 use crate::{
     clipboard::{self, ClipboardProvider},
-    document::{Document, DocumentManager},
+    document::{DocumentManager},
     git::Repo,
-    minimap::MiniMap,
     theme::Theme,
-    ui::buffer_view::BufferView,
 };
 
 pub struct Editor {

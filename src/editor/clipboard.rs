@@ -1,7 +1,7 @@
 use std::io::prelude::*;
 use std::process::{Command, Stdio};
 
-use anyhow::{bail, Result};
+use anyhow::{Result};
 use noa_buffer::buffer::Buffer;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;

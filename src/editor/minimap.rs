@@ -1,7 +1,7 @@
-use std::{collections::HashMap, ops::Range, path::Path, sync::Arc};
+use std::{collections::HashMap, path::Path};
 
 use bitflags::bitflags;
-use noa_buffer::buffer::Buffer;
+
 
 use crate::git::{DiffType, Repo};
 

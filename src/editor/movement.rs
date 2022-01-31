@@ -72,7 +72,7 @@ impl<'a> Movement<'a> {
 
     pub fn add_cursors_up(&mut self) {
         let mut new_pos = None;
-        self.move_cursors_vertically(-1, |c, pos| match new_pos {
+        self.move_cursors_vertically(-1, |_c, pos| match new_pos {
             // TODO: Get selection
             Some(p) if pos < p => {
                 new_pos = Some(pos);
@@ -145,9 +145,9 @@ impl<'a> Movement<'a> {
     where
         F: FnMut(&mut Cursor, Position),
     {
-        let mut visual_xs = self.state.visual_xs.clone();
+        let visual_xs = self.state.visual_xs.clone();
         let mut new_visual_xs = HashMap::new();
-        self.update_cursors_with(|buffer, view, c| {
+        self.update_cursors_with(|_buffer, view, c| {
             let (i_y, i_x) = view.locate_row_by_position(c.moving_position());
             let dest_row = view.all_rows().get(if y_diff > 0 {
                 i_y.saturating_add(y_diff.abs() as usize)
