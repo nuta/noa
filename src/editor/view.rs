@@ -169,7 +169,6 @@ impl View {
 
     /// Update characters' styles in the given range.
     pub fn do_highlight(&mut self, range: Range, style: Style) {
-        trace!("highlight: range={:?}, color={:?}", range, style.fg);
         let (start_y, start_x) = self.locate_row_by_position(range.front());
         let (end_y, end_x) = self.locate_row_by_position(range.back());
         for y in start_y..=end_y {
