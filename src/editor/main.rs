@@ -1,4 +1,3 @@
-#![allow(unused)]
 #![feature(test)]
 #![feature(vec_retain_mut)]
 
