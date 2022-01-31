@@ -76,10 +76,7 @@ impl Surface for BottomLineView {
                     let pos = c.moving_position();
 
                     // Handle the case when the cursor is at EOF.
-                    let mut last_pos = view.last_visible_position();
-                    last_pos.x += 1;
-
-                    pos < view.first_visible_position() || pos > last_pos
+                    pos < view.first_visible_position() || pos > view.last_visible_position()
                 })
                 .count();
             if num_invisible_cursors > 0 {

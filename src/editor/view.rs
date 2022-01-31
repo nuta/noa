@@ -61,7 +61,6 @@ impl DisplayRow {
     pub fn end_of_row_position(&self) -> Position {
         self.positions
             .last()
-            .copied()
             .map(|pos| Position::new(pos.y, pos.x + 1))
             .unwrap_or_else(|| Position::new(self.lineno - 1, 0))
     }
@@ -119,10 +118,22 @@ impl View {
     }
 
     pub fn last_visible_position(&self) -> Position {
-        self.visible_rows()
-            .last()
-            .map(|row| row.last_position())
-            .unwrap_or_else(|| Position::new(0, 0))
+        if self.rows.is_empty() {
+            return Position::new(0, 0);
+        }
+
+        let last_visible_row_index =
+            min(self.rows.len(), self.scroll + self.height).saturating_sub(1);
+        let row = &self.rows[last_visible_row_index];
+        match self.rows.get(last_visible_row_index + 1) {
+            Some(next_row) if next_row.lineno == row.lineno => row.last_position(),
+            None | Some(_) => {
+                // If the cursor is at EOF or at the end of a line (with no
+                // following wrapped virtual lines), then the last visible should
+                // be 1 character past from the last position the row.
+                row.end_of_row_position()
+            }
+        }
     }
 
     pub fn scroll_up(&mut self) {
