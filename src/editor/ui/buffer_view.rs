@@ -7,6 +7,7 @@ use noa_buffer::{
     cursor::{Cursor, Position},
     display_width::DisplayWidth,
 };
+use noa_common::oops::OopsExt;
 use noa_compositor::{
     canvas::{CanvasViewMut, Decoration},
     surface::{HandledEvent, KeyEvent, Layout, RectSize, Surface},
