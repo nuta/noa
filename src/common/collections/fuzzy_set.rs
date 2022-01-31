@@ -58,3 +58,9 @@ impl<T: Sync> FuzzySet<T> {
         self.entries.remove(key);
     }
 }
+
+impl<T: Sync> Default for FuzzySet<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}

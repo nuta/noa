@@ -105,7 +105,7 @@ impl FinderView {
                     path: doc
                         .path()
                         .map(|p| p.to_str().unwrap())
-                        .unwrap_or(doc.name())
+                        .unwrap_or_else(|| doc.name())
                         .to_owned(),
                     id: *id,
                 },
