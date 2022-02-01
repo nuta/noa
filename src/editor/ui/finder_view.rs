@@ -322,7 +322,7 @@ impl Surface for FinderView {
                             FinderItem::SearchMatch { path, pos, .. } => {
                                 match editor.documents.open_file(Path::new(path)) {
                                     Ok(doc) => {
-                                        doc.buffer_mut().move_main_cursor_to(*pos);
+                                        doc.buffer_mut().move_main_cursor_to_pos(*pos);
                                         doc.flashes_mut().flash(Range::from_positions(*pos, *pos));
                                     }
                                     Err(err) => {

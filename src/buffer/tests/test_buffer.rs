@@ -31,7 +31,7 @@ fn deletion() {
     // a|bc
     let mut b = Buffer::new();
     b.insert("abc");
-    b.set_cursors(&[Cursor::new(0, 1)]);
+    b.set_cursors_for_test(&[Cursor::new(0, 1)]);
     b.delete();
     assert_eq!(b.text(), "ac");
     assert_eq!(b.cursors(), &[Cursor::new(0, 1),]);
@@ -40,7 +40,7 @@ fn deletion() {
     // b
     let mut b = Buffer::new();
     b.insert("a\nb");
-    b.set_cursors(&[Cursor::new(0, 1)]);
+    b.set_cursors_for_test(&[Cursor::new(0, 1)]);
     b.delete();
     assert_eq!(b.text(), "ab");
     assert_eq!(b.cursors(), &[Cursor::new(0, 1),]);
@@ -52,7 +52,7 @@ fn delete_selection() {
     // Z|cd|   =>
     let mut b = Buffer::new();
     b.insert("abXY\nZcd");
-    b.set_cursors(&[Cursor::new_selection(0, 2, 1, 1)]);
+    b.set_cursors_for_test(&[Cursor::new_selection(0, 2, 1, 1)]);
     b.delete();
     assert_eq!(b.text(), "abcd");
     assert_eq!(b.cursors(), &[Cursor::new(0, 2)]);
@@ -62,7 +62,7 @@ fn delete_selection() {
 fn multibyte_characters() {
     let mut b = Buffer::new();
     b.insert("Hello 世界!");
-    b.set_cursors(&[Cursor::new(0, 7)]);
+    b.set_cursors_for_test(&[Cursor::new(0, 7)]);
     assert_eq!(b.len_chars(), 9);
 
     // Hello 世|界! => Hello |界!
@@ -80,13 +80,13 @@ fn multibyte_characters() {
 #[test]
 fn test_insertion_at_eof() {
     let mut b = Buffer::from_text("ABC");
-    b.set_cursors(&[Cursor::new(0, 3)]);
+    b.set_cursors_for_test(&[Cursor::new(0, 3)]);
     b.insert_char('\n');
     assert_eq!(b.text(), "ABC\n");
     assert_eq!(b.cursors(), &[Cursor::new(1, 0)]);
 
     let mut b = Buffer::from_text("");
-    b.set_cursors(&[Cursor::new(0, 0)]);
+    b.set_cursors_for_test(&[Cursor::new(0, 0)]);
     b.insert_char('A');
     assert_eq!(b.text(), "A");
     assert_eq!(b.cursors(), &[Cursor::new(0, 1)]);
@@ -98,7 +98,7 @@ fn test_multiple_cursors1() {
     // おは
     // XY
     let mut b = Buffer::from_text("ABC\nおは\nXY");
-    b.set_cursors(&[Cursor::new(0, 1), Cursor::new(1, 1), Cursor::new(2, 1)]);
+    b.set_cursors_for_test(&[Cursor::new(0, 1), Cursor::new(1, 1), Cursor::new(2, 1)]);
     b.insert("!");
     assert_eq!(b.text(), "A!BC\nお!は\nX!Y");
     b.backspace();
@@ -111,7 +111,7 @@ fn test_multiple_cursors2() {
     // おは
     // XY
     let mut b = Buffer::from_text("ABC\nおは\nXY");
-    b.set_cursors(&[
+    b.set_cursors_for_test(&[
         Cursor::new_selection(0, 3, 1, 0),
         Cursor::new_selection(1, 2, 2, 0),
     ]);
@@ -124,7 +124,7 @@ fn test_multiple_cursors2() {
 fn test_multiple_cursors3() {
     // A|B| => |
     let mut b = Buffer::from_text("AB");
-    b.set_cursors(&[Cursor::new(0, 1), Cursor::new(0, 2)]);
+    b.set_cursors_for_test(&[Cursor::new(0, 1), Cursor::new(0, 2)]);
     b.backspace();
     assert_eq!(b.text(), "");
     assert_eq!(b.cursors(), &[Cursor::new(0, 0)]);
@@ -137,7 +137,7 @@ fn backspace_on_multi_cursors() {
     // xyz|      xy|
     let mut b = Buffer::new();
     b.insert("abc\ndef\nxyz");
-    b.set_cursors(&[Cursor::new(0, 3), Cursor::new(1, 3), Cursor::new(2, 3)]);
+    b.set_cursors_for_test(&[Cursor::new(0, 3), Cursor::new(1, 3), Cursor::new(2, 3)]);
     b.backspace();
     assert_eq!(b.text(), "ab\nde\nxy");
     assert_eq!(
@@ -150,7 +150,7 @@ fn backspace_on_multi_cursors() {
     // xy|z      x|z
     let mut b = Buffer::new();
     b.insert("abc\n1\nxyz");
-    b.set_cursors(&[Cursor::new(0, 3), Cursor::new(1, 1), Cursor::new(2, 2)]);
+    b.set_cursors_for_test(&[Cursor::new(0, 3), Cursor::new(1, 1), Cursor::new(2, 2)]);
     b.backspace();
     assert_eq!(b.text(), "ab\n\nxz");
     assert_eq!(
@@ -161,7 +161,7 @@ fn backspace_on_multi_cursors() {
     // 1230|a|b|c|d|e|f => 123|f
     let mut b = Buffer::new();
     b.insert("1230abcdef");
-    b.set_cursors(&[
+    b.set_cursors_for_test(&[
         Cursor::new(0, 4),
         Cursor::new(0, 5),
         Cursor::new(0, 6),
@@ -178,7 +178,7 @@ fn backspace_on_multi_cursors() {
     // wxyz|
     let mut b = Buffer::new();
     b.insert("abc\n12\nwxyz");
-    b.set_cursors(&[Cursor::new(0, 1), Cursor::new(1, 0), Cursor::new(2, 4)]);
+    b.set_cursors_for_test(&[Cursor::new(0, 1), Cursor::new(1, 0), Cursor::new(2, 4)]);
     b.backspace();
     assert_eq!(b.text(), "bc12\nwxy");
     assert_eq!(
@@ -192,7 +192,7 @@ fn backspace_on_multi_cursors() {
     // |xyz
     let mut b = Buffer::new();
     b.insert("0\nabc\n12\nxyz");
-    b.set_cursors(&[Cursor::new(1, 0), Cursor::new(2, 0), Cursor::new(3, 0)]);
+    b.set_cursors_for_test(&[Cursor::new(1, 0), Cursor::new(2, 0), Cursor::new(3, 0)]);
     b.backspace();
     assert_eq!(b.text(), "0abc12xyz");
     assert_eq!(
@@ -205,7 +205,7 @@ fn backspace_on_multi_cursors() {
     // |g
     let mut b = Buffer::new();
     b.insert("ab\ncdef\ng");
-    b.set_cursors(&[
+    b.set_cursors_for_test(&[
         Cursor::new(0, 2),
         Cursor::new(1, 0),
         Cursor::new(1, 1),
@@ -220,7 +220,7 @@ fn backspace_on_multi_cursors() {
     // |g
     let mut b = Buffer::new();
     b.insert("ab\ncdef\ng");
-    b.set_cursors(&[
+    b.set_cursors_for_test(&[
         Cursor::new(0, 2),
         Cursor::new(1, 0),
         Cursor::new(1, 1),
@@ -236,7 +236,7 @@ fn delete_on_multi_cursors() {
     // a|Xbc|Yd
     let mut b = Buffer::new();
     b.insert("aXbcYd");
-    b.set_cursors(&[Cursor::new(0, 1), Cursor::new(0, 4)]);
+    b.set_cursors_for_test(&[Cursor::new(0, 1), Cursor::new(0, 4)]);
     b.delete();
     assert_eq!(b.text(), "abcd");
     assert_eq!(b.cursors(), &[Cursor::new(0, 1), Cursor::new(0, 3)]);
@@ -244,7 +244,7 @@ fn delete_on_multi_cursors() {
     // a|b|
     let mut b = Buffer::new();
     b.insert("ab");
-    b.set_cursors(&[Cursor::new(0, 1), Cursor::new(0, 2)]);
+    b.set_cursors_for_test(&[Cursor::new(0, 1), Cursor::new(0, 2)]);
     b.delete();
     assert_eq!(b.text(), "a");
     assert_eq!(b.cursors(), &[Cursor::new(0, 1)]);
@@ -254,7 +254,7 @@ fn delete_on_multi_cursors() {
     // g|hi
     let mut b = Buffer::new();
     b.insert("abc\ndef\nghi");
-    b.set_cursors(&[Cursor::new(0, 1), Cursor::new(1, 1), Cursor::new(2, 1)]);
+    b.set_cursors_for_test(&[Cursor::new(0, 1), Cursor::new(1, 1), Cursor::new(2, 1)]);
     b.delete();
     assert_eq!(b.text(), "ac\ndf\ngi");
     assert_eq!(
@@ -268,7 +268,7 @@ fn delete_on_multi_cursors() {
     // d|
     let mut b = Buffer::new();
     b.insert("a\nbX\ncY\nd");
-    b.set_cursors(&[
+    b.set_cursors_for_test(&[
         Cursor::new(0, 1),
         Cursor::new(1, 1),
         Cursor::new(2, 1),
@@ -290,7 +290,7 @@ fn delete_on_multi_cursors() {
     // cde|
     let mut b = Buffer::new();
     b.insert("ab\ncde");
-    b.set_cursors(&[Cursor::new(0, 2), Cursor::new(1, 3)]);
+    b.set_cursors_for_test(&[Cursor::new(0, 2), Cursor::new(1, 3)]);
     b.delete();
     assert_eq!(b.text(), "abcde");
     assert_eq!(b.cursors(), &[Cursor::new(0, 2), Cursor::new(0, 5)]);
@@ -300,7 +300,7 @@ fn delete_on_multi_cursors() {
     // ghi|
     let mut b = Buffer::new();
     b.insert("abc\ndef\nghi");
-    b.set_cursors(&[
+    b.set_cursors_for_test(&[
         Cursor::new(0, 3),
         Cursor::new(1, 0),
         Cursor::new(1, 1),
@@ -314,7 +314,7 @@ fn delete_on_multi_cursors() {
     // d|Xe|Yf
     let mut b = Buffer::new();
     b.insert("abc\ndXeYf");
-    b.set_cursors(&[Cursor::new(0, 3), Cursor::new(1, 1), Cursor::new(1, 3)]);
+    b.set_cursors_for_test(&[Cursor::new(0, 3), Cursor::new(1, 1), Cursor::new(1, 3)]);
     b.delete();
     assert_eq!(b.text(), "abcdef");
     assert_eq!(
@@ -326,7 +326,7 @@ fn delete_on_multi_cursors() {
 #[test]
 fn multibyte_characters_regression1() {
     let mut b = Buffer::new();
-    b.set_cursors(&[Cursor::new(0, 0)]);
+    b.set_cursors_for_test(&[Cursor::new(0, 0)]);
     b.insert_char('a');
     b.insert_char('あ');
     b.insert_char('!');
@@ -336,7 +336,7 @@ fn multibyte_characters_regression1() {
 #[test]
 fn single_selection_including_newlines() {
     let mut b = Buffer::from_text("A\nB");
-    b.set_cursors(&[Cursor::new_selection(0, 1, 1, 0)]);
+    b.set_cursors_for_test(&[Cursor::new_selection(0, 1, 1, 0)]);
     b.backspace();
     assert_eq!(b.text(), "AB");
     assert_eq!(b.cursors(), &[Cursor::new(0, 1)]);
@@ -346,7 +346,7 @@ fn single_selection_including_newlines() {
     // E|z
     let mut b = Buffer::new();
     b.insert("xyA\nBCD\nEz");
-    b.set_cursors(&[Cursor::new_selection(0, 2, 2, 1)]);
+    b.set_cursors_for_test(&[Cursor::new_selection(0, 2, 2, 1)]);
     b.backspace();
     assert_eq!(b.text(), "xyz");
     assert_eq!(b.cursors(), &[Cursor::new(0, 2)]);
@@ -356,7 +356,7 @@ fn single_selection_including_newlines() {
     //
     let mut b = Buffer::new();
     b.insert("ab\nc");
-    b.set_cursors(&[Cursor::new_selection(0, 2, 1, 0)]);
+    b.set_cursors_for_test(&[Cursor::new_selection(0, 2, 1, 0)]);
     b.insert("X");
     assert_eq!(b.text(), "abXc");
     assert_eq!(b.cursors(), &[Cursor::new(0, 3)]);
@@ -369,7 +369,7 @@ fn multi_selections() {
     // ef|XYZ  =>  ef|
     let mut b = Buffer::new();
     b.insert("abXYZ\ncdXYZ\nefXYZ");
-    b.set_cursors(&[
+    b.set_cursors_for_test(&[
         Cursor::new_selection(0, 2, 0, 5),
         Cursor::new_selection(1, 2, 1, 5),
         Cursor::new_selection(2, 2, 2, 5),
@@ -386,7 +386,7 @@ fn multi_selections() {
     // Z|ef
     let mut b = Buffer::new();
     b.insert("abXY\nZcdXY\nZef");
-    b.set_cursors(&[
+    b.set_cursors_for_test(&[
         Cursor::new_selection(0, 2, 1, 1),
         Cursor::new_selection(1, 3, 2, 1),
     ]);
@@ -400,7 +400,7 @@ fn multi_selections() {
     // Z|g
     let mut b = Buffer::new();
     b.insert("abXY\nZcdXY\nZefXY\nZg");
-    b.set_cursors(&[
+    b.set_cursors_for_test(&[
         Cursor::new_selection(0, 2, 1, 1),
         Cursor::new_selection(1, 3, 2, 1),
         Cursor::new_selection(2, 3, 3, 1),
@@ -416,7 +416,7 @@ fn multi_selections() {
 #[test]
 fn test_insert_newline_and_indent() {
     let mut b = Buffer::from_text("");
-    b.set_cursors(&[Cursor::new(0, 0)]);
+    b.set_cursors_for_test(&[Cursor::new(0, 0)]);
     b.insert_newline_and_indent();
     assert_eq!(b.config().indent_style, IndentStyle::Space);
     assert_eq!(b.config().indent_size, 4);
@@ -424,7 +424,7 @@ fn test_insert_newline_and_indent() {
     assert_eq!(b.cursors(), &[Cursor::new(1, 0)]);
 
     let mut b = Buffer::from_text("        abXYZ");
-    b.set_cursors(&[Cursor::new(0, 10)]);
+    b.set_cursors_for_test(&[Cursor::new(0, 10)]);
     b.insert_newline_and_indent();
     assert_eq!(b.text(), "        ab\n        XYZ");
     assert_eq!(b.cursors(), &[Cursor::new(1, 8)]);
@@ -433,7 +433,7 @@ fn test_insert_newline_and_indent() {
 #[test]
 fn test_indent() {
     let mut b = Buffer::from_text("");
-    b.set_cursors(&[Cursor::new(0, 0)]);
+    b.set_cursors_for_test(&[Cursor::new(0, 0)]);
     b.indent();
     assert_eq!(b.config().indent_style, IndentStyle::Space);
     assert_eq!(b.config().indent_size, 4);
@@ -441,32 +441,32 @@ fn test_indent() {
 
     //     abc
     let mut b = Buffer::from_text("    abc\n");
-    b.set_cursors(&[Cursor::new(1, 0)]);
+    b.set_cursors_for_test(&[Cursor::new(1, 0)]);
     b.indent();
     assert_eq!(b.text(), "    abc\n    ");
 
     // __
     let mut b = Buffer::from_text("  ");
-    b.set_cursors(&[Cursor::new(0, 2)]);
+    b.set_cursors_for_test(&[Cursor::new(0, 2)]);
     b.indent();
     assert_eq!(b.text(), "    ");
 
     // a
     let mut b = Buffer::from_text("a");
-    b.set_cursors(&[Cursor::new(0, 1)]);
+    b.set_cursors_for_test(&[Cursor::new(0, 1)]);
     b.indent();
     assert_eq!(b.text(), "a   ");
 
     // _____
     let mut b = Buffer::from_text("     ");
-    b.set_cursors(&[Cursor::new(0, 5)]);
+    b.set_cursors_for_test(&[Cursor::new(0, 5)]);
     b.indent();
     assert_eq!(b.text(), "        ");
 
     // if true {
     //     while true {
     let mut b = Buffer::from_text("if true {\n    while true {\n");
-    b.set_cursors(&[Cursor::new(2, 0)]);
+    b.set_cursors_for_test(&[Cursor::new(2, 0)]);
     b.indent();
     assert_eq!(b.text(), "if true {\n    while true {\n        ");
 
@@ -474,7 +474,7 @@ fn test_indent() {
     //     while true {
     // __
     let mut b = Buffer::from_text("if true {\n    while true {\n  ");
-    b.set_cursors(&[Cursor::new(2, 2)]);
+    b.set_cursors_for_test(&[Cursor::new(2, 2)]);
     b.indent();
     assert_eq!(b.text(), "if true {\n    while true {\n        ");
 }
@@ -484,7 +484,7 @@ fn truncate() {
     // ABCD
     let mut b = Buffer::new();
     b.insert("ABCD");
-    b.set_cursors(&[Cursor::new(0, 2)]);
+    b.set_cursors_for_test(&[Cursor::new(0, 2)]);
 
     b.truncate();
     assert_eq!(b.text(), "AB");
@@ -498,7 +498,7 @@ fn truncate() {
     // XYZ
     let mut b = Buffer::new();
     b.insert("ABCD\n\nXYZ");
-    b.set_cursors(&[Cursor::new(0, 4)]);
+    b.set_cursors_for_test(&[Cursor::new(0, 4)]);
 
     b.truncate();
     assert_eq!(b.text(), "ABCD\nXYZ");

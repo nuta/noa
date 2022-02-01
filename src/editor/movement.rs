@@ -48,12 +48,12 @@ impl<'a> Movement<'a> {
 
     /// Moves the cursor to up by one display row (respecting soft wrapping).
     pub fn move_cursors_up(&mut self) {
-        self.move_cursors_vertically(-1, |c, pos| c.move_to(pos));
+        self.move_cursors_vertically(-1, |c, pos| c.move_to_pos(pos));
     }
 
     /// Moves the cursor to down by one display row (respecting soft wrapping).
     pub fn move_cursors_down(&mut self) {
-        self.move_cursors_vertically(1, |c, pos| c.move_to(pos));
+        self.move_cursors_vertically(1, |c, pos| c.move_to_pos(pos));
     }
 
     pub fn scroll_up(&mut self) {
@@ -195,7 +195,7 @@ impl<'a> Movement<'a> {
         for c in &mut new_cursors {
             f(self.buffer, self.view, c);
         }
-        self.buffer.set_cursors(&new_cursors);
+        self.buffer.update_cursors(&new_cursors);
     }
 }
 
@@ -214,7 +214,7 @@ mod tests {
         let mut movement_state = MovementState::new();
         let mut movement = movement_state.movement(&mut buffer, &mut view);
 
-        movement.buffer.set_cursors(&[Cursor::new(2, 1)]);
+        movement.buffer.set_cursors_for_test(&[Cursor::new(2, 1)]);
         movement.move_cursors_up();
         assert_eq!(movement.buffer.cursors(), &[Cursor::new(1, 1)]);
         movement.move_cursors_up();
@@ -222,7 +222,7 @@ mod tests {
         movement.move_cursors_up();
         assert_eq!(movement.buffer.cursors(), &[Cursor::new(0, 1)]);
 
-        movement.buffer.set_cursors(&[Cursor::new(0, 1)]);
+        movement.buffer.set_cursors_for_test(&[Cursor::new(0, 1)]);
         movement.move_cursors_down();
         assert_eq!(movement.buffer.cursors(), &[Cursor::new(1, 1)]);
         movement.move_cursors_down();
@@ -242,7 +242,7 @@ mod tests {
         let mut movement_state = MovementState::new();
         let mut movement = movement_state.movement(&mut buffer, &mut view);
 
-        movement.buffer.set_cursors(&[Cursor::new(2, 3)]);
+        movement.buffer.set_cursors_for_test(&[Cursor::new(2, 3)]);
         movement.move_cursors_up();
         assert_eq!(movement.buffer.cursors(), &[Cursor::new(1, 3)]);
         movement.move_cursors_up();
@@ -250,7 +250,7 @@ mod tests {
         movement.move_cursors_up();
         assert_eq!(movement.buffer.cursors(), &[Cursor::new(0, 3)]);
 
-        movement.buffer.set_cursors(&[Cursor::new(0, 3)]);
+        movement.buffer.set_cursors_for_test(&[Cursor::new(0, 3)]);
         movement.move_cursors_down();
         assert_eq!(movement.buffer.cursors(), &[Cursor::new(1, 3)]);
         movement.move_cursors_down();
@@ -267,7 +267,7 @@ mod tests {
         let mut movement_state = MovementState::new();
         let mut movement = movement_state.movement(&mut buffer, &mut view);
 
-        movement.buffer.set_cursors(&[Cursor::new(0, 0)]);
+        movement.buffer.set_cursors_for_test(&[Cursor::new(0, 0)]);
         movement.move_cursors_up();
         assert_eq!(movement.buffer.cursors(), &[Cursor::new(0, 0)]);
         movement.move_cursors_down();
@@ -285,7 +285,7 @@ mod tests {
         let mut movement_state = MovementState::new();
         let mut movement = movement_state.movement(&mut buffer, &mut view);
 
-        movement.buffer.set_cursors(&[Cursor::new(2, 0)]);
+        movement.buffer.set_cursors_for_test(&[Cursor::new(2, 0)]);
         movement.move_cursors_up();
         assert_eq!(movement.buffer.cursors(), &[Cursor::new(1, 0)]);
         movement.move_cursors_up();
@@ -293,7 +293,7 @@ mod tests {
         movement.move_cursors_up();
         assert_eq!(movement.buffer.cursors(), &[Cursor::new(0, 0)]);
 
-        movement.buffer.set_cursors(&[Cursor::new(0, 0)]);
+        movement.buffer.set_cursors_for_test(&[Cursor::new(0, 0)]);
         movement.move_cursors_down();
         assert_eq!(movement.buffer.cursors(), &[Cursor::new(1, 0)]);
         movement.move_cursors_down();
@@ -314,7 +314,7 @@ mod tests {
         let mut movement_state = MovementState::new();
         let mut movement = movement_state.movement(&mut buffer, &mut view);
 
-        movement.buffer.set_cursors(&[Cursor::new(3, 5)]);
+        movement.buffer.set_cursors_for_test(&[Cursor::new(3, 5)]);
         movement.move_cursors_up();
         assert_eq!(movement.buffer.cursors(), &[Cursor::new(2, 0)]);
         movement.move_cursors_up();
@@ -324,7 +324,7 @@ mod tests {
         movement.move_cursors_up();
         assert_eq!(movement.buffer.cursors(), &[Cursor::new(0, 5)]);
 
-        movement.buffer.set_cursors(&[Cursor::new(0, 5)]);
+        movement.buffer.set_cursors_for_test(&[Cursor::new(0, 5)]);
         movement.move_cursors_down();
         assert_eq!(movement.buffer.cursors(), &[Cursor::new(1, 3)]);
         movement.move_cursors_down();

@@ -11,9 +11,9 @@ impl Buffer {
                 text.push('\n');
             }
 
-            c.move_to_yx(s.front().y, 0);
+            c.move_to(s.front().y, 0);
             self.buf.edit_at_cursor(c, past_cursors, &text);
-            c.select(s);
+            c.select_pos(s);
         });
     }
 
@@ -28,9 +28,9 @@ impl Buffer {
                 text.push('\n');
             }
 
-            c.move_to_yx(c.front().y, 0);
+            c.move_to(c.front().y, 0);
             self.buf.edit_at_cursor(c, past_cursors, &text);
-            c.select_yx(
+            c.select(
                 s.start.y + num_lines,
                 s.start.x,
                 s.end.y + num_lines,
@@ -50,19 +50,19 @@ mod tests {
     #[test]
     fn duplicate_a_line_up() {
         let mut b = Buffer::from_text("");
-        b.set_cursors(&[Cursor::new(0, 0)]);
+        b.set_cursors_for_test(&[Cursor::new(0, 0)]);
         b.duplicate_lines_up();
         assert_eq!(b.text(), "\n");
         assert_eq!(b.cursors(), &[Cursor::new(0, 0)]);
 
         let mut b = Buffer::from_text("abcd");
-        b.set_cursors(&[Cursor::new(0, 2)]);
+        b.set_cursors_for_test(&[Cursor::new(0, 2)]);
         b.duplicate_lines_up();
         assert_eq!(b.text(), "abcd\nabcd");
         assert_eq!(b.cursors(), &[Cursor::new(0, 2)]);
 
         let mut b = Buffer::from_text("abcd\nxyz");
-        b.set_cursors(&[Cursor::new(1, 2)]);
+        b.set_cursors_for_test(&[Cursor::new(1, 2)]);
         b.duplicate_lines_up();
         assert_eq!(b.text(), "abcd\nxyz\nxyz");
         assert_eq!(b.cursors(), &[Cursor::new(1, 2)]);
@@ -74,7 +74,7 @@ mod tests {
         // EFGH
         // ----
         let mut b = Buffer::from_text("ABCD\nEFGH\n----");
-        b.set_cursors(&[Cursor::new_selection(0, 1, 1, 0)]);
+        b.set_cursors_for_test(&[Cursor::new_selection(0, 1, 1, 0)]);
         b.duplicate_lines_up();
         assert_eq!(b.text(), "ABCD\nABCD\nEFGH\n----");
         assert_eq!(b.cursors(), &[Cursor::new_selection(0, 1, 1, 0)]);
@@ -83,7 +83,7 @@ mod tests {
         // EFGH
         // ----
         let mut b = Buffer::from_text("ABCD\nEFGH\n----");
-        b.set_cursors(&[Cursor::new_selection(0, 1, 2, 4)]);
+        b.set_cursors_for_test(&[Cursor::new_selection(0, 1, 2, 4)]);
         b.duplicate_lines_up();
         assert_eq!(b.text(), "ABCD\nEFGH\n----\nABCD\nEFGH\n----");
         assert_eq!(b.cursors(), &[Cursor::new_selection(0, 1, 2, 4)]);
@@ -92,19 +92,19 @@ mod tests {
     #[test]
     fn duplicate_a_line_down() {
         let mut b = Buffer::from_text("");
-        b.set_cursors(&[Cursor::new(0, 0)]);
+        b.set_cursors_for_test(&[Cursor::new(0, 0)]);
         b.duplicate_lines_down();
         assert_eq!(b.text(), "\n");
         assert_eq!(b.cursors(), &[Cursor::new(1, 0)]);
 
         let mut b = Buffer::from_text("abcd");
-        b.set_cursors(&[Cursor::new(0, 2)]);
+        b.set_cursors_for_test(&[Cursor::new(0, 2)]);
         b.duplicate_lines_down();
         assert_eq!(b.text(), "abcd\nabcd");
         assert_eq!(b.cursors(), &[Cursor::new(1, 2)]);
 
         let mut b = Buffer::from_text("abcd\nxyz");
-        b.set_cursors(&[Cursor::new(1, 2)]);
+        b.set_cursors_for_test(&[Cursor::new(1, 2)]);
         b.duplicate_lines_down();
         assert_eq!(b.text(), "abcd\nxyz\nxyz");
         assert_eq!(b.cursors(), &[Cursor::new(2, 2)]);
@@ -116,7 +116,7 @@ mod tests {
         // EFGH
         // ----
         let mut b = Buffer::from_text("ABCD\nEFGH\n----");
-        b.set_cursors(&[Cursor::new_selection(0, 1, 1, 0)]);
+        b.set_cursors_for_test(&[Cursor::new_selection(0, 1, 1, 0)]);
         b.duplicate_lines_down();
         assert_eq!(b.text(), "ABCD\nABCD\nEFGH\n----");
         assert_eq!(b.cursors(), &[Cursor::new_selection(1, 1, 2, 0)]);
@@ -125,7 +125,7 @@ mod tests {
         // EFGH
         // ----
         let mut b = Buffer::from_text("ABCD\nEFGH\n----");
-        b.set_cursors(&[Cursor::new_selection(0, 1, 2, 4)]);
+        b.set_cursors_for_test(&[Cursor::new_selection(0, 1, 2, 4)]);
         b.duplicate_lines_down();
         assert_eq!(b.text(), "ABCD\nEFGH\n----\nABCD\nEFGH\n----");
         assert_eq!(b.cursors(), &[Cursor::new_selection(3, 1, 5, 4)]);

@@ -24,9 +24,9 @@ impl Buffer {
                 text.pop();
             }
 
-            c.select_yx(s.front().y - 1, 0, s.back().y + 1, 0);
+            c.select(s.front().y - 1, 0, s.back().y + 1, 0);
             self.buf.edit_at_cursor(c, past_cursors, &text);
-            c.select_yx(s.start.y - 1, s.start.x, s.end.y - 1, s.end.x);
+            c.select(s.start.y - 1, s.start.x, s.end.y - 1, s.end.x);
         });
     }
 
@@ -54,9 +54,9 @@ impl Buffer {
                 text.pop();
             }
 
-            c.select_yx(c.front().y, 0, c.back().y + 1, 0);
+            c.select(c.front().y, 0, c.back().y + 1, 0);
             self.buf.edit_at_cursor(c, past_cursors, &text);
-            c.select_yx(s.start.y + 1, s.start.x, s.end.y + 1, s.end.x);
+            c.select(s.start.y + 1, s.start.x, s.end.y + 1, s.end.x);
         });
     }
 }
@@ -71,14 +71,14 @@ mod tests {
     #[test]
     fn move_a_line_up() {
         let mut b = Buffer::from_text("");
-        b.set_cursors(&[Cursor::new(0, 0)]);
+        b.set_cursors_for_test(&[Cursor::new(0, 0)]);
         b.move_lines_up();
         assert_eq!(b.text(), "");
         assert_eq!(b.cursors(), &[Cursor::new(0, 0)]);
 
         // abcd
         let mut b = Buffer::from_text("abcd");
-        b.set_cursors(&[Cursor::new(0, 2)]);
+        b.set_cursors_for_test(&[Cursor::new(0, 2)]);
         b.move_lines_up();
         assert_eq!(b.text(), "abcd");
         assert_eq!(b.cursors(), &[Cursor::new(0, 2)]);
@@ -86,7 +86,7 @@ mod tests {
         //
         // abcd
         let mut b = Buffer::from_text("\nabcd");
-        b.set_cursors(&[Cursor::new(1, 2)]);
+        b.set_cursors_for_test(&[Cursor::new(1, 2)]);
         b.move_lines_up();
         assert_eq!(b.text(), "abcd\n");
         assert_eq!(b.cursors(), &[Cursor::new(0, 2)]);
@@ -94,7 +94,7 @@ mod tests {
         // abcd
         // xyz
         let mut b = Buffer::from_text("abcd\nxyz");
-        b.set_cursors(&[Cursor::new(1, 2)]);
+        b.set_cursors_for_test(&[Cursor::new(1, 2)]);
         b.move_lines_up();
         assert_eq!(b.text(), "xyz\nabcd");
         assert_eq!(b.cursors(), &[Cursor::new(0, 2)]);
@@ -103,7 +103,7 @@ mod tests {
         // xyz
         //
         let mut b = Buffer::from_text("abcd\nxyz\n");
-        b.set_cursors(&[Cursor::new(1, 2)]);
+        b.set_cursors_for_test(&[Cursor::new(1, 2)]);
         b.move_lines_up();
         assert_eq!(b.text(), "xyz\nabcd\n");
         assert_eq!(b.cursors(), &[Cursor::new(0, 2)]);
@@ -116,7 +116,7 @@ mod tests {
         // xyz
         //
         let mut b = Buffer::from_text("abcd\nefgh\nxyz\n");
-        b.set_cursors(&[Cursor::new_selection(0, 2, 2, 1)]);
+        b.set_cursors_for_test(&[Cursor::new_selection(0, 2, 2, 1)]);
         b.move_lines_up();
         assert_eq!(b.text(), "abcd\nefgh\nxyz\n");
         assert_eq!(b.cursors(), &[Cursor::new_selection(0, 2, 2, 1)]);
@@ -127,7 +127,7 @@ mod tests {
         // xyz
         //
         let mut b = Buffer::from_text("\nabcd\nefgh\nxyz\n");
-        b.set_cursors(&[Cursor::new_selection(1, 2, 3, 1)]);
+        b.set_cursors_for_test(&[Cursor::new_selection(1, 2, 3, 1)]);
         b.move_lines_up();
         assert_eq!(b.text(), "abcd\nefgh\nxyz\n\n");
         assert_eq!(b.cursors(), &[Cursor::new_selection(0, 2, 2, 1)]);
@@ -136,7 +136,7 @@ mod tests {
         // abcd
         // xyz
         let mut b = Buffer::from_text("----\nabcd\nxyz");
-        b.set_cursors(&[Cursor::new_selection(1, 2, 2, 1)]);
+        b.set_cursors_for_test(&[Cursor::new_selection(1, 2, 2, 1)]);
         b.move_lines_up();
         assert_eq!(b.text(), "abcd\nxyz\n----");
         assert_eq!(b.cursors(), &[Cursor::new_selection(0, 2, 1, 1)]);
@@ -145,14 +145,14 @@ mod tests {
     #[test]
     fn move_a_line_down() {
         let mut b = Buffer::from_text("");
-        b.set_cursors(&[Cursor::new(0, 0)]);
+        b.set_cursors_for_test(&[Cursor::new(0, 0)]);
         b.move_lines_down();
         assert_eq!(b.text(), "");
         assert_eq!(b.cursors(), &[Cursor::new(0, 0)]);
 
         // abcd
         let mut b = Buffer::from_text("abcd");
-        b.set_cursors(&[Cursor::new(0, 2)]);
+        b.set_cursors_for_test(&[Cursor::new(0, 2)]);
         b.move_lines_down();
         assert_eq!(b.text(), "abcd");
         assert_eq!(b.cursors(), &[Cursor::new(0, 2)]);
@@ -160,7 +160,7 @@ mod tests {
         // abcd
         //
         let mut b = Buffer::from_text("abcd\n");
-        b.set_cursors(&[Cursor::new(0, 2)]);
+        b.set_cursors_for_test(&[Cursor::new(0, 2)]);
         b.move_lines_down();
         assert_eq!(b.text(), "\nabcd");
         assert_eq!(b.cursors(), &[Cursor::new(1, 2)]);
@@ -168,7 +168,7 @@ mod tests {
         // abcd
         // xyz
         let mut b = Buffer::from_text("abcd\nxyz");
-        b.set_cursors(&[Cursor::new(0, 2)]);
+        b.set_cursors_for_test(&[Cursor::new(0, 2)]);
         b.move_lines_down();
         assert_eq!(b.text(), "xyz\nabcd");
         assert_eq!(b.cursors(), &[Cursor::new(1, 2)]);
@@ -177,7 +177,7 @@ mod tests {
         // xyz
         //
         let mut b = Buffer::from_text("abcd\nxyz\n");
-        b.set_cursors(&[Cursor::new(1, 2)]);
+        b.set_cursors_for_test(&[Cursor::new(1, 2)]);
         b.move_lines_up();
         assert_eq!(b.text(), "xyz\nabcd\n");
         assert_eq!(b.cursors(), &[Cursor::new(0, 2)]);
@@ -190,7 +190,7 @@ mod tests {
         // efgh
         // xyz
         let mut b = Buffer::from_text("\nabcd\nefgh\nxyz");
-        b.set_cursors(&[Cursor::new_selection(1, 2, 3, 1)]);
+        b.set_cursors_for_test(&[Cursor::new_selection(1, 2, 3, 1)]);
         b.move_lines_down();
         assert_eq!(b.text(), "\nabcd\nefgh\nxyz");
         assert_eq!(b.cursors(), &[Cursor::new_selection(1, 2, 3, 1)]);
@@ -201,7 +201,7 @@ mod tests {
         // xyz
         //
         let mut b = Buffer::from_text("\nabcd\nefgh\nxyz\n");
-        b.set_cursors(&[Cursor::new_selection(1, 2, 3, 1)]);
+        b.set_cursors_for_test(&[Cursor::new_selection(1, 2, 3, 1)]);
         b.move_lines_down();
         assert_eq!(b.text(), "\n\nabcd\nefgh\nxyz");
         assert_eq!(b.cursors(), &[Cursor::new_selection(2, 2, 3, 1)]);
@@ -210,7 +210,7 @@ mod tests {
         // xyz
         // ----
         let mut b = Buffer::from_text("abcd\nxyz\n----");
-        b.set_cursors(&[Cursor::new_selection(0, 2, 1, 1)]);
+        b.set_cursors_for_test(&[Cursor::new_selection(0, 2, 1, 1)]);
         b.move_lines_down();
         assert_eq!(b.text(), "----\nabcd\nxyz");
         assert_eq!(b.cursors(), &[Cursor::new_selection(1, 2, 2, 1)]);

@@ -299,20 +299,20 @@ impl Cursor {
         self.selection.back()
     }
 
-    pub fn move_to_yx(&mut self, y: usize, x: usize) {
-        self.move_to(Position::new(y, x));
+    pub fn move_to(&mut self, y: usize, x: usize) {
+        self.move_to_pos(Position::new(y, x));
     }
 
-    pub fn move_to(&mut self, pos: Position) {
+    pub fn move_to_pos(&mut self, pos: Position) {
         self.selection.start = pos;
         self.selection.end = pos;
     }
 
-    pub fn select_yx(&mut self, start_y: usize, start_x: usize, end_y: usize, end_x: usize) {
+    pub fn select(&mut self, start_y: usize, start_x: usize, end_y: usize, end_x: usize) {
         self.selection = Range::new(start_y, start_x, end_y, end_x);
     }
 
-    pub fn select(&mut self, selection: Range) {
+    pub fn select_pos(&mut self, selection: Range) {
         self.selection = selection;
     }
 
@@ -326,7 +326,7 @@ impl Cursor {
             self.selection.end.move_by(buf, 0, 0, 1, 0);
             assert_eq!(self.selection.start, self.selection.end);
         } else {
-            self.move_to(self.selection.front());
+            self.move_to_pos(self.selection.front());
         }
     }
 
@@ -336,7 +336,7 @@ impl Cursor {
             self.selection.end.move_by(buf, 0, 0, 0, 1);
             assert_eq!(self.selection.start, self.selection.end);
         } else {
-            self.move_to(self.selection.back());
+            self.move_to_pos(self.selection.back());
         }
     }
 
@@ -414,14 +414,26 @@ impl CursorSet {
     pub fn add_cursor(&mut self, pos: Position) {
         let mut new_cursors = self.cursors.to_vec();
         new_cursors.push(Cursor::new(pos.y, pos.x));
-        self.set_cursors(&new_cursors);
+        self.update_cursors(&new_cursors);
     }
 
     pub fn clear_multiple_cursors(&mut self) {
-        self.set_cursors(&[self.main_cursor().clone()]);
+        self.update_cursors(&[self.main_cursor().clone()]);
     }
 
-    pub fn set_cursors(&mut self, new_cursors: &[Cursor]) {
+    pub fn set_cursors_for_test(&mut self, new_cursors: &[Cursor]) {
+        debug_assert!(!new_cursors.is_empty());
+        let mut new_cursors = new_cursors.to_vec();
+        new_cursors[0].id = MAIN_CURSOR_ID;
+        self.update_cursors(&new_cursors);
+    }
+
+    pub fn update_cursors(&mut self, new_cursors: &[Cursor]) {
+        self.do_set_cursors(new_cursors);
+        debug_assert!(self.cursors.iter().any(|c| c.is_main_cursor()));
+    }
+
+    fn do_set_cursors(&mut self, new_cursors: &[Cursor]) {
         debug_assert!(!new_cursors.is_empty());
 
         // Sort and merge cursors.
@@ -472,7 +484,7 @@ impl CursorSet {
             f(&mut cursor, &mut new_cursors);
             new_cursors.push(cursor);
         }
-        self.set_cursors(&new_cursors);
+        self.update_cursors(&new_cursors);
     }
 }
 

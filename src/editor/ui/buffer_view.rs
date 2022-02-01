@@ -439,7 +439,7 @@ impl Surface for BufferView {
                     {
                         // Move cursor.
                         if matches!(self.selection_start, Some(start) if start == pos) {
-                            doc.buffer_mut().set_cursors(&[Cursor::new(pos.y, pos.x)]);
+                            doc.buffer_mut().move_main_cursor_to_pos(pos);
                         }
 
                         trace!("Single click");
@@ -472,7 +472,7 @@ impl Surface for BufferView {
                     (MouseEventKind::Drag(MouseButton::Left), NONE) => match self.selection_start {
                         Some(start) if start != pos => {
                             doc.buffer_mut()
-                                .select_main_cursor_yx(start.y, start.x, pos.y, pos.x);
+                                .select_main_cursor(start.y, start.x, pos.y, pos.x);
                         }
                         _ => {}
                     },

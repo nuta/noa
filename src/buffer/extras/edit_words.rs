@@ -14,7 +14,7 @@ impl Buffer {
             word_iter.next();
 
             if let Some(selection) = word_iter.range() {
-                c.select(*selection);
+                c.select_pos(*selection);
             }
         });
     }
@@ -54,7 +54,7 @@ impl Buffer {
             // Move to the next word.
             word_iter.next();
 
-            c.move_to(word_iter.position());
+            c.move_to_pos(word_iter.position());
         });
     }
 
@@ -67,7 +67,7 @@ impl Buffer {
             // Move to the previous word.
             word_iter.prev();
 
-            c.move_to(word_iter.position());
+            c.move_to_pos(word_iter.position());
         });
     }
 }

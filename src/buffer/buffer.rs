@@ -90,8 +90,13 @@ impl Buffer {
         self.cursors.main_cursor()
     }
 
-    pub fn set_cursors(&mut self, new_cursors: &[Cursor]) {
-        self.cursors.set_cursors(new_cursors);
+    pub fn set_cursors_for_test(&mut self, new_cursors: &[Cursor]) {
+        self.cursors.set_cursors_for_test(new_cursors);
+    }
+
+    pub fn update_cursors(&mut self, new_cursors: &[Cursor]) {
+        debug_assert!(new_cursors.iter().any(|c| c.is_main_cursor()));
+        self.cursors.update_cursors(new_cursors);
     }
 
     pub fn add_cursor(&mut self, pos: Position) {
@@ -102,22 +107,22 @@ impl Buffer {
         self.cursors.clear_multiple_cursors();
     }
 
-    pub fn move_main_cursor_to(&mut self, pos: Position) {
-        self.set_main_cursor_with(|c, _| c.move_to(pos));
+    pub fn move_main_cursor_to_pos(&mut self, pos: Position) {
+        self.set_main_cursor_with(|c, _| c.move_to_pos(pos));
     }
 
-    pub fn select_main_cursor_yx(
+    pub fn select_main_cursor(
         &mut self,
         start_y: usize,
         start_x: usize,
         end_y: usize,
         end_x: usize,
     ) {
-        self.select_main_cursor(Range::new(start_y, start_x, end_y, end_x));
+        self.select_main_cursor_range(Range::new(start_y, start_x, end_y, end_x));
     }
 
-    pub fn select_main_cursor(&mut self, selection: Range) {
-        self.set_main_cursor_with(|c, _| c.select(selection));
+    pub fn select_main_cursor_range(&mut self, selection: Range) {
+        self.set_main_cursor_with(|c, _| c.select_pos(selection));
     }
 
     pub fn set_main_cursor_with<F>(&mut self, mut f: F)
@@ -140,25 +145,37 @@ impl Buffer {
             f(c, self);
         }
 
-        self.set_cursors(&new_cursors);
+        self.cursors.update_cursors(&new_cursors);
+    }
+
+    pub fn update_cursors_with2<F>(&mut self, f: F)
+    where
+        F: Fn(&mut Cursor, &Buffer),
+    {
+        let mut new_cursors = self.cursors().to_vec();
+        for c in &mut new_cursors {
+            f(c, self);
+        }
+
+        self.cursors.update_cursors(&new_cursors);
     }
 
     pub fn move_to_end_of_line(&mut self) {
         self.cursors.foreach(|c, _past_cursors| {
             let y = c.moving_position().y;
-            c.move_to_yx(y, self.buf.line_len(y));
+            c.move_to(y, self.buf.line_len(y));
         });
     }
 
     pub fn move_to_beginning_of_line(&mut self) {
         self.cursors.foreach(|c, _past_cursors| {
-            c.move_to_yx(c.moving_position().y, 0);
+            c.move_to(c.moving_position().y, 0);
         });
     }
 
     pub fn deselect_cursors(&mut self) {
         self.cursors.foreach(|c, _past_cursors| {
-            c.move_to_yx(c.moving_position().y, c.moving_position().x);
+            c.move_to(c.moving_position().y, c.moving_position().x);
         });
     }
 
@@ -335,9 +352,9 @@ impl Buffer {
                 if pos.x == eol {
                     // The cursor is already at the end of line, remove the
                     // following newline instead.
-                    c.select_yx(pos.y, pos.x, pos.y + 1, 0);
+                    c.select(pos.y, pos.x, pos.y + 1, 0);
                 } else {
-                    c.select_yx(pos.y, pos.x, pos.y, eol);
+                    c.select(pos.y, pos.x, pos.y, eol);
                 }
             }
 
