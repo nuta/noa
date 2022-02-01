@@ -257,4 +257,13 @@ mod tests {
         buffer.edit(Range::new(0, 1, 0, 3), "");
         assert_eq!(buffer.text(), "ADEFG");
     }
+
+    #[test]
+    fn test_substr() {
+        let buffer = RawBuffer::from_text("...AB...");
+        assert_eq!(buffer.substr(Range::new(0, 3, 0, 5)), "AB");
+
+        let buffer = RawBuffer::from_text("あいうABえお");
+        assert_eq!(buffer.substr(Range::new(0, 3, 0, 5)), "AB");
+    }
 }

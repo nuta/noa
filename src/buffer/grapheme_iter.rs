@@ -240,4 +240,78 @@ mod tests {
         assert_eq!(iter.next(), Some(ArrayString::from_str("\n").unwrap()));
         assert_eq!(iter.position(), Position::new(1, 0));
     }
+
+    #[test]
+    fn test_grapheme_iter_next2() {
+        let buffer = RawBuffer::from_text("ABC");
+        let mut iter = buffer.grapheme_iter(Position::new(0, 0));
+        assert_eq!(iter.next().map(|s| s.to_string()), Some("A".to_string()));
+        assert_eq!(iter.next().map(|s| s.to_string()), Some("B".to_string()));
+        assert_eq!(iter.next().map(|s| s.to_string()), Some("C".to_string()));
+        assert_eq!(iter.next().map(|s| s.to_string()), None);
+
+        let buffer = RawBuffer::from_text("あaい");
+        let mut iter = buffer.grapheme_iter(Position::new(0, 0));
+        assert_eq!(iter.next().map(|s| s.to_string()), Some("あ".to_string()));
+        assert_eq!(iter.next().map(|s| s.to_string()), Some("a".to_string()));
+        assert_eq!(iter.next().map(|s| s.to_string()), Some("い".to_string()));
+        assert_eq!(iter.next().map(|s| s.to_string()), None);
+
+        // A grapheme ("ka" in Katakana with Dakuten), consists of U+304B U+3099.
+        let buffer = RawBuffer::from_text("\u{304b}\u{3099}");
+        let mut iter = buffer.grapheme_iter(Position::new(0, 0));
+        assert_eq!(
+            iter.next().map(|s| s.to_string()),
+            Some("\u{304b}\u{3099}".to_string())
+        );
+        assert_eq!(iter.next().map(|s| s.to_string()), None);
+
+        // A grapheme ("u" with some marks), consists of U+0075 U+0308 U+0304.
+        let buffer = RawBuffer::from_text("\u{0075}\u{0308}\u{0304}BC");
+        let mut iter = buffer.grapheme_iter(Position::new(0, 0));
+        assert_eq!(
+            iter.next().map(|s| s.to_string()),
+            Some("\u{0075}\u{0308}\u{0304}".to_string())
+        );
+        assert_eq!(iter.next().map(|s| s.to_string()), Some("B".to_string()));
+        assert_eq!(iter.next().map(|s| s.to_string()), Some("C".to_string()));
+        assert_eq!(iter.next().map(|s| s.to_string()), None);
+    }
+
+    #[test]
+    fn test_grapheme_iter_prev2() {
+        let buffer = RawBuffer::from_text("ABC");
+        let mut iter = buffer.grapheme_iter(Position::new(0, 3));
+        assert_eq!(iter.prev().map(|s| s.to_string()), Some("C".to_string()));
+        assert_eq!(iter.prev().map(|s| s.to_string()), Some("B".to_string()));
+        assert_eq!(iter.prev().map(|s| s.to_string()), Some("A".to_string()));
+        assert_eq!(iter.prev().map(|s| s.to_string()), None);
+
+        let buffer = RawBuffer::from_text("あaい");
+        let mut iter = buffer.grapheme_iter(Position::new(0, 3));
+        assert_eq!(iter.prev().map(|s| s.to_string()), Some("い".to_string()));
+        assert_eq!(iter.prev().map(|s| s.to_string()), Some("a".to_string()));
+        assert_eq!(iter.prev().map(|s| s.to_string()), Some("あ".to_string()));
+        assert_eq!(iter.prev().map(|s| s.to_string()), None);
+
+        // A grapheme ("か" with dakuten), consists of U+304B U+3099.
+        let buffer = RawBuffer::from_text("\u{304b}\u{3099}");
+        let mut iter = buffer.grapheme_iter(Position::new(0, 2));
+        assert_eq!(
+            iter.prev().map(|s| s.to_string()),
+            Some("\u{304b}\u{3099}".to_string())
+        );
+        assert_eq!(iter.prev().map(|s| s.to_string()), None);
+
+        // A grapheme ("u" with some marks), consists of U+0075 U+0308 U+0304.
+        let buffer = RawBuffer::from_text("\u{0075}\u{0308}\u{0304}BC");
+        let mut iter = buffer.grapheme_iter(Position::new(0, 5));
+        assert_eq!(iter.prev().map(|s| s.to_string()), Some("C".to_string()));
+        assert_eq!(iter.prev().map(|s| s.to_string()), Some("B".to_string()));
+        assert_eq!(
+            iter.prev().map(|s| s.to_string()),
+            Some("\u{0075}\u{0308}\u{0304}".to_string())
+        );
+        assert_eq!(iter.prev().map(|s| s.to_string()), None);
+    }
 }

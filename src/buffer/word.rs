@@ -113,3 +113,42 @@ impl<'a> Iterator for WordIter<'a> {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    #[test]
+    fn test_word() {
+        let buffer = RawBuffer::from_text("");
+        let mut iter = buffer.word_iter(Position::new(0, 0));
+        assert_eq!(iter.next().map(|w| w.range()), None);
+
+        let buffer = RawBuffer::from_text("A");
+        let mut iter = buffer.word_iter(Position::new(0, 0));
+        assert_eq!(iter.next().map(|w| w.range()), Some(Range::new(0, 0, 0, 1)));
+        assert_eq!(iter.next().map(|w| w.range()), None);
+
+        let buffer = RawBuffer::from_text("ABC DEF");
+        let mut iter = buffer.word_iter(Position::new(0, 3));
+        assert_eq!(iter.next().map(|w| w.range()), Some(Range::new(0, 0, 0, 3)));
+
+        let buffer = RawBuffer::from_text("abc WXYZ   12");
+        let mut iter = buffer.word_iter(Position::new(0, 0));
+        assert_eq!(iter.next().map(|w| w.range()), Some(Range::new(0, 0, 0, 3)));
+        assert_eq!(iter.next().map(|w| w.range()), Some(Range::new(0, 4, 0, 8)));
+        assert_eq!(
+            iter.next().map(|w| w.range()),
+            Some(Range::new(0, 11, 0, 13))
+        );
+        assert_eq!(iter.next().map(|w| w.range()), None);
+
+        let mut iter = buffer.word_iter(Position::new(0, 5));
+        assert_eq!(iter.next().map(|w| w.range()), Some(Range::new(0, 4, 0, 8)));
+
+        let mut iter = buffer.word_iter(Position::new(0, 8));
+        assert_eq!(iter.next().map(|w| w.range()), Some(Range::new(0, 4, 0, 8)));
+    }
+}

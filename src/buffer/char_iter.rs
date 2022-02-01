@@ -94,3 +94,29 @@ impl Iterator for CharIter<'_> {
         ch
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_char_iter() {
+        let buffer = RawBuffer::from_text("XY\n123");
+        let mut iter = buffer.char_iter(Position::new(1, 1));
+        assert_eq!(iter.next(), Some('2'));
+        assert_eq!(iter.prev(), Some('2'));
+        assert_eq!(iter.prev(), Some('1'));
+        assert_eq!(iter.prev(), Some('\n'));
+        assert_eq!(iter.prev(), Some('Y'));
+        assert_eq!(iter.prev(), Some('X'));
+        assert_eq!(iter.prev(), None);
+        assert_eq!(iter.next(), Some('X'));
+        assert_eq!(iter.next(), Some('Y'));
+        assert_eq!(iter.next(), Some('\n'));
+        assert_eq!(iter.next(), Some('1'));
+
+        let buffer = RawBuffer::from_text("XYZ");
+        let mut iter = buffer.char_iter(Position::new(0, 1));
+        assert_eq!(iter.prev(), Some('X'));
+    }
+}
