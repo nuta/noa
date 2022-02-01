@@ -9,24 +9,9 @@ use noa_editorconfig::{EditorConfig, IndentStyle};
 
 use crate::{
     cursor::{Cursor, CursorSet, Position, Range},
+    extras::indent::compute_desired_indent_len,
     raw_buffer::RawBuffer,
 };
-
-fn compute_desired_indent_len(buf: &RawBuffer, config: &EditorConfig, y: usize) -> usize {
-    let (prev_indent_len, char_at_cursor) = if y == 0 {
-        (0, None)
-    } else {
-        let prev_indent_len = buf.line_indent_len(y - 1);
-        let pos_at_newline = Position::new(y - 1, buf.line_len(y - 1));
-        let char_at_cursor = buf.char_iter(pos_at_newline).prev();
-        (prev_indent_len, char_at_cursor)
-    };
-
-    match char_at_cursor {
-        Some('{') => prev_indent_len + config.indent_size,
-        _ => prev_indent_len,
-    }
-}
 
 struct UndoState {
     buf: RawBuffer,
@@ -36,7 +21,7 @@ struct UndoState {
 pub struct Buffer {
     pub(crate) buf: RawBuffer,
     pub(crate) cursors: CursorSet,
-    config: EditorConfig,
+    pub(crate) config: EditorConfig,
     undo_stack: Vec<UndoState>,
     redo_stack: Vec<UndoState>,
 }
@@ -160,19 +145,6 @@ impl Buffer {
         self.cursors.update_cursors(&new_cursors);
     }
 
-    pub fn move_to_end_of_line(&mut self) {
-        self.cursors.foreach(|c, _past_cursors| {
-            let y = c.moving_position().y;
-            c.move_to(y, self.buf.line_len(y));
-        });
-    }
-
-    pub fn move_to_beginning_of_line(&mut self) {
-        self.cursors.foreach(|c, _past_cursors| {
-            c.move_to(c.moving_position().y, 0);
-        });
-    }
-
     pub fn deselect_cursors(&mut self) {
         self.cursors.foreach(|c, _past_cursors| {
             c.move_to(c.moving_position().y, c.moving_position().x);
@@ -256,56 +228,6 @@ impl Buffer {
         });
     }
 
-    pub fn indent(&mut self) {
-        // How many indentation characters should we add for each cursors?
-        let mut increase_lens = Vec::new();
-        for c in &self.cursors {
-            let pos = c.front();
-
-            let desired_len = compute_desired_indent_len(&self.buf, &self.config, pos.y);
-            let current_indent_len = self.buf.line_indent_len(pos.y);
-            let n = if pos.x < desired_len && pos.x == current_indent_len {
-                desired_len - pos.x
-            } else {
-                let mut x = pos.x + 1;
-                while x % self.config.indent_size != 0 {
-                    x += 1;
-                }
-                x - pos.x
-            };
-
-            increase_lens.push(n);
-        }
-
-        // Insert indentations.
-        let mut increase_lens_iter = increase_lens.iter();
-        self.cursors.foreach(|c, past_cursors| {
-            let indent_size = *increase_lens_iter.next().unwrap();
-            self.buf.edit_at_cursor(
-                c,
-                past_cursors,
-                &match self.config.indent_style {
-                    IndentStyle::Tab => "\t".repeat(indent_size),
-                    IndentStyle::Space => " ".repeat(indent_size),
-                },
-            );
-        });
-    }
-
-    pub fn deindent(&mut self) {
-        self.cursors.foreach(|_c, _past_cursors| {
-            // let n = min(
-            //     self.buf
-            //         .char(Position::new(y, 0))
-            //         .take_while(|c| *c == ' ' || *c == '\t')
-            //         .count(),
-            //     self.config.indent_size,
-            // );
-            // self.buf.edit_cursor(Range::new(y, 0, y, n), "")
-            todo!()
-        });
-    }
-
     pub fn insert(&mut self, s: &str) {
         self.cursors.foreach(|c, past_cursors| {
             self.buf.edit_at_cursor(c, past_cursors, s);
@@ -339,25 +261,6 @@ impl Buffer {
             if c.selection().is_empty() {
                 c.expand_right(&self.buf);
             }
-            self.buf.edit_at_cursor(c, past_cursors, "");
-        });
-    }
-
-    pub fn truncate(&mut self) {
-        self.cursors.foreach(|c, past_cursors| {
-            if c.selection().is_empty() {
-                // Select until the end of line.
-                let pos = c.moving_position();
-                let eol = self.buf.line_len(pos.y);
-                if pos.x == eol {
-                    // The cursor is already at the end of line, remove the
-                    // following newline instead.
-                    c.select(pos.y, pos.x, pos.y + 1, 0);
-                } else {
-                    c.select(pos.y, pos.x, pos.y, eol);
-                }
-            }
-
             self.buf.edit_at_cursor(c, past_cursors, "");
         });
     }

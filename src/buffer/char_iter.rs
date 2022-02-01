@@ -48,9 +48,8 @@ impl<'a> CharIter<'a> {
             Some('\r') => {
                 // Do nothing.
             }
-            Some(ch) => {
-                dbg!(ch, self.pos, self.prev_was_newline);
-                self.pos.x -= 1;
+            Some(_) => {
+                self.pos.x = self.pos.x.saturating_sub(1);
             }
             None => {
                 // Do nothing.
@@ -86,6 +85,7 @@ impl Iterator for CharIter<'_> {
                 self.prev_was_newline = false;
             }
             Some(_) => {
+                dbg!(ch.unwrap(), self.pos);
                 self.pos.x += 1;
             }
             None => {
@@ -118,13 +118,20 @@ mod tests {
     }
 
     #[test]
-    fn back_and_forth() {
-        let buffer = RawBuffer::from_text("W\nXYZ");
-        let mut iter = buffer.char_iter(Position::new(1, 3));
-        assert_eq!(iter.prev(), Some('Z'));
-        assert_eq!(iter.prev(), Some('Y'));
-        assert_eq!(iter.prev(), Some('X'));
-        assert_eq!(iter.prev(), Some('\n'));
-        assert_eq!(iter.prev(), Some('W'));
+    fn newline() {
+        // let buffer = RawBuffer::from_text("A\nB");
+        // let mut iter = buffer.char_iter(Position::new(0, 0));
+        // assert_eq!(iter.next(), Some('A'));
+        // assert_eq!(iter.position(), Position::new(0, 0));
+        // assert_eq!(iter.next(), Some('\n'));
+        // assert_eq!(iter.position(), Position::new(0, 1));
+        // assert_eq!(iter.next(), Some('B'));
+        // assert_eq!(iter.position(), Position::new(1, 0));
+        // assert_eq!(iter.prev(), Some('B'));
+        // assert_eq!(iter.position(), Position::new(1, 0));
+        // assert_eq!(iter.prev(), Some('\n'));
+        // assert_eq!(iter.position(), Position::new(0, 1));
+        // assert_eq!(iter.prev(), Some('A'));
+        // assert_eq!(iter.position(), Position::new(1, 0));
     }
 }

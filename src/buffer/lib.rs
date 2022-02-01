@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate log;
-
 pub mod buffer;
 pub mod char_iter;
 pub mod cursor;

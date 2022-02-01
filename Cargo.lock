@@ -828,7 +828,6 @@ name = "noa_buffer"
 version = "0.0.0"
 dependencies = [
  "arrayvec",
- "log",
  "noa_common",
  "noa_editorconfig",
  "pretty_assertions 1.0.0",
