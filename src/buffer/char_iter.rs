@@ -48,7 +48,8 @@ impl<'a> CharIter<'a> {
             Some('\r') => {
                 // Do nothing.
             }
-            Some(_) => {
+            Some(ch) => {
+                dbg!(ch, self.pos, self.prev_was_newline);
                 self.pos.x -= 1;
             }
             None => {
@@ -114,9 +115,16 @@ mod tests {
         assert_eq!(iter.next(), Some('Y'));
         assert_eq!(iter.next(), Some('\n'));
         assert_eq!(iter.next(), Some('1'));
+    }
 
-        let buffer = RawBuffer::from_text("XYZ");
-        let mut iter = buffer.char_iter(Position::new(0, 1));
+    #[test]
+    fn back_and_forth() {
+        let buffer = RawBuffer::from_text("W\nXYZ");
+        let mut iter = buffer.char_iter(Position::new(1, 3));
+        assert_eq!(iter.prev(), Some('Z'));
+        assert_eq!(iter.prev(), Some('Y'));
         assert_eq!(iter.prev(), Some('X'));
+        assert_eq!(iter.prev(), Some('\n'));
+        assert_eq!(iter.prev(), Some('W'));
     }
 }

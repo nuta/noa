@@ -62,41 +62,35 @@ impl<'a> Iterator for WordIter<'a> {
             }
         }
 
-        // Skip whitespaces.
-        let first_ch = loop {
+        // Skip until the start of the next word.
+        loop {
             match end.next() {
-                Some(ch) if !ch.is_ascii_whitespace() => {
-                    break ch;
+                Some(ch) if is_word_char(ch) => {
+                    break;
                 }
                 Some(_) => {
-                    // Whitespaces and tabs. Keep skipping.
                     continue;
                 }
                 None => {
                     return None;
                 }
             }
-        };
-
-        // Determine the character category.
-        let is_same_category = match first_ch {
-            ch if ch.is_ascii_alphanumeric() => |c: char| c.is_ascii_alphanumeric(),
-            ch if ch.is_ascii_punctuation() => |c: char| c.is_ascii_punctuation(),
-            _ => |c: char| !c.is_ascii_whitespace(),
-        };
+        }
 
         // Find the beginning of the word.
         let mut start = end.clone();
+        dbg!("start");
         while let Some(ch) = start.prev() {
-            if !is_same_category(ch) {
+            if !is_word_char(ch) {
                 start.next();
                 break;
             }
         }
 
         // Find the end of the word.
+        dbg!("end");
         while let Some(ch) = end.next() {
-            if !is_same_category(ch) {
+            if !is_word_char(ch) {
                 end.prev();
                 break;
             }
@@ -114,41 +108,44 @@ impl<'a> Iterator for WordIter<'a> {
     }
 }
 
+fn is_word_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c == '_'
+}
+
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
 
+    fn next_word(iter: &mut WordIter) -> Option<Range> {
+        iter.next().map(|w| w.range())
+    }
+
     #[test]
     fn test_word() {
         let buffer = RawBuffer::from_text("");
         let mut iter = buffer.word_iter(Position::new(0, 0));
-        assert_eq!(iter.next().map(|w| w.range()), None);
+        assert_eq!(next_word(&mut iter), None);
 
-        let buffer = RawBuffer::from_text("A");
+        let buffer = RawBuffer::from_text("ABC DEF XYZ");
         let mut iter = buffer.word_iter(Position::new(0, 0));
-        assert_eq!(iter.next().map(|w| w.range()), Some(Range::new(0, 0, 0, 1)));
-        assert_eq!(iter.next().map(|w| w.range()), None);
+        assert_eq!(next_word(&mut iter), Some(Range::new(0, 0, 0, 3)));
+        assert_eq!(next_word(&mut iter), Some(Range::new(0, 4, 0, 7)));
+        assert_eq!(next_word(&mut iter), Some(Range::new(0, 8, 0, 11)));
+        assert_eq!(next_word(&mut iter), None);
 
-        let buffer = RawBuffer::from_text("ABC DEF");
-        let mut iter = buffer.word_iter(Position::new(0, 3));
-        assert_eq!(iter.next().map(|w| w.range()), Some(Range::new(0, 0, 0, 3)));
-
-        let buffer = RawBuffer::from_text("abc WXYZ   12");
+        let buffer = RawBuffer::from_text("ABC\nXYZ");
         let mut iter = buffer.word_iter(Position::new(0, 0));
-        assert_eq!(iter.next().map(|w| w.range()), Some(Range::new(0, 0, 0, 3)));
-        assert_eq!(iter.next().map(|w| w.range()), Some(Range::new(0, 4, 0, 8)));
-        assert_eq!(
-            iter.next().map(|w| w.range()),
-            Some(Range::new(0, 11, 0, 13))
-        );
-        assert_eq!(iter.next().map(|w| w.range()), None);
+        assert_eq!(next_word(&mut iter), Some(Range::new(0, 0, 0, 3)));
+        assert_eq!(next_word(&mut iter), Some(Range::new(1, 0, 1, 3)));
+        assert_eq!(next_word(&mut iter), None);
+    }
 
-        let mut iter = buffer.word_iter(Position::new(0, 5));
-        assert_eq!(iter.next().map(|w| w.range()), Some(Range::new(0, 4, 0, 8)));
-
-        let mut iter = buffer.word_iter(Position::new(0, 8));
-        assert_eq!(iter.next().map(|w| w.range()), Some(Range::new(0, 4, 0, 8)));
+    #[test]
+    fn test_word_iter_around_newline() {
+        // let buffer = RawBuffer::from_text("ABC\nDEF");
+        // let mut iter = buffer.word_iter(Position::new(0, 0));
+        // assert_eq!(next_word(&mut iter), Some(Range::new(0, 0, 0, 3)));
     }
 }
