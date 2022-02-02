@@ -1,12 +1,10 @@
 use std::{path::Path, sync::Arc};
 
-
-
-use tokio::sync::{Notify};
+use tokio::sync::Notify;
 
 use crate::{
     clipboard::{self, ClipboardProvider},
-    document::{DocumentManager},
+    document::DocumentManager,
     git::Repo,
     theme::Theme,
 };
@@ -24,8 +22,7 @@ impl Editor {
         let repo = match Repo::open(workspace_dir) {
             Ok(repo) => Some(Arc::new(repo)),
             Err(err) => {
-                warn!("failed to open the git repository: {}", err);
-                notify_warn!("Not in a Git repo");
+                notify_warn!("failed to open the git repository: {}", err);
                 None
             }
         };
