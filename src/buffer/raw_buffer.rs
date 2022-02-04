@@ -128,6 +128,7 @@ impl RawBuffer {
         GraphemeIter::new(self.char_iter(pos))
     }
 
+    /// Returns the current word range.
     pub fn current_word(&self, pos: Position) -> Option<Range> {
         let mut start_iter = self.char_iter(pos);
         let mut end_iter = self.char_iter(pos);

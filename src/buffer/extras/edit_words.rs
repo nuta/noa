@@ -3,7 +3,7 @@ use crate::{buffer::Buffer, cursor::Cursor, word_iter::Word};
 impl Buffer {
     pub fn delete_current_word(&mut self) {
         self.select_current_word();
-        self.delete();
+        self.delete_if_not_empty();
     }
 
     pub fn select_current_word(&mut self) {

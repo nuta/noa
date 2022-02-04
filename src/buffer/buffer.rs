@@ -265,6 +265,14 @@ impl Buffer {
         });
     }
 
+    pub fn delete_if_not_empty(&mut self) {
+        self.cursors.foreach(|c, past_cursors| {
+            if !c.selection().is_empty() {
+                self.buf.edit_at_cursor(c, past_cursors, "");
+            }
+        });
+    }
+
     pub fn save_undo(&mut self) {
         if let Some(last_undo) = self.undo_stack.last() {
             if last_undo.buf == self.buf {
