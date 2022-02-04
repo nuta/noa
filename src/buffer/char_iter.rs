@@ -8,12 +8,7 @@ pub struct CharIter<'a> {
 }
 
 impl<'a> CharIter<'a> {
-    pub fn new(
-        iter: ropey::iter::Chars<'a>,
-        buf: &'a RawBuffer,
-        pos: Position,
-        prev_was_newline: bool,
-    ) -> CharIter<'a> {
+    pub fn new(iter: ropey::iter::Chars<'a>, buf: &'a RawBuffer, pos: Position) -> CharIter<'a> {
         CharIter {
             iter,
             buf,

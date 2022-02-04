@@ -119,12 +119,7 @@ impl RawBuffer {
     /// Returns a double-ended iterator at the given position which allows
     /// traversing characters (not graphemes) in the buffer back and forth.
     pub fn char_iter(&self, pos: Position) -> CharIter<'_> {
-        CharIter::new(
-            self.rope.chars_at(self.pos_to_rope_index(pos)),
-            self,
-            pos,
-            false,
-        )
+        CharIter::new(self.rope.chars_at(self.pos_to_rope_index(pos)), self, pos)
     }
 
     /// Returns a double-ended iterator at the given position which allows
@@ -141,8 +136,12 @@ impl RawBuffer {
         WordIter::new(self.char_iter(pos))
     }
 
-    pub fn word_iter_from_current_word(&self, pos: Position) -> WordIter<'_> {
-        WordIter::new_from_current_word(self.char_iter(pos))
+    pub fn word_iter_from_beginning_of_word(&self, pos: Position) -> WordIter<'_> {
+        WordIter::new_from_beginning_of_word(self.char_iter(pos))
+    }
+
+    pub fn word_iter_from_end_of_word(&self, pos: Position) -> WordIter<'_> {
+        WordIter::new_from_end_of_word(self.char_iter(pos))
     }
 
     /// Returns an iterator which returns occurrences of the given string.
