@@ -30,10 +30,10 @@ impl<'a> CharIter<'a> {
     }
 
     pub(crate) fn reset_internal_state(&mut self) {
-        self.iter = self
-            .buf
-            .rope()
-            .chars_at(self.buf.pos_to_rope_index(self.next_pos));
+        // self.iter = self
+        //     .buf
+        //     .rope()
+        //     .chars_at(self.buf.pos_to_rope_index(self.next_pos));
     }
 
     /// Returns the previous character.

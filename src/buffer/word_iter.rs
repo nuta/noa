@@ -220,8 +220,6 @@ mod tests {
         assert_eq!(prev_word(&mut iter), Some(Range::new(0, 0, 0, 3))); // "ABC"
         assert_eq!(prev_word(&mut iter), None);
 
-        dbg!("-----------------------");
-
         let mut iter = buffer.word_iter_from_end_of_word(Position::new(1, 0));
         assert_eq!(prev_word(&mut iter), Some(Range::new(1, 0, 1, 3)));
         assert_eq!(prev_word(&mut iter), Some(Range::new(0, 0, 0, 3)));
