@@ -41,7 +41,7 @@ impl<'a> WordIter<'a> {
     }
 
     pub fn new_from_end_of_word(mut iter: CharIter<'a>) -> WordIter<'a> {
-        while let Some(ch) = iter.next() {
+        for ch in iter.by_ref() {
             if !is_word_char(ch) {
                 break;
             }
@@ -118,7 +118,7 @@ impl<'a> Iterator for WordIter<'a> {
         let start_pos = self.iter.last_position();
 
         // Find the end of the word.
-        while let Some(ch) = self.iter.next() {
+        for ch in self.iter.by_ref() {
             if !is_word_char(ch) {
                 break;
             }
