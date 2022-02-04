@@ -6,4 +6,4 @@ pub mod extras;
 pub mod find;
 pub mod grapheme_iter;
 pub mod raw_buffer;
-pub mod word;
+pub mod word_iter;

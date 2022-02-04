@@ -68,14 +68,14 @@ impl Position {
         if right > 0 {
             let mut iter = buf.grapheme_iter(*self);
             if iter.next().is_some() {
-                *self = iter.position();
+                *self = iter.next_position();
             }
         }
 
         if left > 0 {
             let mut iter = buf.grapheme_iter(*self);
             if iter.prev().is_some() {
-                *self = iter.position();
+                *self = iter.next_position();
             }
         }
     }

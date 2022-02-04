@@ -17,7 +17,7 @@ impl<'a, 'b> Iterator for FindIter<'a, 'b> {
     fn next(&mut self) -> Option<Position> {
         let mut query_iter = self.query.chars();
         let mut buf_iter = self.chars.clone();
-        let pos = buf_iter.position();
+        let pos = buf_iter.last_position();
 
         self.chars.next();
 
@@ -45,7 +45,7 @@ impl<'a, 'b> DoubleEndedIterator for FindIter<'a, 'b> {
     fn next_back(&mut self) -> Option<Position> {
         let mut query_iter = self.query.chars();
         let mut buf_iter = self.chars.clone();
-        let pos = buf_iter.position();
+        let pos = buf_iter.last_position();
 
         self.chars.prev();
 

@@ -3,7 +3,7 @@ use crate::{
     cursor::{Cursor, Position, Range},
     find::FindIter,
     grapheme_iter::GraphemeIter,
-    word::WordIter,
+    word_iter::WordIter,
 };
 
 /// An internal buffer implementation supporting primitive operations required
@@ -138,7 +138,11 @@ impl RawBuffer {
     ///
     /// The iterator always returns the current word at the position first.
     pub fn word_iter(&self, pos: Position) -> WordIter<'_> {
-        WordIter::new(self.char_iter(pos), None)
+        WordIter::new(self.char_iter(pos))
+    }
+
+    pub fn word_iter_from_current_word(&self, pos: Position) -> WordIter<'_> {
+        WordIter::new_from_current_word(self.char_iter(pos))
     }
 
     /// Returns an iterator which returns occurrences of the given string.
@@ -206,7 +210,7 @@ impl RawBuffer {
     /// # Complexity
     ///
     /// Runs in O(log N) time, where N is the length of the rope.
-    fn pos_to_rope_index(&self, pos: Position) -> usize {
+    pub(crate) fn pos_to_rope_index(&self, pos: Position) -> usize {
         if pos.y == self.num_lines() && pos.x == 0 {
             // EOF.
             return self.rope.line_to_char(pos.y) + self.line_len(pos.y);

@@ -1,7 +1,4 @@
-
-use std::{
-    cmp::{min},
-};
+use std::cmp::min;
 
 use arrayvec::ArrayString;
 use noa_buffer::{
@@ -11,9 +8,7 @@ use noa_buffer::{
 };
 use noa_compositor::canvas::{Grapheme, Style};
 
-use crate::{
-    theme::{theme_for, ThemeKey},
-};
+use crate::theme::{theme_for, ThemeKey};
 
 #[derive(Debug, PartialEq)]
 pub struct Span {
@@ -239,7 +234,7 @@ impl View {
             loop {
                 let grapheme_rope =
                     match unprocessed_grapheme.take().or_else(|| grapheme_iter.next()) {
-                        Some(_) if grapheme_iter.position().y > y => {
+                        Some(_) if grapheme_iter.last_position().y > y => {
                             should_return = true;
                             break;
                         }
@@ -342,7 +337,6 @@ impl View {
 mod tests {
     use noa_compositor::canvas::{Color, Grapheme, Style};
     use noa_editorconfig::EditorConfig;
-    
 
     use super::*;
 

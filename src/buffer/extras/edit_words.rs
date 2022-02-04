@@ -9,12 +9,8 @@ impl Buffer {
     pub fn select_current_word(&mut self) {
         self.update_cursors_with(|c, buffer| {
             let mut word_iter = buffer.word_iter(c.moving_position());
-
-            // Move to current word.
-            word_iter.next();
-
-            if let Some(selection) = word_iter.range() {
-                c.select_pos(*selection);
+            if let Some(selection) = word_iter.next() {
+                c.select_pos(selection.range());
             }
         });
     }
@@ -24,11 +20,9 @@ impl Buffer {
             let mut word_iter = buffer.word_iter(c.moving_position());
 
             // Skip current word.
-            word_iter.next();
-            // Move to the next word.
-            word_iter.next();
-
-            c.move_moving_position_to(word_iter.position());
+            if let Some(word) = word_iter.next() {
+                c.move_moving_position_to(word.range().back());
+            }
         });
     }
 
@@ -47,14 +41,19 @@ impl Buffer {
 
     pub fn move_to_next_word(&mut self) {
         self.update_cursors_with(|c, buffer| {
-            let mut word_iter = buffer.word_iter(c.moving_position());
-
-            // Skip current word.
-            word_iter.next();
-            // Move to the next word.
-            word_iter.next();
-
-            c.move_to_pos(word_iter.position());
+            let prev_pos = c.moving_position();
+            let mut word_iter = buffer.word_iter(prev_pos);
+            if let Some(word) = word_iter.next() {
+                if prev_pos == word.range().back() {
+                    // Move to the next word.
+                    if let Some(next_word) = word_iter.next() {
+                        c.move_to_pos(next_word.range().back());
+                    }
+                } else {
+                    // The end of the current word.
+                    c.move_to_pos(word.range().back());
+                }
+            }
         });
     }
 

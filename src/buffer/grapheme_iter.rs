@@ -13,8 +13,12 @@ impl<'a> GraphemeIter<'a> {
         GraphemeIter { iter }
     }
 
-    pub fn position(&self) -> Position {
-        self.iter.position()
+    pub fn next_position(&self) -> Position {
+        self.iter.next_position()
+    }
+
+    pub fn last_position(&self) -> Position {
+        self.iter.last_position()
     }
 
     /// Returns the previous grapheme.
@@ -198,17 +202,17 @@ mod tests {
         let buffer = RawBuffer::from_text("ABC\nXY");
         let mut iter = buffer.grapheme_iter(Position::new(0, 0));
 
-        assert_eq!(iter.position(), Position::new(0, 0));
+        assert_eq!(iter.next_position(), Position::new(0, 0));
         assert_eq!(iter.next(), Some(ArrayString::from_str("A").unwrap()));
-        assert_eq!(iter.position(), Position::new(0, 1));
+        assert_eq!(iter.next_position(), Position::new(0, 1));
         assert_eq!(iter.next(), Some(ArrayString::from_str("B").unwrap()));
-        assert_eq!(iter.position(), Position::new(0, 2));
+        assert_eq!(iter.next_position(), Position::new(0, 2));
         assert_eq!(iter.next(), Some(ArrayString::from_str("C").unwrap()));
-        assert_eq!(iter.position(), Position::new(0, 3));
+        assert_eq!(iter.next_position(), Position::new(0, 3));
         assert_eq!(iter.next(), Some(ArrayString::from_str("\n").unwrap()));
-        assert_eq!(iter.position(), Position::new(1, 0));
+        assert_eq!(iter.next_position(), Position::new(1, 0));
         assert_eq!(iter.next(), Some(ArrayString::from_str("X").unwrap()));
-        assert_eq!(iter.position(), Position::new(1, 0));
+        assert_eq!(iter.next_position(), Position::new(1, 1));
     }
 
     #[test]
@@ -218,11 +222,11 @@ mod tests {
         let buffer = RawBuffer::from_text("ABC\nXY");
         let mut iter = buffer.grapheme_iter(Position::new(1, 0));
 
-        assert_eq!(iter.position(), Position::new(1, 0));
+        assert_eq!(iter.next_position(), Position::new(1, 0));
         assert_eq!(iter.prev(), Some(ArrayString::from_str("\n").unwrap()));
-        assert_eq!(iter.position(), Position::new(0, 3));
+        assert_eq!(iter.next_position(), Position::new(0, 3));
         assert_eq!(iter.prev(), Some(ArrayString::from_str("C").unwrap()));
-        assert_eq!(iter.position(), Position::new(0, 2));
+        assert_eq!(iter.next_position(), Position::new(0, 2));
     }
 
     #[test]
@@ -232,13 +236,13 @@ mod tests {
         let buffer = RawBuffer::from_text("ABC\nXY");
         let mut iter = buffer.grapheme_iter(Position::new(0, 3));
 
-        assert_eq!(iter.position(), Position::new(0, 3));
+        assert_eq!(iter.next_position(), Position::new(0, 3));
         assert_eq!(iter.next(), Some(ArrayString::from_str("\n").unwrap()));
-        assert_eq!(iter.position(), Position::new(1, 0));
+        assert_eq!(iter.next_position(), Position::new(1, 0));
         assert_eq!(iter.prev(), Some(ArrayString::from_str("\n").unwrap()));
-        assert_eq!(iter.position(), Position::new(0, 3));
+        assert_eq!(iter.next_position(), Position::new(0, 3));
         assert_eq!(iter.next(), Some(ArrayString::from_str("\n").unwrap()));
-        assert_eq!(iter.position(), Position::new(1, 0));
+        assert_eq!(iter.next_position(), Position::new(1, 0));
     }
 
     #[test]
