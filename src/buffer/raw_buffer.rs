@@ -3,7 +3,7 @@ use crate::{
     cursor::{Cursor, Position, Range},
     find::FindIter,
     grapheme_iter::GraphemeIter,
-    word_iter::WordIter,
+    word_iter::{is_word_char, WordIter},
 };
 
 /// An internal buffer implementation supporting primitive operations required
@@ -116,30 +116,53 @@ impl RawBuffer {
         self.rope.slice(start..end).to_string()
     }
 
-    /// Returns a double-ended iterator at the given position which allows
-    /// traversing characters (not graphemes) in the buffer back and forth.
+    /// Returns an iterator at the given position which allows traversing
+    /// characters (not graphemes) in the buffer back and forth.
     pub fn char_iter(&self, pos: Position) -> CharIter<'_> {
         CharIter::new(self.rope.chars_at(self.pos_to_rope_index(pos)), self, pos)
     }
 
-    /// Returns a double-ended iterator at the given position which allows
-    /// traversing graphemes in the buffer back and forth.
+    /// Returns an iterator at the given position which allows traversing
+    /// graphemes in the buffer back and forth.
     pub fn grapheme_iter(&self, pos: Position) -> GraphemeIter<'_> {
         GraphemeIter::new(self.char_iter(pos))
     }
 
-    /// Returns a double-ended iterator at the given position which allows
-    /// traversing words in the buffer back and forth.
-    ///
-    /// The iterator always returns the current word at the position first.
-    pub fn word_iter(&self, pos: Position) -> WordIter<'_> {
-        WordIter::new(self.char_iter(pos))
+    pub fn current_word(&self, pos: Position) -> Option<Range> {
+        let mut start_iter = self.char_iter(pos);
+        let mut end_iter = self.char_iter(pos);
+
+        let mut start_pos;
+        loop {
+            start_pos = start_iter.last_position();
+            match start_iter.prev() {
+                Some(ch) if !is_word_char(ch) => break,
+                Some(_) => continue,
+                None => break,
+            }
+        }
+
+        while let Some(ch) = end_iter.next() {
+            if !is_word_char(ch) {
+                break;
+            }
+        }
+
+        if start_pos == end_iter.last_position() {
+            return None;
+        }
+
+        Some(Range::from_positions(start_pos, end_iter.last_position()))
     }
 
+    /// Returns an iterator at the given position which allows traversing
+    /// words in the buffer back and forth.
     pub fn word_iter_from_beginning_of_word(&self, pos: Position) -> WordIter<'_> {
         WordIter::new_from_beginning_of_word(self.char_iter(pos))
     }
 
+    /// Returns an iterator at the given position which allows traversing
+    /// words in the buffer back and forth.
     pub fn word_iter_from_end_of_word(&self, pos: Position) -> WordIter<'_> {
         WordIter::new_from_end_of_word(self.char_iter(pos))
     }
@@ -268,5 +291,26 @@ mod tests {
 
         let buffer = RawBuffer::from_text("あいうABえお");
         assert_eq!(buffer.substr(Range::new(0, 3, 0, 5)), "AB");
+    }
+
+    #[test]
+    fn test_current_word() {
+        let buffer = RawBuffer::from_text("");
+        assert_eq!(buffer.current_word(Position::new(0, 0)), None);
+
+        let buffer = RawBuffer::from_text("ABC ");
+        assert_eq!(
+            buffer.current_word(Position::new(0, 0)),
+            Some(Range::new(0, 0, 0, 3))
+        );
+        assert_eq!(
+            buffer.current_word(Position::new(0, 1)),
+            Some(Range::new(0, 0, 0, 3))
+        );
+        assert_eq!(
+            buffer.current_word(Position::new(0, 3)),
+            Some(Range::new(0, 0, 0, 3))
+        );
+        assert_eq!(buffer.current_word(Position::new(0, 4)), None);
     }
 }

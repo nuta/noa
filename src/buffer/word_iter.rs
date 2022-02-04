@@ -4,7 +4,11 @@ use crate::{
     raw_buffer::RawBuffer,
 };
 
-#[derive(Clone, PartialEq)]
+pub fn is_word_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c == '_'
+}
+
+#[derive(PartialEq)]
 pub struct Word<'a> {
     buf: &'a RawBuffer,
     range: Range,
@@ -55,8 +59,6 @@ impl<'a> WordIter<'a> {
     }
 
     pub fn prev(&mut self) -> Option<Word<'_>> {
-        self.iter.reset_internal_state();
-
         // Skip until the end of the previous word.
         let mut end_pos;
         loop {
@@ -98,8 +100,6 @@ impl<'a> Iterator for WordIter<'a> {
     type Item = Word<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.iter.reset_internal_state();
-
         // Skip until the start of the next word.
         loop {
             match self.iter.next() {
@@ -130,10 +130,6 @@ impl<'a> Iterator for WordIter<'a> {
             range: Range::from_positions(start_pos, end_pos),
         })
     }
-}
-
-fn is_word_char(c: char) -> bool {
-    c.is_ascii_alphanumeric() || c == '_'
 }
 
 #[cfg(test)]

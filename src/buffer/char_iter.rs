@@ -1,5 +1,6 @@
 use crate::{cursor::Position, raw_buffer::RawBuffer};
 
+#[derive(Clone)]
 pub struct CharIter<'a> {
     iter: ropey::iter::Chars<'a>,
     buf: &'a RawBuffer,
@@ -27,13 +28,6 @@ impl<'a> CharIter<'a> {
 
     pub fn buffer(&self) -> &'a RawBuffer {
         self.buf
-    }
-
-    pub(crate) fn reset_internal_state(&mut self) {
-        // self.iter = self
-        //     .buf
-        //     .rope()
-        //     .chars_at(self.buf.pos_to_rope_index(self.next_pos));
     }
 
     /// Returns the previous character.
@@ -94,14 +88,6 @@ impl Iterator for CharIter<'_> {
             }
         }
         ch
-    }
-}
-
-impl Clone for CharIter<'_> {
-    fn clone(&self) -> Self {
-        // Create ropey::iter::Chars again to reset it's internal state
-        // `last_call_was_prev_impl`.
-        self.buf.char_iter(self.next_pos)
     }
 }
 
