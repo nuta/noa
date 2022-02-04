@@ -5,8 +5,6 @@ pub struct CharIter<'a> {
     buf: &'a RawBuffer,
     next_pos: Position,
     last_pos: Position,
-    // TODO: remove this field; unnecessary
-    prev_was_newline: bool,
 }
 
 impl<'a> CharIter<'a> {
@@ -21,7 +19,6 @@ impl<'a> CharIter<'a> {
             buf,
             next_pos: pos,
             last_pos: pos,
-            prev_was_newline,
         }
     }
 
@@ -90,7 +87,6 @@ impl Iterator for CharIter<'_> {
             Some('\n') => {
                 self.next_pos.y += 1;
                 self.next_pos.x = 0;
-                self.prev_was_newline = true;
             }
             Some('\r') => {
                 // Do nothing.
