@@ -142,7 +142,7 @@ impl RawBuffer {
             }
         }
 
-        while let Some(ch) = end_iter.next() {
+        for ch in end_iter.by_ref() {
             if !is_word_char(ch) {
                 break;
             }
