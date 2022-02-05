@@ -110,7 +110,6 @@ impl Buffer {
         }
 
         let mut deindented_sizes = HashMap::new();
-        dbg!(&ys);
         for range in ys {
             for y in range {
                 if deindented_sizes.contains_key(&y) {
@@ -118,7 +117,6 @@ impl Buffer {
                 }
 
                 let n = min(self.config.indent_size, self.buf.line_indent_len(y));
-                dbg!(n);
                 self.buf.edit(Range::new(y, 0, y, n), "");
                 deindented_sizes.insert(y, n);
             }
