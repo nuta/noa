@@ -1,3 +1,8 @@
+use std::{
+    cmp::min,
+    collections::{HashMap, HashSet},
+};
+
 use noa_editorconfig::{EditorConfig, IndentStyle};
 
 use crate::{
@@ -28,8 +33,6 @@ pub(crate) fn compute_desired_indent_len(
 
 impl Buffer {
     pub fn indent(&mut self) {
-        // How many indentation characters should we add for each cursors?
-        let mut increase_lens = Vec::new();
         if let Some(cursor) = self.cursors.single_selection_cursor() {
             let ys = cursor.selection().overlapped_lines();
             if !ys.is_empty() {
@@ -55,6 +58,8 @@ impl Buffer {
             }
         }
 
+        // How many indentation characters should we add for each cursors?
+        let mut increase_lens = Vec::new();
         for c in &self.cursors {
             let pos = c.front();
 
@@ -89,16 +94,40 @@ impl Buffer {
     }
 
     pub fn deindent(&mut self) {
-        self.cursors.foreach(|_c, _past_cursors| {
-            // let n = min(
-            //     self.buf
-            //         .char(Position::new(y, 0))
-            //         .take_while(|c| *c == ' ' || *c == '\t')
-            //         .count(),
-            //     self.config.indent_size,
-            // );
-            // self.buf.edit_cursor(Range::new(y, 0, y, n), "")
-            todo!()
+        let mut ys = Vec::new();
+        if let Some(cursor) = self.cursors.single_selection_cursor() {
+            let range = cursor.selection().overlapped_lines();
+            if !range.is_empty() {
+                ys.push(range);
+            }
+        }
+
+        if ys.is_empty() {
+            for c in &self.cursors {
+                let y = c.front().y;
+                ys.push(y..(y + 1));
+            }
+        }
+
+        let mut deindented_sizes = HashMap::new();
+        dbg!(&ys);
+        for range in ys {
+            for y in range {
+                if deindented_sizes.contains_key(&y) {
+                    continue;
+                }
+
+                let n = min(self.config.indent_size, self.buf.line_indent_len(y));
+                dbg!(n);
+                self.buf.edit(Range::new(y, 0, y, n), "");
+                deindented_sizes.insert(y, n);
+            }
+        }
+
+        self.cursors.foreach(|c, _| {
+            let range = c.selection_mut();
+            range.start.x = min(range.start.x, self.buf.line_len(range.start.y));
+            range.end.x = min(range.end.x, self.buf.line_len(range.end.y));
         });
     }
 }
@@ -137,5 +166,36 @@ mod tests {
         buffer.set_cursors_for_test(&[Cursor::new_selection(0, 0, 2, 0)]);
         buffer.indent();
         assert_eq!(buffer.text(), "    A\n    B\nC\n");
+    }
+
+    #[test]
+    fn test_deindent() {
+        let mut buffer = Buffer::from_text("");
+        buffer.set_cursors_for_test(&[Cursor::new(0, 0)]);
+        buffer.deindent();
+        assert_eq!(buffer.text(), "");
+
+        let mut buffer = Buffer::from_text("    ");
+        buffer.set_cursors_for_test(&[Cursor::new(0, 0)]);
+        buffer.deindent();
+        assert_eq!(buffer.text(), "");
+
+        let mut buffer = Buffer::from_text("        abc");
+        buffer.set_cursors_for_test(&[Cursor::new(0, 0)]);
+        buffer.deindent();
+        assert_eq!(buffer.text(), "    abc");
+    }
+
+    #[test]
+    fn test_deindent_selection() {
+        let mut buffer = Buffer::from_text("    abc");
+        buffer.set_cursors_for_test(&[Cursor::new_selection(0, 5, 0, 6)]);
+        buffer.deindent();
+        assert_eq!(buffer.text(), "abc");
+
+        let mut buffer = Buffer::from_text("    A\n        B\n    C\n");
+        buffer.set_cursors_for_test(&[Cursor::new_selection(0, 0, 2, 0)]);
+        buffer.deindent();
+        assert_eq!(buffer.text(), "A\n    B\n    C\n");
     }
 }
