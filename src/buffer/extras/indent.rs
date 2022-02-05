@@ -1,7 +1,4 @@
-use std::{
-    cmp::min,
-    collections::{HashMap, HashSet},
-};
+use std::{cmp::min, collections::HashMap};
 
 use noa_editorconfig::{EditorConfig, IndentStyle};
 
@@ -40,7 +37,7 @@ impl Buffer {
                     let desired_len = compute_desired_indent_len(&self.buf, &self.config, y);
                     let current_indent_len = self.buf.line_indent_len(y);
 
-                    let indent_size = if desired_len - current_indent_len == 0 {
+                    let indent_size = if desired_len <= current_indent_len {
                         self.config.indent_size
                     } else {
                         desired_len - current_indent_len
@@ -124,8 +121,20 @@ impl Buffer {
 
         self.cursors.foreach(|c, _| {
             let range = c.selection_mut();
-            range.start.x = min(range.start.x, self.buf.line_len(range.start.y));
-            range.end.x = min(range.end.x, self.buf.line_len(range.end.y));
+            range.start.x = min(
+                range
+                    .start
+                    .x
+                    .saturating_sub(deindented_sizes.get(&range.start.y).copied().unwrap_or(0)),
+                self.buf.line_len(range.start.y),
+            );
+            range.end.x = min(
+                range
+                    .end
+                    .x
+                    .saturating_sub(deindented_sizes.get(&range.end.y).copied().unwrap_or(0)),
+                self.buf.line_len(range.end.y),
+            );
         });
     }
 }
@@ -164,6 +173,8 @@ mod tests {
         buffer.set_cursors_for_test(&[Cursor::new_selection(0, 0, 2, 0)]);
         buffer.indent();
         assert_eq!(buffer.text(), "    A\n    B\nC\n");
+        buffer.indent();
+        assert_eq!(buffer.text(), "        A\n        B\nC\n");
     }
 
     #[test]
@@ -195,5 +206,7 @@ mod tests {
         buffer.set_cursors_for_test(&[Cursor::new_selection(0, 0, 2, 0)]);
         buffer.deindent();
         assert_eq!(buffer.text(), "A\n    B\n    C\n");
+        buffer.deindent();
+        assert_eq!(buffer.text(), "A\nB\n    C\n");
     }
 }

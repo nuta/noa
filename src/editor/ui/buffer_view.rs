@@ -364,7 +364,7 @@ impl Surface for BufferView {
             (KeyCode::Tab, NONE) => {
                 doc.buffer_mut().indent();
             }
-            (KeyCode::BackTab, NONE) => {
+            (KeyCode::BackTab, _) => {
                 doc.buffer_mut().deindent();
             }
             (KeyCode::Char(ch), NONE) => {
