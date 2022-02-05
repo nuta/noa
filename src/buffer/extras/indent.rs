@@ -1,6 +1,10 @@
 use noa_editorconfig::{EditorConfig, IndentStyle};
 
-use crate::{buffer::Buffer, cursor::Position, raw_buffer::RawBuffer};
+use crate::{
+    buffer::Buffer,
+    cursor::{Position, Range},
+    raw_buffer::RawBuffer,
+};
 
 pub(crate) fn compute_desired_indent_len(
     buf: &RawBuffer,
@@ -26,6 +30,31 @@ impl Buffer {
     pub fn indent(&mut self) {
         // How many indentation characters should we add for each cursors?
         let mut increase_lens = Vec::new();
+        if let Some(cursor) = self.cursors.single_selection_cursor() {
+            let ys = cursor.selection().overlapped_lines();
+            if !ys.is_empty() {
+                for y in ys {
+                    let desired_len = compute_desired_indent_len(&self.buf, &self.config, y);
+                    let current_indent_len = self.buf.line_indent_len(y);
+
+                    let indent_size = if desired_len - current_indent_len == 0 {
+                        self.config.indent_size
+                    } else {
+                        desired_len - current_indent_len
+                    };
+
+                    let indent_str = match self.config.indent_style {
+                        IndentStyle::Tab => "\t".repeat(indent_size),
+                        IndentStyle::Space => " ".repeat(indent_size),
+                    };
+
+                    self.buf.edit(Range::new(y, 0, y, 0), &indent_str);
+                }
+
+                return;
+            }
+        }
+
         for c in &self.cursors {
             let pos = c.front();
 
@@ -71,5 +100,42 @@ impl Buffer {
             // self.buf.edit_cursor(Range::new(y, 0, y, n), "")
             todo!()
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::cursor::Cursor;
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    #[test]
+    fn test_indent() {
+        let mut buffer = Buffer::from_text("");
+        buffer.set_cursors_for_test(&[Cursor::new(0, 0)]);
+        buffer.indent();
+        assert_eq!(buffer.text(), "    ");
+
+        let mut buffer = Buffer::from_text("abc");
+        buffer.set_cursors_for_test(&[Cursor::new(0, 0)]);
+        buffer.indent();
+        assert_eq!(buffer.text(), "    abc");
+    }
+
+    #[test]
+    fn test_indent_selection() {
+        let mut buffer = Buffer::from_text("abc");
+        buffer.set_cursors_for_test(&[Cursor::new_selection(0, 1, 0, 2)]);
+        buffer.indent();
+        assert_eq!(buffer.text(), "a   c");
+
+        // A
+        // B
+        // C
+        let mut buffer = Buffer::from_text("A\nB\nC\n");
+        buffer.set_cursors_for_test(&[Cursor::new_selection(0, 0, 2, 0)]);
+        buffer.indent();
+        assert_eq!(buffer.text(), "    A\n    B\nC\n");
     }
 }

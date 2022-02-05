@@ -362,10 +362,10 @@ impl Surface for BufferView {
                 doc.buffer_mut().insert_newline_and_indent();
             }
             (KeyCode::Tab, NONE) => {
-                doc.buffer_mut().deindent();
+                doc.buffer_mut().indent();
             }
             (KeyCode::BackTab, NONE) => {
-                doc.buffer_mut().indent();
+                doc.buffer_mut().deindent();
             }
             (KeyCode::Char(ch), NONE) => {
                 doc.buffer_mut().insert_char(ch);

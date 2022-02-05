@@ -171,6 +171,19 @@ impl Range {
         self.overlaps_with(Range::from_positions(pos, pos))
     }
 
+    pub fn overlapped_lines(&mut self) -> std::ops::Range<usize> {
+        let front = self.front();
+        let back = self.back();
+
+        let end_y = match (front.y == back.y, back.x == 0) {
+            (true, _) => front.y,
+            (false, true) => back.y,
+            (false, false) => back.y + 1,
+        };
+
+        front.y..end_y
+    }
+
     pub fn overlaps_with(&self, other: Range) -> bool {
         self == &other
             || !(self.back().y < other.front().y
@@ -400,6 +413,15 @@ impl CursorSet {
     pub fn new() -> CursorSet {
         CursorSet {
             cursors: vec![Cursor::new_main_cursor(0, 0)],
+        }
+    }
+
+    /// Returns the cursor if there is only one cursor and it's a selection.
+    pub fn single_selection_cursor(&self) -> Option<&Cursor> {
+        if self.cursors.len() == 1 && self.cursors[0].is_selection() {
+            Some(&self.cursors[0])
+        } else {
+            None
         }
     }
 

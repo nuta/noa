@@ -183,7 +183,7 @@ impl RawBuffer {
     //
     /// Runs in O(M + log N) time, where N is the length of the Rope and M
     /// is the length of the range being removed/inserted.
-    fn edit(&mut self, range: Range, new_text: &str) {
+    pub fn edit(&mut self, range: Range, new_text: &str) {
         let start = self.pos_to_rope_index(range.front());
         let end = self.pos_to_rope_index(range.back());
 
