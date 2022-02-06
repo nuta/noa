@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs::{create_dir_all, OpenOptions},
     io::ErrorKind,
     num::NonZeroUsize,
@@ -67,34 +67,27 @@ impl Document {
         }
     }
 
-    pub fn open_file(id: DocumentId, path: &Path) -> Result<Document> {
-        let mut buffer = match OpenOptions::new().read(true).open(path) {
+    pub fn open_file(id: DocumentId, path: PathBuf, name: String) -> Result<Document> {
+        debug_assert!(path.is_absolute());
+
+        let mut buffer = match OpenOptions::new().read(true).open(&path) {
             Ok(file) => Buffer::from_reader(file)?,
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => Buffer::new(),
             Err(err) => return Err(err.into()),
         };
 
-        // TODO: Create parent directories.
-        let abs_path = path.canonicalize()?;
-        let backup_path = backup_dir().join(abs_path.strip_prefix("/")?);
+        let backup_path = backup_dir().join(path.strip_prefix("/")?);
         if backup_path.exists() {
             notify_warn!("A backup file exists in {}", backup_dir().display());
         }
 
-        // TODO:
-        let name = path
-            .file_name()
-            .unwrap_or(path.as_os_str())
-            .to_str()
-            .unwrap();
-
-        let lang = guess_language(&abs_path);
+        let lang = guess_language(&path);
         buffer.set_language(lang);
 
         let words = Words::new_with_buffer(&buffer);
         Ok(Document {
             id,
-            path: Some(abs_path),
+            path: Some(path.to_owned()),
             backup_path: Some(backup_path),
             name: name.to_string(),
             buffer,
@@ -132,6 +125,10 @@ impl Document {
 
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    pub fn set_name<T: Into<String>>(&mut self, new_name: T) {
+        self.name = new_name.into();
     }
 
     pub fn path(&self) -> Option<&Path> {
@@ -262,6 +259,7 @@ impl DocumentManager {
 
     pub fn open_file(&mut self, path: &Path) -> Result<&mut Document> {
         let doc_id = if let Some(doc) = self.get_document_by_path(path) {
+            // Already opened. Just switch to it.
             let doc_id = doc.id;
             self.switch_current(doc_id);
             doc_id
@@ -271,7 +269,22 @@ impl DocumentManager {
                 NonZeroUsize::new(self.next_document_id.fetch_add(1, Ordering::SeqCst)).unwrap(),
             );
 
-            let doc = Document::open_file(doc_id, path)?;
+            let path = path.canonicalize()?;
+            let mut name = String::new();
+            for comp in path
+                .components()
+                .rev()
+                .take(2)
+                .map(|c| c.as_os_str().to_str().unwrap())
+            {
+                if !name.is_empty() {
+                    name.insert(0, '/');
+                }
+
+                name.insert_str(0, comp);
+            }
+
+            let doc = Document::open_file(doc_id, path, name)?;
             self.open(doc);
             doc_id
         };
