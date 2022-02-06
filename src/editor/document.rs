@@ -47,6 +47,7 @@ pub struct Document {
     words: Words,
     flashes: FlashManager,
     minimap: Arc<ArcSwap<MiniMap>>,
+    find_query: String,
     post_update_job: Option<JoinHandle<()>>,
 }
 
@@ -63,6 +64,7 @@ impl Document {
             words: Words::new(),
             flashes: FlashManager::new(),
             minimap: Arc::new(ArcSwap::from_pointee(MiniMap::new())),
+            find_query: String::new(),
             post_update_job: None,
         }
     }
@@ -96,6 +98,7 @@ impl Document {
             words,
             flashes: FlashManager::new(),
             minimap: Arc::new(ArcSwap::from_pointee(MiniMap::new())),
+            find_query: String::new(),
             post_update_job: None,
         })
     }
@@ -178,6 +181,18 @@ impl Document {
 
         for (range, span) in highlights {
             self.view.highlight(range, ThemeKey::SyntaxSpan(span));
+        }
+
+        // Highlight find matches in visible rows.
+        for range in self
+            .buffer
+            .find_iter(&self.find_query, self.view.first_visible_position())
+        {
+            if range.front() > self.view.last_visible_position() {
+                break;
+            }
+
+            self.view.highlight(range, ThemeKey::FindMatch);
         }
 
         self.flashes.highlight(&mut self.view);

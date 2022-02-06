@@ -1,4 +1,4 @@
-use crate::{char_iter::CharIter, cursor::Position};
+use crate::{char_iter::CharIter, cursor::Range};
 
 pub struct FindIter<'a, 'b> {
     chars: CharIter<'a>,
@@ -10,7 +10,7 @@ impl<'a, 'b> FindIter<'a, 'b> {
         FindIter { chars, query }
     }
 
-    pub fn prev(&mut self) -> Option<Position> {
+    pub fn prev(&mut self) -> Option<Range> {
         if self.query.is_empty() {
             return None;
         }
@@ -19,11 +19,12 @@ impl<'a, 'b> FindIter<'a, 'b> {
             let mut query_iter = self.query.chars().rev();
             let mut buf_iter = self.chars.clone();
 
+            let first_pos = self.chars.last_position();
             self.chars.prev();
 
             let mut n = 0;
             loop {
-                let pos = buf_iter.last_position();
+                let last_pos = buf_iter.next_position();
                 match (buf_iter.prev(), query_iter.next()) {
                     (Some(a), Some(b)) if a != b => {
                         break;
@@ -37,7 +38,7 @@ impl<'a, 'b> FindIter<'a, 'b> {
                             self.chars.prev();
                         }
 
-                        return Some(pos);
+                        return Some(Range::from_positions(last_pos, first_pos));
                     }
                     (Some(_), Some(_)) => {
                         // Continue comparing the next characters...
@@ -50,9 +51,9 @@ impl<'a, 'b> FindIter<'a, 'b> {
 }
 
 impl<'a, 'b> Iterator for FindIter<'a, 'b> {
-    type Item = Position;
+    type Item = Range;
 
-    fn next(&mut self) -> Option<Position> {
+    fn next(&mut self) -> Option<Range> {
         if self.query.is_empty() {
             return None;
         }
@@ -60,7 +61,7 @@ impl<'a, 'b> Iterator for FindIter<'a, 'b> {
         loop {
             let mut query_iter = self.query.chars();
             let mut buf_iter = self.chars.clone();
-            let pos = buf_iter.next_position();
+            let first_pos = buf_iter.next_position();
 
             self.chars.next();
 
@@ -79,7 +80,8 @@ impl<'a, 'b> Iterator for FindIter<'a, 'b> {
                             self.chars.next();
                         }
 
-                        return Some(pos);
+                        let last_pos = buf_iter.last_position();
+                        return Some(Range::from_positions(first_pos, last_pos));
                     }
                     (Some(_), Some(_)) => {
                         // Continue comparing the next characters...
@@ -93,7 +95,7 @@ impl<'a, 'b> Iterator for FindIter<'a, 'b> {
 
 #[cfg(test)]
 mod tests {
-    use crate::buffer::Buffer;
+    use crate::{buffer::Buffer, cursor::Position};
 
     use super::*;
     use pretty_assertions::assert_eq;
@@ -110,25 +112,25 @@ mod tests {
         let mut iter = b.find_iter("B", Position::new(0, 0));
         assert_eq!(iter.next(), None);
         let mut iter = b.find_iter("A", Position::new(0, 0));
-        assert_eq!(iter.next(), Some(Position::new(0, 0)));
-        assert_eq!(iter.next(), Some(Position::new(0, 1)));
-        assert_eq!(iter.next(), Some(Position::new(0, 2)));
-        assert_eq!(iter.next(), Some(Position::new(0, 3)));
+        assert_eq!(iter.next(), Some(Range::new(0, 0, 0, 1)));
+        assert_eq!(iter.next(), Some(Range::new(0, 1, 0, 2)));
+        assert_eq!(iter.next(), Some(Range::new(0, 2, 0, 3)));
+        assert_eq!(iter.next(), Some(Range::new(0, 3, 0, 4)));
         assert_eq!(iter.next(), None);
         let mut iter = b.find_iter("A", Position::new(0, 2));
-        assert_eq!(iter.next(), Some(Position::new(0, 2)));
-        assert_eq!(iter.next(), Some(Position::new(0, 3)));
+        assert_eq!(iter.next(), Some(Range::new(0, 2, 0, 3)));
+        assert_eq!(iter.next(), Some(Range::new(0, 3, 0, 4)));
         assert_eq!(iter.next(), None);
         let mut iter = b.find_iter("AA", Position::new(0, 0));
-        assert_eq!(iter.next(), Some(Position::new(0, 0)));
-        assert_eq!(iter.next(), Some(Position::new(0, 2)));
+        assert_eq!(iter.next(), Some(Range::new(0, 0, 0, 2)));
+        assert_eq!(iter.next(), Some(Range::new(0, 2, 0, 4)));
         assert_eq!(iter.next(), None);
 
         let b = Buffer::from_text("AxAxA");
         let mut iter = b.find_iter("A", Position::new(0, 0));
-        assert_eq!(iter.next(), Some(Position::new(0, 0)));
-        assert_eq!(iter.next(), Some(Position::new(0, 2)));
-        assert_eq!(iter.next(), Some(Position::new(0, 4)));
+        assert_eq!(iter.next(), Some(Range::new(0, 0, 0, 1)));
+        assert_eq!(iter.next(), Some(Range::new(0, 2, 0, 3)));
+        assert_eq!(iter.next(), Some(Range::new(0, 4, 0, 5)));
         assert_eq!(iter.next(), None);
     }
 
@@ -144,25 +146,25 @@ mod tests {
         let mut iter = b.find_iter("B", Position::new(0, 4));
         assert_eq!(iter.prev(), None);
         let mut iter = b.find_iter("A", Position::new(0, 4));
-        assert_eq!(iter.prev(), Some(Position::new(0, 3)));
-        assert_eq!(iter.prev(), Some(Position::new(0, 2)));
-        assert_eq!(iter.prev(), Some(Position::new(0, 1)));
-        assert_eq!(iter.prev(), Some(Position::new(0, 0)));
+        assert_eq!(iter.prev(), Some(Range::new(0, 3, 0, 4)));
+        assert_eq!(iter.prev(), Some(Range::new(0, 2, 0, 3)));
+        assert_eq!(iter.prev(), Some(Range::new(0, 1, 0, 2)));
+        assert_eq!(iter.prev(), Some(Range::new(0, 0, 0, 1)));
         assert_eq!(iter.prev(), None);
         let mut iter = b.find_iter("A", Position::new(0, 2));
-        assert_eq!(iter.prev(), Some(Position::new(0, 1)));
-        assert_eq!(iter.prev(), Some(Position::new(0, 0)));
+        assert_eq!(iter.prev(), Some(Range::new(0, 1, 0, 2)));
+        assert_eq!(iter.prev(), Some(Range::new(0, 0, 0, 1)));
         assert_eq!(iter.prev(), None);
         let mut iter = b.find_iter("AA", Position::new(0, 4));
-        assert_eq!(iter.prev(), Some(Position::new(0, 2)));
-        assert_eq!(iter.prev(), Some(Position::new(0, 0)));
+        assert_eq!(iter.prev(), Some(Range::new(0, 2, 0, 4)));
+        assert_eq!(iter.prev(), Some(Range::new(0, 0, 0, 2)));
         assert_eq!(iter.prev(), None);
 
         let b = Buffer::from_text("AxAxA");
         let mut iter = b.find_iter("A", Position::new(0, 5));
-        assert_eq!(iter.prev(), Some(Position::new(0, 4)));
-        assert_eq!(iter.prev(), Some(Position::new(0, 2)));
-        assert_eq!(iter.prev(), Some(Position::new(0, 0)));
+        assert_eq!(iter.prev(), Some(Range::new(0, 4, 0, 5)));
+        assert_eq!(iter.prev(), Some(Range::new(0, 2, 0, 3)));
+        assert_eq!(iter.prev(), Some(Range::new(0, 0, 0, 1)));
         assert_eq!(iter.prev(), None);
     }
 }

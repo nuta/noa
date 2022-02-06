@@ -18,6 +18,7 @@ pub enum ThemeKey {
     LineStatus(LineStatus),
     FinderInput,
     FinderSelectedItem,
+    FindMatch,
 }
 
 pub struct Theme {
@@ -27,6 +28,14 @@ pub struct Theme {
 impl Theme {
     pub fn default() -> Theme {
         let mut mapping = HashMap::new();
+
+        mapping.insert(
+            ThemeKey::FindMatch,
+            Style {
+                bg: Color::Green,
+                ..Default::default()
+            },
+        );
 
         mapping.insert(
             ThemeKey::FinderInput,
