@@ -10,7 +10,7 @@ impl<'a, 'b> FindIter<'a, 'b> {
         FindIter { chars, query }
     }
 
-    fn prev(&mut self) -> Option<Position> {
+    pub fn prev(&mut self) -> Option<Position> {
         let mut query_iter = self.query.chars();
         let mut buf_iter = self.chars.clone();
         let pos = buf_iter.last_position();

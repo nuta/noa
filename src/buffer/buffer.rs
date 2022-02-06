@@ -8,7 +8,7 @@ use std::{
 use noa_editorconfig::{EditorConfig, IndentStyle};
 
 use crate::{
-    cursor::{Cursor, CursorSet, Position, Range, CursorId},
+    cursor::{Cursor, CursorId, CursorSet, Position, Range},
     extras::indent::compute_desired_indent_len,
     raw_buffer::RawBuffer,
 };
@@ -128,18 +128,6 @@ impl Buffer {
     pub fn update_cursors_with<F>(&mut self, mut f: F)
     where
         F: FnMut(&mut Cursor, &Buffer),
-    {
-        let mut new_cursors = self.cursors().to_vec();
-        for c in &mut new_cursors {
-            f(c, self);
-        }
-
-        self.cursors.update_cursors(&new_cursors);
-    }
-
-    pub fn update_cursors_with2<F>(&mut self, f: F)
-    where
-        F: Fn(&mut Cursor, &Buffer),
     {
         let mut new_cursors = self.cursors().to_vec();
         for c in &mut new_cursors {
