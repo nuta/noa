@@ -108,7 +108,7 @@ impl Buffer {
         assert_eq!(
             selection,
             self.clamp_range(selection),
-            "BUG: tried to add a cursors with a out-of-buffer range",
+            "tried to add a cursors with a out-of-buffer range",
         );
 
         self.cursors.add_cursor(selection)

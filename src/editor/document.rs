@@ -280,10 +280,6 @@ impl DocumentManager {
     }
 
     fn open(&mut self, doc: Document) {
-        // First run of syntax highlighting, etc.
-        // FIXME:
-        // doc.post_update_job(editor);
-
         let doc_id = doc.id;
         debug_assert!(!self.documents.contains_key(&doc_id));
         self.documents.insert(doc_id, doc);
