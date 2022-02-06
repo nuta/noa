@@ -292,6 +292,36 @@ impl Surface for BufferView {
             (KeyCode::Char('b'), ALT) => {
                 doc.buffer_mut().move_to_prev_word();
             }
+            (KeyCode::F(1), NONE) => {
+                let buffer = doc.buffer_mut();
+                buffer.clear_secondary_cursors();
+                let c = buffer.main_cursor();
+                if let Some(text) = buffer
+                    .current_word(c.moving_position())
+                    .map(|range| buffer.substr(range))
+                {
+                    doc.set_find_query(text);
+                }
+            }
+            (KeyCode::F(2), NONE) => {
+                let buffer = doc.buffer_mut();
+                buffer.clear_secondary_cursors();
+                let c = buffer.main_cursor();
+                let word_range = if c.is_selection() {
+                    Some(c.selection())
+                } else {
+                    buffer.current_word(c.moving_position())
+                };
+
+                if let Some(word_range) = word_range {
+                    let text = buffer.substr(word_range);
+                    let selections: Vec<Range> =
+                        buffer.find_iter(&text, Position::new(0, 0)).collect();
+                    for selection in selections {
+                        buffer.add_cursor(selection);
+                    }
+                }
+            }
             (KeyCode::Up, ALT) => {
                 doc.buffer_mut().move_lines_up();
             }
