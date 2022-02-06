@@ -8,7 +8,7 @@ use std::{
 use noa_editorconfig::{EditorConfig, IndentStyle};
 
 use crate::{
-    cursor::{Cursor, CursorSet, Position, Range},
+    cursor::{Cursor, CursorSet, Position, Range, CursorId},
     extras::indent::compute_desired_indent_len,
     raw_buffer::RawBuffer,
 };
@@ -84,8 +84,12 @@ impl Buffer {
         self.cursors.update_cursors(new_cursors);
     }
 
-    pub fn add_cursor(&mut self, pos: Position) {
-        self.cursors.add_cursor(pos);
+    pub fn get_cursor_by_id(&mut self, id: CursorId) -> Option<&Cursor> {
+        self.cursors.get_cursor_by_id(id)
+    }
+
+    pub fn add_cursor(&mut self, selection: Range) -> CursorId {
+        self.cursors.add_cursor(selection)
     }
 
     pub fn clear_multiple_cursors(&mut self) {

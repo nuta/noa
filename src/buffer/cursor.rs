@@ -205,10 +205,13 @@ impl Display for Range {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct CursorId(usize);
+
 /// A text cursor.
 #[derive(Clone)]
 pub struct Cursor {
-    id: usize,
+    id: CursorId,
     /// The range selected by the cursor. If the cursor is not a selection,
     /// the range is empty.
     selection: Range,
@@ -232,7 +235,7 @@ impl Debug for Cursor {
     }
 }
 
-const MAIN_CURSOR_ID: usize = 0;
+const MAIN_CURSOR_ID: CursorId = CursorId(0);
 static NEXT_CURSOR_ID: AtomicUsize = AtomicUsize::new(1);
 
 impl Cursor {
@@ -245,30 +248,34 @@ impl Cursor {
 
     pub fn new(y: usize, x: usize) -> Cursor {
         Cursor {
-            id: NEXT_CURSOR_ID.fetch_add(1, atomic::Ordering::SeqCst),
+            id: CursorId(NEXT_CURSOR_ID.fetch_add(1, atomic::Ordering::SeqCst)),
             selection: Range::new(y, x, y, x),
         }
     }
 
     pub fn new_selection(start_y: usize, start_x: usize, end_y: usize, end_x: usize) -> Cursor {
         Cursor {
-            id: NEXT_CURSOR_ID.fetch_add(1, atomic::Ordering::SeqCst),
+            id: CursorId(NEXT_CURSOR_ID.fetch_add(1, atomic::Ordering::SeqCst)),
             selection: Range::new(start_y, start_x, end_y, end_x),
         }
     }
 
     pub fn from_position(pos: Position) -> Cursor {
         Cursor {
-            id: NEXT_CURSOR_ID.fetch_add(1, atomic::Ordering::SeqCst),
+            id: CursorId(NEXT_CURSOR_ID.fetch_add(1, atomic::Ordering::SeqCst)),
             selection: Range::from_positions(pos, pos),
         }
     }
 
     pub fn from_range(selection: Range) -> Cursor {
         Cursor {
-            id: NEXT_CURSOR_ID.fetch_add(1, atomic::Ordering::SeqCst),
+            id: CursorId(NEXT_CURSOR_ID.fetch_add(1, atomic::Ordering::SeqCst)),
             selection,
         }
+    }
+
+    pub fn id(&self) -> CursorId {
+        self.id
     }
 
     pub fn is_main_cursor(&self) -> bool {
@@ -429,14 +436,26 @@ impl CursorSet {
         self.cursors.iter().find(|c| c.is_main_cursor()).unwrap()
     }
 
+    pub fn get_cursor_by_id(&self, id: CursorId) -> Option<&Cursor> {
+        self.cursors.iter().find(|c| c.id == id)
+    }
+
     pub fn as_slice(&self) -> &[Cursor] {
         &self.cursors
     }
 
-    pub fn add_cursor(&mut self, pos: Position) {
+    pub fn add_cursor(&mut self, selection: Range) -> CursorId {
         let mut new_cursors = self.cursors.to_vec();
-        new_cursors.push(Cursor::new(pos.y, pos.x));
+        let cursor = Cursor::new_selection(
+            selection.start.y,
+            selection.start.x,
+            selection.end.y,
+            selection.end.x,
+        );
+        let id = cursor.id;
+        new_cursors.push(cursor);
         self.update_cursors(&new_cursors);
+        id
     }
 
     pub fn clear_multiple_cursors(&mut self) {

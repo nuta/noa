@@ -1,14 +1,17 @@
-use std::{cmp::max, collections::HashMap};
+use std::{
+    cmp::{max, min},
+    collections::HashMap,
+};
 
 use noa_buffer::{
     buffer::Buffer,
-    cursor::{Cursor, Position},
+    cursor::{Cursor, CursorId, Position, Range},
 };
 
 use crate::view::View;
 
 pub struct MovementState {
-    visual_xs: HashMap<Cursor, usize>,
+    visual_xs: HashMap<CursorId, usize>,
 }
 
 impl MovementState {
@@ -36,24 +39,24 @@ pub struct Movement<'a> {
 impl<'a> Movement<'a> {
     /// Moves the cursor to left by one grapheme.
     pub fn move_cursors_left(&mut self) {
-        self.update_cursors_with(|buffer, _, c| c.move_left(buffer));
+        self.update_cursors_with(|buffer, _, _, c| c.move_left(buffer));
         self.state.visual_xs.clear();
     }
 
     /// Moves the cursor to right by one grapheme.
     pub fn move_cursors_right(&mut self) {
-        self.update_cursors_with(|buffer, _, c| c.move_right(buffer));
+        self.update_cursors_with(|buffer, _, _, c| c.move_right(buffer));
         self.state.visual_xs.clear();
     }
 
     /// Moves the cursor to up by one display row (respecting soft wrapping).
     pub fn move_cursors_up(&mut self) {
-        self.move_cursors_vertically(-1, |c, pos| c.move_to_pos(pos));
+        self.move_cursors_vertically(-1, |c, pos, _| c.move_to_pos(pos));
     }
 
     /// Moves the cursor to down by one display row (respecting soft wrapping).
     pub fn move_cursors_down(&mut self) {
-        self.move_cursors_vertically(1, |c, pos| c.move_to_pos(pos));
+        self.move_cursors_vertically(1, |c, pos, _| c.move_to_pos(pos));
     }
 
     pub fn scroll_up(&mut self) {
@@ -71,35 +74,43 @@ impl<'a> Movement<'a> {
     }
 
     pub fn add_cursors_up(&mut self) {
-        let mut new_pos = None;
-        self.move_cursors_vertically(-1, |_c, pos| match new_pos {
-            // TODO: Get selection
-            Some(p) if pos < p => {
-                new_pos = Some(pos);
-            }
-            Some(_) => {}
-            None => {
-                new_pos = Some(pos);
-            }
-        });
-
-        if let Some(new_pos) = new_pos {
-            trace!("new cursor: {:?}", new_pos);
-            self.buffer.add_cursor(new_pos);
-        }
+        self.add_cursors_vertically(-1);
     }
 
     pub fn add_cursors_down(&mut self) {
-        todo!()
+        self.add_cursors_vertically(1);
+    }
+
+    pub fn add_cursors_vertically(&mut self, y_diff: isize) {
+        let mut new_selections = Vec::new();
+        self.move_cursors_vertically(y_diff, |c, pos, new_visual_x| {
+            let s = c.selection();
+            let n = if s.front().y == s.back().y {
+                s.back().x - s.front().x
+            } else {
+                0
+            };
+
+            let range = Range::new(pos.y, pos.x, pos.y, pos.x + n);
+            new_selections.push((range, new_visual_x));
+        });
+
+        for (mut selection, visual_x) in new_selections {
+            selection.end.x = min(selection.end.x, self.buffer.line_len(selection.end.y));
+
+            // Note: the newly added cursor could be deleted due to overlapping.
+            let new_cursor_id = self.buffer.add_cursor(selection);
+            self.state.visual_xs.insert(new_cursor_id, visual_x);
+        }
     }
 
     pub fn select_up(&mut self) {
-        self.move_cursors_vertically(-1, |c, pos| {
+        self.move_cursors_vertically(-1, |c, pos, _| {
             c.move_moving_position_to(pos);
         });
     }
     pub fn select_down(&mut self) {
-        self.move_cursors_vertically(1, |c, pos| {
+        self.move_cursors_vertically(1, |c, pos, _| {
             c.move_moving_position_to(pos);
         });
     }
@@ -117,7 +128,7 @@ impl<'a> Movement<'a> {
     pub fn select_until_beginning_of_line(&mut self) {
         self.buffer.deselect_cursors();
 
-        self.update_cursors_with(|buffer, _, c| {
+        self.update_cursors_with(|buffer, _, _, c| {
             let pos = c.moving_position();
             let left = pos.x;
 
@@ -130,7 +141,7 @@ impl<'a> Movement<'a> {
     pub fn select_until_end_of_line(&mut self) {
         self.buffer.deselect_cursors();
 
-        self.update_cursors_with(|buffer, _, c| {
+        self.update_cursors_with(|buffer, _, _, c| {
             let pos = c.moving_position();
             let right = buffer.line_len(pos.y) - pos.x;
 
@@ -142,11 +153,11 @@ impl<'a> Movement<'a> {
 
     fn move_cursors_vertically<F>(&mut self, y_diff: isize, mut f: F)
     where
-        F: FnMut(&mut Cursor, Position),
+        F: FnMut(&mut Cursor, Position, usize),
     {
         let visual_xs = self.state.visual_xs.clone();
         let mut new_visual_xs = HashMap::new();
-        self.update_cursors_with(|_buffer, view, c| {
+        self.update_cursors_with(|_buffer, view, state, c| {
             let (i_y, i_x) = view.locate_row_by_position(c.moving_position());
             let dest_row = view.all_rows().get(if y_diff > 0 {
                 i_y.saturating_add(y_diff.abs() as usize)
@@ -155,14 +166,15 @@ impl<'a> Movement<'a> {
             });
 
             if let Some(dest_row) = dest_row {
-                let visual_x = visual_xs.get(c).copied();
+                let visual_x = visual_xs.get(&c.id()).copied();
+                let new_visual_x = visual_x.unwrap_or(i_x);
                 let new_pos = dest_row
                     .positions
-                    .get(max(i_x, visual_x.unwrap_or(i_x)))
+                    .get(max(i_x, new_visual_x))
                     .copied()
                     .unwrap_or_else(|| dest_row.end_of_row_position());
-                f(c, new_pos);
-                new_visual_xs.insert(c.clone(), visual_x.unwrap_or(i_x));
+                f(c, new_pos, new_visual_x);
+                new_visual_xs.insert(c.id(), new_visual_x);
             }
         });
         self.state.visual_xs = new_visual_xs;
@@ -178,7 +190,7 @@ impl<'a> Movement<'a> {
             (x_diff as usize, 0)
         };
 
-        self.update_cursors_with(|buffer, _, c| {
+        self.update_cursors_with(|buffer, _, _, c| {
             let mut new_pos = c.moving_position();
             new_pos.move_by(buffer, 0, 0, left, right);
             f(c, new_pos);
@@ -189,11 +201,11 @@ impl<'a> Movement<'a> {
     //       using &mut self.view in its closure.
     fn update_cursors_with<F>(&mut self, mut f: F)
     where
-        F: FnMut(&Buffer, &View, &mut Cursor),
+        F: FnMut(&Buffer, &View, &MovementState, &mut Cursor),
     {
         let mut new_cursors = self.buffer.cursors().to_vec();
         for c in &mut new_cursors {
-            f(self.buffer, self.view, c);
+            f(self.buffer, self.view, self.state, c);
         }
         self.buffer.update_cursors(&new_cursors);
     }
@@ -201,6 +213,8 @@ impl<'a> Movement<'a> {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use super::*;
 
     #[test]
@@ -333,5 +347,141 @@ mod tests {
         assert_eq!(movement.buffer.cursors(), &[Cursor::new(3, 5)]);
         movement.move_cursors_down();
         assert_eq!(movement.buffer.cursors(), &[Cursor::new(3, 5)]);
+    }
+
+    #[test]
+    fn add_cursors_up() {
+        // ""
+        let mut buffer = Buffer::from_text("");
+        let mut view = View::new();
+        view.layout(&buffer, 25, 80);
+        let mut movement_state = MovementState::new();
+        let mut movement = movement_state.movement(&mut buffer, &mut view);
+
+        movement.buffer.set_cursors_for_test(&[Cursor::new(0, 0)]);
+        movement.add_cursors_up();
+        assert_eq!(movement.buffer.cursors(), &[Cursor::new(0, 0),]);
+
+        // xxxxx
+        // xxx
+        // xxxxx
+        let mut buffer = Buffer::from_text("xxxxxx\nxxx\nxxxxx");
+        let mut view = View::new();
+        view.layout(&buffer, 25, 80);
+        let mut movement_state = MovementState::new();
+        let mut movement = movement_state.movement(&mut buffer, &mut view);
+
+        movement
+            .buffer
+            .set_cursors_for_test(&[Cursor::new_selection(2, 0, 2, 2)]);
+        movement.add_cursors_up();
+        assert_eq!(
+            movement.buffer.cursors(),
+            &[
+                Cursor::new_selection(1, 0, 1, 2),
+                Cursor::new_selection(2, 0, 2, 2)
+            ]
+        );
+        movement.add_cursors_up();
+        assert_eq!(
+            movement.buffer.cursors(),
+            &[
+                Cursor::new_selection(0, 0, 0, 2),
+                Cursor::new_selection(1, 0, 1, 2),
+                Cursor::new_selection(2, 0, 2, 2)
+            ]
+        );
+    }
+
+    #[test]
+    fn add_cursors_up_preserving_visual_x() {
+        // xxxxx
+        // xxx
+        // xxxxx
+        let mut buffer = Buffer::from_text("xxxxxx\nxxx\nxxxxx");
+        let mut view = View::new();
+        view.layout(&buffer, 25, 80);
+        let mut movement_state = MovementState::new();
+        let mut movement = movement_state.movement(&mut buffer, &mut view);
+
+        movement.buffer.set_cursors_for_test(&[Cursor::new(2, 4)]);
+        movement.add_cursors_up();
+        assert_eq!(
+            movement.buffer.cursors(),
+            &[Cursor::new(1, 3), Cursor::new(2, 4)]
+        );
+        movement.add_cursors_up();
+        assert_eq!(
+            movement.buffer.cursors(),
+            &[Cursor::new(0, 4), Cursor::new(1, 3), Cursor::new(2, 4)]
+        );
+    }
+
+    #[test]
+    fn add_cursors_down() {
+        // ""
+        let mut buffer = Buffer::from_text("");
+        let mut view = View::new();
+        view.layout(&buffer, 25, 80);
+        let mut movement_state = MovementState::new();
+        let mut movement = movement_state.movement(&mut buffer, &mut view);
+
+        movement.buffer.set_cursors_for_test(&[Cursor::new(0, 0)]);
+        movement.add_cursors_down();
+        assert_eq!(movement.buffer.cursors(), &[Cursor::new(0, 0),]);
+
+        // xxxxx
+        // xxx
+        // xxxxx
+        let mut buffer = Buffer::from_text("xxxxxx\nxxx\nxxxxx");
+        let mut view = View::new();
+        view.layout(&buffer, 25, 80);
+        let mut movement_state = MovementState::new();
+        let mut movement = movement_state.movement(&mut buffer, &mut view);
+
+        movement
+            .buffer
+            .set_cursors_for_test(&[Cursor::new_selection(0, 0, 0, 2)]);
+        movement.add_cursors_down();
+        assert_eq!(
+            movement.buffer.cursors(),
+            &[
+                Cursor::new_selection(0, 0, 0, 2),
+                Cursor::new_selection(1, 0, 1, 2),
+            ]
+        );
+        movement.add_cursors_down();
+        assert_eq!(
+            movement.buffer.cursors(),
+            &[
+                Cursor::new_selection(0, 0, 0, 2),
+                Cursor::new_selection(1, 0, 1, 2),
+                Cursor::new_selection(2, 0, 2, 2)
+            ]
+        );
+    }
+
+    #[test]
+    fn add_cursors_down_preserving_visual_x() {
+        // xxxxx
+        // xxx
+        // xxxxx
+        let mut buffer = Buffer::from_text("xxxxxx\nxxx\nxxxxx");
+        let mut view = View::new();
+        view.layout(&buffer, 25, 80);
+        let mut movement_state = MovementState::new();
+        let mut movement = movement_state.movement(&mut buffer, &mut view);
+
+        movement.buffer.set_cursors_for_test(&[Cursor::new(0, 4)]);
+        movement.add_cursors_down();
+        assert_eq!(
+            movement.buffer.cursors(),
+            &[Cursor::new(0, 4), Cursor::new(1, 3)]
+        );
+        movement.add_cursors_down();
+        assert_eq!(
+            movement.buffer.cursors(),
+            &[Cursor::new(0, 4), Cursor::new(1, 3), Cursor::new(2, 4)]
+        );
     }
 }
