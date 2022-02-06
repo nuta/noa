@@ -5,7 +5,7 @@ use phf::phf_map;
 
 use crate::language::{Language, SyntaxSpan};
 use crate::lsp::Lsp;
-use crate::tree_sitter::tree_sitter_c;
+use crate::tree_sitter::*;
 
 pub const LANGUAGES: &[Language] = &[PLAIN, C];
 
@@ -50,5 +50,17 @@ pub const C: Language = Language {
         "preproc_include" => SyntaxSpan::CMacro,
         "#include" => SyntaxSpan::CMacro,
         "system_lib_string" => SyntaxSpan::CIncludeArg,
+    },
+};
+
+pub const RUST: Language = Language {
+    id: "rust",
+    filenames: &[],
+    extensions: &["rs"],
+    formatter: None,
+    lsp: None,
+    tree_sitter_language: Some(|| unsafe { tree_sitter_rust() }),
+    tree_sitter_mapping: phf_map! {
+        "comment" => SyntaxSpan::Comment,
     },
 };

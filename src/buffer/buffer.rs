@@ -77,6 +77,10 @@ impl Buffer {
         &self.highlighter
     }
 
+    pub fn update_highlight(&mut self) {
+        self.highlighter.update(&self.buf);
+    }
+
     pub fn set_language(&mut self, lang: &'static Language) {
         self.lang = lang;
         self.highlighter = Highlighter::new(lang);

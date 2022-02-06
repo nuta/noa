@@ -173,6 +173,10 @@ impl Range {
         self.front() <= pos && pos < self.back()
     }
 
+    pub fn contains_range(&self, range: Range) -> bool {
+        self.front() <= range.front() && range.back() <= self.back()
+    }
+
     pub fn overlaps(&self, pos: Position) -> bool {
         // FIXME: Merge contains
         self.overlaps_with(Range::from_positions(pos, pos))
@@ -337,6 +341,10 @@ impl Cursor {
 
     pub fn select(&mut self, start_y: usize, start_x: usize, end_y: usize, end_x: usize) {
         self.selection = Range::new(start_y, start_x, end_y, end_x);
+    }
+
+    pub fn select_range(&mut self, selection: Range) {
+        self.selection = selection;
     }
 
     pub fn select_pos(&mut self, selection: Range) {

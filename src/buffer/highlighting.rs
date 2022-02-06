@@ -1,6 +1,6 @@
 use crate::{
-    buffer::Buffer,
     cursor::{Position, Range},
+    raw_buffer::RawBuffer,
 };
 
 use noa_languages::{
@@ -31,8 +31,12 @@ impl Highlighter {
         }
     }
 
-    pub fn update(&mut self, buffer: &Buffer) {
-        let rope = buffer.raw_buffer().rope();
+    pub fn tree(&self) -> Option<&tree_sitter::Tree> {
+        self.tree.as_ref()
+    }
+
+    pub fn update(&mut self, buffer: &RawBuffer) {
+        let rope = buffer.rope();
         if let Some(parser) = self.parser.as_mut() {
             self.tree = parser.parse_with(
                 &mut |i, _| {
@@ -59,11 +63,7 @@ impl Highlighter {
         F: FnMut(Range, SyntaxSpan),
     {
         for node in parent.children(cursor) {
-            let node_start = node.start_position();
-            let node_end = node.end_position();
-            let start_pos = Position::new(node_start.row, node_start.column);
-            let end_pos = Position::new(node_end.row, node_end.column);
-            let range = Range::from_positions(start_pos, end_pos);
+            let range = node.buffer_range();
 
             if let Some(span) = self.lang.tree_sitter_mapping.get(node.kind()).copied() {
                 callback(range, span);
@@ -84,5 +84,19 @@ impl Highlighter {
             let root = tree.root_node();
             self.walk_ts_node(root, &mut root.walk(), &mut callback);
         }
+    }
+}
+
+pub trait TsNodeExt {
+    fn buffer_range(&self) -> Range;
+}
+
+impl<'tree> TsNodeExt for tree_sitter::Node<'tree> {
+    fn buffer_range(&self) -> Range {
+        let node_start = self.start_position();
+        let node_end = self.end_position();
+        let start_pos = Position::new(node_start.row, node_start.column);
+        let end_pos = Position::new(node_end.row, node_end.column);
+        Range::from_positions(start_pos, end_pos)
     }
 }

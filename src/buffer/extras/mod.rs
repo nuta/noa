@@ -1,5 +1,6 @@
 pub mod duplicate_lines;
 pub mod edit_words;
+pub mod expand_selections;
 pub mod indent;
 pub mod matching_brackets;
 pub mod move_lines;
