@@ -64,7 +64,7 @@ impl Surface for BottomLineView {
         let doc = editor.documents.current();
         let view = doc.view();
         let buffer = doc.buffer();
-        let cursor_pos = buffer.main_cursor().selection().start;
+        let cursor_pos = buffer.main_cursor().moving_position();
         let cursor_pos_str = if buffer.cursors().len() > 1 {
             let num_invisible_cursors = buffer
                 .cursors()

@@ -122,9 +122,9 @@ impl PartialOrd for Position {
 #[derive(Clone, Copy, PartialEq, Hash)]
 pub struct Range {
     /// The start position.
-    pub start: Position,
+    pub(crate) start: Position,
     /// The end position. Exclusive.
-    pub end: Position,
+    pub(crate) end: Position,
 }
 
 impl Range {
@@ -552,7 +552,6 @@ impl CursorSet {
         for mut cursor in self.cursors.drain(..).rev() {
             // Remove duplicated cursors.
             new_cursors.retain(|c: &Cursor| !c.selection().overlaps_with(cursor.selection()));
-
             f(&mut cursor, &mut new_cursors);
             new_cursors.push(cursor);
         }

@@ -1,4 +1,5 @@
 use std::{
+    cmp::min,
     fs::OpenOptions,
     ops::Deref,
     path::Path,
@@ -104,7 +105,22 @@ impl Buffer {
     }
 
     pub fn add_cursor(&mut self, selection: Range) -> CursorId {
+        assert_eq!(
+            selection,
+            self.clamp_range(selection),
+            "BUG: tried to add a cursors with a out-of-buffer range",
+        );
+
         self.cursors.add_cursor(selection)
+    }
+
+    fn clamp_range(&self, range: Range) -> Range {
+        let mut r = range;
+        r.start.y = min(r.start.y, self.num_lines().saturating_sub(1));
+        r.end.y = min(r.start.y, self.num_lines().saturating_sub(1));
+        r.start.x = min(r.start.x, self.line_len(r.start.y));
+        r.end.x = min(r.end.x, self.line_len(r.end.y));
+        r
     }
 
     pub fn clear_secondary_cursors(&mut self) {
