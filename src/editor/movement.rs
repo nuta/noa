@@ -183,9 +183,9 @@ impl<'a> Movement<'a> {
         F: Fn(&mut Cursor, Position),
     {
         let (left, right) = if x_diff > 0 {
-            (0, x_diff as usize)
+            (0, x_diff.abs() as usize)
         } else {
-            (x_diff as usize, 0)
+            (x_diff.abs() as usize, 0)
         };
 
         self.update_cursors_with(|buffer, _, _, c| {
@@ -345,6 +345,25 @@ mod tests {
         assert_eq!(movement.buffer.cursors(), &[Cursor::new(3, 5)]);
         movement.move_cursors_down();
         assert_eq!(movement.buffer.cursors(), &[Cursor::new(3, 5)]);
+    }
+
+    #[test]
+    fn select_horizontally() {
+        let mut buffer = Buffer::from_text("ABC");
+        let mut view = View::new();
+        view.layout(&buffer, 16, 10);
+        let mut movement_state = MovementState::new();
+        let mut movement = movement_state.movement(&mut buffer, &mut view);
+
+        movement.buffer.set_cursors_for_test(&[Cursor::new(0, 0)]);
+        movement.select_left();
+        assert_eq!(movement.buffer.cursors(), &[Cursor::new(0, 0)]);
+        movement.buffer.set_cursors_for_test(&[Cursor::new(0, 1)]);
+        movement.select_left();
+        assert_eq!(
+            movement.buffer.cursors(),
+            &[Cursor::new_selection(0, 1, 0, 0)]
+        );
     }
 
     #[test]
