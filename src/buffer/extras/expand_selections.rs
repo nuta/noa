@@ -14,9 +14,9 @@ impl Buffer {
     }
 }
 
-fn walk_ts_node<'a, 'b, 'tree>(
+fn walk_ts_node<'tree>(
     parent: tree_sitter::Node<'tree>,
-    cursor: &'b mut tree_sitter::TreeCursor<'tree>,
+    cursor: &mut tree_sitter::TreeCursor<'tree>,
     selection: Range,
 ) -> Range {
     dbg!(parent.kind());

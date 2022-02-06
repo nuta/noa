@@ -54,10 +54,10 @@ impl Highlighter {
         }
     }
 
-    fn walk_ts_node<'a, 'b, 'tree, F>(
+    fn walk_ts_node<'tree, F>(
         &self,
         parent: tree_sitter::Node<'tree>,
-        cursor: &'b mut tree_sitter::TreeCursor<'tree>,
+        cursor: &mut tree_sitter::TreeCursor<'tree>,
         callback: &mut F,
     ) where
         F: FnMut(Range, SyntaxSpan),
