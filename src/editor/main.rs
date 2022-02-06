@@ -64,8 +64,14 @@ async fn main() {
             if let Err(err) = editor.documents.open_file(&path) {
                 notify_anyhow_error!(err);
             }
+
             open_finder = false;
         }
+    }
+
+    // First run of syntax highlighting.
+    for doc in editor.documents.documents_mut().values_mut() {
+        doc.post_update_job(&editor.repo, &editor.render_request);
     }
 
     let (quit_tx, mut quit_rx) = oneshot::channel();

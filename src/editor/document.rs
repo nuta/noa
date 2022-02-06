@@ -305,6 +305,10 @@ impl DocumentManager {
         &self.documents
     }
 
+    pub fn documents_mut(&mut self) -> &mut HashMap<DocumentId, Document> {
+        &mut self.documents
+    }
+
     pub fn current(&self) -> &Document {
         self.documents.get(&self.current).unwrap()
     }
