@@ -270,6 +270,7 @@ impl DocumentManager {
             );
 
             let path = path.canonicalize()?;
+
             // "/path/to/../parent/file" -> "parent/file"
             let mut name = String::new();
             for comp in path

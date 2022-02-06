@@ -169,7 +169,7 @@ impl RawBuffer {
     }
 
     /// Returns an iterator which returns occurrences of the given string.
-    pub fn find<'a, 'b>(&'a self, query: &'b str, pos: Position) -> FindIter<'a, 'b> {
+    pub fn find_iter<'a, 'b>(&'a self, query: &'b str, pos: Position) -> FindIter<'a, 'b> {
         FindIter::new(self.char_iter(pos), query)
     }
 
