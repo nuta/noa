@@ -830,6 +830,7 @@ dependencies = [
  "arrayvec",
  "noa_common",
  "noa_editorconfig",
+ "noa_languages",
  "pretty_assertions 1.0.0",
  "ropey",
  "unicode-segmentation",

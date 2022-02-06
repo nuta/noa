@@ -5,5 +5,6 @@ pub mod display_width;
 pub mod extras;
 pub mod find;
 pub mod grapheme_iter;
+pub mod highlighting;
 pub mod raw_buffer;
 pub mod word_iter;

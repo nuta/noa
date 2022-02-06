@@ -25,9 +25,9 @@ use tokio::{sync::Notify, task::JoinHandle};
 use crate::{
     flash::FlashManager,
     git::Repo,
-    highlighting::Highlighter,
     minimap::MiniMap,
     movement::{Movement, MovementState},
+    theme::ThemeKey,
     view::View,
     words::Words,
 };
@@ -42,9 +42,7 @@ pub struct Document {
     backup_path: Option<PathBuf>,
     name: String,
     buffer: Buffer,
-    lang: &'static Language,
     view: View,
-    highlighter: Highlighter,
     movement_state: MovementState,
     words: Words,
     flashes: FlashManager,
@@ -54,16 +52,13 @@ pub struct Document {
 
 impl Document {
     pub fn new(id: DocumentId, name: &str) -> Document {
-        let lang = &PLAIN;
         Document {
             id,
             path: None,
             backup_path: None,
             name: name.to_string(),
             buffer: Buffer::new(),
-            lang,
             view: View::new(),
-            highlighter: Highlighter::new(lang),
             movement_state: MovementState::new(),
             words: Words::new(),
             flashes: FlashManager::new(),
@@ -73,7 +68,7 @@ impl Document {
     }
 
     pub fn open_file(id: DocumentId, path: &Path) -> Result<Document> {
-        let buffer = match OpenOptions::new().read(true).open(path) {
+        let mut buffer = match OpenOptions::new().read(true).open(path) {
             Ok(file) => Buffer::from_reader(file)?,
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => Buffer::new(),
             Err(err) => return Err(err.into()),
@@ -94,6 +89,8 @@ impl Document {
             .unwrap();
 
         let lang = guess_language(&abs_path);
+        buffer.set_language(lang);
+
         let words = Words::new_with_buffer(&buffer);
         Ok(Document {
             id,
@@ -101,9 +98,7 @@ impl Document {
             backup_path: Some(backup_path),
             name: name.to_string(),
             buffer,
-            lang,
             view: View::new(),
-            highlighter: Highlighter::new(lang),
             movement_state: MovementState::new(),
             words,
             flashes: FlashManager::new(),
@@ -179,7 +174,17 @@ impl Document {
         self.view.layout(&self.buffer, height, width);
         self.view.clear_highlights(updated_lines);
 
-        self.highlighter.highlight(&mut self.view);
+        // FIXME: Deal with the borrow checker and stop using this temporary vec
+        //        to avoid unnecessary memory copies.
+        let mut highlights = Vec::new();
+        self.buffer.highlighter().highlight(|range, span| {
+            highlights.push((range, span));
+        });
+
+        for (range, span) in highlights {
+            self.view.highlight(range, ThemeKey::SyntaxSpan(span));
+        }
+
         self.flashes.highlight(&mut self.view);
     }
 
@@ -190,7 +195,6 @@ impl Document {
         let updated_lines = 0..self.buffer.num_lines();
 
         self.words.update_lines(&self.buffer, updated_lines);
-        self.highlighter.update(&self.buffer);
 
         if let Some(post_update_job) = self.post_update_job.take() {
             // Abort the previous run if it's still running.

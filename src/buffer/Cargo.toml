@@ -14,6 +14,7 @@ arrayvec = "0"
 
 noa_common = { path = "../common" }
 noa_editorconfig = { path = "../editorconfig" }
+noa_languages = { path = "../languages" }
 
 
 [dev-dependencies]

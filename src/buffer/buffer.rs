@@ -6,10 +6,12 @@ use std::{
 };
 
 use noa_editorconfig::{EditorConfig, IndentStyle};
+use noa_languages::{definitions::PLAIN, language::Language};
 
 use crate::{
     cursor::{Cursor, CursorId, CursorSet, Position, Range},
     extras::indent::compute_desired_indent_len,
+    highlighting::Highlighter,
     raw_buffer::RawBuffer,
 };
 
@@ -19,6 +21,8 @@ struct UndoState {
 }
 
 pub struct Buffer {
+    lang: &'static Language,
+    highlighter: Highlighter,
     pub(crate) buf: RawBuffer,
     pub(crate) cursors: CursorSet,
     pub(crate) config: EditorConfig,
@@ -29,6 +33,8 @@ pub struct Buffer {
 impl Buffer {
     pub fn new() -> Buffer {
         Buffer {
+            lang: &PLAIN,
+            highlighter: Highlighter::new(&PLAIN),
             buf: RawBuffer::new(),
             cursors: CursorSet::new(),
             config: EditorConfig::default(),
@@ -65,6 +71,15 @@ impl Buffer {
 
     pub fn set_config(&mut self, config: &EditorConfig) {
         self.config = *config;
+    }
+
+    pub fn highlighter(&self) -> &Highlighter {
+        &self.highlighter
+    }
+
+    pub fn set_language(&mut self, lang: &'static Language) {
+        self.lang = lang;
+        self.highlighter = Highlighter::new(lang);
     }
 
     pub fn cursors(&self) -> &[Cursor] {
