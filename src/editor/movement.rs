@@ -157,7 +157,7 @@ impl<'a> Movement<'a> {
     {
         let visual_xs = self.state.visual_xs.clone();
         let mut new_visual_xs = HashMap::new();
-        self.update_cursors_with(|_buffer, view, state, c| {
+        self.update_cursors_with(|_buffer, view, _state, c| {
             let (i_y, i_x) = view.locate_row_by_position(c.moving_position());
             let dest_row = view.all_rows().get(if y_diff > 0 {
                 i_y.saturating_add(y_diff.abs() as usize)

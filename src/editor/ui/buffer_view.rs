@@ -4,7 +4,7 @@ use std::{
 };
 
 use noa_buffer::{
-    cursor::{Cursor, Position, Range},
+    cursor::{Position, Range},
     display_width::DisplayWidth,
 };
 use noa_common::oops::OopsExt;
@@ -153,7 +153,7 @@ impl Surface for BufferView {
 
                 // Update decoration if the cursor includes or is located at
                 // this position.
-                for (i, c) in buffer.cursors().iter().enumerate() {
+                for (_i, c) in buffer.cursors().iter().enumerate() {
                     if c.selection().contains(*pos)
                         || (!c.is_main_cursor() && c.position() == Some(*pos))
                     {
@@ -172,7 +172,7 @@ impl Surface for BufferView {
 
             // Cursors at a empty row.
             if row.is_empty()
-                && buffer.cursors().iter().enumerate().any(|(i, c)| {
+                && buffer.cursors().iter().enumerate().any(|(_i, c)| {
                     !c.is_main_cursor() && c.selection().overlaps(Position::new(row.lineno - 1, 0))
                 })
             {
@@ -188,7 +188,7 @@ impl Surface for BufferView {
                     .cursors()
                     .iter()
                     .enumerate()
-                    .any(|(i, c)| !c.is_main_cursor() && c.position() == Some(end_of_row_pos))
+                    .any(|(_i, c)| !c.is_main_cursor() && c.position() == Some(end_of_row_pos))
                 {
                     row_end_marker = Some((' ', buffer_x + row.len_chars()));
                 }
