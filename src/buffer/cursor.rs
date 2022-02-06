@@ -142,6 +142,13 @@ impl Range {
         Range { start, end }
     }
 
+    pub fn from_single_position(pos: Position) -> Range {
+        Range {
+            start: pos,
+            end: pos,
+        }
+    }
+
     pub fn front(&self) -> Position {
         min(self.start, self.end)
     }

@@ -4,7 +4,7 @@ use std::{
 };
 
 use noa_buffer::{
-    cursor::{Cursor, Position},
+    cursor::{Cursor, Position, Range},
     display_width::DisplayWidth,
 };
 use noa_common::oops::OopsExt;
@@ -430,7 +430,7 @@ impl Surface for BufferView {
                 .get_position_from_yx(surface_y, surface_x - self.buffer_x)
             {
                 match (kind, modifiers) {
-                    (MouseEventKind::Down(MouseButton::Left), NONE) => {
+                    (MouseEventKind::Down(MouseButton::Left), _) => {
                         self.selection_start = Some(pos);
                     }
                     // Single click.
@@ -443,6 +443,21 @@ impl Surface for BufferView {
                         }
 
                         trace!("Single click");
+                        self.time_last_clicked = Instant::now();
+                        self.num_clicked = 1;
+                        self.selection_start = None;
+                    }
+                    // Single click + Alt.
+                    (MouseEventKind::Up(MouseButton::Left), ALT)
+                        if self.time_last_clicked.elapsed() > Duration::from_millis(400) =>
+                    {
+                        // Add a cursor.
+                        if matches!(self.selection_start, Some(start) if start == pos) {
+                            doc.buffer_mut()
+                                .add_cursor(Range::from_single_position(pos));
+                        }
+
+                        trace!("Single click + Alt");
                         self.time_last_clicked = Instant::now();
                         self.num_clicked = 1;
                         self.selection_start = None;
@@ -473,6 +488,14 @@ impl Surface for BufferView {
                         Some(start) if start != pos => {
                             doc.buffer_mut()
                                 .select_main_cursor(start.y, start.x, pos.y, pos.x);
+                        }
+                        _ => {}
+                    },
+                    // Dragging + Alt
+                    (MouseEventKind::Drag(MouseButton::Left), ALT) => match self.selection_start {
+                        Some(start) if start != pos => {
+                            doc.buffer_mut()
+                                .add_cursor(Range::from_positions(start, pos));
                         }
                         _ => {}
                     },
