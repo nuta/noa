@@ -89,7 +89,7 @@ impl Document {
             id,
             path: Some(path.to_owned()),
             backup_path: Some(backup_path),
-            name: name.to_string(),
+            name,
             buffer,
             view: View::new(),
             movement_state: MovementState::new(),
