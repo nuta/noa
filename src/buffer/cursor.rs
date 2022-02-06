@@ -425,16 +425,26 @@ impl PartialOrd for Cursor {
         Some(self.cmp(other))
     }
 }
+
+#[derive(Clone, Debug)]
+struct CursorUndoState {
+    cursors: Vec<Cursor>,
+}
+
 /// A set of cursors, so-called multiple cursors.
 #[derive(Clone, Debug)]
 pub struct CursorSet {
     cursors: Vec<Cursor>,
+    undo_stack: Vec<CursorUndoState>,
+    redo_stack: Vec<CursorUndoState>,
 }
 
 impl CursorSet {
     pub fn new() -> CursorSet {
         CursorSet {
             cursors: vec![Cursor::new_main_cursor(0, 0)],
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
         }
     }
 
@@ -473,7 +483,7 @@ impl CursorSet {
         id
     }
 
-    pub fn clear_multiple_cursors(&mut self) {
+    pub fn clear_secondary_cursors(&mut self) {
         self.update_cursors(&[self.main_cursor().clone()]);
     }
 
@@ -485,11 +495,11 @@ impl CursorSet {
     }
 
     pub fn update_cursors(&mut self, new_cursors: &[Cursor]) {
-        self.do_set_cursors(new_cursors);
+        self.do_set_cursors(new_cursors, false);
         debug_assert!(self.cursors.iter().any(|c| c.is_main_cursor()));
     }
 
-    fn do_set_cursors(&mut self, new_cursors: &[Cursor]) {
+    fn do_set_cursors(&mut self, new_cursors: &[Cursor], save_undo: bool) {
         debug_assert!(!new_cursors.is_empty());
 
         // Sort and merge cursors.
@@ -524,6 +534,12 @@ impl CursorSet {
             }
         }
 
+        if save_undo {
+            self.undo_stack.push(CursorUndoState {
+                cursors: self.cursors.clone(),
+            });
+        }
+
         self.cursors = new_cursors;
         debug_assert!(!self.cursors.is_empty());
     }
@@ -541,6 +557,27 @@ impl CursorSet {
             new_cursors.push(cursor);
         }
         self.update_cursors(&new_cursors);
+    }
+
+    pub fn clear_undo_and_redo_stacks(&mut self) {
+        self.undo_stack.clear();
+        self.redo_stack.clear();
+    }
+
+    pub fn undo_cursor_movements(&mut self) {
+        if let Some(state) = self.undo_stack.pop() {
+            self.do_set_cursors(&state.cursors, false);
+            debug_assert!(self.cursors.iter().any(|c| c.is_main_cursor()));
+            self.redo_stack.push(state);
+        }
+    }
+
+    pub fn redo_cursor_movements(&mut self) {
+        if let Some(state) = self.redo_stack.pop() {
+            self.do_set_cursors(&state.cursors, false);
+            debug_assert!(self.cursors.iter().any(|c| c.is_main_cursor()));
+            self.undo_stack.push(state);
+        }
     }
 }
 

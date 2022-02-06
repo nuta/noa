@@ -138,8 +138,8 @@ impl View {
     }
 
     /// Clears highlights in the given rows.
-    pub fn clear_highlights(&mut self, rows: std::ops::Range<usize>) {
-        for i in rows.start..min(rows.end, self.rows.len()) {
+    pub fn clear_highlights(&mut self, height: usize) {
+        for i in self.scroll..min(self.scroll + height, self.rows.len()) {
             for grapheme in &mut self.rows[i].graphemes {
                 grapheme.style = Style::default();
             }

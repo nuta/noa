@@ -233,7 +233,7 @@ impl Surface for BufferView {
                 self.quit_tx.take().unwrap().send(()).oops();
             }
             (KeyCode::Esc, NONE) => {
-                doc.buffer_mut().clear_multiple_cursors();
+                doc.buffer_mut().clear_secondary_cursors();
             }
             (KeyCode::Char('f'), CTRL) => {
                 compositor

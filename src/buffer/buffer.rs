@@ -77,10 +77,6 @@ impl Buffer {
         &self.highlighter
     }
 
-    pub fn update_highlight(&mut self) {
-        self.highlighter.update(&self.buf);
-    }
-
     pub fn set_language(&mut self, lang: &'static Language) {
         self.lang = lang;
         self.highlighter = Highlighter::new(lang);
@@ -111,8 +107,8 @@ impl Buffer {
         self.cursors.add_cursor(selection)
     }
 
-    pub fn clear_multiple_cursors(&mut self) {
-        self.cursors.clear_multiple_cursors();
+    pub fn clear_secondary_cursors(&mut self) {
+        self.cursors.clear_secondary_cursors();
     }
 
     pub fn move_main_cursor_to_pos(&mut self, pos: Position) {
@@ -313,6 +309,20 @@ impl Buffer {
             self.cursors = state.cursors.clone();
             self.redo_stack.push(state);
         }
+    }
+
+    pub fn undo_cursor_movements(&mut self) {
+        self.cursors.undo_cursor_movements();
+    }
+
+    pub fn redo_cursor_movements(&mut self) {
+        self.cursors.redo_cursor_movements();
+    }
+
+    // FIXME:
+    pub fn post_update_hook(&mut self) {
+        self.highlighter.update(&self.buf);
+        self.cursors.clear_undo_and_redo_stacks();
     }
 }
 

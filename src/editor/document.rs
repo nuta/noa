@@ -168,17 +168,14 @@ impl Document {
     }
 
     pub fn layout_view(&mut self, height: usize, width: usize) {
-        // TODO:
-        let updated_lines = 0..self.buffer.num_lines();
-
         self.view.layout(&self.buffer, height, width);
-        self.view.clear_highlights(updated_lines);
+        self.view.clear_highlights(height);
 
         // FIXME: Deal with the borrow checker and stop using this temporary vec
         //        to avoid unnecessary memory copies.
-        self.buffer.update_highlight();
         let mut highlights = Vec::new();
         self.buffer.highlighter().highlight(|range, span| {
+            // Avoid adding `range` if it's out of the view.
             highlights.push((range, span));
         });
 
@@ -195,6 +192,7 @@ impl Document {
         // TODO:
         let updated_lines = 0..self.buffer.num_lines();
 
+        self.buffer.post_update_hook();
         self.words.update_lines(&self.buffer, updated_lines);
 
         if let Some(post_update_job) = self.post_update_job.take() {

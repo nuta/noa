@@ -51,7 +51,7 @@ mod tests {
     fn expand_selections() {
         let mut b = Buffer::from_text("");
         b.set_language(&RUST);
-        b.update_highlight();
+        b.post_update_hook();
         b.set_cursors_for_test(&[Cursor::new(0, 0)]);
         b.expand_selections();
         assert_eq!(selected_str(&b), "");
@@ -81,7 +81,7 @@ mod tests {
             "}\n",
         ));
         b.set_language(&RUST);
-        b.update_highlight();
+        b.post_update_hook();
 
         // The cursor is located in "123".
         b.set_cursors_for_test(&[Cursor::new(2, 21)]);
