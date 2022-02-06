@@ -134,6 +134,10 @@ impl Document {
         self.name = new_name.into();
     }
 
+    pub fn set_find_query<T: Into<String>>(&mut self, find_query: T) {
+        self.find_query = find_query.into();
+    }
+
     pub fn path(&self) -> Option<&Path> {
         self.path.as_ref().map(|path| path.as_ref())
     }
