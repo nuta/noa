@@ -30,25 +30,21 @@ impl<'a> TextProvider<'a> for RopeTextProvider<'a> {
     }
 }
 
-pub struct Parser {
+pub struct Syntax {
+    tree: tree_sitter::Tree,
     parser: tree_sitter::Parser,
     highlight_query: tree_sitter::Query,
     highlight_query_indices: HashMap<usize, String>,
 }
 
-pub struct Highlighter {
-    lang: &'static Language,
-    tree: Option<tree_sitter::Tree>,
-    ts: Option<Parser>,
-}
-
-impl Highlighter {
-    pub fn new(lang: &'static Language) -> Highlighter {
-        let ts = lang.tree_sitter.as_ref().and_then(|def| {
+impl Syntax {
+    pub fn new(lang: &'static Language) -> Option<Syntax> {
+        lang.tree_sitter.as_ref().and_then(|def| {
             let mut parser = tree_sitter::Parser::new();
             let lang = (def.get_language)();
             match parser.set_language(lang) {
                 Ok(()) => {
+                    // TODO: Parse the query only once in noa_languages.
                     let highlight_query =
                         Query::new(lang, def.highlight_query).expect("invalid highlight query");
 
@@ -57,7 +53,8 @@ impl Highlighter {
                         highlight_query_indices.insert(i, name.to_owned());
                     }
 
-                    Some(Parser {
+                    Some(Syntax {
+                        tree: parser.parse("", None).unwrap(),
                         parser,
                         highlight_query,
                         highlight_query_indices,
@@ -65,35 +62,29 @@ impl Highlighter {
                 }
                 Err(_) => None,
             }
-        });
-
-        Highlighter {
-            lang,
-            tree: None,
-            ts,
-        }
+        })
     }
 
-    pub fn tree(&self) -> Option<&tree_sitter::Tree> {
-        self.tree.as_ref()
+    pub fn tree(&self) -> &tree_sitter::Tree {
+        &self.tree
     }
 
     pub fn update(&mut self, buffer: &RawBuffer) {
         let rope = buffer.rope();
-        if let Some(ts) = self.ts.as_mut() {
-            self.tree = ts.parser.parse_with(
-                &mut |i, _| {
-                    if i > rope.len_bytes() {
-                        return &[] as &[u8];
-                    }
+        if let Some(new_tree) = self.parser.parse_with(
+            &mut |i, _| {
+                if i > rope.len_bytes() {
+                    return &[] as &[u8];
+                }
 
-                    let (chunk, start, _, _) = rope.chunk_at_byte(i);
-                    chunk[i - start..].as_bytes()
-                },
-                // TODO: Support incremental parsing.
-                // https://github.com/mcobzarenco/zee/blob/8c21f387ee7805a185c3321f6a982bd3332701d3/core/src/syntax/parse.rs#L173-L183
-                None,
-            );
+                let (chunk, start, _, _) = rope.chunk_at_byte(i);
+                chunk[i - start..].as_bytes()
+            },
+            // TODO: Support incremental parsing.
+            // https://github.com/mcobzarenco/zee/blob/8c21f387ee7805a185c3321f6a982bd3332701d3/core/src/syntax/parse.rs#L173-L183
+            None,
+        ) {
+            self.tree = new_tree;
         }
     }
 
@@ -101,26 +92,16 @@ impl Highlighter {
     where
         F: FnMut(Range, SyntaxSpan),
     {
-        let tree = match self.tree.as_ref() {
-            Some(tree) => tree,
-            None => return,
-        };
-
-        let ts = match self.ts.as_mut() {
-            Some(ts) => ts,
-            None => return,
-        };
-
         let mut cursor = QueryCursor::new();
         let matches = cursor.matches(
-            &ts.highlight_query,
-            tree.root_node(),
+            &self.highlight_query,
+            self.tree.root_node(),
             RopeTextProvider(buffer),
         );
 
         for m in matches {
             for cap in m.captures {
-                if let Some(span) = ts
+                if let Some(span) = self
                     .highlight_query_indices
                     .get(&m.pattern_index)
                     .and_then(|name| SyntaxSpan::from_str(name).ok())

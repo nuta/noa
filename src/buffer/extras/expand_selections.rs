@@ -5,8 +5,8 @@ use crate::{buffer::Buffer, cursor::Range, syntax::TsNodeExt};
 impl Buffer {
     pub fn expand_selections(&mut self) {
         self.update_cursors_with(|c, buf| {
-            if let Some(tree) = buf.highlighter().tree() {
-                let root = tree.root_node();
+            if let Some(syntax) = buf.syntax() {
+                let root = syntax.tree().root_node();
                 let new_selection = walk_ts_node(root, &mut root.walk(), c.selection());
                 c.select_range(new_selection);
             }

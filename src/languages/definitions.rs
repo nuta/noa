@@ -1,9 +1,7 @@
 use std::ffi::OsStr;
 use std::path::Path;
 
-use phf::phf_map;
-
-use crate::language::{Language, SyntaxSpan};
+use crate::language::Language;
 use crate::lsp::Lsp;
 use crate::tree_sitter::*;
 

@@ -16,7 +16,7 @@ use crate::{
     cursor::{Cursor, CursorId, CursorSet, Position, Range},
     extras::indent::compute_desired_indent_len,
     raw_buffer::RawBuffer,
-    syntax::Highlighter,
+    syntax::Syntax,
 };
 
 struct UndoState {
@@ -26,7 +26,7 @@ struct UndoState {
 
 pub struct Buffer {
     lang: &'static Language,
-    highlighter: Highlighter,
+    syntax: Option<Syntax>,
     pub(crate) buf: RawBuffer,
     pub(crate) cursors: CursorSet,
     pub(crate) config: EditorConfig,
@@ -38,7 +38,7 @@ impl Buffer {
     pub fn new() -> Buffer {
         Buffer {
             lang: &PLAIN,
-            highlighter: Highlighter::new(&PLAIN),
+            syntax: None,
             buf: RawBuffer::new(),
             cursors: CursorSet::new(),
             config: EditorConfig::default(),
@@ -77,8 +77,8 @@ impl Buffer {
         self.config = *config;
     }
 
-    pub fn highlighter(&self) -> &Highlighter {
-        &self.highlighter
+    pub fn syntax(&self) -> Option<&Syntax> {
+        self.syntax.as_ref()
     }
 
     pub fn highlight<F>(&mut self, mut callback: F)
@@ -86,12 +86,14 @@ impl Buffer {
         F: FnMut(Range, SyntaxSpan),
     {
         let buffer = self.raw_buffer().clone();
-        self.highlighter.highlight(&mut callback, &buffer);
+        if let Some(syntax) = self.syntax.as_mut() {
+            syntax.highlight(&mut callback, &buffer);
+        }
     }
 
     pub fn set_language(&mut self, lang: &'static Language) {
         self.lang = lang;
-        self.highlighter = Highlighter::new(lang);
+        self.syntax = Syntax::new(lang);
     }
 
     pub fn cursors(&self) -> &[Cursor] {
@@ -348,7 +350,10 @@ impl Buffer {
 
     // FIXME:
     pub fn post_update_hook(&mut self) {
-        self.highlighter.update(&self.buf);
+        if let Some(syntax) = self.syntax.as_mut() {
+            syntax.update(&self.buf);
+        }
+
         self.cursors.clear_undo_and_redo_stacks();
     }
 }
