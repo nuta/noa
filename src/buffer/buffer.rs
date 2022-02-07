@@ -94,6 +94,9 @@ impl Buffer {
     pub fn set_language(&mut self, lang: &'static Language) {
         self.lang = lang;
         self.syntax = Syntax::new(lang);
+        if let Some(syntax) = self.syntax.as_mut() {
+            syntax.update(&self.buf);
+        }
     }
 
     pub fn cursors(&self) -> &[Cursor] {
