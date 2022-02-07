@@ -178,7 +178,7 @@ impl Document {
         // FIXME: Deal with the borrow checker and stop using this temporary vec
         //        to avoid unnecessary memory copies.
         let mut highlights = Vec::new();
-        self.buffer.highlighter().highlight(|range, span| {
+        self.buffer.highlight(|range, span| {
             // Avoid adding `range` if it's out of the view.
             highlights.push((range, span));
         });

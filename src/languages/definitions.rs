@@ -7,7 +7,7 @@ use crate::language::{Language, SyntaxSpan};
 use crate::lsp::Lsp;
 use crate::tree_sitter::*;
 
-pub const LANGUAGES: &[Language] = &[PLAIN, C];
+pub const LANGUAGES: &[Language] = &[PLAIN, C, RUST];
 
 pub fn guess_language(path: &Path) -> &'static Language {
     for lang in LANGUAGES {
@@ -27,8 +27,7 @@ pub const PLAIN: Language = Language {
     extensions: &[],
     formatter: None,
     lsp: None,
-    tree_sitter_language: None,
-    tree_sitter_mapping: phf_map! {},
+    tree_sitter: None,
 };
 
 pub const C: Language = Language {
@@ -40,17 +39,7 @@ pub const C: Language = Language {
         language_id: "c",
         command: &["clangd", "-j=8", "--log=verbose", "--pretty"],
     }),
-    tree_sitter_language: Some(|| unsafe { tree_sitter_c() }),
-    tree_sitter_mapping: phf_map! {
-        "comment" => SyntaxSpan::Comment,
-        "identifier" => SyntaxSpan::Ident,
-        "string_literal" => SyntaxSpan::StringLiteral,
-        "primitive_type" => SyntaxSpan::PrimitiveType,
-        "escape_sequence" => SyntaxSpan::EscapeSequence,
-        "preproc_include" => SyntaxSpan::CMacro,
-        "#include" => SyntaxSpan::CMacro,
-        "system_lib_string" => SyntaxSpan::CIncludeArg,
-    },
+    tree_sitter: None,
 };
 
 pub const RUST: Language = Language {
@@ -59,8 +48,8 @@ pub const RUST: Language = Language {
     extensions: &["rs"],
     formatter: None,
     lsp: None,
-    tree_sitter_language: Some(|| unsafe { tree_sitter_rust() }),
-    tree_sitter_mapping: phf_map! {
-        "comment" => SyntaxSpan::Comment,
-    },
+    tree_sitter: Some(TreeSitter {
+        get_language: || unsafe { tree_sitter_rust() },
+        highlight_query: include_str!("queries/rust/highlight.scm"),
+    }),
 };

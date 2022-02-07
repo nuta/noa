@@ -228,6 +228,12 @@ impl RawBuffer {
         }
     }
 
+    pub(crate) fn rope_slice(&self, range: Range) -> ropey::RopeSlice<'_> {
+        let start = self.pos_to_rope_index(range.front());
+        let end = self.pos_to_rope_index(range.back());
+        self.rope.slice(start..end)
+    }
+
     /// Returns the character index in the rope.
     ///
     /// # Complexity

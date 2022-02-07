@@ -7,13 +7,16 @@ use std::{
 };
 
 use noa_editorconfig::{EditorConfig, IndentStyle};
-use noa_languages::{definitions::PLAIN, language::Language};
+use noa_languages::{
+    definitions::PLAIN,
+    language::{Language, SyntaxSpan},
+};
 
 use crate::{
     cursor::{Cursor, CursorId, CursorSet, Position, Range},
     extras::indent::compute_desired_indent_len,
-    highlighting::Highlighter,
     raw_buffer::RawBuffer,
+    syntax::Highlighter,
 };
 
 struct UndoState {
@@ -76,6 +79,14 @@ impl Buffer {
 
     pub fn highlighter(&self) -> &Highlighter {
         &self.highlighter
+    }
+
+    pub fn highlight<F>(&mut self, mut callback: F)
+    where
+        F: FnMut(Range, SyntaxSpan),
+    {
+        let buffer = self.raw_buffer().clone();
+        self.highlighter.highlight(&mut callback, &buffer);
     }
 
     pub fn set_language(&mut self, lang: &'static Language) {

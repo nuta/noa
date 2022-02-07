@@ -1,6 +1,6 @@
 use noa_languages::tree_sitter;
 
-use crate::{buffer::Buffer, cursor::Range, highlighting::TsNodeExt};
+use crate::{buffer::Buffer, cursor::Range, syntax::TsNodeExt};
 
 impl Buffer {
     pub fn expand_selections(&mut self) {

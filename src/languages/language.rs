@@ -1,6 +1,9 @@
-use std::hash::{Hash, Hasher};
+use std::{
+    hash::{Hash, Hasher},
+    str::FromStr,
+};
 
-use crate::lsp::Lsp;
+use crate::{lsp::Lsp, tree_sitter::TreeSitter};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SyntaxSpan {
@@ -13,14 +16,34 @@ pub enum SyntaxSpan {
     CIncludeArg,
 }
 
+impl FromStr for SyntaxSpan {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let span = match s {
+            "comment" => SyntaxSpan::Comment,
+            "ident" => SyntaxSpan::Ident,
+            "string" => SyntaxSpan::StringLiteral,
+            "escape" => SyntaxSpan::EscapeSequence,
+            "primitive" => SyntaxSpan::PrimitiveType,
+            "cmacro" => SyntaxSpan::CMacro,
+            "cincludearg" => SyntaxSpan::CIncludeArg,
+            _ => {
+                return Err(());
+            }
+        };
+
+        Ok(span)
+    }
+}
+
 pub struct Language {
     pub id: &'static str,
     pub filenames: &'static [&'static str],
     pub extensions: &'static [&'static str],
     pub formatter: Option<&'static [&'static str]>,
     pub lsp: Option<Lsp>,
-    pub tree_sitter_language: Option<fn() -> tree_sitter::Language>,
-    pub tree_sitter_mapping: phf::Map<&'static str, SyntaxSpan>,
+    pub tree_sitter: Option<TreeSitter>,
 }
 
 impl Hash for Language {
