@@ -180,7 +180,7 @@ impl Document {
         let mut highlights = Vec::new();
         self.buffer
             .highlight(self.view.visible_range(), |range, span| {
-                // Avoid adding `range` if it's out of the view.
+                // trace!("syntax highlight: {:?} {:?}", range, span);
                 highlights.push((range, span));
             });
 
