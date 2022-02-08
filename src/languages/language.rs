@@ -9,6 +9,7 @@ use crate::{lsp::Lsp, tree_sitter::TreeSitter};
 pub enum SyntaxSpan {
     Comment,
     Ident,
+    Control,
     StringLiteral,
     EscapeSequence,
     PrimitiveType,
@@ -23,6 +24,7 @@ impl FromStr for SyntaxSpan {
         let span = match s {
             "comment" => SyntaxSpan::Comment,
             "ident" => SyntaxSpan::Ident,
+            "keyword.control" => SyntaxSpan::Control,
             "string" => SyntaxSpan::StringLiteral,
             "escape" => SyntaxSpan::EscapeSequence,
             "primitive" => SyntaxSpan::PrimitiveType,

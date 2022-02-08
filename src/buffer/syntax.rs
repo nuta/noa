@@ -88,11 +88,13 @@ impl Syntax {
         }
     }
 
-    pub fn highlight<F>(&mut self, mut callback: F, buffer: &RawBuffer)
+    pub fn highlight<F>(&mut self, mut callback: F, buffer: &RawBuffer, range: Range)
     where
         F: FnMut(Range, SyntaxSpan),
     {
         let mut cursor = QueryCursor::new();
+        cursor.set_point_range(range.into());
+
         let matches = cursor.matches(
             &self.highlight_query,
             self.tree.root_node(),
@@ -110,6 +112,21 @@ impl Syntax {
                 }
             }
         }
+    }
+}
+
+impl From<Position> for tree_sitter::Point {
+    fn from(pos: Position) -> Self {
+        tree_sitter::Point {
+            row: pos.y,
+            column: pos.x,
+        }
+    }
+}
+
+impl From<Range> for std::ops::Range<tree_sitter::Point> {
+    fn from(range: Range) -> Self {
+        range.front().into()..range.back().into()
     }
 }
 

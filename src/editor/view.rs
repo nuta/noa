@@ -129,6 +129,10 @@ impl View {
         }
     }
 
+    pub fn visible_range(&self) -> Range {
+        Range::from_positions(self.first_visible_position(), self.last_visible_position())
+    }
+
     pub fn scroll_up(&mut self) {
         self.scroll = self.scroll.saturating_sub(1);
     }

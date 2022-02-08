@@ -107,6 +107,13 @@ impl Theme {
             },
         );
         mapping.insert(
+            ThemeKey::SyntaxSpan(SyntaxSpan::Control),
+            Style {
+                fg: Color::Magenta,
+                ..Default::default()
+            },
+        );
+        mapping.insert(
             ThemeKey::SyntaxSpan(SyntaxSpan::PrimitiveType),
             Style {
                 fg: Color::Blue,

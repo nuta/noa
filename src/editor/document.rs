@@ -178,10 +178,11 @@ impl Document {
         // FIXME: Deal with the borrow checker and stop using this temporary vec
         //        to avoid unnecessary memory copies.
         let mut highlights = Vec::new();
-        self.buffer.highlight(|range, span| {
-            // Avoid adding `range` if it's out of the view.
-            highlights.push((range, span));
-        });
+        self.buffer
+            .highlight(self.view.visible_range(), |range, span| {
+                // Avoid adding `range` if it's out of the view.
+                highlights.push((range, span));
+            });
 
         for (range, span) in highlights {
             self.view.highlight(range, ThemeKey::SyntaxSpan(span));
