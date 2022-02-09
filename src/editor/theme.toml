@@ -1,5 +1,34 @@
+# Based on One Dark Pro theme
+# https://github.com/Binaryify/OneDark-Pro
 [theme]
-"buffer.find_match" = { fg = "red" }
+"keyword.control" = { fg = "purple" }
+"string" = { fg = "green" }
+
+"buffer.find_match" = { bg = "chalky" }
+"buffer.current_line" = { bg = "grey" }
+"buffer.line_status" = { fg = "grey" }
+
+"finder.input" = { fg = "default" }
+"finder.selected" = { fg = "malibu" }
+
+"notification.warn" = { fg = "coral" }
+"notification.info" = { fg = "fountainBlue" }
+"notification.error" = { fg = "error" }
 
 [colors]
-red = "#ff0000"
+chalky = "#e5c07b"
+coral = "#e06c75"
+dark = "#5c6370"
+error = "#f44747"
+fountainBlue = "#56b6c2"
+green = "#98c379"
+invalid = "#ffffff"
+lightDark = "#7f848e"
+lightWhite = "#abb2bf"
+malibu = "#61afef"
+purple = "#c678dd"
+whiskey = "#d19a66"
+deepRed = "#BE5046"
+
+default = "default"
+grey = "#323232"
