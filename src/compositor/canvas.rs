@@ -1,7 +1,7 @@
 use arrayvec::ArrayString;
 use noa_common::logger::{self, backtrace};
 
-use serde::Deserialize;
+pub use crossterm::style::Color;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum DrawOp<'a> {
@@ -17,52 +17,7 @@ pub enum DrawOp<'a> {
     NoUnderline,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize)]
-pub enum Color {
-    Reset,
-    Black,
-    Red,
-    Green,
-    Blue,
-    Yellow,
-    Cyan,
-    White,
-    Grey,
-    Magenta,
-    DarkGrey,
-    DarkRed,
-    DarkGreen,
-    DarkYellow,
-    DarkBlue,
-    DarkMagenta,
-    Rgb { r: u8, g: u8, b: u8 },
-}
-
-impl From<Color> for crossterm::style::Color {
-    fn from(this: Color) -> Self {
-        match this {
-            Color::Reset => crossterm::style::Color::Reset,
-            Color::Black => crossterm::style::Color::Black,
-            Color::Red => crossterm::style::Color::Red,
-            Color::Green => crossterm::style::Color::Green,
-            Color::Blue => crossterm::style::Color::Blue,
-            Color::Yellow => crossterm::style::Color::Yellow,
-            Color::Cyan => crossterm::style::Color::Cyan,
-            Color::White => crossterm::style::Color::White,
-            Color::Grey => crossterm::style::Color::Grey,
-            Color::Magenta => crossterm::style::Color::Magenta,
-            Color::DarkGrey => crossterm::style::Color::DarkGrey,
-            Color::DarkRed => crossterm::style::Color::DarkRed,
-            Color::DarkGreen => crossterm::style::Color::DarkGreen,
-            Color::DarkYellow => crossterm::style::Color::DarkYellow,
-            Color::DarkBlue => crossterm::style::Color::DarkBlue,
-            Color::DarkMagenta => crossterm::style::Color::DarkMagenta,
-            Color::Rgb { r, g, b } => crossterm::style::Color::Rgb { r, g, b },
-        }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Debug, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Style {
     pub fg: Color,
     pub bg: Color,
@@ -98,7 +53,7 @@ impl Default for Style {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug, Default, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
 pub struct Decoration {
     pub bold: bool,
     pub inverted: bool,

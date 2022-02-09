@@ -14,7 +14,6 @@ futures = "0"
 parking_lot = "0"
 crossterm = { version = "0", features = ["event-stream"] }
 arrayvec = "0"
-serde = { version = "1.0", features = ["derive"] }
 
 noa_common = { path = "../common" }
 noa_buffer = { path = "../buffer" }

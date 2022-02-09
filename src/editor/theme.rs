@@ -1,20 +1,109 @@
 use std::collections::HashMap;
 
-use anyhow::Result;
-use noa_compositor::canvas::{Color, Style};
+use anyhow::{Context, Result};
+use noa_compositor::canvas::{Color, Decoration, Style};
 use noa_languages::language::SyntaxSpan;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
+use serde::Deserialize;
 
 use crate::minimap::LineStatus;
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+enum ThemeDecoration {
+    Underline,
+    Bold,
+    Inverted,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+struct ThemeItem {
+    #[serde(default)]
+    pub fg: String,
+    #[serde(default)]
+    pub bg: String,
+    #[serde(default)]
+    pub decorations: Vec<ThemeDecoration>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+pub struct ThemeColor(String);
+
+#[derive(Deserialize)]
+struct Theme {
+    theme: HashMap<String, ThemeItem>,
+    colors: HashMap<String, ThemeColor>,
+}
 
 static THEME: Lazy<HashMap<String, Style>> = Lazy::new(|| {
     parse_theme(include_str!("theme.toml")).expect("failed to parse the default theme file")
 });
 
+fn parse_color(text: &ThemeColor) -> Result<Color> {
+    let color = match text.0.as_str() {
+        "default" => Color::Reset,
+        "black" => Color::Black,
+        "red" => Color::Red,
+        "green" => Color::Green,
+        "blue" => Color::Blue,
+        "yellow" => Color::Yellow,
+        "cyan" => Color::Cyan,
+        "white" => Color::White,
+        "grey" => Color::Grey,
+        "magenta" => Color::Magenta,
+        "darkgrey" => Color::DarkGrey,
+        "darkred" => Color::DarkRed,
+        "darkgreen" => Color::DarkGreen,
+        "darkyellow" => Color::DarkYellow,
+        "darkblue" => Color::DarkBlue,
+        "darkmagenta" => Color::DarkMagenta,
+        rgb if rgb.starts_with('#') && rgb.len() == 7 => {
+            let r = u8::from_str_radix(&rgb[1..3], 16)
+                .with_context(|| format!("failed to parse rgb: {}", rgb))?;
+            let g = u8::from_str_radix(&rgb[3..5], 16)
+                .with_context(|| format!("failed to parse rgb: {}", rgb))?;
+            let b = u8::from_str_radix(&rgb[5..7], 16)
+                .with_context(|| format!("failed to parse rgb: {}", rgb))?;
+            Color::Rgb { r, g, b }
+        }
+        _ => return Err(anyhow::anyhow!("invalid color: {}", text.0)),
+    };
+
+    Ok(color)
+}
+
 fn parse_theme(text: &str) -> Result<HashMap<String, Style>> {
-    let theme = toml::from_str(text)?;
-    Ok(theme)
+    let theme: Theme = toml::from_str(text)?;
+
+    let mut colors = HashMap::new();
+    colors.insert("".to_string(), Color::Reset);
+    for (name, color) in &theme.colors {
+        colors.insert(name.to_string(), parse_color(color)?);
+    }
+
+    let mut styles = HashMap::new();
+    for (key, value) in theme.theme {
+        let fg = colors
+            .get(&value.fg)
+            .copied()
+            .with_context(|| format!("failed to find color \"{}\"", value.fg))?;
+        let bg = colors
+            .get(&value.bg)
+            .copied()
+            .with_context(|| format!("failed to find color \"{}\"", value.bg))?;
+        let mut deco = Decoration::default();
+        for decoration in value.decorations {
+            match decoration {
+                ThemeDecoration::Underline => deco.underline = true,
+                ThemeDecoration::Bold => deco.bold = true,
+                ThemeDecoration::Inverted => deco.inverted = true,
+            }
+        }
+
+        styles.insert(key, Style { fg, bg, deco });
+    }
+
+    Ok(styles)
 }
 
 pub fn theme_for(key: &str) -> Style {
@@ -29,18 +118,24 @@ pub fn theme_for(key: &str) -> Style {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pretty_assertions::assert_eq;
 
+    #[test]
     fn test_theme_parsing() {
         assert_eq!(
             parse_theme(
-                r#"
-        "buffer.find_match" = { fg = "red" }
-        "#,
+                r##"
+                [theme]
+                "buffer.find_match" = { fg = "red" }
+
+                [colors]
+                red = "#ff0000"
+                "##,
             )
             .unwrap()
             .get("buffer.find_match"),
             Some(&Style {
-                fg: Color::Red,
+                fg: Color::Rgb { r: 255, g: 0, b: 0 },
                 bg: Color::Reset,
                 ..Default::default()
             })

@@ -189,10 +189,10 @@ impl Drawer {
                 queue!(self.stdout, Print(s)).ok();
             }
             DrawOp::FgColor(color) => {
-                queue!(self.stdout, SetForegroundColor((*color).into())).ok();
+                queue!(self.stdout, SetForegroundColor(*color)).ok();
             }
             DrawOp::BgColor(color) => {
-                queue!(self.stdout, SetBackgroundColor((*color).into())).ok();
+                queue!(self.stdout, SetBackgroundColor(*color)).ok();
             }
             DrawOp::Bold => {
                 queue!(self.stdout, SetAttribute(Attribute::Bold)).ok();

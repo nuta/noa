@@ -819,6 +819,7 @@ dependencies = [
  "rayon",
  "regex",
  "ropey",
+ "serde",
  "tokio",
  "toml",
  "which",
@@ -865,7 +866,6 @@ dependencies = [
  "noa_buffer",
  "noa_common",
  "parking_lot",
- "serde",
  "tokio",
 ]
 
