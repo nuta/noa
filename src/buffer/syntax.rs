@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::FromStr};
+use std::collections::HashMap;
 
 use crate::{
     cursor::{Position, Range},
@@ -6,7 +6,7 @@ use crate::{
 };
 
 use noa_languages::{
-    language::{Language, SyntaxSpan},
+    language::Language,
     tree_sitter::{self, Node, Query, QueryCursor, TextProvider},
 };
 

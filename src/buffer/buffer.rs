@@ -7,10 +7,7 @@ use std::{
 };
 
 use noa_editorconfig::{EditorConfig, IndentStyle};
-use noa_languages::{
-    definitions::PLAIN,
-    language::{Language, SyntaxSpan},
-};
+use noa_languages::{definitions::PLAIN, language::Language};
 
 use crate::{
     cursor::{Cursor, CursorId, CursorSet, Position, Range},
