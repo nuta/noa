@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use noa_buffer::cursor::Range;
 
-use crate::{theme::ThemeKey, view::View};
+use crate::view::View;
 
 const FLASH_DURATION_MS: Duration = Duration::from_millis(360);
 

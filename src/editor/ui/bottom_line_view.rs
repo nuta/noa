@@ -6,11 +6,7 @@ use noa_compositor::{
     Compositor,
 };
 
-use crate::{
-    editor::Editor,
-    notification::notification_manager,
-    theme::{theme_for, ThemeKey},
-};
+use crate::{editor::Editor, notification::notification_manager, theme::theme_for};
 
 use super::helpers::truncate_to_width;
 

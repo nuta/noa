@@ -19,7 +19,7 @@ use tokio::sync::{oneshot, Notify};
 use crate::{
     clipboard::{ClipboardData, SystemClipboardData},
     editor::Editor,
-    theme::{theme_for, ThemeKey},
+    theme::theme_for,
     ui::finder_view::FinderView,
 };
 

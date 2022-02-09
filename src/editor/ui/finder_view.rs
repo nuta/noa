@@ -27,11 +27,7 @@ use noa_compositor::{
 use parking_lot::{Mutex, RwLock};
 use tokio::sync::Notify;
 
-use crate::{
-    document::DocumentId,
-    editor::Editor,
-    theme::{theme_for, ThemeKey},
-};
+use crate::{document::DocumentId, editor::Editor, theme::theme_for};
 
 use super::helpers::truncate_to_width;
 

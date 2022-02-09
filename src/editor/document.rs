@@ -27,7 +27,6 @@ use crate::{
     git::Repo,
     minimap::MiniMap,
     movement::{Movement, MovementState},
-    theme::ThemeKey,
     view::View,
     words::Words,
 };

@@ -1,8 +1,6 @@
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 
-use crate::theme::ThemeKey;
-
 #[derive(Debug)]
 pub enum Notification {
     Info(String),

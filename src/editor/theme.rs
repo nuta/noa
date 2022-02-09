@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use anyhow::Result;
 use noa_compositor::canvas::{Color, Style};
 use noa_languages::language::SyntaxSpan;
 use once_cell::sync::Lazy;
@@ -7,27 +8,14 @@ use parking_lot::Mutex;
 
 use crate::minimap::LineStatus;
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum ThemeKey {
-    SyntaxSpan(SyntaxSpan),
-    Flash,
-    CurrentLine,
-    ErrorNotification,
-    WarnNotification,
-    InfoNotification,
-    LineStatus(LineStatus),
-    FinderInput,
-    FinderSelectedItem,
-    FindMatch,
-}
-
-pub struct Theme {
-    mapping: HashMap<ThemeKey, Style>,
-}
-
 static THEME: Lazy<HashMap<String, Style>> = Lazy::new(|| {
-    toml::from_str(include_str!("theme.toml")).expect("failed to parse the default theme file")
+    parse_theme(include_str!("theme.toml")).expect("failed to parse the default theme file")
 });
+
+fn parse_theme(text: &str) -> Result<HashMap<String, Style>> {
+    let theme = toml::from_str(text)?;
+    Ok(theme)
+}
 
 pub fn theme_for(key: &str) -> Style {
     match THEME.get(key) {
@@ -35,5 +23,27 @@ pub fn theme_for(key: &str) -> Style {
         None => {
             panic!("the \"{}\" is not defined in the theme", key);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_theme_parsing() {
+        assert_eq!(
+            parse_theme(
+                r#"
+        "buffer.find_match" = { fg = "red" }
+        "#,
+            )
+            .unwrap()
+            .get("buffer.find_match"),
+            Some(&Style {
+                fg: Color::Red,
+                bg: Color::Reset,
+                ..Default::default()
+            })
+        );
     }
 }
