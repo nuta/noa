@@ -23,7 +23,6 @@ pub const PLAIN: Language = Language {
     id: "plain",
     filenames: &[],
     extensions: &[],
-    formatter: None,
     lsp: None,
     tree_sitter: None,
 };
@@ -32,7 +31,6 @@ pub const C: Language = Language {
     id: "c",
     filenames: &[],
     extensions: &["c", "h"],
-    formatter: Some(&["clang-format"]),
     lsp: Some(Lsp {
         language_id: "c",
         command: &["clangd", "-j=8", "--log=verbose", "--pretty"],
@@ -44,7 +42,6 @@ pub const RUST: Language = Language {
     id: "rust",
     filenames: &[],
     extensions: &["rs"],
-    formatter: None,
     lsp: None,
     tree_sitter: Some(TreeSitter {
         get_language: || unsafe { tree_sitter_rust() },

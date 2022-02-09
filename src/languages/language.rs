@@ -43,7 +43,6 @@ pub struct Language {
     pub id: &'static str,
     pub filenames: &'static [&'static str],
     pub extensions: &'static [&'static str],
-    pub formatter: Option<&'static [&'static str]>,
     pub lsp: Option<Lsp>,
     pub tree_sitter: Option<TreeSitter>,
 }

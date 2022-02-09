@@ -218,7 +218,7 @@ impl Surface for FinderView {
             1,
             truncate_to_width(&self.input.text(), canvas.width() - 2),
         );
-        canvas.apply_style(0, 1, canvas.width() - 2, theme_for(ThemeKey::FinderInput));
+        canvas.apply_style(0, 1, canvas.width() - 2, theme_for("finder.input"));
 
         for (i, item) in self
             .items
@@ -228,12 +228,7 @@ impl Surface for FinderView {
             .enumerate()
         {
             if i == self.item_selected {
-                canvas.apply_style(
-                    2 + i,
-                    1,
-                    canvas.width() - 8,
-                    theme_for(ThemeKey::FinderSelectedItem),
-                );
+                canvas.apply_style(2 + i, 1, canvas.width() - 8, theme_for("finder.selected"));
             }
 
             match item {

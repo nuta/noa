@@ -30,11 +30,11 @@ impl NotificationManager {
     }
 
     // TODO: Stop cloning string.
-    pub fn last_notification_as_str(&self) -> Option<(ThemeKey, String)> {
+    pub fn last_notification_as_str(&self) -> Option<(&'static str, String)> {
         self.last_notification().map(|noti| match noti {
-            Notification::Info(message) => (ThemeKey::InfoNotification, message.clone()),
-            Notification::Warn(message) => (ThemeKey::WarnNotification, message.clone()),
-            Notification::Error(err) => (ThemeKey::ErrorNotification, err.clone()),
+            Notification::Info(message) => ("notification.info", message.clone()),
+            Notification::Warn(message) => ("notification.warn", message.clone()),
+            Notification::Error(err) => ("notification.error", err.clone()),
         })
     }
 

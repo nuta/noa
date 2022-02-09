@@ -102,7 +102,7 @@ impl Surface for BottomLineView {
         let (noti_theme_key, noti) = notification_manager()
             .lock()
             .last_notification_as_str()
-            .unwrap_or_else(|| (ThemeKey::InfoNotification, "".to_string()));
+            .unwrap_or_else(|| ("notification.info", "".to_string()));
         let noti = truncate_to_width(&noti, notification_max_width);
         // File name.
         canvas.write_str(0, 1, truncate_to_width(doc.name(), filename_max_width));

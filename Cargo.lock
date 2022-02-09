@@ -820,6 +820,7 @@ dependencies = [
  "regex",
  "ropey",
  "tokio",
+ "toml",
  "which",
 ]
 
@@ -864,6 +865,7 @@ dependencies = [
  "noa_buffer",
  "noa_common",
  "parking_lot",
+ "serde",
  "tokio",
 ]
 
@@ -1338,6 +1340,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "toml"
+version = "0.5.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a31142970826733df8241ef35dc040ef98c679ab14d7c3e54d827099b3acecaa"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

@@ -60,16 +60,36 @@ impl<'a> Movement<'a> {
     }
 
     pub fn scroll_up(&mut self) {
+        debug_assert!(self
+            .view
+            .visible_range()
+            .contains(self.buffer.main_cursor().moving_position()));
+
         for _ in 0..5 {
-            self.move_cursors_up();
             self.view.scroll_up();
+        }
+
+        let visible_range = self.view.visible_range();
+        while !visible_range.contains(self.buffer.main_cursor().moving_position()) {
+            self.move_cursors_up();
+            break;
         }
     }
 
     pub fn scroll_down(&mut self) {
+        debug_assert!(self
+            .view
+            .visible_range()
+            .contains(self.buffer.main_cursor().moving_position()));
+
         for _ in 0..5 {
-            self.move_cursors_down();
             self.view.scroll_down();
+        }
+
+        let visible_range = self.view.visible_range();
+        while !visible_range.contains(self.buffer.main_cursor().moving_position()) {
+            self.move_cursors_down();
+            break;
         }
     }
 

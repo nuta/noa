@@ -83,7 +83,7 @@ impl Buffer {
 
     pub fn highlight<F>(&mut self, range: Range, mut callback: F)
     where
-        F: FnMut(Range, SyntaxSpan),
+        F: FnMut(Range, &str),
     {
         let buffer = self.raw_buffer().clone();
         if let Some(syntax) = self.syntax.as_mut() {

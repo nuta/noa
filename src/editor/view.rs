@@ -138,7 +138,7 @@ impl View {
     }
 
     pub fn scroll_down(&mut self) {
-        self.scroll = min(self.scroll + 1, self.rows.len());
+        self.scroll = min(self.scroll + 1, self.rows.len().saturating_sub(1));
     }
 
     /// Clears highlights in the given rows.
@@ -155,7 +155,7 @@ impl View {
     }
 
     /// Update characters' styles in the given range.
-    pub fn highlight(&mut self, range: Range, theme_key: ThemeKey) {
+    pub fn highlight(&mut self, range: Range, theme_key: &str) {
         let style = theme_for(theme_key);
         if style == Style::default() {
             return;

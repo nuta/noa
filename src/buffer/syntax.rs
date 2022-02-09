@@ -90,7 +90,7 @@ impl Syntax {
 
     pub fn highlight<F>(&mut self, mut callback: F, buffer: &RawBuffer, range: Range)
     where
-        F: FnMut(Range, SyntaxSpan),
+        F: FnMut(Range, &str),
     {
         let mut cursor = QueryCursor::new();
         cursor.set_point_range(range.into());
@@ -103,11 +103,7 @@ impl Syntax {
 
         for m in matches {
             for cap in m.captures {
-                if let Some(span) = self
-                    .highlight_query_indices
-                    .get(&m.pattern_index)
-                    .and_then(|name| SyntaxSpan::from_str(name).ok())
-                {
+                if let Some(span) = self.highlight_query_indices.get(&m.pattern_index) {
                     callback(cap.node.buffer_range(), span);
                 }
             }

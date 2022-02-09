@@ -181,11 +181,11 @@ impl Document {
         self.buffer
             .highlight(self.view.visible_range(), |range, span| {
                 // trace!("syntax highlight: {:?} {:?}", range, span);
-                highlights.push((range, span));
+                highlights.push((range, span.to_owned()));
             });
 
         for (range, span) in highlights {
-            self.view.highlight(range, ThemeKey::SyntaxSpan(span));
+            self.view.highlight(range, &span);
         }
 
         // Highlight find matches in visible rows.
@@ -197,7 +197,7 @@ impl Document {
                 break;
             }
 
-            self.view.highlight(range, ThemeKey::FindMatch);
+            self.view.highlight(range, "buffer.find_match");
         }
 
         self.flashes.highlight(&mut self.view);

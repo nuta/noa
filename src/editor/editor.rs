@@ -6,11 +6,9 @@ use crate::{
     clipboard::{self, ClipboardProvider},
     document::DocumentManager,
     git::Repo,
-    theme::Theme,
 };
 
 pub struct Editor {
-    pub theme: Theme,
     pub documents: DocumentManager,
     pub clipboard: Box<dyn ClipboardProvider>,
     pub repo: Option<Arc<Repo>>,
@@ -28,7 +26,6 @@ impl Editor {
         };
 
         Editor {
-            theme: Theme::default(),
             documents: DocumentManager::new(),
             clipboard: clipboard::build_provider().unwrap_or_else(clipboard::build_dummy_provider),
             repo,

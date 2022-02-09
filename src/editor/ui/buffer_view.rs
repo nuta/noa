@@ -119,13 +119,13 @@ impl Surface for BufferView {
                     y,
                     buffer_x,
                     canvas.width() - 1,
-                    theme_for(ThemeKey::CurrentLine),
+                    theme_for("buffer.current_line"),
                 );
             }
 
             // Draw line status.
             if let Some(status) = minimap.get(row.lineno - 1) {
-                canvas.write_char_with_style(y, 0, ' ', theme_for(ThemeKey::LineStatus(status)));
+                canvas.write_char_with_style(y, 0, ' ', theme_for("buffer.line_status"));
             }
 
             // Draw lineno.
