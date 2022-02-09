@@ -26,9 +26,7 @@ pub struct Theme {
 }
 
 static THEME: Lazy<HashMap<String, Style>> = Lazy::new(|| {
-    let theme =
-        toml::from_str(include_str!("theme.toml")).expect("failed to parse the default theme file");
-    theme
+    toml::from_str(include_str!("theme.toml")).expect("failed to parse the default theme file")
 });
 
 pub fn theme_for(key: &str) -> Style {
