@@ -13,6 +13,7 @@ use clap::Parser;
 
 use noa_common::{logger::install_logger, time_report::TimeReport};
 use noa_compositor::{terminal::Event, Compositor};
+use theme::parse_default_theme;
 use tokio::sync::{oneshot, Notify};
 use ui::{
     bottom_line_view::BottomLineView, buffer_view::BufferView, finder_view::FinderView,
@@ -43,6 +44,9 @@ struct Args {
 #[tokio::main]
 async fn main() {
     let boot_time = TimeReport::new("boot time");
+
+    // Parse the default theme here to print panics in stderr.
+    parse_default_theme();
 
     install_logger("main");
     let args = Args::parse();

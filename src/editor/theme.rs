@@ -115,6 +115,10 @@ pub fn theme_for(key: &str) -> Style {
     }
 }
 
+pub fn parse_default_theme() {
+    Lazy::force(&THEME);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
