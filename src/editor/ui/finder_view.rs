@@ -191,7 +191,7 @@ impl Surface for FinderView {
     }
 
     fn cursor_position(&self, _editor: &mut Editor) -> Option<(usize, usize)> {
-        Some((1, 2 + self.input.cursor_position()))
+        Some((0, 1 + self.input.cursor_position()))
     }
 
     fn render(&mut self, _editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
@@ -216,14 +216,14 @@ impl Surface for FinderView {
             .enumerate()
         {
             if i == self.item_selected {
-                canvas.apply_style(2 + i, 1, canvas.width() - 8, theme_for("finder.selected"));
+                canvas.apply_style(1 + i, 1, canvas.width() - 8, theme_for("finder.selected"));
             }
 
             match item {
                 FinderItem::File(path) => {
-                    canvas.write_str(2 + i, 2, truncate_to_width(path, canvas.width() - 2));
+                    canvas.write_str(1 + i, 2, truncate_to_width(path, canvas.width() - 2));
                     canvas.write_char_with_style(
-                        2 + i,
+                        1 + i,
                         1,
                         'F',
                         Style {
@@ -233,9 +233,9 @@ impl Surface for FinderView {
                     );
                 }
                 FinderItem::Buffer { name, .. } => {
-                    canvas.write_str(2 + i, 2, truncate_to_width(name, canvas.width() - 2));
+                    canvas.write_str(1 + i, 2, truncate_to_width(name, canvas.width() - 2));
                     canvas.write_char_with_style(
-                        2 + i,
+                        1 + i,
                         1,
                         'B',
                         Style {
@@ -259,11 +259,11 @@ impl Surface for FinderView {
                         "{before_text}{matched_text}{after_text} ({path}:{lineno})",
                         lineno = pos.y + 1
                     );
-                    canvas.write_str(2 + i, 2, truncate_to_width(&s, canvas.width() - 2));
+                    canvas.write_str(1 + i, 2, truncate_to_width(&s, canvas.width() - 2));
 
                     let x = 2 + before_text.display_width();
                     canvas.apply_style(
-                        2 + i,
+                        1 + i,
                         x,
                         min(canvas.width(), x + matched_text.display_width()),
                         Style {
