@@ -1,12 +1,12 @@
 use std::{collections::HashMap, ops::Range};
 
 use noa_buffer::raw_buffer::RawBuffer;
-use noa_common::collections::fuzzy_set::FuzzySet;
+use noa_common::fuzzyvec::FuzzyVec;
 
 const WORD_MIN_LEN: usize = 4;
 
 pub struct Words {
-    words: FuzzySet<()>,
+    words: FuzzyVec<()>,
     words_in_lines: Vec<Vec<String>>,
     occurences: HashMap<String, usize>,
 }
@@ -14,7 +14,7 @@ pub struct Words {
 impl Words {
     pub fn new() -> Words {
         Words {
-            words: FuzzySet::new(),
+            words: FuzzyVec::new(),
             words_in_lines: Vec::new(),
             occurences: HashMap::new(),
         }
@@ -26,7 +26,7 @@ impl Words {
         words
     }
 
-    pub fn words(&self) -> &FuzzySet<()> {
+    pub fn words(&self) -> &FuzzyVec<()> {
         &self.words
     }
 

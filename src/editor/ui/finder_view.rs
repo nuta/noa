@@ -1,5 +1,6 @@
 use std::{
     cmp::{max, min},
+    collections::HashSet,
     io,
     path::{Path, PathBuf},
     sync::Arc,
@@ -13,10 +14,7 @@ use noa_buffer::{
     cursor::{Position, Range},
     display_width::DisplayWidth,
 };
-use noa_common::{
-    collections::{fuzzy_set::FuzzySet, prioritized_vec::PrioritizedVec},
-    oops::OopsExt,
-};
+use noa_common::{fuzzyvec::FuzzyVec, oops::OopsExt};
 use noa_compositor::{
     canvas::{CanvasViewMut, Color, Decoration, Style},
     line_edit::LineEdit,
@@ -55,7 +53,8 @@ pub struct FinderView {
     render_request: Arc<Notify>,
     workspace_dir: PathBuf,
     active: bool,
-    items: Arc<ArcSwap<Vec<FinderItem>>>,
+    all_items: Arc<FuzzyVec<FinderItem>>,
+    filtered_items: Arc<ArcSwap<Vec<FinderItem>>>,
     item_selected: usize,
     num_items_shown: usize,
     input: LineEdit,
@@ -67,7 +66,8 @@ impl FinderView {
             render_request,
             workspace_dir: workspace_dir.to_path_buf(),
             active: false,
-            items: Arc::new(ArcSwap::from_pointee(Vec::new())),
+            all_items: Arc::new(FuzzyVec::new()),
+            filtered_items: Arc::new(ArcSwap::from_pointee(Vec::new())),
             item_selected: 0,
             num_items_shown: 0,
             input: LineEdit::new(),
@@ -86,16 +86,15 @@ impl FinderView {
     }
 
     pub fn update(&mut self, editor: &Editor) {
-        let mut providers = FuturesUnordered::new();
         let workspace_dir = self.workspace_dir.clone();
         let render_request = self.render_request.clone();
-        let items = self.items.clone();
         let query = self.input.text();
 
+        self.all_items.clear();
+
         // Buffers.
-        let mut buffers = FuzzySet::new();
         for (id, doc) in editor.documents.documents().iter() {
-            buffers.insert(
+            self.all_items.insert(
                 doc.name().to_owned(),
                 FinderItem::Buffer {
                     name: doc.name().to_owned(),
@@ -110,8 +109,9 @@ impl FinderView {
             );
         }
 
-        tokio::spawn(async move {
-            let mut all_items = PrioritizedVec::new(32);
+        let all_items = self.all_items.clone();
+        let filtered_items = self.filtered_items.clone();
+        tokio::task::spawn_blocking(move || {
             match query.chars().next() {
                 Some('/') => {
                     if query.len() < 4 {
@@ -119,52 +119,44 @@ impl FinderView {
                         return;
                     }
 
-                    match search_globally(&workspace_dir, &query[1..]).await {
-                        Ok(new_items) => {
-                            items.store(Arc::new(new_items));
+                    match search_globally(&workspace_dir, &query[1..]) {
+                        Ok(items) => {
+                            filtered_items.store(Arc::new(items));
                         }
                         Err(err) => {
                             notify_warn!("failed to search globally: {}", err);
+                            return;
                         }
                     }
-                    render_request.notify_one();
-                    return;
                 }
                 _ => {
-                    providers.push(tokio::spawn(async move { buffers }));
-                    providers.push(tokio::task::spawn_blocking(|| scan_paths(workspace_dir)));
-                }
-            }
+                    scan_paths(&all_items, workspace_dir);
 
-            while let Some(results) = providers.next().await {
-                let results = match results {
-                    Ok(results) => results,
-                    Err(err) => {
-                        warn!("failed to provide finder items: {}", err);
-                        continue;
-                    }
-                };
+                    all_items.filter_by_key(&query);
 
-                let mut visited_paths = Vec::new();
-                for (_s, item, score) in results.query(&query) {
-                    // Ignore already opened files.
-                    match item {
-                        FinderItem::File(path) | FinderItem::Buffer { path, .. } => {
-                            if visited_paths.contains(path) {
-                                continue;
+                    let mut items = Vec::new();
+                    let mut visited_paths = HashSet::new();
+                    for item in all_items.top_values() {
+                        // Ignore already opened files.
+                        match &item {
+                            FinderItem::File(path) | FinderItem::Buffer { path, .. } => {
+                                if visited_paths.contains(path) {
+                                    continue;
+                                }
+
+                                visited_paths.insert(path.clone());
                             }
-
-                            visited_paths.push(path.clone());
+                            _ => {}
                         }
-                        _ => {}
+
+                        items.push(item.clone());
                     }
 
-                    all_items.insert(score, item.to_owned());
+                    filtered_items.store(Arc::new(items));
                 }
-
-                items.store(Arc::new(all_items.sorted_vec()));
-                render_request.notify_one();
             }
+
+            render_request.notify_one();
         });
     }
 }
@@ -217,7 +209,7 @@ impl Surface for FinderView {
         canvas.apply_style(0, 1, canvas.width() - 2, theme_for("finder.input"));
 
         for (i, item) in self
-            .items
+            .filtered_items
             .load()
             .iter()
             .take(self.num_items_shown)
@@ -298,7 +290,7 @@ impl Surface for FinderView {
 
         match (key.code, key.modifiers) {
             (KeyCode::Enter, NONE) => {
-                match self.items.load().get(self.item_selected) {
+                match self.filtered_items.load().get(self.item_selected) {
                     Some(item) => {
                         info!("finder: selected item: {:?}", item);
                         match item {
@@ -334,7 +326,7 @@ impl Surface for FinderView {
             (KeyCode::Down, NONE) => {
                 self.item_selected = min(
                     self.item_selected + 1,
-                    min(self.num_items_shown, self.items.load().len()).saturating_sub(1),
+                    min(self.num_items_shown, self.filtered_items.load().len()).saturating_sub(1),
                 );
             }
             (KeyCode::Up, NONE) => {
@@ -376,9 +368,9 @@ impl Surface for FinderView {
     }
 }
 
-fn scan_paths(workspace_dir: PathBuf) -> FuzzySet<FinderItem> {
-    let paths = Mutex::new(FuzzySet::new());
+fn scan_paths(items: &Arc<FuzzyVec<FinderItem>>, workspace_dir: PathBuf) {
     use ignore::{WalkBuilder, WalkState};
+
     WalkBuilder::new(workspace_dir).build_parallel().run(|| {
         Box::new(|dirent| {
             if let Ok(dirent) = dirent {
@@ -412,9 +404,7 @@ fn scan_paths(workspace_dir: PathBuf) -> FuzzySet<FinderItem> {
                         }
 
                         let path = path.strip_prefix("./").unwrap_or(path);
-                        paths
-                            .lock()
-                            .insert(path, FinderItem::File(path.to_owned()), extra);
+                        items.insert(path, FinderItem::File(path.to_owned()), extra);
                     }
                     None => {
                         warn!("non-utf8 path: {:?}", dirent.path());
@@ -425,8 +415,6 @@ fn scan_paths(workspace_dir: PathBuf) -> FuzzySet<FinderItem> {
             WalkState::Continue
         })
     });
-
-    paths.into_inner()
 }
 
 pub struct Utf8Sink<F>(F)
@@ -458,7 +446,7 @@ where
     }
 }
 
-async fn search_globally(workspace_dir: &Path, raw_query: &str) -> Result<Vec<FinderItem>> {
+fn search_globally(workspace_dir: &Path, raw_query: &str) -> Result<Vec<FinderItem>> {
     use grep::{matcher::Matcher, regex::RegexMatcherBuilder, searcher::Searcher};
     use ignore::{WalkBuilder, WalkState};
 
@@ -471,7 +459,7 @@ async fn search_globally(workspace_dir: &Path, raw_query: &str) -> Result<Vec<Fi
         }
     };
 
-    let items = Arc::new(RwLock::new(PrioritizedVec::new(32)));
+    let mut items = Mutex::new(Vec::new());
     WalkBuilder::new(workspace_dir).build_parallel().run(|| {
         Box::new(|dirent| {
             if let Ok(dirent) = dirent {
@@ -521,18 +509,15 @@ async fn search_globally(workspace_dir: &Path, raw_query: &str) -> Result<Vec<Fi
 
                                     let m_start = min(m.start(), line_text.len());
                                     let m_end = min(m.end(), line_text.len());
-                                    let mut items = items.write();
-                                    items.insert(
-                                        0,
-                                        FinderItem::SearchMatch {
-                                            path: dirent.path().to_str().unwrap().to_owned(),
-                                            pos: Position::new((lineno as usize) - 1, x),
-                                            line_text,
-                                            before: ..m_start,
-                                            matched: m_start..m_end,
-                                            after: m_end..,
-                                        },
-                                    );
+                                    let mut items = items.lock();
+                                    items.push(FinderItem::SearchMatch {
+                                        path: dirent.path().to_str().unwrap().to_owned(),
+                                        pos: Position::new((lineno as usize) - 1, x),
+                                        line_text,
+                                        before: ..m_start,
+                                        matched: m_start..m_end,
+                                        after: m_end..,
+                                    });
 
                                     /* continue finding */
                                     items.len() < 32
@@ -550,6 +535,5 @@ async fn search_globally(workspace_dir: &Path, raw_query: &str) -> Result<Vec<Fi
         })
     });
 
-    let results = items.read().sorted_vec();
-    Ok(results)
+    Ok(items.into_inner())
 }

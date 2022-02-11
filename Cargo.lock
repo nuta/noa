@@ -851,6 +851,7 @@ dependencies = [
  "fxhash",
  "log",
  "once_cell",
+ "parking_lot",
  "rayon",
  "serde",
 ]

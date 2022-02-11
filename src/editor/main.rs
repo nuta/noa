@@ -24,6 +24,7 @@ use ui::{
 mod notification;
 
 mod clipboard;
+mod completion;
 mod document;
 mod editor;
 mod flash;
