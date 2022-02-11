@@ -39,13 +39,13 @@ impl FlashManager {
                 if total / 3 <= elapsed && elapsed < total * 2 / 3 {
                     view.clear_highlight(flash.range);
                 } else {
-                    view.highlight(flash.range, "buffer.flash");
+                    view.highlight(flash.range, "flash");
                 }
                 true
             }
             None => {
                 flash.flashed_at = Some(Instant::now());
-                view.highlight(flash.range, "buffer.flash");
+                view.highlight(flash.range, "flash");
                 true
             }
         });
