@@ -17,6 +17,9 @@
 
 "flash" = { fg = "whiskey" }
 
+"completion.item" = { bg = "dark" }
+"completion.selected" = { bg = "grey" }
+
 [colors]
 chalky = "#e5c07b"
 coral = "#e06c75"

@@ -5,6 +5,16 @@ use crate::{
 };
 
 impl Buffer {
+    pub fn current_word_str(&self) -> Option<String> {
+        let c = self.main_cursor();
+        if c.is_selection() {
+            return None;
+        }
+
+        self.current_word(c.moving_position())
+            .map(|range| self.substr(range))
+    }
+
     pub fn delete_current_word(&mut self) {
         self.select_current_word();
         self.delete_if_not_empty();

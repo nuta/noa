@@ -136,7 +136,7 @@ impl FinderView {
 
                     let mut items = Vec::new();
                     let mut visited_paths = HashSet::new();
-                    for item in all_items.top_values() {
+                    for (_, item) in all_items.top_entries() {
                         // Ignore already opened files.
                         match &item {
                             FinderItem::File(path) | FinderItem::Buffer { path, .. } => {

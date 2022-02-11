@@ -23,6 +23,7 @@ use noa_languages::{
 use tokio::{sync::Notify, task::JoinHandle};
 
 use crate::{
+    completion::{Completion, CompletionItem, CompletionKind},
     flash::FlashManager,
     git::Repo,
     minimap::MiniMap,
@@ -44,6 +45,7 @@ pub struct Document {
     view: View,
     movement_state: MovementState,
     words: Words,
+    completion: Arc<Completion>,
     flashes: FlashManager,
     minimap: Arc<ArcSwap<MiniMap>>,
     find_query: String,
@@ -61,6 +63,7 @@ impl Document {
             view: View::new(),
             movement_state: MovementState::new(),
             words: Words::new(),
+            completion: Arc::new(Completion::new()),
             flashes: FlashManager::new(),
             minimap: Arc::new(ArcSwap::from_pointee(MiniMap::new())),
             find_query: String::new(),
@@ -95,6 +98,7 @@ impl Document {
             view: View::new(),
             movement_state: MovementState::new(),
             words,
+            completion: Arc::new(Completion::new()),
             flashes: FlashManager::new(),
             minimap: Arc::new(ArcSwap::from_pointee(MiniMap::new())),
             find_query: String::new(),
@@ -161,6 +165,10 @@ impl Document {
         &mut self.flashes
     }
 
+    pub fn completion(&self) -> &Completion {
+        &self.completion
+    }
+
     pub fn minimap(&self) -> arc_swap::Guard<Arc<MiniMap>> {
         self.minimap.load()
     }
@@ -209,11 +217,23 @@ impl Document {
         let updated_lines = 0..self.buffer.num_lines();
 
         self.buffer.post_update_hook();
+        self.completion.clear();
+
+        // Word completion.
         self.words.update_lines(&self.buffer, updated_lines);
+        if let Some(current_word) = self.buffer.current_word_str() {
+            self.words.fuzzyvec().filter_by_key(&current_word);
+            for (word, _) in self.words.fuzzyvec().top_entries() {
+                self.completion.push(CompletionItem {
+                    kind: CompletionKind::CurrentWord,
+                    insert_text: word,
+                });
+            }
+        }
 
         if let Some(post_update_job) = self.post_update_job.take() {
             // Abort the previous run if it's still running.
-            // TODO: It's meaninguless unless we "await" in the closure below.
+            // TODO: I'm not sure if it works...
             post_update_job.abort();
         }
 
@@ -225,7 +245,7 @@ impl Document {
             _ => None,
         };
 
-        self.post_update_job = Some(tokio::spawn(async move {
+        self.post_update_job = Some(tokio::task::spawn_blocking(move || {
             let _time = TimeReport::new("backgroung_post_update_jobs time");
 
             // This may take a time.

@@ -26,7 +26,7 @@ impl Words {
         words
     }
 
-    pub fn words(&self) -> &FuzzyVec<()> {
+    pub fn fuzzyvec(&self) -> &FuzzyVec<()> {
         &self.words
     }
 

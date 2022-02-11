@@ -61,7 +61,7 @@ impl<T: Sync + Clone> Items<T> {
 pub struct FuzzyVec<T: Sync + Clone> {
     matcher: SkimMatcherV2,
     items: Mutex<Items<T>>,
-    top_values: Mutex<Vec<T>>,
+    top_entries: Mutex<Vec<(String, T)>>,
 }
 
 impl<T: Sync + Clone> FuzzyVec<T> {
@@ -69,7 +69,7 @@ impl<T: Sync + Clone> FuzzyVec<T> {
         let matcher = SkimMatcherV2::default().smart_case().use_cache(true);
         FuzzyVec {
             matcher,
-            top_values: Mutex::new(Vec::new()),
+            top_entries: Mutex::new(Vec::new()),
             items: Mutex::new(Items {
                 keys: HashSet::new(),
                 entries: HashMap::new(),
@@ -83,7 +83,7 @@ impl<T: Sync + Clone> FuzzyVec<T> {
 
     pub fn clear(&self) {
         self.items.lock().clear();
-        self.top_values.lock().clear();
+        self.top_entries.lock().clear();
     }
 
     pub fn remove(&self, key: &str) {
@@ -91,15 +91,15 @@ impl<T: Sync + Clone> FuzzyVec<T> {
     }
 
     pub fn filter_by_key(&self, pattern: &str) {
-        let mut values = Vec::new();
-        for (_, value, _) in self.items.lock().query(&self.matcher, pattern) {
-            values.push(value.clone());
+        let mut entries = Vec::new();
+        for (key, value, _) in self.items.lock().query(&self.matcher, pattern) {
+            entries.push((key.to_owned(), value.clone()));
         }
-        *self.top_values.lock() = values;
+        *self.top_entries.lock() = entries;
     }
 
-    pub fn top_values(&self) -> Vec<T> {
-        self.top_values.lock().clone()
+    pub fn top_entries(&self) -> Vec<(String, T)> {
+        self.top_entries.lock().clone()
     }
 }
 

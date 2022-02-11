@@ -107,12 +107,14 @@ impl<C> Compositor<C> {
         let rendering_time = TimeReport::new("rendering time");
 
         // Re-layout layers.
+        let mut prev_cursor_pos = None;
         for layer in self.layers.iter_mut() {
             let ((screen_y, screen_x), rect_size) =
-                relayout_layers(ctx, &*layer.surface, self.screen_size);
+                relayout_layer(ctx, &*layer.surface, self.screen_size, prev_cursor_pos);
             layer.screen_x = screen_x;
             layer.screen_y = screen_y;
             layer.canvas = Canvas::new(rect_size.height, rect_size.width);
+            prev_cursor_pos = layer.surface.cursor_position(ctx);
         }
 
         let prev_screen_index = self.active_screen_index;
@@ -243,10 +245,11 @@ fn compose_layers<C>(ctx: &mut C, screen: &mut Canvas, layers: slice::IterMut<'_
     }
 }
 
-fn relayout_layers<C>(
+fn relayout_layer<C>(
     ctx: &mut C,
     surface: &(impl Surface<Context = C> + ?Sized),
     screen_size: RectSize,
+    prev_cursor_pos: Option<(usize, usize)>,
 ) -> ((usize, usize), RectSize) {
     let (layout, rect) = surface.layout(ctx, screen_size);
 
@@ -257,7 +260,7 @@ fn relayout_layers<C>(
             (screen_size.width / 2).saturating_sub(rect.width / 2),
         ),
         Layout::AroundCursor => {
-            let (cursor_y, cursor_x) = surface.cursor_position(ctx).unwrap();
+            let (cursor_y, cursor_x) = prev_cursor_pos.unwrap();
 
             let y = if cursor_y + rect.height + 1 > screen_size.height {
                 cursor_y.saturating_sub(rect.height + 1)

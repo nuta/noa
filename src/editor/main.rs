@@ -16,8 +16,8 @@ use noa_compositor::{terminal::Event, Compositor};
 use theme::parse_default_theme;
 use tokio::sync::{oneshot, Notify};
 use ui::{
-    bottom_line_view::BottomLineView, buffer_view::BufferView, finder_view::FinderView,
-    too_small_view::TooSmallView,
+    bottom_line_view::BottomLineView, buffer_view::BufferView, completion_view::CompletionView,
+    finder_view::FinderView, too_small_view::TooSmallView,
 };
 
 #[macro_use]
@@ -88,6 +88,7 @@ async fn main() {
         render_request.clone(),
         &workspace_dir,
     )));
+    compositor.add_frontmost_layer(Box::new(CompletionView::new()));
 
     if open_finder {
         compositor
