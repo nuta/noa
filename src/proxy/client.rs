@@ -78,10 +78,10 @@ impl Client {
                 .await?;
             match resp {
                 Response::Completion(items) => Ok(items),
-                _ => bail!("unexpected response"),
+                _ => bail!("unexpected LSP response: {:?}", resp),
             }
         } else {
-            bail!("LSP unavailable for language {}", lang.id);
+            bail!("LSP unavailable for {}", lang.id);
         }
     }
 
