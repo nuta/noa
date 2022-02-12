@@ -2,12 +2,12 @@ use std::collections::HashMap;
 
 use anyhow::{Context, Result};
 use noa_compositor::canvas::{Color, Decoration, Style};
-use noa_languages::language::SyntaxSpan;
+
 use once_cell::sync::Lazy;
-use parking_lot::Mutex;
+
 use serde::Deserialize;
 
-use crate::minimap::LineStatus;
+
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 enum ThemeDecoration {

@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fs::{create_dir_all, OpenOptions},
     io::ErrorKind,
     num::NonZeroUsize,
@@ -15,10 +15,7 @@ use anyhow::Result;
 use arc_swap::ArcSwap;
 use noa_buffer::buffer::Buffer;
 use noa_common::{dirs::backup_dir, oops::OopsExt, time_report::TimeReport};
-use noa_languages::{
-    definitions::{guess_language, PLAIN},
-    language::Language,
-};
+use noa_languages::definitions::guess_language;
 
 use tokio::{sync::Notify, task::JoinHandle};
 
@@ -131,10 +128,6 @@ impl Document {
 
     pub fn name(&self) -> &str {
         &self.name
-    }
-
-    pub fn set_name<T: Into<String>>(&mut self, new_name: T) {
-        self.name = new_name.into();
     }
 
     pub fn set_find_query<T: Into<String>>(&mut self, find_query: T) {

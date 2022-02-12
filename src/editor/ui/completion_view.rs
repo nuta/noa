@@ -34,7 +34,7 @@ impl Surface for CompletionView {
         true
     }
 
-    fn layout(&self, editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
+    fn layout(&self, editor: &mut Editor, _screen_size: RectSize) -> (Layout, RectSize) {
         let doc = editor.documents.current();
         let entries = doc.completion().entries();
         let longest_entry_len = entries

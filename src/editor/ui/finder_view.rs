@@ -8,7 +8,6 @@ use std::{
 
 use anyhow::{bail, Result};
 use arc_swap::ArcSwap;
-use futures::{stream::FuturesUnordered, StreamExt};
 use grep::searcher::SinkError;
 use noa_buffer::{
     cursor::{Position, Range},
@@ -22,7 +21,7 @@ use noa_compositor::{
     terminal::{KeyCode, KeyEvent, KeyModifiers},
     Compositor,
 };
-use parking_lot::{Mutex, RwLock};
+use parking_lot::Mutex;
 use tokio::sync::Notify;
 
 use crate::{document::DocumentId, editor::Editor, theme::theme_for};
@@ -46,8 +45,6 @@ enum FinderItem {
         after: std::ops::RangeFrom<usize>,
     },
 }
-
-type IntoFinderItem = fn(String) -> FinderItem;
 
 pub struct FinderView {
     render_request: Arc<Notify>,
@@ -463,7 +460,7 @@ fn search_globally(workspace_dir: &Path, raw_query: &str) -> Result<Vec<FinderIt
         }
     };
 
-    let mut items = Mutex::new(Vec::new());
+    let items = Mutex::new(Vec::new());
     WalkBuilder::new(workspace_dir).build_parallel().run(|| {
         Box::new(|dirent| {
             if let Ok(dirent) = dirent {

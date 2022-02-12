@@ -1,5 +1,5 @@
 use std::{
-    cmp::{max, min},
+    cmp::{max},
     collections::HashMap,
 };
 
@@ -115,7 +115,7 @@ impl<'a> Movement<'a> {
             new_selections.push((range, new_visual_x));
         });
 
-        for (mut selection, visual_x) in new_selections {
+        for (selection, visual_x) in new_selections {
             // Note: the newly added cursor could be deleted due to overlapping.
             let new_cursor_id = self.buffer.add_cursor(selection);
             self.state.visual_xs.insert(new_cursor_id, visual_x);
