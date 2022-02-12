@@ -1,10 +1,11 @@
-use std::cmp::min;
+use std::{cmp::min, time::Instant};
 
 use noa_buffer::display_width::DisplayWidth;
 use noa_compositor::{
     canvas::{CanvasViewMut, Decoration},
     line_edit::LineEdit,
     surface::{HandledEvent, KeyEvent, Layout, RectSize, Surface},
+    terminal::{KeyCode, KeyModifiers},
     Compositor,
 };
 
@@ -23,7 +24,8 @@ struct LastNotification {
 
 pub struct MetaLineView {
     search_query: LineEdit,
-    notification: Option<LastNotification>,
+    last_notification: Option<LastNotification>,
+    clear_notification_after: usize,
     notification_height: usize,
     search_query_height: usize,
 }
@@ -32,7 +34,8 @@ impl MetaLineView {
     pub fn new() -> MetaLineView {
         MetaLineView {
             search_query: LineEdit::new(),
-            notification: None,
+            last_notification: None,
+            clear_notification_after: 0,
             notification_height: 0,
             search_query_height: 0,
         }
@@ -66,16 +69,20 @@ impl Surface for MetaLineView {
                 Notification::Error(err) => ("notification.error", err.as_str()),
             };
 
+            if self.clear_notification_after == 0 {
+                self.clear_notification_after = 3;
+            }
+
             let wrapped_text = textwrap::fill(text, width);
             self.notification_height = min(8, wrapped_text.lines().count());
-            self.notification = Some(LastNotification {
+            self.last_notification = Some(LastNotification {
                 theme_key,
                 wrapped_text,
             });
             height += self.notification_height;
         } else {
             self.notification_height = 0;
-            self.notification = None;
+            self.last_notification = None;
         };
 
         // Search query.
@@ -138,7 +145,7 @@ impl Surface for MetaLineView {
         if let Some(LastNotification {
             theme_key,
             wrapped_text,
-        }) = self.notification.as_ref()
+        }) = self.last_notification.as_ref()
         {
             let style = theme_for(theme_key);
             for (y, line) in wrapped_text
@@ -181,9 +188,35 @@ impl Surface for MetaLineView {
         &mut self,
         _compositor: &mut Compositor<Self::Context>,
         _editor: &mut Editor,
-        _key: KeyEvent,
+        key: KeyEvent,
     ) -> HandledEvent {
-        HandledEvent::Ignored
+        const NONE: KeyModifiers = KeyModifiers::NONE;
+        // const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        // const ALT: KeyModifiers = KeyModifiers::ALT;
+        // const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
+
+        trace!("MetaLineView::handle_key_event: {:?}", key);
+
+        match (key.code, key.modifiers) {
+            (KeyCode::Esc, NONE) if !self.search_query.is_empty() => {
+                self.search_query.clear();
+                HandledEvent::Consumed
+            }
+            (KeyCode::Esc, NONE) if self.last_notification.is_some() => {
+                notification_manager().clear();
+                self.last_notification = None;
+                HandledEvent::Consumed
+            }
+            _ => {
+                self.clear_notification_after = self.clear_notification_after.saturating_sub(1);
+                if self.clear_notification_after == 0 {
+                    notification_manager().clear();
+                    self.last_notification = None;
+                }
+
+                HandledEvent::Ignored
+            }
+        }
     }
 
     fn handle_key_batch_event(

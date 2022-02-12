@@ -66,7 +66,13 @@ impl Surface for BufferView {
     }
 
     fn layout(&mut self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
-        (Layout::Fixed { y: 0, x: 0 }, screen_size)
+        (
+            Layout::Fixed { y: 0, x: 0 },
+            RectSize {
+                width: screen_size.width,
+                height: screen_size.height.saturating_sub(1),
+            },
+        )
     }
 
     fn cursor_position(&self, _editor: &mut Editor) -> Option<(usize, usize)> {

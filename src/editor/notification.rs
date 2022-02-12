@@ -31,6 +31,10 @@ impl NotificationManager {
         self.notification.load()
     }
 
+    pub fn clear(&self) {
+        self.notification.store(Arc::new(None));
+    }
+
     pub fn notify(&self, noti: Notification) {
         info!("notification: {:?}", noti);
         self.notification.store(Arc::new(Some(noti)));
