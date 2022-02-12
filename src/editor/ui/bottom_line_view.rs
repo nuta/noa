@@ -6,7 +6,11 @@ use noa_compositor::{
     Compositor,
 };
 
-use crate::{editor::Editor, notification::notification_manager, theme::theme_for};
+use crate::{
+    editor::Editor,
+    notification::{notification_manager, Notification},
+    theme::theme_for,
+};
 
 use super::helpers::truncate_to_width;
 
@@ -95,10 +99,14 @@ impl Surface for BottomLineView {
         let filename_max_width = canvas.width() - cursor_pos_width - 2;
         let search_query = self.search_query.text();
         let notification_max_width = canvas.width() - search_query.display_width() - 2;
-        let (noti_theme_key, noti) = notification_manager()
-            .lock()
-            .last_notification_as_str()
-            .unwrap_or_else(|| ("notification.info", "".to_string()));
+        let last_noti = notification_manager().last_notification();
+        let (noti_theme_key, noti) = match last_noti.as_ref() {
+            Some(Notification::Info(message)) => ("notification.info", message.as_str()),
+            Some(Notification::Warn(message)) => ("notification.warn", message.as_str()),
+            Some(Notification::Error(err)) => ("notification.error", err.as_str()),
+            None => ("", ""),
+        };
+
         let noti = truncate_to_width(&noti, notification_max_width);
         // File name.
         canvas.write_str(0, 1, truncate_to_width(doc.name(), filename_max_width));

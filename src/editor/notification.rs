@@ -1,5 +1,7 @@
+use std::sync::Arc;
+
+use arc_swap::ArcSwap;
 use once_cell::sync::Lazy;
-use parking_lot::Mutex;
 
 #[derive(Debug)]
 pub enum Notification {
@@ -15,30 +17,23 @@ impl From<anyhow::Error> for Notification {
 }
 
 pub struct NotificationManager {
-    notification: Option<Notification>,
+    notification: ArcSwap<Option<Notification>>,
 }
 
 impl NotificationManager {
     fn new() -> NotificationManager {
-        NotificationManager { notification: None }
+        NotificationManager {
+            notification: ArcSwap::from_pointee(None),
+        }
     }
 
-    pub fn last_notification(&self) -> Option<&Notification> {
-        self.notification.as_ref()
+    pub fn last_notification(&self) -> arc_swap::Guard<Arc<Option<Notification>>> {
+        self.notification.load()
     }
 
-    // TODO: Stop cloning string.
-    pub fn last_notification_as_str(&self) -> Option<(&'static str, String)> {
-        self.last_notification().map(|noti| match noti {
-            Notification::Info(message) => ("notification.info", message.clone()),
-            Notification::Warn(message) => ("notification.warn", message.clone()),
-            Notification::Error(err) => ("notification.error", err.clone()),
-        })
-    }
-
-    pub fn push(&mut self, noti: Notification) {
+    pub fn notify(&self, noti: Notification) {
         info!("notification: {:?}", noti);
-        self.notification = Some(noti);
+        self.notification.store(Arc::new(Some(noti)));
     }
 }
 
@@ -47,7 +42,7 @@ macro_rules! notify_info {
     ($($arg:tt)+) => {{
         use $crate::notification::{Notification, notification_manager};
         let noti = Notification::Info(format!($($arg)+));
-        notification_manager().lock().push(noti);
+        notification_manager().notify(noti);
     }}
 }
 
@@ -56,7 +51,7 @@ macro_rules! notify_warn {
     ($($arg:tt)+) => {{
         use $crate::notification::{Notification, notification_manager};
         let noti = Notification::Warn(format!($($arg)+));
-        notification_manager().lock().push(noti);
+        notification_manager().notify(noti);
     }}
 }
 
@@ -65,7 +60,7 @@ macro_rules! notify_error {
     ($($arg:tt)+) => {{
         use $crate::notification::{Notification, notification_manager};
         let noti = Notification::Error(format!($($arg)+));
-        notification_manager().lock().push(noti);
+        notification_manager().notify(noti);
     }}
 }
 
@@ -74,13 +69,12 @@ macro_rules! notify_anyhow_error {
     ($err:expr) => {{
         use $crate::notification::{notification_manager, Notification};
         let noti = Notification::from($err);
-        notification_manager().lock().push(noti);
+        notification_manager().notify(noti);
     }};
 }
 
-static NOTIFICATIONS: Lazy<Mutex<NotificationManager>> =
-    Lazy::new(|| Mutex::new(NotificationManager::new()));
+static NOTIFICATIONS: Lazy<NotificationManager> = Lazy::new(|| NotificationManager::new());
 
-pub fn notification_manager() -> &'static Lazy<Mutex<NotificationManager>> {
+pub fn notification_manager() -> &'static Lazy<NotificationManager> {
     &NOTIFICATIONS
 }
