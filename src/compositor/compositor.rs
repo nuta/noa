@@ -114,7 +114,10 @@ impl<C> Compositor<C> {
             layer.screen_x = screen_x;
             layer.screen_y = screen_y;
             layer.canvas = Canvas::new(rect_size.height, rect_size.width);
-            prev_cursor_pos = layer.surface.cursor_position(ctx);
+
+            if let Some((surface_y, surface_x)) = layer.surface.cursor_position(ctx) {
+                prev_cursor_pos = Some((screen_y + surface_y, screen_x + surface_x));
+            }
         }
 
         let prev_screen_index = self.active_screen_index;
@@ -261,7 +264,6 @@ fn relayout_layer<C>(
         ),
         Layout::AroundCursor => {
             let (cursor_y, cursor_x) = prev_cursor_pos.unwrap();
-
             let y = if cursor_y + rect.height + 1 > screen_size.height {
                 cursor_y.saturating_sub(rect.height + 1)
             } else {

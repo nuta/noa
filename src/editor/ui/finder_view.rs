@@ -191,7 +191,11 @@ impl Surface for FinderView {
     }
 
     fn cursor_position(&self, _editor: &mut Editor) -> Option<(usize, usize)> {
-        Some((0, 1 + self.input.cursor_position()))
+        if self.active {
+            Some((0, 1 + self.input.cursor_position()))
+        } else {
+            None
+        }
     }
 
     fn render(&mut self, _editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
