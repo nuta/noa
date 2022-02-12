@@ -1,3 +1,5 @@
+use std::cmp::min;
+
 use noa_buffer::display_width::DisplayWidth;
 use noa_compositor::{
     canvas::{CanvasViewMut, Decoration},
@@ -14,14 +16,25 @@ use crate::{
 
 use super::helpers::truncate_to_width;
 
+struct LastNotification {
+    theme_key: &'static str,
+    wrapped_text: String,
+}
+
 pub struct MetaLineView {
     search_query: LineEdit,
+    notification: Option<LastNotification>,
+    notification_height: usize,
+    search_query_height: usize,
 }
 
 impl MetaLineView {
     pub fn new() -> MetaLineView {
         MetaLineView {
             search_query: LineEdit::new(),
+            notification: None,
+            notification_height: 0,
+            search_query_height: 0,
         }
     }
 }
@@ -41,9 +54,37 @@ impl Surface for MetaLineView {
         true
     }
 
-    fn layout(&self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
-        let height = 1;
-        let width = screen_size.width.clamp(25, 30);
+    fn layout(&mut self, editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
+        let mut height = 1;
+        let width = screen_size.width.clamp(25, min(50, screen_size.width / 2));
+
+        // Notification.
+        if let Some(noti) = notification_manager().last_notification().as_ref() {
+            let (theme_key, text) = match noti {
+                Notification::Info(message) => ("notification.info", message.as_str()),
+                Notification::Warn(message) => ("notification.warn", message.as_str()),
+                Notification::Error(err) => ("notification.error", err.as_str()),
+            };
+
+            let wrapped_text = textwrap::fill(text, width);
+            self.notification_height = min(8, wrapped_text.lines().count());
+            self.notification = Some(LastNotification {
+                theme_key,
+                wrapped_text,
+            });
+            height += self.notification_height;
+        } else {
+            self.notification_height = 0;
+            self.notification = None;
+        };
+
+        // Search query.
+        if !self.search_query.is_empty() {
+            self.search_query_height = 1;
+            height += 1;
+        } else {
+            self.search_query_height = 0;
+        }
 
         (
             Layout::Fixed {
@@ -92,32 +133,48 @@ impl Surface for MetaLineView {
         let cursor_pos_width = cursor_pos_str.display_width();
         let filename_max_width = canvas.width() - cursor_pos_width - 2;
         let search_query = self.search_query.text();
-        let notification_max_width = canvas.width() - search_query.display_width() - 2;
-        let last_noti = notification_manager().last_notification();
-        let (noti_theme_key, noti) = match last_noti.as_ref() {
-            Some(Notification::Info(message)) => ("notification.info", message.as_str()),
-            Some(Notification::Warn(message)) => ("notification.warn", message.as_str()),
-            Some(Notification::Error(err)) => ("notification.error", err.as_str()),
-            None => ("", ""),
-        };
 
-        let noti = truncate_to_width(noti, notification_max_width);
-        // File name.
-        canvas.write_str(0, 1, truncate_to_width(doc.name(), filename_max_width));
-        // Cursor position.
-        canvas.write_str(0, canvas.width() - 1 - cursor_pos_width, &cursor_pos_str);
-        // The first line.
-        canvas.set_decoration(0, 0, canvas.width(), Decoration::inverted());
+        // Notification.
+        if let Some(LastNotification {
+            theme_key,
+            wrapped_text,
+        }) = self.notification.as_ref()
+        {
+            let style = theme_for(theme_key);
+            for (y, line) in wrapped_text
+                .lines()
+                .take(self.notification_height)
+                .enumerate()
+            {
+                canvas.write_str(y, 0, line);
+                canvas.apply_style(y, 0, canvas.width(), style);
+            }
+        }
+
         // // Search query.
-        // canvas.write_str(1, 1, &search_query);
-        // // Notification.
-        // canvas.write_str(1, canvas.width() - 1 - noti.display_width(), noti);
-        // canvas.apply_style(
-        //     1,
-        //     canvas.width() - 1 - noti.display_width(),
-        //     canvas.width(),
-        //     theme_for(noti_theme_key),
-        // );
+        canvas.write_str(self.notification_height, 1, &search_query);
+
+        // File name.
+        canvas.write_str(
+            self.notification_height + self.search_query_height,
+            1,
+            truncate_to_width(doc.name(), filename_max_width),
+        );
+
+        // Cursor position.
+        canvas.write_str(
+            self.notification_height + self.search_query_height,
+            canvas.width() - 1 - cursor_pos_width,
+            &cursor_pos_str,
+        );
+
+        // The first line.
+        canvas.apply_style(
+            self.notification_height + self.search_query_height,
+            0,
+            canvas.width(),
+            theme_for("meta_line.first_line"),
+        );
     }
 
     fn handle_key_event(

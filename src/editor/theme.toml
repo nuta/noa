@@ -8,6 +8,8 @@
 "buffer.current_line" = { bg = "grey" }
 "buffer.line_status" = { fg = "grey" }
 
+"meta_line.first_line" = { decorations = [ "bold", "inverted" ] }
+
 "finder.input" = { fg = "default" }
 "finder.selected" = { fg = "malibu" }
 
@@ -37,3 +39,4 @@ deepRed = "#BE5046"
 
 default = "default"
 grey = "#323232"
+black = "#111111"

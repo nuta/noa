@@ -110,7 +110,7 @@ impl<C> Compositor<C> {
         let mut prev_cursor_pos = None;
         for layer in self.layers.iter_mut() {
             let ((screen_y, screen_x), rect_size) =
-                relayout_layer(ctx, &*layer.surface, self.screen_size, prev_cursor_pos);
+                relayout_layer(ctx, &mut *layer.surface, self.screen_size, prev_cursor_pos);
             layer.screen_x = screen_x;
             layer.screen_y = screen_y;
             layer.canvas = Canvas::new(rect_size.height, rect_size.width);
@@ -250,7 +250,7 @@ fn compose_layers<C>(ctx: &mut C, screen: &mut Canvas, layers: slice::IterMut<'_
 
 fn relayout_layer<C>(
     ctx: &mut C,
-    surface: &(impl Surface<Context = C> + ?Sized),
+    surface: &mut (impl Surface<Context = C> + ?Sized),
     screen_size: RectSize,
     prev_cursor_pos: Option<(usize, usize)>,
 ) -> ((usize, usize), RectSize) {

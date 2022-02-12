@@ -36,7 +36,7 @@ impl Surface for TooSmallView {
         true
     }
 
-    fn layout(&self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
+    fn layout(&mut self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
         (Layout::Fixed { x: 0, y: 0 }, screen_size)
     }
 

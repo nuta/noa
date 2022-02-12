@@ -65,7 +65,7 @@ impl Surface for BufferView {
         true
     }
 
-    fn layout(&self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
+    fn layout(&mut self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
         (Layout::Fixed { y: 0, x: 0 }, screen_size)
     }
 

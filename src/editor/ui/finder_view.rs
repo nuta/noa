@@ -173,7 +173,7 @@ impl Surface for FinderView {
         self.active
     }
 
-    fn layout(&self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
+    fn layout(&mut self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
         let height = min(24, screen_size.height);
         (
             Layout::Fixed {
