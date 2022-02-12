@@ -73,7 +73,7 @@ macro_rules! notify_anyhow_error {
     }};
 }
 
-static NOTIFICATIONS: Lazy<NotificationManager> = Lazy::new(|| NotificationManager::new());
+static NOTIFICATIONS: Lazy<NotificationManager> = Lazy::new(NotificationManager::new);
 
 pub fn notification_manager() -> &'static Lazy<NotificationManager> {
     &NOTIFICATIONS

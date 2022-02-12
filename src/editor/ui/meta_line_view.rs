@@ -14,23 +14,23 @@ use crate::{
 
 use super::helpers::truncate_to_width;
 
-pub struct BottomLineView {
+pub struct MetaLineView {
     search_query: LineEdit,
 }
 
-impl BottomLineView {
-    pub fn new() -> BottomLineView {
-        BottomLineView {
+impl MetaLineView {
+    pub fn new() -> MetaLineView {
+        MetaLineView {
             search_query: LineEdit::new(),
         }
     }
 }
 
-impl Surface for BottomLineView {
+impl Surface for MetaLineView {
     type Context = Editor;
 
     fn name(&self) -> &str {
-        "bottom_line"
+        "meta_line"
     }
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
@@ -42,15 +42,15 @@ impl Surface for BottomLineView {
     }
 
     fn layout(&self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
+        let height = 1;
+        let width = screen_size.width.clamp(25, 30);
+
         (
             Layout::Fixed {
-                y: screen_size.height.saturating_sub(2),
-                x: 0,
+                y: screen_size.height.saturating_sub(height),
+                x: screen_size.width.saturating_sub(width),
             },
-            RectSize {
-                height: 2,
-                width: screen_size.width,
-            },
+            RectSize { height, width },
         )
     }
 
@@ -78,22 +78,16 @@ impl Surface for BottomLineView {
                 .count();
             if num_invisible_cursors > 0 {
                 format!(
-                    "{}, {} [{}+{}]",
-                    cursor_pos.y + 1,
+                    "{} [{}+{}]",
                     cursor_pos.x,
                     buffer.cursors().len(),
                     num_invisible_cursors
                 )
             } else {
-                format!(
-                    "{}, {} [{}]",
-                    cursor_pos.y + 1,
-                    cursor_pos.x,
-                    buffer.cursors().len()
-                )
+                format!("{} [{}]", cursor_pos.x, buffer.cursors().len())
             }
         } else {
-            format!("{}, {}", cursor_pos.y + 1, cursor_pos.x)
+            format!("{}", cursor_pos.x)
         };
         let cursor_pos_width = cursor_pos_str.display_width();
         let filename_max_width = canvas.width() - cursor_pos_width - 2;
@@ -107,23 +101,23 @@ impl Surface for BottomLineView {
             None => ("", ""),
         };
 
-        let noti = truncate_to_width(&noti, notification_max_width);
+        let noti = truncate_to_width(noti, notification_max_width);
         // File name.
         canvas.write_str(0, 1, truncate_to_width(doc.name(), filename_max_width));
         // Cursor position.
         canvas.write_str(0, canvas.width() - 1 - cursor_pos_width, &cursor_pos_str);
         // The first line.
         canvas.set_decoration(0, 0, canvas.width(), Decoration::inverted());
-        // Search query.
-        canvas.write_str(1, 1, &search_query);
-        // Notification.
-        canvas.write_str(1, canvas.width() - 1 - noti.display_width(), noti);
-        canvas.apply_style(
-            1,
-            canvas.width() - 1 - noti.display_width(),
-            canvas.width(),
-            theme_for(noti_theme_key),
-        );
+        // // Search query.
+        // canvas.write_str(1, 1, &search_query);
+        // // Notification.
+        // canvas.write_str(1, canvas.width() - 1 - noti.display_width(), noti);
+        // canvas.apply_style(
+        //     1,
+        //     canvas.width() - 1 - noti.display_width(),
+        //     canvas.width(),
+        //     theme_for(noti_theme_key),
+        // );
     }
 
     fn handle_key_event(

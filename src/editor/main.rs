@@ -16,8 +16,8 @@ use noa_compositor::{terminal::Event, Compositor};
 use theme::parse_default_theme;
 use tokio::sync::{oneshot, Notify};
 use ui::{
-    bottom_line_view::BottomLineView, buffer_view::BufferView, completion_view::CompletionView,
-    finder_view::FinderView, too_small_view::TooSmallView,
+    buffer_view::BufferView, completion_view::CompletionView, finder_view::FinderView,
+    meta_line_view::MetaLineView, too_small_view::TooSmallView,
 };
 
 #[macro_use]
@@ -82,7 +82,7 @@ async fn main() {
     let (quit_tx, mut quit_rx) = oneshot::channel();
     compositor.add_frontmost_layer(Box::new(TooSmallView::new("too small!")));
     compositor.add_frontmost_layer(Box::new(BufferView::new(quit_tx, render_request.clone())));
-    compositor.add_frontmost_layer(Box::new(BottomLineView::new()));
+    compositor.add_frontmost_layer(Box::new(MetaLineView::new()));
     compositor.add_frontmost_layer(Box::new(FinderView::new(
         &editor,
         render_request.clone(),
