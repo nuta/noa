@@ -85,7 +85,7 @@ impl Client {
         }
     }
 
-    pub async fn request(&self, lsp: &Lsp, request: Request) -> Result<Response> {
+    async fn request(&self, lsp: &Lsp, request: Request) -> Result<Response> {
         let kind = ProxyKind::Lsp(lsp.language_id);
         let (resp_tx, resp_rx) = oneshot::channel::<Response>();
         {
