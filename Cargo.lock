@@ -921,7 +921,6 @@ dependencies = [
  "futures",
  "log",
  "lsp-types",
- "noa_buffer",
  "noa_common",
  "noa_languages",
  "parking_lot 0.12.0",

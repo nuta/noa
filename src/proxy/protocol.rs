@@ -28,7 +28,7 @@ pub enum ToClient {
 pub enum Request {
     Completion {
         path: PathBuf,
-        pos: lsp_types::Position,
+        position: lsp_types::Position,
     },
     UpdateFile {
         path: PathBuf,
@@ -39,6 +39,7 @@ pub enum Request {
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum Response {
     NoContent,
+    Completion(Vec<lsp_types::CompletionItem>),
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
