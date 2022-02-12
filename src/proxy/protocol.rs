@@ -4,7 +4,7 @@ use lsp_types::Diagnostic;
 use noa_common::fast_hash::FastHash;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, PartialEq, Debug, Deserialize, Serialize, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize, Hash)]
 pub struct RequestId(usize);
 
 impl From<usize> for RequestId {
@@ -26,7 +26,14 @@ pub enum ToClient {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum Request {
-    UpdateFile { path: PathBuf, text: String },
+    Completion {
+        path: PathBuf,
+        pos: lsp_types::Position,
+    },
+    UpdateFile {
+        path: PathBuf,
+        text: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]

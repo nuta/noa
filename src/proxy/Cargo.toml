@@ -27,3 +27,5 @@ serde_json = "1"
 lsp-types = "^0.91"
 
 noa_common = { path = "../common" }
+noa_buffer = { path = "../buffer" }
+noa_languages = { path = "../languages" }

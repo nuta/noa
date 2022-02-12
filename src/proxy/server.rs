@@ -44,7 +44,7 @@ impl Server {
                 Err(_) => {
                     // Timed out.
                     if !*self.progress.lock() {
-                        info!("idle state for a long while, exiting...");
+                        info!("still in the idle state for a long while, exiting...");
                         return;
                     }
 
