@@ -10,7 +10,6 @@ use std::{
 
 use anyhow::{bail, Context, Result};
 use noa_common::oops::OopsExt;
-use noa_proxy::protocol::ToServer;
 use parking_lot::Mutex;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
@@ -20,7 +19,7 @@ use tokio::{
 };
 
 use crate::{
-    protocol::{Notification, RequestId, Response, ToClient},
+    protocol::{Notification, RequestId, Response, ToClient, ToServer},
     server::Server,
 };
 
@@ -52,7 +51,9 @@ impl EventLoop {
         self.notification_tx.clone()
     }
 
-    pub async fn run(mut self, server: impl Server) {
+    pub async fn run(mut self, server: impl Server + 'static) {
+        let server = Arc::new(tokio::sync::Mutex::new(server));
+
         let listener = match UnixListener::bind(&self.sock_path) {
             Ok(listener) => listener,
             Err(err) => {
@@ -87,7 +88,7 @@ impl EventLoop {
                     self.progress.store(false, Ordering::SeqCst);
                 }
                 Ok(Ok((new_client, _))) => {
-                    self.handle_client(new_client);
+                    self.handle_client(new_client, server.clone());
                 }
                 _ => {}
             }
@@ -95,9 +96,16 @@ impl EventLoop {
     }
 
     /// Spawns a new task to handle a client.
-    pub fn handle_client(&self, client: UnixStream) {
+    pub fn handle_client<S: Server + 'static>(
+        &self,
+        client: UnixStream,
+        server: Arc<tokio::sync::Mutex<S>>,
+    ) {
         let progress = self.progress.clone();
         let (read_end, write_end) = client.into_split();
+
+        let client_id = self.clients.lock().add_client(write_end);
+        let clients = self.clients.clone();
         tokio::spawn(async move {
             let mut reader = BufReader::new(read_end);
             let mut buf = String::with_capacity(128 * 1024);
@@ -110,9 +118,27 @@ impl EventLoop {
                     Ok(_) => {
                         progress.store(true, Ordering::SeqCst);
 
-                        let request: ToServer = serde_json::from_str(&buf)
+                        let message: ToServer = serde_json::from_str(&buf)
                             .with_context(|| format!("invalid request body: {}", buf))
                             .unwrap();
+                        match message {
+                            ToServer::Request { id, body } => {
+                                let req: <S as Server>::Request =
+                                    serde_json::from_value(body).unwrap();
+                                let resp = match server.lock().await.process_request(req).await {
+                                    Ok(resp) => Response::Ok {
+                                        body: serde_json::to_value(resp).unwrap(),
+                                    },
+                                    Err(err) => {
+                                        error!("failed to process request: {}", err);
+                                        Response::Err {
+                                            reason: err.to_string(),
+                                        }
+                                    }
+                                };
+                                clients.lock().send_response(client_id, id, resp);
+                            }
+                        }
                     }
                     Err(err) => {
                         warn!("failed to read from a client: {}", err);
@@ -157,7 +183,12 @@ impl ClientSet {
         }
     }
 
-    pub async fn send(&mut self, client_id: ClientId, request_id: RequestId, body: Response) {
+    pub async fn send_response(
+        &mut self,
+        client_id: ClientId,
+        request_id: RequestId,
+        body: Response,
+    ) {
         let json = serde_json::to_string(&ToClient::Response {
             id: request_id,
             body,
