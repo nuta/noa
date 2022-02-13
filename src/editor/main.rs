@@ -13,7 +13,7 @@ use clap::Parser;
 use noa_common::{logger::install_logger, time_report::TimeReport};
 use noa_compositor::{terminal::Event, Compositor};
 use theme::parse_default_theme;
-use tokio::sync::{oneshot, Notify};
+use tokio::sync::{mpsc, oneshot, Notify};
 use ui::{
     buffer_view::BufferView, completion_view::CompletionView, finder_view::FinderView,
     meta_line_view::MetaLineView, too_small_view::TooSmallView,
@@ -59,7 +59,8 @@ async fn main() {
         .unwrap_or_else(|| PathBuf::from("."));
 
     let render_request = Arc::new(Notify::new());
-    let mut editor = editor::Editor::new(&workspace_dir, render_request.clone());
+    let (notification_tx, mut notification_rx) = mpsc::unbounded_channel();
+    let mut editor = editor::Editor::new(&workspace_dir, render_request.clone(), notification_tx);
     let mut compositor = Compositor::new();
 
     let mut open_finder = true;
@@ -118,6 +119,11 @@ async fn main() {
                         compositor.resize_screen(height, width);
                     }
                 }
+            }
+
+            Some(noti) = notification_rx.recv() => {
+                trace!("proxy notification: {:?}", noti);
+                editor.handle_notification(noti);
             }
 
             _ = render_request.notified() => {

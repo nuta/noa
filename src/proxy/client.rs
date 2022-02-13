@@ -45,25 +45,18 @@ pub struct Client {
     txs: Arc<Mutex<HashMap<ProxyKind, UnboundedSender<ToServer>>>>,
     sent_requests: Arc<Mutex<HashMap<RequestId, oneshot::Sender<Response>>>>,
     notification_tx: UnboundedSender<Notification>,
-    notification_rx: UnboundedReceiver<Notification>,
     next_request_id: AtomicUsize,
 }
 
 impl Client {
-    pub fn new(workspace_dir: &Path) -> Client {
-        let (notification_tx, notification_rx) = mpsc::unbounded_channel();
+    pub fn new(workspace_dir: &Path, notification_tx: UnboundedSender<Notification>) -> Client {
         Client {
             workspace_dir: workspace_dir.to_owned(),
             txs: Arc::new(Mutex::new(HashMap::new())),
             sent_requests: Arc::new(Mutex::new(HashMap::new())),
             notification_tx,
-            notification_rx,
             next_request_id: AtomicUsize::new(1),
         }
-    }
-
-    pub fn notification_rx(&self) -> &UnboundedReceiver<Notification> {
-        &self.notification_rx
     }
 
     pub async fn completion(

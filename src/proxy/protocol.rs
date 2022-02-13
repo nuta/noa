@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 use lsp_types::{CompletionItem, Diagnostic, HoverContents, SignatureHelp};
-use noa_common::fast_hash::FastHash;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize, Hash)]
@@ -61,11 +60,6 @@ pub enum Notification {
     Diagnostics {
         diags: Vec<Diagnostic>,
         path: PathBuf,
-    },
-    FileModified {
-        path: PathBuf,
-        text: String,
-        hash: FastHash,
     },
 }
 

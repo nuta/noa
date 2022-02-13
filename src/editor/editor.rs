@@ -1,6 +1,7 @@
 use std::{path::Path, sync::Arc};
 
-use tokio::sync::Notify;
+use noa_proxy::protocol::Notification;
+use tokio::sync::{mpsc::UnboundedSender, Notify};
 
 use crate::{
     clipboard::{self, ClipboardProvider},
@@ -17,7 +18,11 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn new(workspace_dir: &Path, render_request: Arc<Notify>) -> Editor {
+    pub fn new(
+        workspace_dir: &Path,
+        render_request: Arc<Notify>,
+        notification_tx: UnboundedSender<Notification>,
+    ) -> Editor {
         let repo = match Repo::open(workspace_dir) {
             Ok(repo) => Some(Arc::new(repo)),
             Err(err) => {
@@ -30,8 +35,29 @@ impl Editor {
             documents: DocumentManager::new(),
             clipboard: clipboard::build_provider().unwrap_or_else(clipboard::build_dummy_provider),
             repo,
-            proxy: Arc::new(noa_proxy::client::Client::new(workspace_dir)),
+            proxy: Arc::new(noa_proxy::client::Client::new(
+                workspace_dir,
+                notification_tx,
+            )),
             render_request,
+        }
+    }
+    pub fn handle_notification(&mut self, notification: Notification) {
+        match notification {
+            Notification::Diagnostics { diags, path } => {
+                if Some(path.as_path()) != self.documents.current().path() {
+                    trace!(
+                        "ignoring diagnostics for {:?} {:?}",
+                        path,
+                        self.documents.current().path()
+                    );
+                    return;
+                }
+
+                if let Some(diag) = diags.first() {
+                    notify_warn!("{}: {:?}", diag.range.start.line + 1, diag.message);
+                }
+            }
         }
     }
 }
