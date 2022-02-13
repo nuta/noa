@@ -13,7 +13,10 @@ use noa_common::oops::OopsExt;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     net::{unix::OwnedWriteHalf, UnixListener, UnixStream},
-    sync::mpsc::{UnboundedReceiver, UnboundedSender},
+    sync::{
+        mpsc::{self, UnboundedReceiver, UnboundedSender},
+        oneshot,
+    },
     time::timeout,
 };
 
@@ -24,7 +27,7 @@ use crate::{
 
 /// If the server does not receive any requests from clients for this duration,
 /// the server will automatically exits.
-const IDLE_STATE_MAX_SECS: u64 = 360;
+const IDLE_STATE_MAX_SECS: Duration = Duration::from_secs(360);
 
 pub struct EventLoop {
     sock_path: PathBuf,
@@ -73,9 +76,21 @@ impl EventLoop {
             });
         }
 
+        let (quit_tx, mut quit_rx) = mpsc::channel(1);
+        let mut idle_timer = tokio::time::interval(IDLE_STATE_MAX_SECS);
         loop {
-            match timeout(Duration::from_secs(IDLE_STATE_MAX_SECS), listener.accept()).await {
-                Err(_) => {
+            tokio::select! {
+                biased;
+
+                _ = quit_rx.recv() => {
+                    break;
+                }
+
+                Ok((new_client, _)) = listener.accept() => {
+                    self.handle_client(new_client, server.clone(), quit_tx.clone())
+                        .await;
+                }
+                _ = idle_timer.tick() => {
                     // Timed out.
                     if !self.progress.load(Ordering::SeqCst) {
                         info!("still in the idle state for a long while, exiting...");
@@ -86,11 +101,9 @@ impl EventLoop {
                     // in next IDLE_STATE_MAX_SECS seconds.
                     self.progress.store(false, Ordering::SeqCst);
                 }
-                Ok(Ok((new_client, _))) => {
-                    self.handle_client(new_client, server.clone()).await;
-                }
-                _ => {}
             }
+
+            idle_timer.reset();
         }
     }
 
@@ -99,6 +112,7 @@ impl EventLoop {
         &self,
         client: UnixStream,
         server: Arc<tokio::sync::Mutex<S>>,
+        quit_tx: mpsc::Sender<()>,
     ) {
         let progress = self.progress.clone();
         let (read_end, write_end) = client.into_split();
@@ -149,11 +163,20 @@ impl EventLoop {
                     }
                 }
             }
+
+            // The client has exited.
+            info!("client {:?} is being closed", client_id);
+            let mut clients = clients.lock().await;
+            clients.remove_client(client_id);
+            if clients.is_empty() {
+                let _ = quit_tx.send(()).await;
+                return;
+            }
         });
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct ClientId(usize);
 
 struct ClientSet {
@@ -169,10 +192,18 @@ impl ClientSet {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.clients.is_empty()
+    }
+
     pub fn add_client(&mut self, write_end: OwnedWriteHalf) -> ClientId {
         let client_id = ClientId(self.next_client_id.fetch_add(1, Ordering::SeqCst));
         self.clients.insert(client_id, write_end);
         client_id
+    }
+
+    pub fn remove_client(&mut self, id: ClientId) {
+        self.clients.remove(&id);
     }
 
     pub async fn notify(&mut self, noti: Notification) {
