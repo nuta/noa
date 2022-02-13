@@ -12,6 +12,7 @@ use std::{
 
 use anyhow::{bail, Context, Result};
 use lsp_types::Position;
+use nix::{sys::signal, unistd::Pid};
 use noa_common::{
     dirs::{proxy_pid_path, proxy_sock_path},
     oops::OopsExt,
@@ -20,6 +21,7 @@ use noa_languages::{language::Language, lsp::Lsp};
 use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
 use tokio::{
+    fs,
     io::{AsyncBufReadExt, BufReader},
     net::{unix::OwnedWriteHalf, UnixStream},
     process::Command,
@@ -225,6 +227,24 @@ async fn spawn_proxy(
         // The proxy for the language is not running. Spawn it.
         trace!("spawning lsp proxy at {}", sock_path.display());
 
+        // Kill the existing proxy if it exists.
+        let pid_path = proxy_pid_path(&workspace_dir, &proxy_id);
+        match fs::read_to_string(&pid_path).await {
+            Ok(pid) => {
+                let pid = pid.parse::<i32>().unwrap();
+                trace!("killing existing lsp proxy {}", pid);
+
+                signal::kill(Pid::from_raw(pid), signal::Signal::SIGKILL).oops();
+
+                // Force remove the PID file so that we can spawn a new one.
+                fs::remove_file(&pid_path).await.oops();
+            }
+            Err(err) if err.kind() == ErrorKind::NotFound => {}
+            Err(err) => {
+                return Err(err.into());
+            }
+        }
+
         let mut cmd = if cfg!(debug_assertions) {
             info!("spawning from cargo");
             let mut cmd = Command::new("cargo");
@@ -241,7 +261,6 @@ async fn spawn_proxy(
             }
         }
 
-        let pid_path = proxy_pid_path(&workspace_dir, &proxy_id);
         cmd.arg("--daemonize")
             .arg("--workspace-dir")
             .arg(&workspace_dir)
@@ -253,7 +272,7 @@ async fn spawn_proxy(
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
-            .context("failed to spawn a proxy")?;
+            .with_context(|| format!("failed to spawn a proxy for {}", proxy_id))?;
     }
 
     trace!("try connecting to proxy {}", sock_path.display());
