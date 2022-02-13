@@ -45,7 +45,14 @@ pub const C: Language = Language {
     extensions: &["c", "h"],
     lsp: Some(Lsp {
         language_id: "c",
-        command: &["clangd", "-j=8", "--log=verbose", "--pretty"],
+        get_argv: || {
+            vec![
+                "clangd".to_string(),
+                format!("-j={}", num_cpus::get()),
+                "--log=verbose".to_string(),
+                "--pretty".to_string(),
+            ]
+        },
     }),
     tree_sitter: None,
 };
@@ -54,7 +61,13 @@ pub const RUST: Language = Language {
     id: "rust",
     filenames: &[],
     extensions: &["rs"],
-    lsp: None,
+    lsp: Some(Lsp {
+        language_id: "rust",
+        get_argv: || {
+            // FIXME:
+            vec!["/home/seiya/.vscode-server/data/User/globalStorage/matklad.rust-analyzer/rust-analyzer-x86_64-unknown-linux-gnu".to_string()]
+        },
+    }),
     tree_sitter: Some(TreeSitter {
         get_language: || unsafe { tree_sitter_rust() },
         highlight_query: include_str!("queries/rust/highlight.scm"),

@@ -10,6 +10,7 @@ path = "lib.rs"
 [dependencies]
 log = "0"
 tree-sitter = "0"
+num_cpus = "1"
 
 [build-dependencies]
 cc = "*"

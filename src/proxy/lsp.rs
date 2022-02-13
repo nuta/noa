@@ -265,8 +265,9 @@ impl LspServer {
         workspace_dir: &Path,
     ) -> Result<LspServer> {
         trace!("workspace_dir={}", workspace_dir.display());
-        let mut lsp_server = Command::new(lsp_config.command[0])
-            .args(&lsp_config.command[1..])
+        let argv = (lsp_config.get_argv)();
+        let mut lsp_server = Command::new(&argv[0])
+            .args(&argv[1..])
             .current_dir(workspace_dir)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

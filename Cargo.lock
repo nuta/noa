@@ -954,6 +954,7 @@ version = "0.0.0"
 dependencies = [
  "cc",
  "log",
+ "num_cpus",
  "tree-sitter",
 ]
 
