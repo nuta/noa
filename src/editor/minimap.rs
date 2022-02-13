@@ -1,7 +1,7 @@
-use std::{collections::HashMap, path::Path};
+use std::{collections::BTreeMap, path::Path};
 
 use bitflags::bitflags;
-
+use noa_buffer::cursor::Position;
 
 use crate::git::{DiffType, Repo};
 
@@ -23,18 +23,48 @@ bitflags! {
 
 pub struct MiniMap {
     /// Line status for each physical line.
-    lines: HashMap<usize /* y */, LineStatus>,
+    lines: BTreeMap<usize /* y */, LineStatus>,
 }
 
 impl MiniMap {
     pub fn new() -> MiniMap {
         MiniMap {
-            lines: HashMap::new(),
+            lines: BTreeMap::new(),
         }
     }
 
     pub fn get(&self, y: usize) -> Option<LineStatus> {
         self.lines.get(&y).copied()
+    }
+
+    pub fn prev_diff_line(&self, y: usize) -> Option<Position> {
+        let mut iter = self.lines.range(..y);
+        let mut prev_y = y;
+        while let Some((y, _)) = iter.next_back() {
+            if *y == prev_y || *y == prev_y - 1 {
+                prev_y = *y;
+                continue;
+            }
+
+            return Some(Position::new(*y, 0));
+        }
+
+        None
+    }
+
+    pub fn next_diff_line(&self, y: usize) -> Option<Position> {
+        let mut iter = self.lines.range(y + 1..);
+        let mut prev_y = y;
+        while let Some((y, _)) = iter.next() {
+            if *y == prev_y || *y == prev_y + 1 {
+                prev_y = *y;
+                continue;
+            }
+
+            return Some(Position::new(*y, 0));
+        }
+
+        None
     }
 
     pub fn insert_with_mask(&mut self, y: usize, status: LineStatus, clear_mask: LineStatus) {

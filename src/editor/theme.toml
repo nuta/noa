@@ -8,6 +8,10 @@
 "buffer.current_line" = { bg = "grey" }
 "buffer.line_status" = { fg = "grey" }
 
+"line_status.modified" = { bg = "purple" }
+"line_status.added" = { bg = "green" }
+"line_status.deleted" = { bg = "deepRed" }
+
 "meta_line.first_line" = { decorations = [ "bold", "inverted" ] }
 
 "finder.input" = { fg = "default" }

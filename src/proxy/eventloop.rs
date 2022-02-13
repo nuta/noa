@@ -23,7 +23,7 @@ use crate::{
 
 /// If the server does not receive any requests from clients for this duration,
 /// the server will automatically exits.
-const IDLE_STATE_MAX_SECS: Duration = Duration::from_secs(360);
+const IDLE_STATE_MAX_SECS: Duration = Duration::from_secs(300);
 
 pub struct EventLoop {
     sock_path: PathBuf,
@@ -90,11 +90,9 @@ impl EventLoop {
                     // Timed out.
                     if !self.progress.load(Ordering::SeqCst) {
                         info!("still in the idle state for a long while, exiting...");
-                        return;
+                        break;
                     }
 
-                    // If the server is not idle, progress will be set to true
-                    // in next IDLE_STATE_MAX_SECS seconds.
                     self.progress.store(false, Ordering::SeqCst);
                 }
             }

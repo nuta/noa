@@ -21,6 +21,7 @@ use crate::{
     clipboard::{ClipboardData, SystemClipboardData},
     editor::Editor,
     markdown::Markdown,
+    minimap::LineStatus,
     theme::theme_for,
     ui::finder_view::FinderView,
 };
@@ -126,8 +127,21 @@ impl Surface for BufferView {
             }
 
             // Draw line status.
-            if let Some(_status) = minimap.get(row.lineno - 1) {
-                canvas.write_char_with_style(y, 0, ' ', theme_for("buffer.line_status"));
+            if let Some(status) = minimap.get(row.lineno - 1) {
+                let theme_key = if status & LineStatus::REPO_DIFF_MASK == LineStatus::MODIFIED {
+                    Some("line_status.modified")
+                } else if status & LineStatus::REPO_DIFF_MASK == LineStatus::ADDED {
+                    Some("line_status.added")
+                } else if status & LineStatus::REPO_DIFF_MASK == LineStatus::REMOVED {
+                    Some("line_status.deleted")
+                } else {
+                    warn!("ignored line status: {:?}", status);
+                    None
+                };
+
+                if let Some(theme_key) = theme_key {
+                    canvas.write_char_with_style(y, 0, ' ', theme_for(theme_key));
+                }
             }
 
             // Draw lineno.
@@ -293,6 +307,32 @@ impl Surface for BufferView {
             }
             (KeyCode::Char('b'), ALT) => {
                 doc.buffer_mut().move_to_prev_word();
+            }
+            (KeyCode::Up, modifiers) if modifiers == (ALT) => {
+                match doc
+                    .minimap()
+                    .prev_diff_line(doc.buffer().main_cursor().moving_position().y)
+                {
+                    Some(pos) => {
+                        doc.buffer_mut().move_main_cursor_to_pos(pos);
+                    }
+                    None => {
+                        notify_warn!("no previous diff line");
+                    }
+                }
+            }
+            (KeyCode::Down, modifiers) if modifiers == (ALT) => {
+                match doc
+                    .minimap()
+                    .next_diff_line(doc.buffer().main_cursor().moving_position().y)
+                {
+                    Some(pos) => {
+                        doc.buffer_mut().move_main_cursor_to_pos(pos);
+                    }
+                    None => {
+                        notify_warn!("no next diff line");
+                    }
+                }
             }
             // Find the current word or the selection.
             (KeyCode::F(1), NONE) => {
