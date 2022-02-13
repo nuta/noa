@@ -166,7 +166,7 @@ impl Client {
                     // request and spawn the task to handle it asynchronously.
                     let (tx, rx) = mpsc::unbounded_channel();
                     tx.send(message)?;
-                    proxies.insert(kind.clone(), tx);
+                    proxies.insert(kind, tx);
 
                     let workspace_dir = self.workspace_dir.clone();
                     let sent_requests = self.sent_requests.clone();
@@ -252,7 +252,7 @@ async fn spawn_proxy(
         }
     };
 
-    let sock_path = proxy_sock_path(&workspace_dir, &proxy_id);
+    let sock_path = proxy_sock_path(workspace_dir, &proxy_id);
 
     trace!("connecting to proxy {}", sock_path.display());
     if UnixStream::connect(&sock_path).await.is_err() {
@@ -260,7 +260,7 @@ async fn spawn_proxy(
         trace!("spawning lsp proxy at {}", sock_path.display());
 
         // Kill the existing proxy if it exists.
-        let pid_path = proxy_pid_path(&workspace_dir, &proxy_id);
+        let pid_path = proxy_pid_path(workspace_dir, &proxy_id);
         match fs::read_to_string(&pid_path).await {
             Ok(pid) => {
                 let pid = pid.parse::<i32>().unwrap();

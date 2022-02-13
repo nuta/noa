@@ -418,7 +418,7 @@ impl Server for LspServer {
                 );
                 self.call_method::<Completion>(CompletionParams {
                     text_document_position: TextDocumentPositionParams {
-                        position: position,
+                        position,
                         text_document: TextDocumentIdentifier {
                             uri: parse_path_as_uri(&path),
                         },
@@ -437,7 +437,7 @@ impl Server for LspServer {
                 trace!("Hover(path={}, position={:?})", path.display(), position);
                 self.call_method::<HoverRequest>(HoverParams {
                     text_document_position_params: TextDocumentPositionParams {
-                        position: position,
+                        position,
                         text_document: TextDocumentIdentifier {
                             uri: parse_path_as_uri(&path),
                         },
@@ -456,7 +456,7 @@ impl Server for LspServer {
                 );
                 self.call_method::<SignatureHelpRequest>(SignatureHelpParams {
                     text_document_position_params: TextDocumentPositionParams {
-                        position: position,
+                        position,
                         text_document: TextDocumentIdentifier {
                             uri: parse_path_as_uri(&path),
                         },
@@ -476,7 +476,7 @@ impl Server for LspServer {
                 );
                 self.call_method::<GotoDefinition>(GotoDefinitionParams {
                     text_document_position_params: TextDocumentPositionParams {
-                        position: position,
+                        position,
                         text_document: TextDocumentIdentifier {
                             uri: parse_path_as_uri(&path),
                         },
