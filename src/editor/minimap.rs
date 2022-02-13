@@ -40,7 +40,11 @@ impl MiniMap {
     pub fn prev_diff_line(&self, y: usize) -> Option<Position> {
         let mut iter = self.lines.range(..y);
         let mut prev_y = y;
-        while let Some((y, _)) = iter.next_back() {
+        while let Some((y, status)) = iter.next_back() {
+            if (*status & LineStatus::REPO_DIFF_MASK).is_empty() {
+                continue;
+            }
+
             if *y == prev_y || *y == prev_y - 1 {
                 prev_y = *y;
                 continue;
@@ -55,7 +59,11 @@ impl MiniMap {
     pub fn next_diff_line(&self, y: usize) -> Option<Position> {
         let mut iter = self.lines.range(y + 1..);
         let mut prev_y = y;
-        while let Some((y, _)) = iter.next() {
+        while let Some((y, status)) = iter.next() {
+            if (*status & LineStatus::REPO_DIFF_MASK).is_empty() {
+                continue;
+            }
+
             if *y == prev_y || *y == prev_y + 1 {
                 prev_y = *y;
                 continue;
