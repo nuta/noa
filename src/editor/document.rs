@@ -100,7 +100,9 @@ impl Document {
             let path = path.clone();
             tokio::task::spawn_blocking(move || {
                 let buffer_text = raw_buffer.text();
-                proxy.open_file(lang, &path, &buffer_text);
+                tokio::spawn(async move {
+                    proxy.open_file(lang, &path, &buffer_text).await.oops();
+                });
             });
         }
 
@@ -143,6 +145,7 @@ impl Document {
             }
         }
 
+        notify_info!("written {} lines", self.buffer.num_lines());
         Ok(())
     }
 
@@ -278,7 +281,10 @@ impl Document {
             if let Some(path) = path {
                 let buffer_text = buffer_text.clone();
                 tokio::spawn(async move {
-                    proxy.update_file(lang, &path, &buffer_text, version);
+                    proxy
+                        .update_file(lang, &path, &buffer_text, version)
+                        .await
+                        .oops();
                 });
             }
 

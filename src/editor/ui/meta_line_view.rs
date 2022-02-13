@@ -1,8 +1,8 @@
-use std::{cmp::min, time::Instant};
+use std::cmp::min;
 
 use noa_buffer::display_width::DisplayWidth;
 use noa_compositor::{
-    canvas::{CanvasViewMut, Decoration},
+    canvas::CanvasViewMut,
     line_edit::LineEdit,
     surface::{HandledEvent, KeyEvent, Layout, RectSize, Surface},
     terminal::{KeyCode, KeyModifiers},
@@ -57,7 +57,7 @@ impl Surface for MetaLineView {
         true
     }
 
-    fn layout(&mut self, editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
+    fn layout(&mut self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
         let mut height = 1;
         let width = screen_size.width.clamp(25, min(50, screen_size.width / 2));
 

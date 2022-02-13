@@ -346,9 +346,6 @@ impl Surface for BufferView {
             (KeyCode::Down, modifiers) if modifiers == (SHIFT | ALT) => {
                 doc.buffer_mut().duplicate_lines_down();
             }
-            (KeyCode::Char('w'), CTRL) => {
-                doc.buffer_mut().delete_current_word();
-            }
             (KeyCode::Backspace, NONE) => {
                 doc.buffer_mut().backspace();
             }
@@ -447,9 +444,9 @@ impl Surface for BufferView {
         surface_x: usize,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
-        const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        const _CTRL: KeyModifiers = KeyModifiers::CONTROL;
         const ALT: KeyModifiers = KeyModifiers::ALT;
-        const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
+        const _SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
         let doc = editor.documents.current_mut();
 

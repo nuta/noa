@@ -30,10 +30,6 @@ impl ClipboardData {
         self.texts.join("\n") == text
     }
 
-    pub fn texts(&self) -> &[String] {
-        &self.texts
-    }
-
     fn write_all<W>(&self, writer: &mut W) -> Result<()>
     where
         W: Write + Unpin,
