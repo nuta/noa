@@ -11,7 +11,7 @@ use std::{
 };
 
 use anyhow::{bail, Context, Result};
-use lsp_types::{CompletionItem, Position};
+use lsp_types::{CompletionItem, HoverContents};
 use nix::{sys::signal, unistd::Pid};
 use noa_common::{
     dirs::{log_file_path, proxy_pid_path, proxy_sock_path},
@@ -59,31 +59,6 @@ impl Client {
         }
     }
 
-    pub async fn completion(
-        &self,
-        lang: &Language,
-        path: &Path,
-        pos: (u32, u32),
-    ) -> Result<Vec<CompletionItem>> {
-        match self
-            .request(
-                lang,
-                LspRequest::Completion {
-                    path: path.to_owned(),
-                    position: Position {
-                        line: pos.0,
-                        character: pos.1,
-                    },
-                },
-            )
-            .await
-        {
-            Ok(LspResponse::Completion(completions)) => Ok(completions),
-            Ok(other) => bail!("unexpected response: {:?}", other),
-            Err(err) => Err(err),
-        }
-    }
-
     pub async fn open_file(&self, lang: &Language, path: &Path, text: &str) -> Result<()> {
         match self
             .request(
@@ -120,6 +95,50 @@ impl Client {
             .await
         {
             Ok(LspResponse::NoContent) => Ok(()),
+            Ok(other) => bail!("unexpected response: {:?}", other),
+            Err(err) => Err(err),
+        }
+    }
+
+    pub async fn hover(
+        &self,
+        lang: &Language,
+        path: &Path,
+        position: lsp_types::Position,
+    ) -> Result<Option<HoverContents>> {
+        match self
+            .request(
+                lang,
+                LspRequest::Hover {
+                    path: path.to_owned(),
+                    position,
+                },
+            )
+            .await
+        {
+            Ok(LspResponse::Hover(contents)) => Ok(contents),
+            Ok(other) => bail!("unexpected response: {:?}", other),
+            Err(err) => Err(err),
+        }
+    }
+
+    pub async fn completion(
+        &self,
+        lang: &Language,
+        path: &Path,
+        position: lsp_types::Position,
+    ) -> Result<Vec<CompletionItem>> {
+        match self
+            .request(
+                lang,
+                LspRequest::Completion {
+                    path: path.to_owned(),
+                    position,
+                },
+            )
+            .await
+        {
+            Ok(LspResponse::Completion(completions)) => Ok(completions),
             Ok(other) => bail!("unexpected response: {:?}", other),
             Err(err) => Err(err),
         }

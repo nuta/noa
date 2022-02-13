@@ -31,26 +31,23 @@ impl Editor {
             }
         };
 
+        let proxy = Arc::new(noa_proxy::client::Client::new(
+            workspace_dir,
+            notification_tx,
+        ));
+
         Editor {
-            documents: DocumentManager::new(),
+            documents: DocumentManager::new(&proxy),
             clipboard: clipboard::build_provider().unwrap_or_else(clipboard::build_dummy_provider),
             repo,
-            proxy: Arc::new(noa_proxy::client::Client::new(
-                workspace_dir,
-                notification_tx,
-            )),
+            proxy,
             render_request,
         }
     }
     pub fn handle_notification(&mut self, notification: Notification) {
         match notification {
             Notification::Diagnostics { diags, path } => {
-                if Some(path.as_path()) != self.documents.current().path() {
-                    trace!(
-                        "ignoring diagnostics for {:?} {:?}",
-                        path,
-                        self.documents.current().path()
-                    );
+                if path != self.documents.current().path() {
                     return;
                 }
 

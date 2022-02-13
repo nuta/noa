@@ -14,11 +14,13 @@ use noa_compositor::{
     terminal::{KeyCode, KeyModifiers, MouseButton, MouseEventKind},
     Compositor,
 };
+use noa_proxy::lsp_types::HoverContents;
 use tokio::sync::{oneshot, Notify};
 
 use crate::{
     clipboard::{ClipboardData, SystemClipboardData},
     editor::Editor,
+    markdown::Markdown,
     theme::theme_for,
     ui::finder_view::FinderView,
 };
@@ -477,6 +479,36 @@ impl Surface for BufferView {
                         if matches!(self.selection_start, Some(start) if start == pos) {
                             doc.buffer_mut().move_main_cursor_to_pos(pos);
                         }
+
+                        // Hover.
+                        let proxy = editor.proxy.clone();
+                        let lang = doc.buffer().language();
+                        let path = doc.path().to_owned();
+                        let pos = doc.buffer().main_cursor().moving_position().into();
+                        tokio::spawn(async move {
+                            match proxy.hover(lang, &path, pos).await {
+                                Ok(Some(hover)) => match hover {
+                                    HoverContents::Scalar(text) => {
+                                        notify_info!("{}", Markdown::from(text));
+                                    }
+                                    HoverContents::Array(items) if !items.is_empty() => {
+                                        notify_info!("{}", Markdown::from(items[0].clone()));
+                                    }
+                                    HoverContents::Markup(markup) => {
+                                        notify_info!("{}", Markdown::from(markup));
+                                    }
+                                    _ => {
+                                        warn!("unsupported hover type: {:?}", hover);
+                                    }
+                                },
+                                Ok(None) => {
+                                    notify_warn!("no hover info");
+                                }
+                                Err(err) => {
+                                    notify_error!("failed to get hover info: {}", err);
+                                }
+                            }
+                        });
 
                         trace!("Single click");
                         self.time_last_clicked = Instant::now();

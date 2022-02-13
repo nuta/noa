@@ -923,6 +923,7 @@ name = "noa_buffer"
 version = "0.0.0"
 dependencies = [
  "arrayvec",
+ "lsp-types",
  "noa_common",
  "noa_editorconfig",
  "noa_languages",

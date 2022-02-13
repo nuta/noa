@@ -28,6 +28,7 @@ mod document;
 mod editor;
 mod flash;
 mod git;
+mod markdown;
 mod minimap;
 mod movement;
 mod theme;

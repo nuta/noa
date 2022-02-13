@@ -115,6 +115,15 @@ impl PartialOrd for Position {
     }
 }
 
+impl Into<lsp_types::Position> for Position {
+    fn into(self) -> lsp_types::Position {
+        lsp_types::Position {
+            line: self.y as u32,
+            character: self.x as u32,
+        }
+    }
+}
+
 /// An exclusive range in the buffer.
 ///
 /// Note that `start` don't have to be less (in respect to its `Ord` implementation)

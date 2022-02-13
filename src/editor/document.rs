@@ -14,7 +14,11 @@ use anyhow::Result;
 
 use arc_swap::ArcSwap;
 use noa_buffer::buffer::Buffer;
-use noa_common::{dirs::backup_dir, oops::OopsExt, time_report::TimeReport};
+use noa_common::{
+    dirs::{backup_dir, noa_dir},
+    oops::OopsExt,
+    time_report::TimeReport,
+};
 use noa_languages::definitions::guess_language;
 use noa_proxy::client::Client as ProxyClient;
 
@@ -36,8 +40,7 @@ pub struct DocumentId(NonZeroUsize);
 pub struct Document {
     id: DocumentId,
     version: usize,
-    /// It's `None` if the document is not backed by a file (e.g. a scrach buffer).
-    path: Option<PathBuf>,
+    path: PathBuf,
     backup_path: Option<PathBuf>,
     name: String,
     buffer: Buffer,
@@ -52,25 +55,6 @@ pub struct Document {
 }
 
 impl Document {
-    pub fn new(id: DocumentId, name: &str) -> Document {
-        Document {
-            id,
-            version: 1,
-            path: None,
-            backup_path: None,
-            name: name.to_string(),
-            buffer: Buffer::new(),
-            view: View::new(),
-            movement_state: MovementState::new(),
-            words: Words::new(),
-            completion: Arc::new(Completion::new()),
-            flashes: FlashManager::new(),
-            minimap: Arc::new(ArcSwap::from_pointee(MiniMap::new())),
-            find_query: String::new(),
-            post_update_job: None,
-        }
-    }
-
     pub fn open_file(
         proxy: &Arc<ProxyClient>,
         id: DocumentId,
@@ -110,7 +94,7 @@ impl Document {
         Ok(Document {
             id,
             version: 1,
-            path: Some(path.to_owned()),
+            path: path.to_owned(),
             backup_path: Some(backup_path),
             name,
             buffer,
@@ -128,20 +112,18 @@ impl Document {
     pub fn save_to_file(&mut self) -> Result<()> {
         self.buffer.save_undo();
 
-        if let Some(ref path) = self.path {
-            match self.buffer.save_to_file(path) {
-                Ok(()) => {
-                    if let Some(backup_path) = &self.backup_path {
-                        std::fs::remove_file(backup_path).oops();
-                    }
+        match self.buffer.save_to_file(&self.path) {
+            Ok(()) => {
+                if let Some(backup_path) = &self.backup_path {
+                    std::fs::remove_file(backup_path).oops();
                 }
-                Err(err) if err.kind() == ErrorKind::PermissionDenied => {
-                    trace!("saving {} with sudo", path.display());
-                    self.buffer.save_to_file_with_sudo(path)?;
-                }
-                Err(err) => {
-                    return Err(anyhow::anyhow!("failed to save: {}", err));
-                }
+            }
+            Err(err) if err.kind() == ErrorKind::PermissionDenied => {
+                trace!("saving {} with sudo", self.path.display());
+                self.buffer.save_to_file_with_sudo(&self.path)?;
+            }
+            Err(err) => {
+                return Err(anyhow::anyhow!("failed to save: {}", err));
             }
         }
 
@@ -157,8 +139,8 @@ impl Document {
         self.find_query = find_query.into();
     }
 
-    pub fn path(&self) -> Option<&Path> {
-        self.path.as_ref().map(|path| path.as_ref())
+    pub fn path(&self) -> &Path {
+        &self.path
     }
 
     pub fn buffer(&self) -> &Buffer {
@@ -262,15 +244,12 @@ impl Document {
         let minimap = self.minimap.clone();
         let render_request = render_request.clone();
         let raw_buffer = self.buffer.raw_buffer().clone();
-        let git_diff_ctx = match (&self.path, repo) {
-            (Some(path), Some(repo)) => Some((path.to_owned(), repo.clone())),
-            _ => None,
-        };
 
         let proxy = proxy.clone();
         let lang = self.buffer.language();
         let path = self.path.clone();
         let version = self.version;
+        let repo = repo.clone();
         self.post_update_job = Some(tokio::task::spawn_blocking(move || {
             let _time = TimeReport::new("backgroung_post_update_jobs time");
 
@@ -278,8 +257,9 @@ impl Document {
             let buffer_text = Arc::new(raw_buffer.text());
 
             // Synchronize the latest buffer text with the LSP server.
-            if let Some(path) = path {
+            {
                 let buffer_text = buffer_text.clone();
+                let path = path.clone();
                 tokio::spawn(async move {
                     proxy
                         .update_file(lang, &path, &buffer_text, version)
@@ -288,7 +268,7 @@ impl Document {
                 });
             }
 
-            if let Some((path, repo)) = git_diff_ctx {
+            if let Some(repo) = repo {
                 let mut new_minimap = MiniMap::new();
                 new_minimap.update_git_line_statuses(&repo, &path, &buffer_text);
                 minimap.store(Arc::new(new_minimap));
@@ -317,7 +297,7 @@ pub struct DocumentManager {
 }
 
 impl DocumentManager {
-    pub fn new() -> DocumentManager {
+    pub fn new(proxy: &Arc<ProxyClient>) -> DocumentManager {
         let scratch_doc_id = DocumentId(
             // Safety: Obviously 1 is not zero.
             unsafe { NonZeroUsize::new_unchecked(1) },
@@ -328,7 +308,13 @@ impl DocumentManager {
             documents: HashMap::new(),
         };
 
-        let scratch_doc = Document::new(scratch_doc_id, "**scratch**");
+        let scratch_doc = Document::open_file(
+            proxy,
+            scratch_doc_id,
+            noa_dir().join("scratch.txt"),
+            "**scratch**".to_owned(),
+        )
+        .expect("failed to open scratch");
         manager.open(scratch_doc);
         manager
     }
@@ -383,9 +369,7 @@ impl DocumentManager {
     }
 
     pub fn get_document_by_path(&self, path: &Path) -> Option<&Document> {
-        self.documents
-            .values()
-            .find(|doc| doc.path == Some(path.to_owned()))
+        self.documents.values().find(|doc| doc.path == path)
     }
 
     pub fn documents(&self) -> &HashMap<DocumentId, Document> {

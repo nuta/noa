@@ -95,11 +95,7 @@ impl FinderView {
                 doc.name().to_owned(),
                 FinderItem::Buffer {
                     name: doc.name().to_owned(),
-                    path: doc
-                        .path()
-                        .map(|p| p.to_str().unwrap())
-                        .unwrap_or_else(|| doc.name())
-                        .to_owned(),
+                    path: doc.path().to_str().unwrap().to_owned(),
                     id: *id,
                 },
                 100,
