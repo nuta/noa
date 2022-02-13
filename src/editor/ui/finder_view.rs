@@ -296,7 +296,9 @@ impl Surface for FinderView {
                         info!("finder: selected item: {:?}", item);
                         match item {
                             FinderItem::File(path) => {
-                                if let Err(err) = editor.documents.open_file(Path::new(path)) {
+                                if let Err(err) =
+                                    editor.documents.open_file(&editor.proxy, Path::new(path))
+                                {
                                     notify_anyhow_error!(err);
                                 }
                             }
@@ -304,7 +306,7 @@ impl Surface for FinderView {
                                 editor.documents.switch_current(*id);
                             }
                             FinderItem::SearchMatch { path, pos, .. } => {
-                                match editor.documents.open_file(Path::new(path)) {
+                                match editor.documents.open_file(&editor.proxy, Path::new(path)) {
                                     Ok(doc) => {
                                         doc.buffer_mut().move_main_cursor_to_pos(*pos);
                                         doc.flashes_mut().flash(Range::from_positions(*pos, *pos));

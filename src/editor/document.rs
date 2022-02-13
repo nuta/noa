@@ -16,6 +16,7 @@ use arc_swap::ArcSwap;
 use noa_buffer::buffer::Buffer;
 use noa_common::{dirs::backup_dir, oops::OopsExt, time_report::TimeReport};
 use noa_languages::definitions::guess_language;
+use noa_proxy::client::Client as ProxyClient;
 
 use tokio::{sync::Notify, task::JoinHandle};
 
@@ -70,7 +71,12 @@ impl Document {
         }
     }
 
-    pub fn open_file(id: DocumentId, path: PathBuf, name: String) -> Result<Document> {
+    pub fn open_file(
+        proxy: &Arc<ProxyClient>,
+        id: DocumentId,
+        path: PathBuf,
+        name: String,
+    ) -> Result<Document> {
         debug_assert!(path.is_absolute());
 
         let mut buffer = match OpenOptions::new().read(true).open(&path) {
@@ -86,6 +92,17 @@ impl Document {
 
         let lang = guess_language(&path);
         buffer.set_language(lang);
+
+        // Let the LSP server know about the file.
+        {
+            let raw_buffer = buffer.raw_buffer().clone();
+            let proxy = proxy.clone();
+            let path = path.clone();
+            tokio::task::spawn_blocking(move || {
+                let buffer_text = raw_buffer.text();
+                proxy.open_file(lang, &path, &buffer_text);
+            });
+        }
 
         let words = Words::new_with_buffer(&buffer);
         Ok(Document {
@@ -209,7 +226,7 @@ impl Document {
     pub fn post_update_job(
         &mut self,
         repo: &Option<Arc<Repo>>,
-        proxy: &Arc<noa_proxy::client::Client>,
+        proxy: &Arc<ProxyClient>,
         render_request: &Arc<Notify>,
     ) {
         let _time = TimeReport::new("post_update_jobs time");
@@ -310,7 +327,7 @@ impl DocumentManager {
         manager
     }
 
-    pub fn open_file(&mut self, path: &Path) -> Result<&mut Document> {
+    pub fn open_file(&mut self, proxy: &Arc<ProxyClient>, path: &Path) -> Result<&mut Document> {
         let doc_id = if let Some(doc) = self.get_document_by_path(path) {
             // Already opened. Just switch to it.
             let doc_id = doc.id;
@@ -339,7 +356,7 @@ impl DocumentManager {
                 name.insert_str(0, comp);
             }
 
-            let doc = Document::open_file(doc_id, path, name)?;
+            let doc = Document::open_file(proxy, doc_id, path, name)?;
             self.open(doc);
             doc_id
         };
