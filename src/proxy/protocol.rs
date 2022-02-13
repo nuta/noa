@@ -19,12 +19,6 @@ pub enum ToServer {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub enum ToClient {
-    Response { id: RequestId, body: Response },
-    Notification(Notification),
-}
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum Request {
     Completion {
         path: PathBuf,
@@ -37,9 +31,9 @@ pub enum Request {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub enum Response {
-    NoContent,
-    Completion(Vec<lsp_types::CompletionItem>),
+pub enum ToClient {
+    Notification(Notification),
+    Response { id: RequestId, body: Response },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
@@ -53,4 +47,24 @@ pub enum Notification {
         text: String,
         hash: FastHash,
     },
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+pub enum Response {
+    Ok { results: serde_json::Value },
+    Err { reason: String },
+}
+
+pub mod results {
+    use lsp_types::CompletionItem;
+
+    use super::*;
+
+    #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+    pub struct NoContent;
+
+    #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+    pub struct Completion {
+        items: Vec<CompletionItem>,
+    }
 }

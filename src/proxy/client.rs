@@ -11,10 +11,11 @@ use std::{
 };
 
 use anyhow::{bail, Context, Result};
-use lsp_types::{CompletionItem, Position};
+use lsp_types::Position;
 use noa_common::{dirs::proxy_sock_path, oops::OopsExt};
 use noa_languages::{language::Language, lsp::Lsp};
 use parking_lot::Mutex;
+use serde::de::DeserializeOwned;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     net::{unix::OwnedWriteHalf, UnixStream},
@@ -26,7 +27,7 @@ use tokio::{
     time::sleep,
 };
 
-use crate::protocol::{Notification, Request, RequestId, Response, ToClient, ToServer};
+use crate::protocol::{results, Notification, Request, RequestId, Response, ToClient, ToServer};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum ProxyKind {
@@ -63,31 +64,56 @@ impl Client {
         &self,
         lang: &Language,
         path: &Path,
-        line: u32,
-        character: u32,
-    ) -> Result<Vec<CompletionItem>> {
+        pos: (u32, u32),
+    ) -> Result<results::Completion> {
+        self.request(
+            lang,
+            Request::Completion {
+                path: path.to_owned(),
+                position: Position {
+                    line: pos.0,
+                    character: pos.1,
+                },
+            },
+        )
+        .await
+    }
+
+    pub async fn update_file(
+        &self,
+        lang: &Language,
+        path: &Path,
+        text: &str,
+    ) -> Result<results::NoContent> {
+        self.request(
+            lang,
+            Request::UpdateFile {
+                path: path.to_owned(),
+                text: text.to_owned(),
+            },
+        )
+        .await
+    }
+
+    async fn request<R: DeserializeOwned>(&self, lang: &Language, request: Request) -> Result<R> {
         if let Some(lsp) = lang.lsp.as_ref() {
-            let resp = self
-                .request(
-                    lsp,
-                    Request::Completion {
-                        path: path.to_owned(),
-                        position: Position { line, character },
-                    },
-                )
-                .await?;
+            let resp = self.do_request(lsp, request).await?;
             match resp {
-                Response::Completion(items) => Ok(items),
-                _ => bail!("unexpected LSP response: {:?}", resp),
+                Response::Ok { results } => {
+                    let res: R =
+                        serde_json::from_value(results).context("unexpected LSP respones")?;
+                    Ok(res)
+                }
+                Response::Err { reason } => Err(anyhow::anyhow!("LSP error: {}", reason)),
             }
         } else {
             bail!("LSP unavailable for {}", lang.id);
         }
     }
 
-    async fn request(&self, lsp: &Lsp, request: Request) -> Result<Response> {
+    async fn do_request(&self, lsp: &Lsp, request: Request) -> Result<Response> {
         let kind = ProxyKind::Lsp(lsp.language_id);
-        let (resp_tx, resp_rx) = oneshot::channel::<Response>();
+        let (resp_tx, resp_rx) = oneshot::channel();
         {
             let id = self.next_request_id.fetch_add(1, Ordering::SeqCst).into();
             self.sent_requests.lock().insert(id, resp_tx);
@@ -100,7 +126,7 @@ impl Client {
                 }
                 None => {
                     // The proxy client task has not been started yet. Enqueue the
-                    // request and spawn the task asynchronously.
+                    // request and spawn the task to handle it asynchronously.
                     let (tx, rx) = mpsc::unbounded_channel();
                     tx.send(message)?;
                     proxies.insert(kind.clone(), tx);
@@ -183,19 +209,8 @@ async fn spawn_proxy(
     notification_tx: &UnboundedSender<Notification>,
 ) -> Result<OwnedWriteHalf> {
     // Spawn a process.
-    let mut cmd = if cfg!(debug_assertions) {
-        info!("spawning from cargo");
-        let mut cmd = Command::new("cargo");
-        cmd.args(&["run", "--bin", "noa-sync", "--"]);
-        cmd
-    } else {
-        Command::new("noa-proxy")
-    };
-
     let sock_id = match kind {
         ProxyKind::Lsp(lang) => {
-            cmd.arg("--lsp-lang");
-            cmd.arg(lang);
             format!("lsp-{}", lang)
         }
     };
@@ -207,7 +222,32 @@ async fn spawn_proxy(
         // The proxy for the language is not running. Spawn it.
         trace!("spawning lsp proxy at {}", sock_path.display());
 
-        todo!()
+        let mut cmd = if cfg!(debug_assertions) {
+            info!("spawning from cargo");
+            let mut cmd = Command::new("cargo");
+            cmd.args(&["run", "--bin", "noa-sync", "--"]);
+            cmd
+        } else {
+            Command::new("noa-proxy")
+        };
+
+        match kind {
+            ProxyKind::Lsp(lang) => {
+                cmd.arg("--mode");
+                cmd.arg(lang);
+            }
+        }
+
+        // TODO: daemonize
+        cmd.arg("--workspace-dir")
+            .arg(&workspace_dir)
+            .arg("--sock-path")
+            .arg(&sock_path)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .context("failed to spawn a proxy")?;
     }
 
     trace!("try connecting to proxy {}", sock_path.display());
@@ -215,18 +255,6 @@ async fn spawn_proxy(
     trace!("connected to proxy {}", sock_path.display());
 
     let (read_end, write_end) = sock.into_split();
-
-    // Spawn a process.
-    // TODO: daemonize
-    cmd.arg("--workspace-dir")
-        .arg(&workspace_dir)
-        .arg("--sock-path")
-        .arg(&sock_path)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .context("failed to spawn a proxy")?;
 
     // Handle responses from the server.
     let sent_requests = sent_requests.clone();
