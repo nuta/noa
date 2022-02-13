@@ -8,9 +8,8 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{bail, Context, Result};
+use anyhow::Context;
 use noa_common::oops::OopsExt;
-use parking_lot::Mutex;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     net::{unix::OwnedWriteHalf, UnixListener, UnixStream},
@@ -30,7 +29,7 @@ const IDLE_STATE_MAX_SECS: u64 = 360;
 pub struct EventLoop {
     sock_path: PathBuf,
     progress: Arc<AtomicBool>,
-    clients: Arc<Mutex<ClientSet>>,
+    clients: Arc<tokio::sync::Mutex<ClientSet>>,
     notification_tx: UnboundedSender<Notification>,
     notification_rx: Option<UnboundedReceiver<Notification>>,
 }
@@ -41,7 +40,7 @@ impl EventLoop {
         EventLoop {
             sock_path: sock_path.to_owned(),
             progress: Arc::new(AtomicBool::new(false)),
-            clients: Arc::new(Mutex::new(ClientSet::new())),
+            clients: Arc::new(tokio::sync::Mutex::new(ClientSet::new())),
             notification_tx,
             notification_rx: Some(notification_rx),
         }
@@ -69,7 +68,7 @@ impl EventLoop {
             tokio::spawn(async move {
                 while let Some(noti) = notification_rx.recv().await {
                     trace!("sending a notification to noa: {:?}", noti);
-                    clients.lock().notify(noti);
+                    clients.lock().await.notify(noti).await;
                 }
             });
         }
@@ -88,7 +87,7 @@ impl EventLoop {
                     self.progress.store(false, Ordering::SeqCst);
                 }
                 Ok(Ok((new_client, _))) => {
-                    self.handle_client(new_client, server.clone());
+                    self.handle_client(new_client, server.clone()).await;
                 }
                 _ => {}
             }
@@ -96,7 +95,7 @@ impl EventLoop {
     }
 
     /// Spawns a new task to handle a client.
-    pub fn handle_client<S: Server + 'static>(
+    pub async fn handle_client<S: Server + 'static>(
         &self,
         client: UnixStream,
         server: Arc<tokio::sync::Mutex<S>>,
@@ -104,7 +103,7 @@ impl EventLoop {
         let progress = self.progress.clone();
         let (read_end, write_end) = client.into_split();
 
-        let client_id = self.clients.lock().add_client(write_end);
+        let client_id = self.clients.lock().await.add_client(write_end);
         let clients = self.clients.clone();
         tokio::spawn(async move {
             let mut reader = BufReader::new(read_end);
@@ -136,7 +135,11 @@ impl EventLoop {
                                         }
                                     }
                                 };
-                                clients.lock().send_response(client_id, id, resp);
+                                clients
+                                    .lock()
+                                    .await
+                                    .send_response(client_id, id, resp)
+                                    .await;
                             }
                         }
                     }

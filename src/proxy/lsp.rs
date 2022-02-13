@@ -10,20 +10,20 @@ use async_trait::async_trait;
 use jsonrpc_core::Call;
 use lsp_types::{
     notification::{
-        DidChangeTextDocument, DidOpenTextDocument, Notification as LspNotificationTrait,
-        PublishDiagnostics,
+        DidChangeTextDocument, DidOpenTextDocument, Initialized,
+        Notification as LspNotificationTrait, PublishDiagnostics,
     },
     request::{
         Completion, GotoDefinition, HoverRequest, Initialize, Request, SignatureHelpRequest,
     },
     CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
     GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, InitializeParams,
-    PartialResultParams, PublishDiagnosticsParams, SignatureHelp, SignatureHelpParams,
-    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams,
-    VersionedTextDocumentIdentifier, WorkDoneProgressParams,
+    InitializedParams, PartialResultParams, PublishDiagnosticsParams, SignatureHelp,
+    SignatureHelpParams, TextDocumentContentChangeEvent, TextDocumentIdentifier,
+    TextDocumentPositionParams, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 use noa_languages::lsp::Lsp;
-use serde::Serialize;
+
 use tokio::{
     io::BufReader,
     process::{Child, ChildStdin, ChildStdout, Command},
@@ -264,14 +264,20 @@ impl LspServer {
         lsp_config: &'static Lsp,
         workspace_dir: &Path,
     ) -> Result<LspServer> {
-        trace!("workspace_dir={}", workspace_dir.display());
+        trace!(
+            "spawning lsp server {} ({})",
+            lsp_config.language_id,
+            workspace_dir.display()
+        );
         let argv = (lsp_config.get_argv)();
+        let envp = (lsp_config.get_envp)();
         let mut lsp_server = Command::new(&argv[0])
             .args(&argv[1..])
             .current_dir(workspace_dir)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
+            .envs(envp)
             .kill_on_drop(true)
             .spawn()
             .with_context(|| {
@@ -325,6 +331,9 @@ impl LspServer {
         )
         .await?;
 
+        self.send_notification::<Initialized>(InitializedParams {})
+            .await?;
+
         Ok(())
     }
 
@@ -348,6 +357,15 @@ impl LspServer {
         self.send_message(&req).await?;
         let resp = rx.await?;
         Ok(resp)
+    }
+
+    async fn send_notification<T: lsp_types::notification::Notification>(
+        &mut self,
+        params: T::Params,
+    ) -> Result<()> {
+        let req = serialize_lsp_notification::<T>(params);
+        self.send_message(&req).await?;
+        Ok(())
     }
 
     async fn alloc_req_id(
@@ -375,17 +393,15 @@ impl Server for LspServer {
         match request {
             LspRequest::OpenFile { path, text } => {
                 trace!("DidOpenTextDocument(path={})", path.display());
-                let body =
-                    serialize_lsp_notification::<DidOpenTextDocument>(DidOpenTextDocumentParams {
-                        text_document: lsp_types::TextDocumentItem {
-                            uri: parse_path_as_uri(&path),
-                            language_id: self.lsp_config.language_id.to_string(),
-                            version: 0,
-                            text,
-                        },
-                    });
-
-                self.send_message(&body).await?;
+                self.send_notification::<DidOpenTextDocument>(DidOpenTextDocumentParams {
+                    text_document: lsp_types::TextDocumentItem {
+                        uri: parse_path_as_uri(&path),
+                        language_id: self.lsp_config.language_id.to_string(),
+                        version: 0,
+                        text,
+                    },
+                })
+                .await?;
                 Ok(LspResponse::NoContent)
             }
             LspRequest::UpdateFile {
@@ -394,21 +410,18 @@ impl Server for LspServer {
                 version,
             } => {
                 trace!("DidChangeTextDocument(path={})", path.display());
-                let body = serialize_lsp_notification::<DidChangeTextDocument>(
-                    DidChangeTextDocumentParams {
-                        text_document: VersionedTextDocumentIdentifier {
-                            uri: parse_path_as_uri(&path),
-                            version: version as i32,
-                        },
-                        content_changes: vec![TextDocumentContentChangeEvent {
-                            range: None,
-                            range_length: None,
-                            text,
-                        }],
+                self.send_notification::<DidChangeTextDocument>(DidChangeTextDocumentParams {
+                    text_document: VersionedTextDocumentIdentifier {
+                        uri: parse_path_as_uri(&path),
+                        version: version as i32,
                     },
-                );
-
-                self.send_message(&body).await?;
+                    content_changes: vec![TextDocumentContentChangeEvent {
+                        range: None,
+                        range_length: None,
+                        text,
+                    }],
+                })
+                .await?;
                 Ok(LspResponse::NoContent)
             }
             LspRequest::Completion { path, position } => {

@@ -261,22 +261,16 @@ async fn spawn_proxy(
 
         // Kill the existing proxy if it exists.
         let pid_path = proxy_pid_path(workspace_dir, &proxy_id);
-        match fs::read_to_string(&pid_path).await {
-            Ok(pid) => {
-                let pid = pid.parse::<i32>().unwrap();
-                trace!("killing existing lsp proxy {}", pid);
+        if let Ok(pid) = fs::read_to_string(&pid_path).await {
+            let pid = pid.parse::<i32>().unwrap();
+            trace!("killing existing lsp proxy {}", pid);
 
-                let _ = signal::kill(Pid::from_raw(pid), signal::Signal::SIGKILL);
-
-                // Force remove the PID file so that we can spawn a new one.
-                let _ = fs::remove_file(&pid_path).await;
-                let _ = fs::remove_file(&sock_path).await;
-            }
-            Err(err) if err.kind() == ErrorKind::NotFound => {}
-            Err(err) => {
-                return Err(err.into());
-            }
+            let _ = signal::kill(Pid::from_raw(pid), signal::Signal::SIGKILL);
         }
+
+        // Force remove the PID and sock files so that we can spawn a new one.
+        let _ = fs::remove_file(&pid_path).await;
+        let _ = fs::remove_file(&sock_path).await;
 
         let mut cmd = if cfg!(debug_assertions) {
             info!("spawning from cargo");
@@ -308,13 +302,13 @@ async fn spawn_proxy(
             .open(log_file_path(&proxy_id))
             .with_context(|| format!("failed to open proxy log file for {}", proxy_id))?;
 
-        cmd.arg("--daemonize")
-            .arg("--workspace-dir")
+        cmd.arg("--workspace-dir")
             .arg(&workspace_dir)
             .arg("--sock-path")
             .arg(&sock_path)
             .arg("--pid-path")
             .arg(&pid_path)
+            // .arg("--daemonize") TODO:
             .stdin(Stdio::null())
             .stdout(stdout_log)
             .stderr(stderr_log)
@@ -385,7 +379,7 @@ async fn spawn_proxy(
 
 async fn try_to_connect(sock_path: &Path) -> Result<UnixStream> {
     let mut last_err = None;
-    for i in 0..20 {
+    for i in 0..30 {
         match UnixStream::connect(sock_path).await {
             Ok(sock) => return Ok(sock),
             Err(err) => {
@@ -393,7 +387,7 @@ async fn try_to_connect(sock_path: &Path) -> Result<UnixStream> {
             }
         }
 
-        sleep(Duration::from_millis(30 * i)).await;
+        sleep(Duration::from_millis(20 * i)).await;
     }
 
     Err(last_err.unwrap().into())

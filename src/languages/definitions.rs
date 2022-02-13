@@ -47,12 +47,13 @@ pub const C: Language = Language {
         language_id: "c",
         get_argv: || {
             vec![
-                "clangd".to_string(),
+                "clangd".into(),
                 format!("-j={}", num_cpus::get()),
-                "--log=verbose".to_string(),
-                "--pretty".to_string(),
+                "--log=verbose".into(),
+                "--pretty".into(),
             ]
         },
+        get_envp: || vec![],
     }),
     tree_sitter: None,
 };
@@ -65,8 +66,9 @@ pub const RUST: Language = Language {
         language_id: "rust",
         get_argv: || {
             // FIXME:
-            vec!["/home/seiya/.vscode-server/data/User/globalStorage/matklad.rust-analyzer/rust-analyzer-x86_64-unknown-linux-gnu".to_string()]
+            vec!["/home/seiya/.vscode-server/data/User/globalStorage/matklad.rust-analyzer/rust-analyzer-x86_64-unknown-linux-gnu".into()]
         },
+        get_envp: || vec![("RA_LOG".into(), "verbose".into())],
     }),
     tree_sitter: Some(TreeSitter {
         get_language: || unsafe { tree_sitter_rust() },

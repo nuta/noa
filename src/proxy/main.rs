@@ -5,7 +5,6 @@ extern crate test;
 #[macro_use]
 extern crate log;
 
-mod client;
 mod eventloop;
 mod lsp;
 mod protocol;
@@ -17,7 +16,7 @@ use anyhow::Context;
 use clap::Parser;
 use daemonize::Daemonize;
 use lsp::LspServer;
-use noa_common::{dirs::proxy_pid_path, logger::install_logger};
+
 use noa_languages::definitions::get_language_by_lsp_id;
 
 #[derive(Parser, Debug)]
@@ -63,10 +62,15 @@ async fn main() {
                 .with_context(|| format!("unsupported lsp language id {}", lang_id))
                 .unwrap();
 
-            LspServer::spawn(eventloop.notification_tx(), lsp, &args.workspace_dir)
-                .await
-                .with_context(|| format!("failed to spawn LSP server for {}", lang_id))
-                .unwrap()
+            let mut server =
+                LspServer::spawn(eventloop.notification_tx(), lsp, &args.workspace_dir)
+                    .await
+                    .with_context(|| format!("failed to spawn LSP server for {}", lang_id))
+                    .unwrap();
+
+            trace!("initializing LSP server");
+            server.initialize().await.unwrap();
+            server
         }
         _ => {
             panic!("unsupported mode: {}", args.mode);
