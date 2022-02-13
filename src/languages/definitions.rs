@@ -53,7 +53,7 @@ pub const C: Language = Language {
                 "--pretty".into(),
             ]
         },
-        get_envp: || vec![],
+        get_envp: std::vec::Vec::new,
     }),
     tree_sitter: None,
 };

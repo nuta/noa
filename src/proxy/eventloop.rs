@@ -13,11 +13,7 @@ use noa_common::oops::OopsExt;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     net::{unix::OwnedWriteHalf, UnixListener, UnixStream},
-    sync::{
-        mpsc::{self, UnboundedReceiver, UnboundedSender},
-        oneshot,
-    },
-    time::timeout,
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
 };
 
 use crate::{
@@ -42,7 +38,7 @@ impl EventLoop {
         let (notification_tx, notification_rx) = tokio::sync::mpsc::unbounded_channel();
         EventLoop {
             sock_path: sock_path.to_owned(),
-            progress: Arc::new(AtomicBool::new(false)),
+            progress: Arc::new(AtomicBool::new(true)),
             clients: Arc::new(tokio::sync::Mutex::new(ClientSet::new())),
             notification_tx,
             notification_rx: Some(notification_rx),
@@ -170,7 +166,6 @@ impl EventLoop {
             clients.remove_client(client_id);
             if clients.is_empty() {
                 let _ = quit_tx.send(()).await;
-                return;
             }
         });
     }
