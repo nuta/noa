@@ -115,11 +115,11 @@ impl PartialOrd for Position {
     }
 }
 
-impl Into<lsp_types::Position> for Position {
-    fn into(self) -> lsp_types::Position {
+impl From<Position> for lsp_types::Position {
+    fn from(pos: Position) -> lsp_types::Position {
         lsp_types::Position {
-            line: self.y as u32,
-            character: self.x as u32,
+            line: pos.y as u32,
+            character: pos.x as u32,
         }
     }
 }
