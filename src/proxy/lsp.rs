@@ -90,7 +90,7 @@ type ReqIdTxMap = Arc<
 
 async fn receive_responses(
     req_id_tx_map: ReqIdTxMap,
-    noti_tx: UnboundedSender<Notification>,
+    notification_tx: UnboundedSender<Notification>,
     stdout: ChildStdout,
 ) {
     use tokio::io::{AsyncBufReadExt, AsyncReadExt};
@@ -218,7 +218,7 @@ async fn receive_responses(
                         match noti.method.as_str() {
                             PublishDiagnostics::METHOD => {
                                 let resp: PublishDiagnosticsParams = noti.params.parse().unwrap();
-                                noti_tx
+                                notification_tx
                                     .send(Notification::Diagnostics {
                                         path: PathBuf::from(resp.uri.path()),
                                         diags: resp.diagnostics,
@@ -253,17 +253,16 @@ pub struct LspServer {
     workspace_dir: PathBuf,
     lsp_stdin: ChildStdin,
     _lsp_server: Child,
-    lsp_config: Lsp,
+    lsp_config: &'static Lsp,
     next_req_id: usize,
     req_id_tx_map: ReqIdTxMap,
 }
 
 impl LspServer {
     pub async fn spawn(
-        noti_tx: UnboundedSender<Notification>,
-        lsp_config: Lsp,
+        notification_tx: UnboundedSender<Notification>,
+        lsp_config: &'static Lsp,
         workspace_dir: &Path,
-        lang_id: String,
     ) -> Result<LspServer> {
         trace!("workspace_dir={}", workspace_dir.display());
         let mut lsp_server = Command::new(lsp_config.command[0])
@@ -277,7 +276,7 @@ impl LspServer {
             .with_context(|| {
                 format!(
                     "failed to spawn LSP server for {} (have you installed required packages?)",
-                    lang_id
+                    lsp_config.language_id
                 )
             })?;
 
@@ -286,9 +285,9 @@ impl LspServer {
         let req_id_tx_map = Arc::new(Mutex::new(HashMap::new()));
         {
             let req_id_tx_map = req_id_tx_map.clone();
-            tokio::spawn(
-                async move { receive_responses(req_id_tx_map, noti_tx, lsp_stdout).await },
-            );
+            tokio::spawn(async move {
+                receive_responses(req_id_tx_map, notification_tx, lsp_stdout).await
+            });
         }
 
         Ok(LspServer {

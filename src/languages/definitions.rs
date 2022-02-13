@@ -19,6 +19,18 @@ pub fn guess_language(path: &Path) -> &'static Language {
     &PLAIN
 }
 
+pub fn get_language_by_lsp_id(language_id: &str) -> Option<&'static Lsp> {
+    for lang in LANGUAGES {
+        if let Some(lsp) = lang.lsp.as_ref() {
+            if lsp.language_id == language_id {
+                return Some(lsp);
+            }
+        }
+    }
+
+    None
+}
+
 pub const PLAIN: Language = Language {
     id: "plain",
     filenames: &[],

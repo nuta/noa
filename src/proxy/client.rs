@@ -289,6 +289,8 @@ async fn spawn_proxy(
         match kind {
             ProxyKind::Lsp(lang) => {
                 cmd.arg("--mode");
+                cmd.arg("lsp");
+                cmd.arg("--lsp-language-id");
                 cmd.arg(lang);
             }
         }
