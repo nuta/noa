@@ -419,7 +419,7 @@ impl Surface for BufferView {
 
         let current_rope = doc.buffer().raw_buffer().rope().clone();
         if prev_rope != current_rope {
-            doc.post_update_job(&editor.repo, &editor.render_request);
+            doc.post_update_job(&editor.repo, &editor.proxy, &editor.render_request);
         }
 
         HandledEvent::Consumed
@@ -433,7 +433,7 @@ impl Surface for BufferView {
     ) -> HandledEvent {
         let doc = editor.documents.current_mut();
         doc.buffer_mut().insert(s);
-        doc.post_update_job(&editor.repo, &editor.render_request);
+        doc.post_update_job(&editor.repo, &editor.proxy, &editor.render_request);
         HandledEvent::Consumed
     }
 

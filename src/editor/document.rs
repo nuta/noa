@@ -34,6 +34,7 @@ pub struct DocumentId(NonZeroUsize);
 
 pub struct Document {
     id: DocumentId,
+    version: usize,
     /// It's `None` if the document is not backed by a file (e.g. a scrach buffer).
     path: Option<PathBuf>,
     backup_path: Option<PathBuf>,
@@ -53,6 +54,7 @@ impl Document {
     pub fn new(id: DocumentId, name: &str) -> Document {
         Document {
             id,
+            version: 1,
             path: None,
             backup_path: None,
             name: name.to_string(),
@@ -88,6 +90,7 @@ impl Document {
         let words = Words::new_with_buffer(&buffer);
         Ok(Document {
             id,
+            version: 1,
             path: Some(path.to_owned()),
             backup_path: Some(backup_path),
             name,
@@ -203,8 +206,14 @@ impl Document {
         self.flashes.highlight(&mut self.view);
     }
 
-    pub fn post_update_job(&mut self, repo: &Option<Arc<Repo>>, render_request: &Arc<Notify>) {
+    pub fn post_update_job(
+        &mut self,
+        repo: &Option<Arc<Repo>>,
+        proxy: &Arc<noa_proxy::client::Client>,
+        render_request: &Arc<Notify>,
+    ) {
         let _time = TimeReport::new("post_update_jobs time");
+        self.version += 1;
 
         // TODO:
         let updated_lines = 0..self.buffer.num_lines();
@@ -238,11 +247,23 @@ impl Document {
             _ => None,
         };
 
+        let proxy = proxy.clone();
+        let lang = self.buffer.language();
+        let path = self.path.clone();
+        let version = self.version;
         self.post_update_job = Some(tokio::task::spawn_blocking(move || {
             let _time = TimeReport::new("backgroung_post_update_jobs time");
 
             // This may take a time.
-            let buffer_text = raw_buffer.text();
+            let buffer_text = Arc::new(raw_buffer.text());
+
+            // Synchronize the latest buffer text with the LSP server.
+            if let Some(path) = path {
+                let buffer_text = buffer_text.clone();
+                tokio::spawn(async move {
+                    proxy.update_file(lang, &path, &buffer_text, version);
+                });
+            }
 
             if let Some((path, repo)) = git_diff_ctx {
                 let mut new_minimap = MiniMap::new();

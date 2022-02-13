@@ -76,7 +76,7 @@ async fn main() {
 
     // First run of syntax highlighting.
     for doc in editor.documents.documents_mut().values_mut() {
-        doc.post_update_job(&editor.repo, &editor.render_request);
+        doc.post_update_job(&editor.repo, &editor.proxy, &editor.render_request);
     }
 
     let (quit_tx, mut quit_rx) = oneshot::channel();

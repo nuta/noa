@@ -88,6 +88,10 @@ impl Buffer {
         }
     }
 
+    pub fn language(&self) -> &'static Language {
+        self.lang
+    }
+
     pub fn set_language(&mut self, lang: &'static Language) {
         self.lang = lang;
         self.syntax = Syntax::new(lang);

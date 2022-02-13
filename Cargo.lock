@@ -882,6 +882,7 @@ dependencies = [
  "noa_compositor",
  "noa_editorconfig",
  "noa_languages",
+ "noa_proxy",
  "once_cell",
  "parking_lot 0.12.0",
  "pretty_assertions 0.7.2",

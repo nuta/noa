@@ -12,6 +12,7 @@ pub struct Editor {
     pub documents: DocumentManager,
     pub clipboard: Box<dyn ClipboardProvider>,
     pub repo: Option<Arc<Repo>>,
+    pub proxy: Arc<noa_proxy::client::Client>,
     pub render_request: Arc<Notify>,
 }
 
@@ -29,6 +30,7 @@ impl Editor {
             documents: DocumentManager::new(),
             clipboard: clipboard::build_provider().unwrap_or_else(clipboard::build_dummy_provider),
             repo,
+            proxy: Arc::new(noa_proxy::client::Client::new(workspace_dir)),
             render_request,
         }
     }
