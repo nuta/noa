@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use lsp_types::{CompletionItem, Diagnostic, HoverContents, SignatureHelp};
+use lsp_types::{CompletionItem, Diagnostic, HoverContents};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize, Hash)]
@@ -36,10 +36,6 @@ pub enum LspRequest {
         version: usize,
     },
     Hover {
-        path: PathBuf,
-        position: lsp_types::Position,
-    },
-    SignatureHelp {
         path: PathBuf,
         position: lsp_types::Position,
     },
@@ -80,6 +76,5 @@ pub enum LspResponse {
     NoContent,
     Completion(Vec<CompletionItem>),
     Hover(Option<HoverContents>),
-    SignatureHelp(Option<SignatureHelp>),
     GoToDefinition(Vec<FileLocation>),
 }

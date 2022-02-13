@@ -14,12 +14,11 @@ use lsp_types::{
         Notification as LspNotificationTrait, PublishDiagnostics,
     },
     request::{
-        Completion, GotoDefinition, HoverRequest, Initialize, Request, SignatureHelpRequest,
+        Completion, GotoDefinition, HoverRequest, Initialize, Request,
     },
     CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
     GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, InitializeParams,
-    InitializedParams, PartialResultParams, PublishDiagnosticsParams, SignatureHelp,
-    SignatureHelpParams, TextDocumentContentChangeEvent, TextDocumentIdentifier,
+    InitializedParams, PartialResultParams, PublishDiagnosticsParams, TextDocumentContentChangeEvent, TextDocumentIdentifier,
     TextDocumentPositionParams, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 use noa_languages::lsp::Lsp;
@@ -172,10 +171,6 @@ async fn receive_responses(
                             .ok()
                             .map(|resp| resp.contents);
                         LspResponse::Hover(contents)
-                    }
-                    SignatureHelpRequest::METHOD => {
-                        let help = serde_json::from_value::<SignatureHelp>(json.result).ok();
-                        LspResponse::SignatureHelp(help)
                     }
                     GotoDefinition::METHOD => {
                         let resp: GotoDefinitionResponse =
@@ -456,26 +451,6 @@ impl Server for LspServer {
                             uri: parse_path_as_uri(&path),
                         },
                     },
-                    work_done_progress_params: WorkDoneProgressParams {
-                        work_done_token: None,
-                    },
-                })
-                .await
-            }
-            LspRequest::SignatureHelp { path, position } => {
-                trace!(
-                    "SignatureHelp(path={}, position={:?})",
-                    path.display(),
-                    position
-                );
-                self.call_method::<SignatureHelpRequest>(SignatureHelpParams {
-                    text_document_position_params: TextDocumentPositionParams {
-                        position,
-                        text_document: TextDocumentIdentifier {
-                            uri: parse_path_as_uri(&path),
-                        },
-                    },
-                    context: None,
                     work_done_progress_params: WorkDoneProgressParams {
                         work_done_token: None,
                     },
