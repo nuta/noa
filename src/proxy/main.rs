@@ -14,18 +14,35 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
-use noa_common::logger::install_logger;
+use daemonize::Daemonize;
+use noa_common::{dirs::proxy_pid_path, logger::install_logger};
 
 #[derive(Parser, Debug)]
 struct Args {
+    #[clap(long)]
+    daemonize: bool,
+    #[clap(long, parse(from_os_str))]
+    workspace_dir: PathBuf,
     #[clap(long, parse(from_os_str))]
     sock_path: PathBuf,
+    #[clap(long, parse(from_os_str))]
+    pid_path: PathBuf,
 }
 
 #[tokio::main]
 async fn main() {
     install_logger("proxy");
     let args = Args::parse();
+
+    if args.daemonize {
+        if let Err(err) = Daemonize::new()
+            .pid_file(&args.pid_path)
+            .working_directory(args.workspace_dir)
+            .start()
+        {
+            panic!("failed to daemonize: {}", err);
+        }
+    }
 
     let server = server::Server::new(&args.sock_path);
     server.run().await;

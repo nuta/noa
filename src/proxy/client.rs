@@ -12,7 +12,10 @@ use std::{
 
 use anyhow::{bail, Context, Result};
 use lsp_types::Position;
-use noa_common::{dirs::proxy_sock_path, oops::OopsExt};
+use noa_common::{
+    dirs::{proxy_pid_path, proxy_sock_path},
+    oops::OopsExt,
+};
 use noa_languages::{language::Language, lsp::Lsp};
 use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
@@ -209,13 +212,13 @@ async fn spawn_proxy(
     notification_tx: &UnboundedSender<Notification>,
 ) -> Result<OwnedWriteHalf> {
     // Spawn a process.
-    let sock_id = match kind {
+    let proxy_id = match kind {
         ProxyKind::Lsp(lang) => {
             format!("lsp-{}", lang)
         }
     };
 
-    let sock_path = proxy_sock_path(&workspace_dir, &sock_id);
+    let sock_path = proxy_sock_path(&workspace_dir, &proxy_id);
 
     trace!("connecting to proxy {}", sock_path.display());
     if UnixStream::connect(&sock_path).await.is_err() {
@@ -238,11 +241,14 @@ async fn spawn_proxy(
             }
         }
 
-        // TODO: daemonize
-        cmd.arg("--workspace-dir")
+        let pid_path = proxy_pid_path(&workspace_dir, &proxy_id);
+        cmd.arg("--daemonize")
+            .arg("--workspace-dir")
             .arg(&workspace_dir)
             .arg("--sock-path")
             .arg(&sock_path)
+            .arg("--sock-path")
+            .arg(&pid_path)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())

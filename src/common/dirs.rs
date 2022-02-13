@@ -36,7 +36,13 @@ pub fn noa_workdir(workdir: &Path) -> PathBuf {
 
 pub fn proxy_sock_path(workdir: &Path, id: &str) -> PathBuf {
     let dir = noa_workdir(workdir);
-    let name = format!("{}.sock", id);
+    let name = format!("proxy-{}.sock", id);
+    dir.join(&name)
+}
+
+pub fn proxy_pid_path(workdir: &Path, id: &str) -> PathBuf {
+    let dir = noa_workdir(workdir);
+    let name = format!("proxy-{}.pid", id);
     dir.join(&name)
 }
 
