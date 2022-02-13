@@ -1,4 +1,3 @@
-#![allow(unused)]
 #![feature(test)]
 
 extern crate test;
@@ -39,7 +38,8 @@ struct Args {
 
 #[tokio::main]
 async fn main() {
-    install_logger("proxy");
+    env_logger::init();
+    trace!("starting proxy...");
     let args = Args::parse();
 
     if args.daemonize {

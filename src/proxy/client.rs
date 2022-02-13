@@ -266,10 +266,11 @@ async fn spawn_proxy(
                 let pid = pid.parse::<i32>().unwrap();
                 trace!("killing existing lsp proxy {}", pid);
 
-                signal::kill(Pid::from_raw(pid), signal::Signal::SIGKILL).oops();
+                let _ = signal::kill(Pid::from_raw(pid), signal::Signal::SIGKILL);
 
                 // Force remove the PID file so that we can spawn a new one.
-                fs::remove_file(&pid_path).await.oops();
+                let _ = fs::remove_file(&pid_path).await;
+                let _ = fs::remove_file(&sock_path).await;
             }
             Err(err) if err.kind() == ErrorKind::NotFound => {}
             Err(err) => {
@@ -280,7 +281,8 @@ async fn spawn_proxy(
         let mut cmd = if cfg!(debug_assertions) {
             info!("spawning from cargo");
             let mut cmd = Command::new("cargo");
-            cmd.args(&["run", "--bin", "noa-sync", "--"]);
+            cmd.args(&["run", "--bin", "noa-proxy", "--"]);
+            cmd.env("RUST_LOG", "trace");
             cmd
         } else {
             Command::new("noa-proxy")
@@ -311,7 +313,7 @@ async fn spawn_proxy(
             .arg(&workspace_dir)
             .arg("--sock-path")
             .arg(&sock_path)
-            .arg("--sock-path")
+            .arg("--pid-path")
             .arg(&pid_path)
             .stdin(Stdio::null())
             .stdout(stdout_log)
@@ -321,7 +323,12 @@ async fn spawn_proxy(
     }
 
     trace!("try connecting to proxy {}", sock_path.display());
-    let sock = try_to_connect(&sock_path).await?;
+    let sock = try_to_connect(&sock_path).await.with_context(|| {
+        format!(
+            "failed to connect to the proxy socket: {}",
+            sock_path.display()
+        )
+    })?;
     trace!("connected to proxy {}", sock_path.display());
 
     let (read_end, write_end) = sock.into_split();

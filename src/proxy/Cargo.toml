@@ -9,7 +9,7 @@ name = "noa_proxy"
 path = "lib.rs"
 
 [[bin]]
-name = "noa_proxy"
+name = "noa-proxy"
 path = "main.rs"
 
 [dev-dependencies]
@@ -17,6 +17,7 @@ pretty_assertions = "0"
 
 [dependencies]
 log = "0"
+env_logger = "0"
 anyhow = "1"
 clap = { version = "3", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
