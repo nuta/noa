@@ -7,6 +7,8 @@ extern crate test;
 extern crate log;
 
 mod client;
+mod eventloop;
+mod lsp;
 mod protocol;
 mod server;
 
@@ -44,6 +46,6 @@ async fn main() {
         }
     }
 
-    let server = server::Server::new(&args.sock_path);
+    let server = eventloop::EventLoop::new(&args.sock_path);
     server.run().await;
 }

@@ -14,14 +14,14 @@ use anyhow::{bail, Context, Result};
 use lsp_types::Position;
 use nix::{sys::signal, unistd::Pid};
 use noa_common::{
-    dirs::{proxy_pid_path, proxy_sock_path},
+    dirs::{log_file_path, proxy_pid_path, proxy_sock_path},
     oops::OopsExt,
 };
 use noa_languages::{language::Language, lsp::Lsp};
 use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
 use tokio::{
-    fs,
+    fs::{self, OpenOptions},
     io::{AsyncBufReadExt, BufReader},
     net::{unix::OwnedWriteHalf, UnixStream},
     process::Command,
@@ -261,6 +261,17 @@ async fn spawn_proxy(
             }
         }
 
+        let stdout_log = std::fs::OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(log_file_path(&proxy_id))
+            .with_context(|| format!("failed to open proxy log file for {}", proxy_id))?;
+        let stderr_log = std::fs::OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(log_file_path(&proxy_id))
+            .with_context(|| format!("failed to open proxy log file for {}", proxy_id))?;
+
         cmd.arg("--daemonize")
             .arg("--workspace-dir")
             .arg(&workspace_dir)
@@ -269,8 +280,8 @@ async fn spawn_proxy(
             .arg("--sock-path")
             .arg(&pid_path)
             .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            .stdout(stdout_log)
+            .stderr(stderr_log)
             .spawn()
             .with_context(|| format!("failed to spawn a proxy for {}", proxy_id))?;
     }
