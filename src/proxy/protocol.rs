@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use lsp_types::Diagnostic;
+use lsp_types::{CompletionItem, Diagnostic, HoverContents, SignatureHelp};
 use noa_common::fast_hash::FastHash;
 use serde::{Deserialize, Serialize};
 
@@ -15,18 +15,38 @@ impl From<usize> for RequestId {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum ToServer {
-    Request { id: RequestId, body: Request },
+    Request {
+        id: RequestId,
+        body: serde_json::Value,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub enum Request {
+pub enum LspRequest {
     Completion {
         path: PathBuf,
         position: lsp_types::Position,
     },
+    OpenFile {
+        path: PathBuf,
+        text: String,
+    },
     UpdateFile {
         path: PathBuf,
         text: String,
+        version: usize,
+    },
+    Hover {
+        path: PathBuf,
+        position: lsp_types::Position,
+    },
+    SignatureHelp {
+        path: PathBuf,
+        position: lsp_types::Position,
+    },
+    GoToDefinition {
+        path: PathBuf,
+        position: lsp_types::Position,
     },
 }
 
@@ -51,20 +71,21 @@ pub enum Notification {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum Response {
-    Ok { results: serde_json::Value },
+    Ok { body: serde_json::Value },
     Err { reason: String },
 }
 
-pub mod results {
-    use lsp_types::CompletionItem;
+#[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
+pub struct FileLocation {
+    pub path: PathBuf,
+    pub position: lsp_types::Position,
+}
 
-    use super::*;
-
-    #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-    pub struct NoContent;
-
-    #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-    pub struct Completion {
-        items: Vec<CompletionItem>,
-    }
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+pub enum LspResponse {
+    NoContent,
+    Completion(Vec<CompletionItem>),
+    Hover(Option<HoverContents>),
+    SignatureHelp(Option<SignatureHelp>),
+    GoToDefinition(Vec<FileLocation>),
 }

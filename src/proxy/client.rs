@@ -11,7 +11,7 @@ use std::{
 };
 
 use anyhow::{bail, Context, Result};
-use lsp_types::Position;
+use lsp_types::{CompletionItem, Position};
 use nix::{sys::signal, unistd::Pid};
 use noa_common::{
     dirs::{log_file_path, proxy_pid_path, proxy_sock_path},
@@ -19,9 +19,8 @@ use noa_common::{
 };
 use noa_languages::{language::Language, lsp::Lsp};
 use parking_lot::Mutex;
-use serde::de::DeserializeOwned;
 use tokio::{
-    fs::{self, OpenOptions},
+    fs::{self},
     io::{AsyncBufReadExt, BufReader},
     net::{unix::OwnedWriteHalf, UnixStream},
     process::Command,
@@ -32,7 +31,9 @@ use tokio::{
     time::sleep,
 };
 
-use crate::protocol::{results, Notification, Request, RequestId, Response, ToClient, ToServer};
+use crate::protocol::{
+    LspRequest, LspResponse, Notification, RequestId, Response, ToClient, ToServer,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum ProxyKind {
@@ -70,18 +71,41 @@ impl Client {
         lang: &Language,
         path: &Path,
         pos: (u32, u32),
-    ) -> Result<results::Completion> {
-        self.request(
-            lang,
-            Request::Completion {
-                path: path.to_owned(),
-                position: Position {
-                    line: pos.0,
-                    character: pos.1,
+    ) -> Result<Vec<CompletionItem>> {
+        match self
+            .request(
+                lang,
+                LspRequest::Completion {
+                    path: path.to_owned(),
+                    position: Position {
+                        line: pos.0,
+                        character: pos.1,
+                    },
                 },
-            },
-        )
-        .await
+            )
+            .await
+        {
+            Ok(LspResponse::Completion(completions)) => Ok(completions),
+            Ok(other) => bail!("unexpected response: {:?}", other),
+            Err(err) => Err(err),
+        }
+    }
+
+    pub async fn open_file(&self, lang: &Language, path: &Path, text: &str) -> Result<()> {
+        match self
+            .request(
+                lang,
+                LspRequest::OpenFile {
+                    path: path.to_owned(),
+                    text: text.to_owned(),
+                },
+            )
+            .await
+        {
+            Ok(LspResponse::NoContent) => Ok(()),
+            Ok(other) => bail!("unexpected response: {:?}", other),
+            Err(err) => Err(err),
+        }
     }
 
     pub async fn update_file(
@@ -89,25 +113,31 @@ impl Client {
         lang: &Language,
         path: &Path,
         text: &str,
-    ) -> Result<results::NoContent> {
-        self.request(
-            lang,
-            Request::UpdateFile {
-                path: path.to_owned(),
-                text: text.to_owned(),
-            },
-        )
-        .await
+        version: usize,
+    ) -> Result<()> {
+        match self
+            .request(
+                lang,
+                LspRequest::UpdateFile {
+                    path: path.to_owned(),
+                    text: text.to_owned(),
+                    version,
+                },
+            )
+            .await
+        {
+            Ok(LspResponse::NoContent) => Ok(()),
+            Ok(other) => bail!("unexpected response: {:?}", other),
+            Err(err) => Err(err),
+        }
     }
 
-    async fn request<R: DeserializeOwned>(&self, lang: &Language, request: Request) -> Result<R> {
+    async fn request(&self, lang: &Language, request: LspRequest) -> Result<LspResponse> {
         if let Some(lsp) = lang.lsp.as_ref() {
             let resp = self.do_request(lsp, request).await?;
             match resp {
-                Response::Ok { results } => {
-                    let res: R =
-                        serde_json::from_value(results).context("unexpected LSP respones")?;
-                    Ok(res)
+                Response::Ok { body } => {
+                    serde_json::from_value::<LspResponse>(body).context("unexpected LSP respones")
                 }
                 Response::Err { reason } => Err(anyhow::anyhow!("LSP error: {}", reason)),
             }
@@ -116,14 +146,16 @@ impl Client {
         }
     }
 
-    async fn do_request(&self, lsp: &Lsp, request: Request) -> Result<Response> {
+    async fn do_request(&self, lsp: &Lsp, request: LspRequest) -> Result<Response> {
         let kind = ProxyKind::Lsp(lsp.language_id);
         let (resp_tx, resp_rx) = oneshot::channel();
         {
             let id = self.next_request_id.fetch_add(1, Ordering::SeqCst).into();
             self.sent_requests.lock().insert(id, resp_tx);
 
-            let message = ToServer::Request { id, body: request };
+            let body: serde_json::Value =
+                serde_json::to_value(request).context("serialize request")?;
+            let message = ToServer::Request { id, body };
             let mut proxies = self.txs.lock();
             match proxies.get(&kind) {
                 Some(tx) => {

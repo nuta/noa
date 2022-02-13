@@ -23,13 +23,17 @@ use lsp_types::{
     VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 use noa_languages::lsp::Lsp;
+use serde::Serialize;
 use tokio::{
     io::BufReader,
     process::{Child, ChildStdin, ChildStdout, Command},
     sync::{mpsc::UnboundedSender, oneshot, Mutex},
 };
 
-use crate::{protocol::Notification, server::Server};
+use crate::{
+    protocol::{FileLocation, LspRequest, LspResponse, Notification},
+    server::Server,
+};
 
 fn parse_path_as_uri(path: &Path) -> lsp_types::Url {
     let uri = &format!("file://{}", path.to_str().unwrap());
@@ -187,12 +191,9 @@ async fn receive_responses(
 
                         let items = items
                             .iter()
-                            .map(|loc| {
-                                let start = loc.range.start;
-                                FileLocation {
-                                    path: PathBuf::from(loc.uri.path()),
-                                    pos: Point::new(start.line as usize, start.character as usize),
-                                }
+                            .map(|loc| FileLocation {
+                                path: PathBuf::from(loc.uri.path()),
+                                position: loc.range.start,
                             })
                             .collect();
                         LspResponse::GoToDefinition(items)
@@ -248,7 +249,7 @@ async fn receive_responses(
     }
 }
 
-pub struct LspDaemon {
+pub struct LspServer {
     workspace_dir: PathBuf,
     lsp_stdin: ChildStdin,
     _lsp_server: Child,
@@ -257,13 +258,13 @@ pub struct LspDaemon {
     req_id_tx_map: ReqIdTxMap,
 }
 
-impl LspDaemon {
+impl LspServer {
     pub async fn spawn(
         noti_tx: UnboundedSender<Notification>,
         lsp_config: Lsp,
         workspace_dir: &Path,
         lang_id: String,
-    ) -> Result<LspDaemon> {
+    ) -> Result<LspServer> {
         trace!("workspace_dir={}", workspace_dir.display());
         let mut lsp_server = Command::new(lsp_config.command[0])
             .args(&lsp_config.command[1..])
@@ -290,7 +291,7 @@ impl LspDaemon {
             );
         }
 
-        Ok(LspDaemon {
+        Ok(LspServer {
             workspace_dir: workspace_dir.to_path_buf(),
             lsp_stdin,
             _lsp_server: lsp_server,
@@ -366,7 +367,7 @@ impl LspDaemon {
 }
 
 #[async_trait]
-impl Server for LspDaemon {
+impl Server for LspServer {
     type Request = LspRequest;
     type Response = LspResponse;
 
@@ -411,10 +412,14 @@ impl Server for LspDaemon {
                 Ok(LspResponse::NoContent)
             }
             LspRequest::Completion { path, position } => {
-                trace!("Completion(path={}, position={})", path.display(), position);
+                trace!(
+                    "Completion(path={}, position={:?})",
+                    path.display(),
+                    position
+                );
                 self.call_method::<Completion>(CompletionParams {
                     text_document_position: TextDocumentPositionParams {
-                        position: position.into_position(),
+                        position: position,
                         text_document: TextDocumentIdentifier {
                             uri: parse_path_as_uri(&path),
                         },
@@ -430,10 +435,10 @@ impl Server for LspDaemon {
                 .await
             }
             LspRequest::Hover { path, position } => {
-                trace!("Hover(path={}, position={})", path.display(), position);
+                trace!("Hover(path={}, position={:?})", path.display(), position);
                 self.call_method::<HoverRequest>(HoverParams {
                     text_document_position_params: TextDocumentPositionParams {
-                        position: position.into_position(),
+                        position: position,
                         text_document: TextDocumentIdentifier {
                             uri: parse_path_as_uri(&path),
                         },
@@ -446,13 +451,13 @@ impl Server for LspDaemon {
             }
             LspRequest::SignatureHelp { path, position } => {
                 trace!(
-                    "SignatureHelp(path={}, position={})",
+                    "SignatureHelp(path={}, position={:?})",
                     path.display(),
                     position
                 );
                 self.call_method::<SignatureHelpRequest>(SignatureHelpParams {
                     text_document_position_params: TextDocumentPositionParams {
-                        position: position.into_position(),
+                        position: position,
                         text_document: TextDocumentIdentifier {
                             uri: parse_path_as_uri(&path),
                         },
@@ -466,13 +471,13 @@ impl Server for LspDaemon {
             }
             LspRequest::GoToDefinition { path, position } => {
                 trace!(
-                    "GoToDefinition(path={}, position={})",
+                    "GoToDefinition(path={}, position={:?})",
                     path.display(),
                     position
                 );
                 self.call_method::<GotoDefinition>(GotoDefinitionParams {
                     text_document_position_params: TextDocumentPositionParams {
-                        position: position.into_position(),
+                        position: position,
                         text_document: TextDocumentIdentifier {
                             uri: parse_path_as_uri(&path),
                         },
@@ -490,4 +495,4 @@ impl Server for LspDaemon {
     }
 }
 
-unsafe impl Send for LspDaemon {}
+unsafe impl Send for LspServer {}
