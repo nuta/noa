@@ -7,4 +7,5 @@ pub mod find;
 pub mod grapheme_iter;
 pub mod raw_buffer;
 pub mod syntax;
+pub mod undoable_raw_buffer;
 pub mod word_iter;

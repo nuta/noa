@@ -218,6 +218,7 @@ impl Document {
         self.version += 1;
 
         // TODO:
+        let changes = self.buffer.clear_changes();
         let updated_lines = 0..self.buffer.num_lines();
 
         self.buffer.post_update_hook();

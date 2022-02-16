@@ -14,6 +14,7 @@ use crate::{
     extras::indent::compute_desired_indent_len,
     raw_buffer::RawBuffer,
     syntax::Syntax,
+    undoable_raw_buffer::{Change, UndoableRawBuffer},
 };
 
 struct UndoState {
@@ -24,7 +25,7 @@ struct UndoState {
 pub struct Buffer {
     lang: &'static Language,
     syntax: Option<Syntax>,
-    pub(crate) buf: RawBuffer,
+    pub(crate) buf: UndoableRawBuffer,
     pub(crate) cursors: CursorSet,
     pub(crate) config: EditorConfig,
     undo_stack: Vec<UndoState>,
@@ -36,7 +37,7 @@ impl Buffer {
         Buffer {
             lang: &PLAIN,
             syntax: None,
-            buf: RawBuffer::new(),
+            buf: UndoableRawBuffer::new(),
             cursors: CursorSet::new(),
             config: EditorConfig::default(),
             undo_stack: Vec::new(),
@@ -50,14 +51,14 @@ impl Buffer {
 
     pub fn from_text(text: &str) -> Buffer {
         Buffer {
-            buf: RawBuffer::from_text(text),
+            buf: UndoableRawBuffer::from_text(text),
             ..Default::default()
         }
     }
 
     pub fn from_reader<T: std::io::Read>(reader: T) -> std::io::Result<Buffer> {
         Ok(Buffer {
-            buf: RawBuffer::from_reader(reader)?,
+            buf: UndoableRawBuffer::from_reader(reader)?,
             ..Default::default()
         })
     }
@@ -96,7 +97,7 @@ impl Buffer {
         self.lang = lang;
         self.syntax = Syntax::new(lang);
         if let Some(syntax) = self.syntax.as_mut() {
-            syntax.update(&self.buf);
+            syntax.update(&self.buf, None);
         }
     }
 
@@ -164,7 +165,7 @@ impl Buffer {
 
     pub fn set_main_cursor_with<F>(&mut self, mut f: F)
     where
-        F: FnMut(&mut Cursor, &RawBuffer),
+        F: FnMut(&mut Cursor, &UndoableRawBuffer),
     {
         self.cursors.foreach(|c, _past_cursors| {
             if c.is_main_cursor() {
@@ -241,7 +242,7 @@ impl Buffer {
     }
 
     pub fn clear(&mut self) {
-        self.buf = RawBuffer::new();
+        self.buf = UndoableRawBuffer::new();
         self.cursors = CursorSet::new();
     }
 
@@ -315,7 +316,7 @@ impl Buffer {
 
     pub fn save_undo(&mut self) {
         if let Some(last_undo) = self.undo_stack.last() {
-            if last_undo.buf == self.buf {
+            if last_undo.buf == *self.buf.raw_buffer() {
                 // No changes.
                 return;
             }
@@ -323,14 +324,15 @@ impl Buffer {
 
         self.redo_stack.clear();
         self.undo_stack.push(UndoState {
-            buf: self.buf.clone(),
+            buf: self.buf.raw_buffer().clone(),
             cursors: self.cursors.clone(),
         });
     }
 
     pub fn undo(&mut self) {
+        // TODO: Move to TrackedRawBuffer.
         if let Some(state) = self.undo_stack.pop() {
-            self.buf = state.buf.clone();
+            // self.buf.set_raw_buffer(state.buf.clone());
             self.cursors = state.cursors.clone();
             self.redo_stack.push(state);
         }
@@ -338,7 +340,7 @@ impl Buffer {
 
     pub fn redo(&mut self) {
         if let Some(state) = self.redo_stack.pop() {
-            self.buf = state.buf.clone();
+            // self.buf.set_raw_buffer(state.buf.clone());
             self.cursors = state.cursors.clone();
             self.redo_stack.push(state);
         }
@@ -355,10 +357,15 @@ impl Buffer {
     // FIXME:
     pub fn post_update_hook(&mut self) {
         if let Some(syntax) = self.syntax.as_mut() {
-            syntax.update(&self.buf);
+            // syntax.update(&self.buf);
+            todo!()
         }
 
         self.cursors.clear_undo_and_redo_stacks();
+    }
+
+    pub fn clear_changes(&mut self) -> Vec<Change> {
+        self.buf.clear_changes()
     }
 }
 
@@ -369,9 +376,9 @@ impl Default for Buffer {
 }
 
 impl Deref for Buffer {
-    type Target = RawBuffer;
+    type Target = UndoableRawBuffer;
 
-    fn deref(&self) -> &RawBuffer {
+    fn deref(&self) -> &UndoableRawBuffer {
         &self.buf
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
     char_iter::CharIter,
-    cursor::{Cursor, Position, Range},
+    cursor::{Position, Range},
     find::FindIter,
     grapheme_iter::GraphemeIter,
     word_iter::{is_word_char, WordIter},
@@ -193,38 +193,6 @@ impl RawBuffer {
 
         if !new_text.is_empty() {
             self.rope.insert(start, new_text);
-        }
-    }
-
-    pub fn edit_at_cursor(
-        &mut self,
-        current_cursor: &mut Cursor,
-        past_cursors: &mut [Cursor],
-        new_text: &str,
-    ) {
-        let range_removed = current_cursor.selection();
-        let prev_back_y = current_cursor.selection().back().y;
-
-        self.edit(range_removed, new_text);
-
-        // Move the current cursor.
-        let new_pos = Position::position_after_edit(range_removed, new_text);
-        current_cursor.move_to(new_pos.y, new_pos.x);
-
-        // Adjust past cursors.
-        let y_diff = (new_pos.y as isize) - (prev_back_y as isize);
-        for c in past_cursors {
-            let s = c.selection_mut();
-
-            if s.start.y == range_removed.back().y {
-                s.start.x = new_pos.x + (s.start.x - range_removed.back().x);
-            }
-            if s.end.y == range_removed.back().y {
-                s.end.x = new_pos.x + (s.end.x - range_removed.back().x);
-            }
-
-            s.start.y = ((s.start.y as isize) + y_diff) as usize;
-            s.end.y = ((s.end.y as isize) + y_diff) as usize;
         }
     }
 

@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::{
     cursor::{Position, Range},
     raw_buffer::RawBuffer,
+    undoable_raw_buffer::Change,
 };
 
 use noa_languages::{
@@ -69,22 +70,23 @@ impl Syntax {
         &self.tree
     }
 
-    pub fn update(&mut self, buffer: &RawBuffer) {
+    /// If `changes` is `None`, it will parse the full text.
+    pub fn update(&mut self, buffer: &RawBuffer, changes: Option<Vec<Change>>) {
         let rope = buffer.rope();
-        if let Some(new_tree) = self.parser.parse_with(
-            &mut |i, _| {
-                if i > rope.len_bytes() {
-                    return &[] as &[u8];
-                }
+        let mut callback = |i, _| {
+            if i > rope.len_bytes() {
+                return &[] as &[u8];
+            }
 
-                let (chunk, start, _, _) = rope.chunk_at_byte(i);
-                chunk[i - start..].as_bytes()
-            },
-            // TODO: Support incremental parsing.
-            // https://github.com/mcobzarenco/zee/blob/8c21f387ee7805a185c3321f6a982bd3332701d3/core/src/syntax/parse.rs#L173-L183
-            None,
-        ) {
-            self.tree = new_tree;
+            let (chunk, start, _, _) = rope.chunk_at_byte(i);
+            chunk[i - start..].as_bytes()
+        };
+
+        if let Some(changes) = changes {
+        } else {
+            if let Some(new_tree) = self.parser.parse_with(&mut callback, None) {
+                self.tree = new_tree;
+            }
         }
     }
 
