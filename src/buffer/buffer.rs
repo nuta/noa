@@ -355,17 +355,14 @@ impl Buffer {
     }
 
     // FIXME:
-    pub fn post_update_hook(&mut self) {
+    pub fn post_update_hook(&mut self) -> Vec<Change> {
+        let changes = self.buf.clear_changes();
         if let Some(syntax) = self.syntax.as_mut() {
-            // syntax.update(&self.buf);
-            todo!()
+            syntax.update(&self.buf, Some(&changes));
         }
 
         self.cursors.clear_undo_and_redo_stacks();
-    }
-
-    pub fn clear_changes(&mut self) -> Vec<Change> {
-        self.buf.clear_changes()
+        changes
     }
 }
 

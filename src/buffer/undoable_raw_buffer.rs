@@ -7,8 +7,10 @@ use crate::{
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Change {
-    range: Range,
-    insert_text: String,
+    pub range: Range,
+    pub byte_range: std::ops::Range<usize>,
+    pub new_pos: Position,
+    pub insert_text: String,
 }
 
 pub struct UndoableRawBuffer {
@@ -48,13 +50,18 @@ impl UndoableRawBuffer {
         changes
     }
 
-    pub fn edit(&mut self, range: Range, new_text: &str) {
+    pub fn edit(&mut self, range: Range, new_text: &str) -> &Change {
+        let new_pos = Position::position_after_edit(range, new_text);
         self.changes.push(Change {
             range,
             insert_text: new_text.to_owned(),
+            new_pos,
+            byte_range: self.raw.pos_to_byte_index(range.front())
+                ..self.raw.pos_to_byte_index(range.back()),
         });
 
         self.raw.edit(range, new_text);
+        self.changes.last().unwrap()
     }
 
     pub fn edit_at_cursor(
@@ -66,10 +73,10 @@ impl UndoableRawBuffer {
         let range_removed = current_cursor.selection();
         let prev_back_y = current_cursor.selection().back().y;
 
-        self.edit(range_removed, new_text);
+        let change = self.edit(range_removed, new_text);
 
         // Move the current cursor.
-        let new_pos = Position::position_after_edit(range_removed, new_text);
+        let new_pos = change.new_pos;
         current_cursor.move_to(new_pos.y, new_pos.x);
 
         // Adjust past cursors.

@@ -8,7 +8,7 @@ use crate::{
 
 use noa_languages::{
     language::Language,
-    tree_sitter::{self, Node, Query, QueryCursor, TextProvider},
+    tree_sitter::{self, InputEdit, Node, Query, QueryCursor, TextProvider},
 };
 
 struct RopeByteChunks<'a>(ropey::iter::Chunks<'a>);
@@ -71,7 +71,7 @@ impl Syntax {
     }
 
     /// If `changes` is `None`, it will parse the full text.
-    pub fn update(&mut self, buffer: &RawBuffer, changes: Option<Vec<Change>>) {
+    pub fn update(&mut self, buffer: &RawBuffer, changes: Option<&[Change]>) {
         let rope = buffer.rope();
         let mut callback = |i, _| {
             if i > rope.len_bytes() {
@@ -82,11 +82,25 @@ impl Syntax {
             chunk[i - start..].as_bytes()
         };
 
-        if let Some(changes) = changes {
-        } else {
-            if let Some(new_tree) = self.parser.parse_with(&mut callback, None) {
-                self.tree = new_tree;
+        let old_tree = if let Some(changes) = changes {
+            for change in changes {
+                self.tree.edit(&InputEdit {
+                    start_byte: change.byte_range.start,
+                    old_end_byte: change.byte_range.end,
+                    new_end_byte: change.byte_range.start + change.insert_text.len(),
+                    start_position: change.range.front().into(),
+                    old_end_position: change.range.back().into(),
+                    new_end_position: change.new_pos.into(),
+                });
             }
+
+            Some(&self.tree)
+        } else {
+            None
+        };
+
+        if let Some(new_tree) = self.parser.parse_with(&mut callback, old_tree) {
+            self.tree = new_tree;
         }
     }
 

@@ -111,15 +111,15 @@ impl RawBuffer {
     ///
     /// Runs in O(N) time, where N is the length of the buffer.
     pub fn substr(&self, range: Range) -> String {
-        let start = self.pos_to_rope_index(range.front());
-        let end = self.pos_to_rope_index(range.back());
+        let start = self.pos_to_char_index(range.front());
+        let end = self.pos_to_char_index(range.back());
         self.rope.slice(start..end).to_string()
     }
 
     /// Returns an iterator at the given position which allows traversing
     /// characters (not graphemes) in the buffer back and forth.
     pub fn char_iter(&self, pos: Position) -> CharIter<'_> {
-        CharIter::new(self.rope.chars_at(self.pos_to_rope_index(pos)), self, pos)
+        CharIter::new(self.rope.chars_at(self.pos_to_char_index(pos)), self, pos)
     }
 
     /// Returns an iterator at the given position which allows traversing
@@ -184,8 +184,8 @@ impl RawBuffer {
     /// Runs in O(M + log N) time, where N is the length of the Rope and M
     /// is the length of the range being removed/inserted.
     pub fn edit(&mut self, range: Range, new_text: &str) {
-        let start = self.pos_to_rope_index(range.front());
-        let end = self.pos_to_rope_index(range.back());
+        let start = self.pos_to_char_index(range.front());
+        let end = self.pos_to_char_index(range.back());
 
         if !(start..end).is_empty() {
             self.rope.remove(start..end);
@@ -197,8 +197,8 @@ impl RawBuffer {
     }
 
     pub(crate) fn rope_slice(&self, range: Range) -> ropey::RopeSlice<'_> {
-        let start = self.pos_to_rope_index(range.front());
-        let end = self.pos_to_rope_index(range.back());
+        let start = self.pos_to_char_index(range.front());
+        let end = self.pos_to_char_index(range.back());
         self.rope.slice(start..end)
     }
 
@@ -207,7 +207,7 @@ impl RawBuffer {
     /// # Complexity
     ///
     /// Runs in O(log N) time, where N is the length of the rope.
-    pub(crate) fn pos_to_rope_index(&self, pos: Position) -> usize {
+    pub(crate) fn pos_to_char_index(&self, pos: Position) -> usize {
         if pos.y == self.num_lines() && pos.x == 0 {
             // EOF.
             return self.rope.line_to_char(pos.y) + self.line_len(pos.y);
@@ -220,6 +220,10 @@ impl RawBuffer {
         };
 
         self.rope.line_to_char(pos.y) + column
+    }
+
+    pub(crate) fn pos_to_byte_index(&self, pos: Position) -> usize {
+        self.rope.char_to_byte(self.pos_to_char_index(pos))
     }
 }
 
