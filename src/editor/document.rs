@@ -1,5 +1,6 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
+    env::current_dir,
     fs::{create_dir_all, OpenOptions},
     io::ErrorKind,
     num::NonZeroUsize,
@@ -16,21 +17,13 @@ use arc_swap::ArcSwap;
 use noa_buffer::{buffer::Buffer, raw_buffer::RawBuffer, undoable_raw_buffer::Change};
 use noa_common::{
     dirs::{backup_dir, noa_dir},
-    fuzzyvec::FuzzyVec,
     oops::OopsExt,
 };
-use noa_languages::{definitions::guess_language, language::Language};
-use noa_proxy::{client::Client as ProxyClient, lsp_types::TextEdit};
-
-use tokio::sync::{
-    mpsc::{self, UnboundedSender},
-    Notify,
-};
+use noa_languages::definitions::guess_language;
 
 use crate::{
-    completion::{Completion, CompletionItem, CompletionKind},
+    completion::Completion,
     flash::FlashManager,
-    git::Repo,
     minimap::MiniMap,
     movement::{Movement, MovementState},
     view::View,
@@ -63,7 +56,12 @@ impl Document {
         let id =
             DocumentId(NonZeroUsize::new(NEXT_DOCUMENT_ID.fetch_add(1, Ordering::SeqCst)).unwrap());
 
-        let path = path.canonicalize()?;
+        // Make the path absolute. This is important since some components assume
+        // that the path is absolute (e.g. LSP's document URI).
+        //
+        // Here we prefer Path::join() over Path::canonicalize() because it fails
+        // if the path does not exist.
+        let path = current_dir()?.join(path);
 
         // "/path/to/../parent/file" -> "parent/file"
         let mut name = String::new();
@@ -84,7 +82,9 @@ impl Document {
         let mut buffer = match OpenOptions::new().read(true).open(&path) {
             Ok(file) => Buffer::from_reader(file)?,
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => Buffer::new(),
-            Err(err) => return Err(err.into()),
+            Err(err) => {
+                return Err(err.into());
+            }
         };
 
         // Check if a backup file exists.
@@ -155,10 +155,6 @@ impl Document {
 
     pub fn set_find_query<T: Into<String>>(&mut self, find_query: T) {
         self.find_query = find_query.into();
-    }
-
-    pub fn version(&self) -> usize {
-        self.version
     }
 
     pub fn path(&self) -> &Path {
@@ -304,7 +300,8 @@ impl DocumentManager {
 
     pub fn switch_by_path(&mut self, path: &Path) -> Option<()> {
         if let Some(doc) = self.get_document_by_path(path) {
-            self.switch_by_id(doc.id());
+            let id = doc.id();
+            self.switch_by_id(id);
             return Some(());
         }
 

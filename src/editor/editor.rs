@@ -115,7 +115,7 @@ impl Editor {
 /// Synchronizes the latest buffer text with the LSP server.
 async fn lsp_file_sync_task(
     mut rx: mpsc::UnboundedReceiver<(usize, Vec<Change>)>,
-    doc_id: DocumentId,
+    _doc_id: DocumentId,
     proxy: Arc<ProxyClient>,
     initial_buffer: RawBuffer,
     path: PathBuf,
@@ -154,7 +154,7 @@ async fn git_diff_task(
         if let Some(repo) = &repo {
             let buffer_text = raw_buffer.text();
             let mut new_minimap = MiniMap::new();
-            new_minimap.update_git_line_statuses(&repo, &path, &buffer_text);
+            new_minimap.update_git_line_statuses(repo, &path, &buffer_text);
             minimap.store(Arc::new(new_minimap));
             render_request.notify_one();
         }

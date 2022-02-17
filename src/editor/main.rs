@@ -59,7 +59,7 @@ async fn main() {
         .unwrap_or_else(|| PathBuf::from("."));
 
     let render_request = Arc::new(Notify::new());
-    let (update_completion_request_tx, mut update_completion_request_rx) =
+    let (_update_completion_request_tx, mut update_completion_request_rx) =
         mpsc::unbounded_channel();
     let (notification_tx, mut notification_rx) = mpsc::unbounded_channel();
     let mut editor = editor::Editor::new(&workspace_dir, render_request.clone(), notification_tx);

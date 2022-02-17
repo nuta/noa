@@ -10,7 +10,7 @@ use anyhow::{bail, Result};
 use arc_swap::ArcSwap;
 use grep::searcher::SinkError;
 use noa_buffer::{
-    cursor::{Position, Range},
+    cursor::{Position},
     display_width::DisplayWidth,
 };
 use noa_common::{fuzzyvec::FuzzyVec, oops::OopsExt};
