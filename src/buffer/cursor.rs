@@ -225,6 +225,15 @@ impl Display for Range {
     }
 }
 
+impl From<Range> for lsp_types::Range {
+    fn from(range: Range) -> lsp_types::Range {
+        lsp_types::Range {
+            start: range.front().into(),
+            end: range.back().into(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CursorId(usize);
 

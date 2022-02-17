@@ -70,7 +70,7 @@ impl Syntax {
         &self.tree
     }
 
-    /// If `changes` is `None`, it will parse the full text.
+    /// If `changes` is `None`, it will parse the full text (for the first run).
     pub fn update(&mut self, buffer: &RawBuffer, changes: Option<&[Change]>) {
         let rope = buffer.rope();
         let mut callback = |i, _| {
@@ -83,6 +83,7 @@ impl Syntax {
         };
 
         let old_tree = if let Some(changes) = changes {
+            // Tell tree-sitter about the changes we made since the last parsing.
             for change in changes {
                 self.tree.edit(&InputEdit {
                     start_byte: change.byte_range.start,

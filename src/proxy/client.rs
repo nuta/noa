@@ -11,7 +11,7 @@ use std::{
 };
 
 use anyhow::{bail, Context, Result};
-use lsp_types::{CompletionItem, HoverContents};
+use lsp_types::{CompletionItem, HoverContents, TextEdit};
 use nix::{sys::signal, unistd::Pid};
 use noa_common::{
     dirs::{log_file_path, proxy_pid_path, proxy_sock_path},
@@ -89,6 +89,30 @@ impl Client {
                 LspRequest::UpdateFile {
                     path: path.to_owned(),
                     text: text.to_owned(),
+                    version,
+                },
+            )
+            .await
+        {
+            Ok(LspResponse::NoContent) => Ok(()),
+            Ok(other) => bail!("unexpected response: {:?}", other),
+            Err(err) => Err(err),
+        }
+    }
+
+    pub async fn incremental_update_file(
+        &self,
+        lang: &Language,
+        path: &Path,
+        edits: Vec<TextEdit>,
+        version: usize,
+    ) -> Result<()> {
+        match self
+            .request(
+                lang,
+                LspRequest::IncrementalUpdateFile {
+                    path: path.to_owned(),
+                    edits,
                     version,
                 },
             )

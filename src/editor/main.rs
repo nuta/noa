@@ -34,7 +34,6 @@ mod movement;
 mod theme;
 mod ui;
 mod view;
-mod words;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -60,6 +59,8 @@ async fn main() {
         .unwrap_or_else(|| PathBuf::from("."));
 
     let render_request = Arc::new(Notify::new());
+    let (update_completion_request_tx, mut update_completion_request_rx) =
+        mpsc::unbounded_channel();
     let (notification_tx, mut notification_rx) = mpsc::unbounded_channel();
     let mut editor = editor::Editor::new(&workspace_dir, render_request.clone(), notification_tx);
     let mut compositor = Compositor::new();
@@ -67,7 +68,7 @@ async fn main() {
     let mut open_finder = true;
     for path in args.files {
         if !path.is_dir() {
-            if let Err(err) = editor.documents.open_file(&editor.proxy, &path) {
+            if let Err(err) = editor.open_file(&path, None) {
                 notify_anyhow_error!(err);
             }
 
@@ -77,7 +78,7 @@ async fn main() {
 
     // First run of syntax highlighting.
     for doc in editor.documents.documents_mut().values_mut() {
-        doc.post_update_job(&editor.repo, &editor.proxy, &editor.render_request);
+        doc.post_update_job();
     }
 
     let (quit_tx, mut quit_rx) = oneshot::channel();
@@ -125,6 +126,10 @@ async fn main() {
             Some(noti) = notification_rx.recv() => {
                 trace!("proxy notification: {:?}", noti);
                 editor.handle_notification(noti);
+            }
+
+            Some(doc_id) = update_completion_request_rx.recv() => {
+                editor.documents.get_mut_document_by_id(doc_id).unwrap().update_completion();
             }
 
             _ = render_request.notified() => {

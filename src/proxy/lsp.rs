@@ -13,13 +13,12 @@ use lsp_types::{
         DidChangeTextDocument, DidOpenTextDocument, Initialized,
         Notification as LspNotificationTrait, PublishDiagnostics,
     },
-    request::{
-        Completion, GotoDefinition, HoverRequest, Initialize, Request,
-    },
+    request::{Completion, GotoDefinition, HoverRequest, Initialize, Request},
     CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
     GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, InitializeParams,
-    InitializedParams, PartialResultParams, PublishDiagnosticsParams, TextDocumentContentChangeEvent, TextDocumentIdentifier,
-    TextDocumentPositionParams, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
+    InitializedParams, PartialResultParams, PublishDiagnosticsParams,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams,
+    VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 use noa_languages::lsp::Lsp;
 
@@ -415,6 +414,35 @@ impl Server for LspServer {
                         range_length: None,
                         text,
                     }],
+                })
+                .await?;
+                Ok(LspResponse::NoContent)
+            }
+            LspRequest::IncrementalUpdateFile {
+                path,
+                mut edits,
+                version,
+            } => {
+                trace!(
+                    "DidChangeTextDocument(path={}, edits={})",
+                    path.display(),
+                    edits.len()
+                );
+                let content_changes = edits
+                    .drain(..)
+                    .map(|edit| TextDocumentContentChangeEvent {
+                        range: Some(edit.range),
+                        range_length: None,
+                        text: edit.new_text,
+                    })
+                    .collect();
+
+                self.send_notification::<DidChangeTextDocument>(DidChangeTextDocumentParams {
+                    text_document: VersionedTextDocumentIdentifier {
+                        uri: parse_path_as_uri(&path),
+                        version: version as i32,
+                    },
+                    content_changes,
                 })
                 .await?;
                 Ok(LspResponse::NoContent)

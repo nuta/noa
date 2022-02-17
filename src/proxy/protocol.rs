@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use lsp_types::{CompletionItem, Diagnostic, HoverContents};
+use lsp_types::{CompletionItem, Diagnostic, HoverContents, TextEdit};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize, Hash)]
@@ -34,6 +34,11 @@ pub enum LspRequest {
         path: PathBuf,
         text: String,
         version: usize,
+    },
+    IncrementalUpdateFile {
+        path: PathBuf,
+        version: usize,
+        edits: Vec<TextEdit>,
     },
     Hover {
         path: PathBuf,

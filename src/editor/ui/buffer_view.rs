@@ -109,7 +109,7 @@ impl Surface for BufferView {
         let doc = editor.documents.current();
         let buffer = doc.buffer();
         let main_cursor = buffer.main_cursor();
-        let minimap = doc.minimap();
+        let minimap = doc.minimap().load();
 
         // Buffer contents.
         let main_cursor_pos = main_cursor.moving_position();
@@ -309,10 +309,8 @@ impl Surface for BufferView {
                 doc.buffer_mut().move_to_prev_word();
             }
             (KeyCode::Up, modifiers) if modifiers == (ALT) => {
-                match doc
-                    .minimap()
-                    .prev_diff_line(doc.buffer().main_cursor().moving_position().y)
-                {
+                let minimap = doc.minimap().load();
+                match minimap.prev_diff_line(doc.buffer().main_cursor().moving_position().y) {
                     Some(pos) => {
                         doc.buffer_mut().move_main_cursor_to_pos(pos);
                     }
@@ -322,10 +320,8 @@ impl Surface for BufferView {
                 }
             }
             (KeyCode::Down, modifiers) if modifiers == (ALT) => {
-                match doc
-                    .minimap()
-                    .next_diff_line(doc.buffer().main_cursor().moving_position().y)
-                {
+                let minimap = doc.minimap().load();
+                match minimap.next_diff_line(doc.buffer().main_cursor().moving_position().y) {
                     Some(pos) => {
                         doc.buffer_mut().move_main_cursor_to_pos(pos);
                     }
@@ -458,7 +454,7 @@ impl Surface for BufferView {
 
         let current_rope = doc.buffer().raw_buffer().rope().clone();
         if prev_rope != current_rope {
-            doc.post_update_job(&editor.repo, &editor.proxy, &editor.render_request);
+            doc.post_update_job();
         }
 
         HandledEvent::Consumed
@@ -472,7 +468,7 @@ impl Surface for BufferView {
     ) -> HandledEvent {
         let doc = editor.documents.current_mut();
         doc.buffer_mut().insert(s);
-        doc.post_update_job(&editor.repo, &editor.proxy, &editor.render_request);
+        doc.post_update_job();
         HandledEvent::Consumed
     }
 

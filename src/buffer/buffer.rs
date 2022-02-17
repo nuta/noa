@@ -314,11 +314,12 @@ impl Buffer {
         });
     }
 
-    pub fn save_undo(&mut self) {
+    /// Returns true if the buffer was modified since the last undo save.
+    pub fn save_undo(&mut self) -> bool {
         if let Some(last_undo) = self.undo_stack.last() {
             if last_undo.buf == *self.buf.raw_buffer() {
                 // No changes.
-                return;
+                return false;
             }
         }
 
@@ -327,6 +328,8 @@ impl Buffer {
             buf: self.buf.raw_buffer().clone(),
             cursors: self.cursors.clone(),
         });
+
+        true
     }
 
     pub fn undo(&mut self) {
