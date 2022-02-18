@@ -8,7 +8,22 @@ A modern [nano](https://www.nano-editor.org/)-like terminal-based text editor.
 - Smart auto completion and code navigation by [Langauge Server Protocol](https://microsoft.github.io/language-server-protocol/).
 - Language-aware syntax highlighting and editing by [tree-sitter](https://tree-sitter.github.io/tree-sitter/), a incremental parsing library.
 
-## Required Terminal Settings
-To get noa to work perfectly,  following features are required in your terminal:
+## Installation
+
+```
+```
+
+### How to Use
+
+```bash
+$ noa                   # opens the current directory.
+$ noa ~/Projects/kerla  # Opens a workspace directory.
+$ noa path/to/foo.c     # Opens a single file.
+```
+
+## Terminal Settings
+To get noa to work perfectly, following features are required in your terminal:
 
 - OSC52 (aka PASTE64) support *(optional)*.
+
+## Keyboard Shortcuts
