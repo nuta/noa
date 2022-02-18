@@ -21,14 +21,14 @@ bitflags! {
     }
 }
 
-pub struct MiniMap {
+pub struct LineMap {
     /// Line status for each physical line.
     lines: BTreeMap<usize /* y */, LineStatus>,
 }
 
-impl MiniMap {
-    pub fn new() -> MiniMap {
-        MiniMap {
+impl LineMap {
+    pub fn new() -> LineMap {
+        LineMap {
             lines: BTreeMap::new(),
         }
     }

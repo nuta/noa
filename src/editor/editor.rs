@@ -22,7 +22,7 @@ use crate::{
     clipboard::{self, ClipboardProvider},
     document::{Document, DocumentId, DocumentManager},
     git::Repo,
-    minimap::MiniMap,
+    linemap::LineMap,
 };
 
 pub struct Editor {
@@ -78,7 +78,7 @@ impl Editor {
         tokio::task::spawn(git_diff_task(
             git_diff_rx,
             self.repo.clone(),
-            doc.minimap().clone(),
+            doc.linemap().clone(),
             doc.path().to_owned(),
             self.render_request.clone(),
         ));
@@ -146,16 +146,16 @@ async fn lsp_file_sync_task(
 async fn git_diff_task(
     mut rx: mpsc::UnboundedReceiver<RawBuffer>,
     repo: Option<Arc<Repo>>,
-    minimap: Arc<ArcSwap<MiniMap>>,
+    linemap: Arc<ArcSwap<LineMap>>,
     path: PathBuf,
     render_request: Arc<Notify>,
 ) {
     while let Some(raw_buffer) = rx.recv().await {
         if let Some(repo) = &repo {
             let buffer_text = raw_buffer.text();
-            let mut new_minimap = MiniMap::new();
-            new_minimap.update_git_line_statuses(repo, &path, &buffer_text);
-            minimap.store(Arc::new(new_minimap));
+            let mut new_linemap = LineMap::new();
+            new_linemap.update_git_line_statuses(repo, &path, &buffer_text);
+            linemap.store(Arc::new(new_linemap));
             render_request.notify_one();
         }
     }

@@ -20,8 +20,8 @@ use tokio::sync::{oneshot, Notify};
 use crate::{
     clipboard::{ClipboardData, SystemClipboardData},
     editor::Editor,
+    linemap::LineStatus,
     markdown::Markdown,
-    minimap::LineStatus,
     theme::theme_for,
     ui::finder_view::FinderView,
 };
@@ -109,7 +109,7 @@ impl Surface for BufferView {
         let doc = editor.documents.current();
         let buffer = doc.buffer();
         let main_cursor = buffer.main_cursor();
-        let minimap = doc.minimap().load();
+        let linemap = doc.linemap().load();
 
         // Buffer contents.
         let main_cursor_pos = main_cursor.moving_position();
@@ -127,7 +127,7 @@ impl Surface for BufferView {
             }
 
             // Draw line status.
-            if let Some(status) = minimap.get(row.lineno - 1) {
+            if let Some(status) = linemap.get(row.lineno - 1) {
                 let theme_key = if status & LineStatus::REPO_DIFF_MASK == LineStatus::MODIFIED {
                     Some("line_status.modified")
                 } else if status & LineStatus::REPO_DIFF_MASK == LineStatus::ADDED {
@@ -309,8 +309,8 @@ impl Surface for BufferView {
                 doc.buffer_mut().move_to_prev_word();
             }
             (KeyCode::Up, modifiers) if modifiers == (ALT) => {
-                let minimap = doc.minimap().load();
-                match minimap.prev_diff_line(doc.buffer().main_cursor().moving_position().y) {
+                let linemap = doc.linemap().load();
+                match linemap.prev_diff_line(doc.buffer().main_cursor().moving_position().y) {
                     Some(pos) => {
                         doc.buffer_mut().move_main_cursor_to_pos(pos);
                     }
@@ -320,8 +320,8 @@ impl Surface for BufferView {
                 }
             }
             (KeyCode::Down, modifiers) if modifiers == (ALT) => {
-                let minimap = doc.minimap().load();
-                match minimap.next_diff_line(doc.buffer().main_cursor().moving_position().y) {
+                let linemap = doc.linemap().load();
+                match linemap.next_diff_line(doc.buffer().main_cursor().moving_position().y) {
                     Some(pos) => {
                         doc.buffer_mut().move_main_cursor_to_pos(pos);
                     }

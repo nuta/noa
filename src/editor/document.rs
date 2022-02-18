@@ -24,7 +24,7 @@ use noa_languages::definitions::guess_language;
 use crate::{
     completion::Completion,
     flash::FlashManager,
-    minimap::MiniMap,
+    linemap::LineMap,
     movement::{Movement, MovementState},
     view::View,
 };
@@ -43,7 +43,7 @@ pub struct Document {
     movement_state: MovementState,
     completion: Arc<Completion>,
     flashes: FlashManager,
-    minimap: Arc<ArcSwap<MiniMap>>,
+    linemap: Arc<ArcSwap<LineMap>>,
     find_query: String,
     post_update_hook: Option<Box<dyn FnMut(usize /* version */, &RawBuffer, Vec<Change>)>>,
 }
@@ -106,7 +106,7 @@ impl Document {
             movement_state: MovementState::new(),
             completion: Arc::new(Completion::new()),
             flashes: FlashManager::new(),
-            minimap: Arc::new(ArcSwap::from_pointee(MiniMap::new())),
+            linemap: Arc::new(ArcSwap::from_pointee(LineMap::new())),
             find_query: String::new(),
             post_update_hook: None,
         })
@@ -189,8 +189,8 @@ impl Document {
         &self.completion
     }
 
-    pub fn minimap(&self) -> &Arc<ArcSwap<MiniMap>> {
-        &self.minimap
+    pub fn linemap(&self) -> &Arc<ArcSwap<LineMap>> {
+        &self.linemap
     }
 
     pub fn movement(&mut self) -> Movement<'_> {

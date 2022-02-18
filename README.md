@@ -1,13 +1,12 @@
 # noa
 
-A modern terminal-based text editor.
+A modern [nano](https://www.nano-editor.org/)-like terminal-based text editor.
 
-## Features
-
-- Native multi curosrs support.
+- Native multiple cursors support.
 - Smart auto completion and code navigation by [Langauge Server Protocol](https://microsoft.github.io/language-server-protocol/).
 - Language-aware syntax highlighting and editing by [tree-sitter](https://tree-sitter.github.io/tree-sitter/), a incremental parsing library.
 
-## Notes
-- To get the "copy to system clipboard" feature to work in a SSH connection,
-  your terminal emulator needs to support OSC52.
+## Required Terminal Settings
+To get noa to work perfectly,  following features are required in your terminal:
+
+- OSC52 (aka PASTE64) support *(optional)*.
