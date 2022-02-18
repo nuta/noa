@@ -54,7 +54,7 @@ impl Editor {
 
         Editor {
             documents: DocumentManager::new(),
-            clipboard: clipboard::build_provider().unwrap_or_else(clipboard::build_dummy_provider),
+            clipboard: clipboard::build_provider(),
             repo,
             proxy,
             render_request,

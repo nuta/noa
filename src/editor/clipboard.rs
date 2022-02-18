@@ -140,9 +140,9 @@ impl ClipboardProvider for MacOsProvider {
     }
 }
 
-struct DummyProvider;
+struct FallbackProvider;
 
-impl ClipboardProvider for DummyProvider {
+impl ClipboardProvider for FallbackProvider {
     fn copy_from_clipboard(&self) -> Result<SystemClipboardData> {
         // Use LAST_OUR_DATA as clipboard.
         Ok(SystemClipboardData::Ours(LAST_OUR_DATA.lock().clone()))
@@ -155,25 +155,20 @@ impl ClipboardProvider for DummyProvider {
     }
 }
 
-pub fn build_provider() -> Option<Box<dyn ClipboardProvider>> {
+pub fn build_provider() -> Box<dyn ClipboardProvider> {
     if std::env::var("SSH_CONNECTION").is_ok() {
         if let Some(provider) = Osc52Provider::probe() {
-            return Some(Box::new(provider));
+            return Box::new(provider);
         }
     }
 
     if cfg!(target_os = "macos") {
         if let Some(provider) = MacOsProvider::probe() {
-            return Some(Box::new(provider));
+            return Box::new(provider);
         }
     }
 
-    // No clipboard provider found.
-    None
-}
-
-pub fn build_dummy_provider() -> Box<dyn ClipboardProvider> {
-    Box::new(DummyProvider)
+    Box::new(FallbackProvider)
 }
 
 /// Returns `ClipboardData` if `text` matches to the lastly pasted data.
