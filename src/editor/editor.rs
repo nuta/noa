@@ -61,8 +61,11 @@ impl Editor {
         }
     }
 
-    pub fn open_file(&mut self, path: &Path, cursor_pos: Option<Position>) -> Result<()> {
+    pub fn open_file(&mut self, path: &Path, cursor_pos: Option<Position>) -> Result<DocumentId> {
         let mut doc = Document::new(path)?;
+
+        // First run of tree sitter parsering, etc.
+        doc.post_update_job();
 
         let (lsp_sync_tx, lsp_sync_rx) = mpsc::unbounded_channel();
         tokio::spawn(lsp_file_sync_task(
@@ -75,13 +78,13 @@ impl Editor {
         ));
 
         let (git_diff_tx, git_diff_rx) = mpsc::unbounded_channel();
-        tokio::task::spawn(git_diff_task(
+        git_diff_task(
             git_diff_rx,
             self.repo.clone(),
             doc.linemap().clone(),
             doc.path().to_owned(),
             self.render_request.clone(),
-        ));
+        );
 
         doc.set_post_update_hook(move |version, raw_buffer, changes| {
             let _ = lsp_sync_tx.send((version, changes));
@@ -93,8 +96,9 @@ impl Editor {
             doc.flashes_mut().flash(Range::from_positions(pos, pos));
         }
 
+        let id = doc.id();
         self.documents.add(doc);
-        Ok(())
+        Ok(id)
     }
 
     pub fn handle_notification(&mut self, notification: Notification) {
@@ -143,20 +147,22 @@ async fn lsp_file_sync_task(
     }
 }
 
-async fn git_diff_task(
+fn git_diff_task(
     mut rx: mpsc::UnboundedReceiver<RawBuffer>,
     repo: Option<Arc<Repo>>,
     linemap: Arc<ArcSwap<LineMap>>,
     path: PathBuf,
     render_request: Arc<Notify>,
 ) {
-    while let Some(raw_buffer) = rx.recv().await {
-        if let Some(repo) = &repo {
-            let buffer_text = raw_buffer.text();
-            let mut new_linemap = LineMap::new();
-            new_linemap.update_git_line_statuses(repo, &path, &buffer_text);
-            linemap.store(Arc::new(new_linemap));
-            render_request.notify_one();
+    tokio::task::spawn_blocking(move || {
+        while let Some(raw_buffer) = rx.blocking_recv() {
+            if let Some(repo) = &repo {
+                let buffer_text = raw_buffer.text();
+                let mut new_linemap = LineMap::new();
+                new_linemap.update_git_line_statuses(repo, &path, &buffer_text);
+                linemap.store(Arc::new(new_linemap));
+                render_request.notify_one();
+            }
         }
-    }
+    });
 }

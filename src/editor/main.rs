@@ -68,17 +68,17 @@ async fn main() {
     let mut open_finder = true;
     for path in args.files {
         if !path.is_dir() {
-            if let Err(err) = editor.open_file(&path, None) {
-                notify_anyhow_error!(err);
+            match editor.open_file(&path, None) {
+                Ok(id) => {
+                    editor.documents.switch_by_id(id);
+                }
+                Err(err) => {
+                    notify_anyhow_error!(err);
+                }
             }
 
             open_finder = false;
         }
-    }
-
-    // First run of syntax highlighting.
-    for doc in editor.documents.documents_mut().values_mut() {
-        doc.post_update_job();
     }
 
     let (quit_tx, mut quit_rx) = oneshot::channel();

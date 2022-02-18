@@ -4,9 +4,9 @@ use noa_common::logger::{self, backtrace};
 pub use crossterm::style::Color;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum DrawOp<'a> {
+pub enum DrawOp {
     MoveTo { y: usize, x: usize },
-    Grapheme(&'a str),
+    Grapheme(ArrayString<8>),
     FgColor(Color),
     BgColor(Color),
     Bold,
@@ -177,7 +177,7 @@ impl Canvas {
         }
     }
 
-    pub fn compute_draw_updates<'a, 'b>(&'a self, other: &'b Canvas) -> Vec<DrawOp<'a>> {
+    pub fn compute_draw_updates(&self, other: &Canvas) -> Vec<DrawOp> {
         debug_assert_eq!(self.width(), other.width());
         debug_assert_eq!(self.height(), other.height());
 
@@ -234,7 +234,7 @@ impl Canvas {
                     deco = new.style.deco;
                 }
 
-                ops.push(DrawOp::Grapheme(&new.chars));
+                ops.push(DrawOp::Grapheme(new.chars));
             }
 
             x += 1;

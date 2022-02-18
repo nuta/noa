@@ -1,9 +1,9 @@
 use std::slice;
 
-use noa_common::time_report::TimeReport;
+use noa_common::{oops::OopsExt, time_report::TimeReport};
 use tokio::sync::mpsc;
 
-use crate::{surface::HandledEvent, terminal::InputEvent};
+use crate::{canvas::DrawOp, surface::HandledEvent, terminal::InputEvent};
 
 use super::{
     canvas::Canvas,
@@ -21,6 +21,7 @@ pub struct Layer<C> {
 pub struct Compositor<C> {
     terminal: Terminal,
     term_rx: mpsc::UnboundedReceiver<terminal::Event>,
+    renderer_tx: mpsc::UnboundedSender<(Vec<DrawOp>, Option<(usize, usize)>)>,
     screens: [Canvas; 2],
     screen_size: RectSize,
     active_screen_index: usize,
@@ -34,7 +35,7 @@ pub struct Compositor<C> {
 impl<C> Compositor<C> {
     pub fn new() -> Compositor<C> {
         let (term_tx, term_rx) = mpsc::unbounded_channel();
-        let terminal = Terminal::new(move |ev| {
+        let mut terminal = Terminal::new(move |ev| {
             term_tx.send(ev).ok();
         });
 
@@ -43,9 +44,30 @@ impl<C> Compositor<C> {
             width: terminal.width(),
         };
 
+        let mut drawer = terminal.drawer();
+        let (renderer_tx, mut renderer_rx) =
+            mpsc::unbounded_channel::<(Vec<DrawOp>, Option<(usize, usize)>)>();
+        tokio::task::spawn_blocking(move || {
+            while let Some((draw_ops, cursor)) = renderer_rx.blocking_recv() {
+                let _drawer_time = TimeReport::new("drawer time");
+                drawer.before_drawing();
+
+                trace!("draw changes: {} items", draw_ops.len());
+                for op in draw_ops {
+                    drawer.draw(&op);
+                }
+                if let Some((screen_y, screen_x)) = cursor {
+                    drawer.show_cursor(screen_y, screen_x);
+                }
+
+                drawer.flush();
+            }
+        });
+
         Compositor {
             terminal,
             term_rx,
+            renderer_tx,
             screens: [
                 Canvas::new(screen_size.height, screen_size.width),
                 Canvas::new(screen_size.height, screen_size.width),
@@ -142,19 +164,7 @@ impl<C> Compositor<C> {
         let draw_ops =
             self.screens[screen_index].compute_draw_updates(&self.screens[prev_screen_index]);
 
-        // Write into stdout.
-        drop(rendering_time);
-        let _drawer_time = TimeReport::new("drawer time");
-        trace!("draw changes: {} items", draw_ops.len());
-        let mut drawer = self.terminal.drawer();
-        for op in draw_ops {
-            drawer.draw(&op);
-        }
-        if let Some((screen_y, screen_x)) = cursor {
-            drawer.show_cursor(screen_y, screen_x);
-        }
-
-        drawer.flush();
+        self.renderer_tx.send((draw_ops, cursor)).oops();
     }
 
     pub fn handle_input(&mut self, ctx: &mut C, input: InputEvent) {

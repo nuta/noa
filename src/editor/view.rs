@@ -365,9 +365,9 @@ mod tests {
         Position::new(y, x)
     }
 
-    fn create_view_and_buffer(_num_lines: usize) -> (View, Buffer) {
+    fn create_view_and_buffer(num_lines: usize) -> (View, Buffer) {
         let view = View::new();
-        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(2048));
+        let buffer = Buffer::from_text(&(format!("{}\n", "A".repeat(80))).repeat(num_lines));
         (view, buffer)
     }
 
@@ -536,7 +536,7 @@ mod tests {
     }
 
     #[bench]
-    fn bench_layout_small_line(b: &mut test::Bencher) {
+    fn bench_layout_small_text(b: &mut test::Bencher) {
         let (mut view, buffer) = create_view_and_buffer(64);
         b.iter(|| view.layout(&buffer, 4096, 120));
     }

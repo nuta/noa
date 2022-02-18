@@ -65,18 +65,7 @@ impl Terminal {
     }
 
     pub fn drawer(&mut self) -> Drawer {
-        let mut stdout = stdout();
-
-        // Hide the cursor to prevent flickering.
-        queue!(
-            stdout,
-            cursor::Hide,
-            SetAttribute(Attribute::Reset),
-            MoveTo(0, 0),
-        )
-        .ok();
-
-        Drawer { stdout }
+        Drawer { stdout: stdout() }
     }
 }
 
@@ -180,6 +169,17 @@ pub struct Drawer {
 }
 
 impl Drawer {
+    pub fn before_drawing(&mut self) {
+        // Hide the cursor to prevent flickering.
+        queue!(
+            self.stdout,
+            cursor::Hide,
+            SetAttribute(Attribute::Reset),
+            MoveTo(0, 0),
+        )
+        .ok();
+    }
+
     pub fn draw(&mut self, op: &DrawOp) {
         match op {
             DrawOp::MoveTo { y, x } => {

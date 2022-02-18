@@ -9,10 +9,7 @@ use std::{
 use anyhow::{bail, Result};
 use arc_swap::ArcSwap;
 use grep::searcher::SinkError;
-use noa_buffer::{
-    cursor::{Position},
-    display_width::DisplayWidth,
-};
+use noa_buffer::{cursor::Position, display_width::DisplayWidth};
 use noa_common::{fuzzyvec::FuzzyVec, oops::OopsExt};
 use noa_compositor::{
     canvas::{CanvasViewMut, Color, Decoration, Style},
@@ -291,20 +288,31 @@ impl Surface for FinderView {
                     Some(item) => {
                         info!("finder: selected item: {:?}", item);
                         match item {
-                            FinderItem::File(path) => {
-                                if let Err(err) = editor.open_file(Path::new(path), None) {
-                                    notify_anyhow_error!(err);
-                                }
-                            }
                             FinderItem::Buffer { id, .. } => {
                                 editor.documents.switch_by_id(*id);
+                            }
+                            FinderItem::File(path) => {
+                                let path = Path::new(path);
+                                match editor.documents.switch_by_path(path) {
+                                    Some(_) => {}
+                                    None => match editor.open_file(path, None) {
+                                        Ok(id) => {
+                                            editor.documents.switch_by_id(id);
+                                        }
+                                        Err(err) => {
+                                            notify_anyhow_error!(err);
+                                        }
+                                    },
+                                }
                             }
                             FinderItem::SearchMatch { path, pos, .. } => {
                                 let path = Path::new(path);
                                 match editor.documents.switch_by_path(path) {
                                     Some(_) => {}
                                     None => match editor.open_file(path, Some(*pos)) {
-                                        Ok(()) => {}
+                                        Ok(id) => {
+                                            editor.documents.switch_by_id(id);
+                                        }
                                         Err(err) => {
                                             notify_anyhow_error!(err);
                                         }
