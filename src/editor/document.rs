@@ -205,11 +205,10 @@ impl Document {
         // FIXME: Deal with the borrow checker and stop using this temporary vec
         //        to avoid unnecessary memory copies.
         let mut highlights = Vec::new();
-        self.buffer
-            .highlight(self.view.visible_range(), |range, span| {
-                // trace!("syntax highlight: {:?} {:?}", range, span);
-                highlights.push((range, span.to_owned()));
-            });
+        let range = self.view.visible_range();
+        self.buffer.highlight(range, |range, span| {
+            highlights.push((range, span.to_owned()));
+        });
 
         for (range, span) in highlights {
             self.view.highlight(range, &span);

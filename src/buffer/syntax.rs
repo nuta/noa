@@ -105,7 +105,7 @@ impl Syntax {
         }
     }
 
-    pub fn highlight<F>(&mut self, mut callback: F, buffer: &RawBuffer, range: Range)
+    pub fn highlight<F>(&self, mut callback: F, buffer: &RawBuffer, range: Range)
     where
         F: FnMut(Range, &str),
     {
