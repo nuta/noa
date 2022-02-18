@@ -21,7 +21,7 @@ Since this software is written and maintained just for my personal use and is cr
 When you submit a PR, please make sure your PR satisfies the following checklist:
 
 - [ ] I assert this contribution was authored by me.
-- [ ] I license this contribution under the license of this project.
+- [ ] I license this contribution under the license of this project (see `LICENCE.md`).
 - [ ] The PR title is well written within 70 characters.
 - [ ] The PR description describes the reason why we need the change.
 - [ ] This is an isolated change. No multiple changes and no unrelated changes are included.
