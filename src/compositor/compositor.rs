@@ -126,7 +126,7 @@ impl<C> Compositor<C> {
     }
 
     pub fn render_to_terminal(&mut self, ctx: &mut C) {
-        let rendering_time = TimeReport::new("rendering time");
+        let _rendering_time = TimeReport::new("rendering time");
 
         // Re-layout layers.
         let mut prev_cursor_pos = None;
