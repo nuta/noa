@@ -12,6 +12,8 @@ use crossterm::{
 };
 use futures::StreamExt;
 
+use crate::terminal_exts::SetCursorShape;
+
 use super::canvas::DrawOp;
 use super::terminal_exts::SynchronizedOutput;
 
@@ -43,8 +45,17 @@ impl Terminal {
         F: Fn(Event) + Send + Sync + 'static,
     {
         enable_raw_mode().expect("failed to enable the raw mode");
-        execute!(stdout(), EnterAlternateScreen).expect("failed to enter the alternative screen");
-        execute!(stdout(), EnableMouseCapture).expect("failed to enable mouse capture");
+
+        let mut stdout = stdout();
+        queue!(
+            stdout,
+            EnterAlternateScreen,
+            EnableMouseCapture,
+            SetCursorShape::BlinkingBeam,
+        )
+        .ok();
+        stdout.flush().ok();
+
         let (cols, rows) = size().expect("failed to get the terminal size");
         listen_events(event_handler);
         Terminal {

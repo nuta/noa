@@ -5,7 +5,7 @@ use std::fmt;
 ///
 /// There're two specifications for this purpose and we support both of them:
 ///
-/// - iTerm2: <https://gitlab.com/gnachman/iterm2/-/wikis/synchronized-updates-spec>
+/// - iTerm2 / Alacritty: <https://gitlab.com/gnachman/iterm2/-/wikis/synchronized-updates-spec>
 /// - Contour: <https://gist.github.com/christianparpart/d8a62cc1ab659194337d73e399004036>
 pub enum SynchronizedOutput {
     Begin,
@@ -27,5 +27,23 @@ impl crossterm::Command for SynchronizedOutput {
             ),
             param_2026, iterm2_op
         )
+    }
+}
+
+/// Changes the cursor shape.
+///
+/// <https://www.vt100.net/docs/vt510-rm/DECSCUSR.html>
+pub enum SetCursorShape {
+    BlinkingBeam,
+}
+
+impl crossterm::Command for SetCursorShape {
+    fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
+        let shape = match self {
+            SetCursorShape::BlinkingBeam => '5',
+        };
+
+        // CSI shape SP q
+        write!(f, "\x1b[{} q", shape)
     }
 }
