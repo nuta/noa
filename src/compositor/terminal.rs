@@ -1,4 +1,5 @@
 use std::{
+    fmt::{self},
     io::{stdout, Stdout, Write},
     time::Duration,
 };
@@ -17,6 +18,27 @@ use super::canvas::DrawOp;
 pub use crossterm::event::{
     KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
+
+/// An terminal extension which allows applying multiple changes in the terminal
+/// at once not to show intermediate results.
+///
+/// <https://gist.github.com/christianparpart/d8a62cc1ab659194337d73e399004036>.
+enum SynchronizedOutput {
+    Begin,
+    End,
+}
+
+impl crossterm::Command for SynchronizedOutput {
+    fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
+        let param = match self {
+            SynchronizedOutput::Begin => 'h',
+            SynchronizedOutput::End => 'l',
+        };
+
+        // CSI ? 2026 param
+        write!(f, "\x1b[?2026{}", param)
+    }
+}
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum InputEvent {
@@ -173,6 +195,7 @@ impl Drawer {
         // Hide the cursor to prevent flickering.
         queue!(
             self.stdout,
+            SynchronizedOutput::Begin,
             cursor::Hide,
             SetAttribute(Attribute::Reset),
             MoveTo(0, 0),
@@ -225,6 +248,7 @@ impl Drawer {
     }
 
     pub fn flush(&mut self) {
+        queue!(self.stdout, SynchronizedOutput::End).ok();
         self.stdout.flush().ok();
     }
 }

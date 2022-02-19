@@ -59,7 +59,10 @@ impl Surface for MetaLineView {
 
     fn layout(&mut self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
         let mut height = 1;
-        let width = screen_size.width.clamp(25, min(50, screen_size.width / 2));
+        let half_width = screen_size.width / 2;
+        let width = screen_size
+            .width
+            .clamp(min(25, half_width), min(50, half_width));
 
         // Notification.
         if let Some(noti) = notification_manager().last_notification().as_ref() {
