@@ -24,6 +24,6 @@ $ noa path/to/foo.c     # Opens a single file.
 ## Terminal Settings
 To get noa to work perfectly, following features are required in your terminal:
 
-- OSC52 (aka PASTE64) support *(optional)*.
+- OSC52 (aka PASTE64) support *(optional)*: enables copying into the system clipboard from noa running on a remote host (e.g. connected over SSH).
 
 ## Keyboard Shortcuts
