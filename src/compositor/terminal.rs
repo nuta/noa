@@ -1,5 +1,5 @@
 use std::{
-    fmt::{self},
+    fmt,
     io::{stdout, Stdout, Write},
     time::Duration,
 };
@@ -22,7 +22,10 @@ pub use crossterm::event::{
 /// An terminal extension which allows applying multiple changes in the terminal
 /// at once not to show intermediate results.
 ///
-/// <https://gist.github.com/christianparpart/d8a62cc1ab659194337d73e399004036>.
+/// There're two specifications for this purpose and we support both of them:
+///
+/// - iTerm2: <https://gitlab.com/gnachman/iterm2/-/wikis/synchronized-updates-spec>
+/// - Contour: <https://gist.github.com/christianparpart/d8a62cc1ab659194337d73e399004036>
 enum SynchronizedOutput {
     Begin,
     End,
@@ -30,13 +33,19 @@ enum SynchronizedOutput {
 
 impl crossterm::Command for SynchronizedOutput {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
-        let param = match self {
-            SynchronizedOutput::Begin => 'h',
-            SynchronizedOutput::End => 'l',
+        let (param_2026, iterm2_op) = match self {
+            SynchronizedOutput::Begin => ('h', '1'),
+            SynchronizedOutput::End => ('l', '2'),
         };
 
-        // CSI ? 2026 param
-        write!(f, "\x1b[?2026{}", param)
+        write!(
+            f,
+            concat!(
+                "\x1b[?2026{}",    // CSI ? 2026 param
+                "\x1bP={}s\x1b\\"  // ESC P = OP s ESC \
+            ),
+            param_2026, iterm2_op
+        )
     }
 }
 
@@ -238,17 +247,12 @@ impl Drawer {
         }
     }
 
-    pub fn show_cursor(&mut self, screen_y: usize, screen_x: usize) {
-        queue!(
-            self.stdout,
-            MoveTo(screen_x as u16, screen_y as u16),
-            cursor::Show
-        )
-        .ok();
+    pub fn move_cursor(&mut self, screen_y: usize, screen_x: usize) {
+        queue!(self.stdout, MoveTo(screen_x as u16, screen_y as u16),).ok();
     }
 
     pub fn flush(&mut self) {
-        queue!(self.stdout, SynchronizedOutput::End).ok();
+        queue!(self.stdout, cursor::Show, SynchronizedOutput::End).ok();
         self.stdout.flush().ok();
     }
 }

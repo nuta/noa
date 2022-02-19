@@ -57,7 +57,7 @@ impl<C> Compositor<C> {
                     drawer.draw(&op);
                 }
                 if let Some((screen_y, screen_x)) = cursor {
-                    drawer.show_cursor(screen_y, screen_x);
+                    drawer.move_cursor(screen_y, screen_x);
                 }
 
                 drawer.flush();
