@@ -54,14 +54,14 @@ fn git_clone_and_pull(repo_url: &str, repo_dir: &Path) {
         if !ok {
             panic!("failed to clone {}", repo_url);
         }
-    } else {
-        println!("Pulling {}", repo_url);
-        Command::new("git")
-            .arg("pull")
-            .spawn()
-            .expect("failed to pull a tree-sitter grammar repo")
-            .wait()
-            .expect("failed to wait git-pull(1)");
+        // } else {
+        //     println!("Pulling {}", repo_url);
+        //     Command::new("git")
+        //         .arg("pull")
+        //         .spawn()
+        //         .expect("failed to pull a tree-sitter grammar repo")
+        //         .wait()
+        //         .expect("failed to wait git-pull(1)");
     }
 }
 
@@ -103,19 +103,23 @@ fn main() {
     mod_rs.push_str("pub use tree_sitter::*;\n");
     mod_rs.push_str("extern \"C\" {\n");
     for lang in &yaml.languages {
-        mod_rs.push_str(&format!(
-            "    fn tree_sitter_{}() -> Language;\n",
-            lang.name
-        ));
+        if lang.tree_sitter.is_some() {
+            mod_rs.push_str(&format!(
+                "    fn tree_sitter_{}() -> Language;\n",
+                lang.name
+            ));
+        }
     }
     mod_rs.push_str("}\n\n");
     mod_rs.push_str("pub fn get_tree_sitter_parser(name: &str) -> Option<Language> {\n");
     mod_rs.push_str("   match name {\n");
     for lang in &yaml.languages {
-        mod_rs.push_str(&format!(
-            "        \"{}\" => Some(unsafe {{ tree_sitter_{}() }}),\n",
-            lang.name, lang.name
-        ));
+        if lang.tree_sitter.is_some() {
+            mod_rs.push_str(&format!(
+                "        \"{}\" => Some(unsafe {{ tree_sitter_{}() }}),\n",
+                lang.name, lang.name
+            ));
+        }
     }
     mod_rs.push_str("    _ => None\n");
     mod_rs.push_str("    }\n");
