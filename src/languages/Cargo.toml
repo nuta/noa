@@ -11,6 +11,12 @@ path = "lib.rs"
 log = "0"
 tree-sitter = "0"
 num_cpus = "1"
+toml = "0"
+serde = { version = "1.0", features = ["derive"] }
+bincode = "2.0.0-beta.3"
 
 [build-dependencies]
 cc = "*"
+serde = { version = "1.0", features = ["derive"] }
+bincode = "2.0.0-beta.3"
+serde_yaml = "0"
