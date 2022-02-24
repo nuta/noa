@@ -14,6 +14,8 @@ pub fn get_tree_sitter_parser(name: &str) -> Option<Language> {
 
 pub fn get_highlight_query(name: &str) -> Option<&str> {
    match name {
+        "rust" => Some(include_str!("../tree_sitter/nvim_treesitter/queries/rust/highlights.scm")),
+        "c" => Some(include_str!("../tree_sitter/nvim_treesitter/queries/c/highlights.scm")),
     _ => None
     }
 }

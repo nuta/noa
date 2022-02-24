@@ -17,7 +17,7 @@ use noa_common::{
     dirs::{log_file_path, proxy_pid_path, proxy_sock_path},
     oops::OopsExt,
 };
-use noa_languages::language::{Language, Lsp};
+use noa_languages::language::Language;
 use parking_lot::Mutex;
 use tokio::{
     fs::{self},

@@ -28,13 +28,9 @@ impl FromStr for SyntaxSpan {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let span = match s {
             "comment" => SyntaxSpan::Comment,
-            "ident" => SyntaxSpan::Ident,
-            "keyword.control" => SyntaxSpan::Control,
+            "variable" => SyntaxSpan::Ident,
+            "keyword" => SyntaxSpan::Control,
             "string" => SyntaxSpan::StringLiteral,
-            "escape" => SyntaxSpan::EscapeSequence,
-            "primitive" => SyntaxSpan::PrimitiveType,
-            "cmacro" => SyntaxSpan::CMacro,
-            "cincludearg" => SyntaxSpan::CIncludeArg,
             _ => {
                 return Err(());
             }

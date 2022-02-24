@@ -127,10 +127,13 @@ fn main() {
     mod_rs.push_str("pub fn get_highlight_query(name: &str) -> Option<&str> {\n");
     mod_rs.push_str("   match name {\n");
     for lang in &yaml.languages {
-        let scm = format!("nvim_treesitter/queries/{}/highlight.scm", lang.name);
+        let scm = format!(
+            "tree_sitter/nvim_treesitter/queries/{}/highlights.scm",
+            lang.name
+        );
         if Path::new(&scm).exists() {
             mod_rs.push_str(&format!(
-                "        \"{}\" => Some(unsafe {{ include_str!(\"{}\") }}),\n",
+                "        \"{}\" => Some(include_str!(\"../{}\")),\n",
                 lang.name, scm
             ));
         }

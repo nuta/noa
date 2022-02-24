@@ -109,7 +109,8 @@ pub fn theme_for(key: &str) -> Style {
     match THEME.get(key) {
         Some(style) => *style,
         None => {
-            panic!("the \"{}\" is not defined in the theme", key);
+            warn!("the \"{}\" is not defined in the theme", key);
+            Default::default()
         }
     }
 }

@@ -1,7 +1,8 @@
 # Based on One Dark Pro theme
 # https://github.com/Binaryify/OneDark-Pro
 [theme]
-"keyword.control" = { fg = "purple" }
+"keyword" = { fg = "purple" }
+"variable" = { fg = "deepRed" }
 "string" = { fg = "green" }
 
 "buffer.find_match" = { bg = "chalky" }
