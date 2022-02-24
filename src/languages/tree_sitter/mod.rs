@@ -52,27 +52,6 @@ pub fn get_tree_sitter_parser(name: &str) -> Option<Language> {
 
 pub fn get_highlight_query(name: &str) -> Option<&str> {
    match name {
-        "plain" => Some(unsafe { include_str!("nvim_treesitter/queries/plain/highlight.scm") }),
-        "c" => Some(unsafe { include_str!("nvim_treesitter/queries/c/highlight.scm") }),
-        "cpp" => Some(unsafe { include_str!("nvim_treesitter/queries/cpp/highlight.scm") }),
-        "rust" => Some(unsafe { include_str!("nvim_treesitter/queries/rust/highlight.scm") }),
-        "javascript" => Some(unsafe { include_str!("nvim_treesitter/queries/javascript/highlight.scm") }),
-        "python" => Some(unsafe { include_str!("nvim_treesitter/queries/python/highlight.scm") }),
-        "go" => Some(unsafe { include_str!("nvim_treesitter/queries/go/highlight.scm") }),
-        "bash" => Some(unsafe { include_str!("nvim_treesitter/queries/bash/highlight.scm") }),
-        "html" => Some(unsafe { include_str!("nvim_treesitter/queries/html/highlight.scm") }),
-        "css" => Some(unsafe { include_str!("nvim_treesitter/queries/css/highlight.scm") }),
-        "scss" => Some(unsafe { include_str!("nvim_treesitter/queries/scss/highlight.scm") }),
-        "typescript" => Some(unsafe { include_str!("nvim_treesitter/queries/typescript/highlight.scm") }),
-        "tsx" => Some(unsafe { include_str!("nvim_treesitter/queries/tsx/highlight.scm") }),
-        "markdown" => Some(unsafe { include_str!("nvim_treesitter/queries/markdown/highlight.scm") }),
-        "toml" => Some(unsafe { include_str!("nvim_treesitter/queries/toml/highlight.scm") }),
-        "json" => Some(unsafe { include_str!("nvim_treesitter/queries/json/highlight.scm") }),
-        "yaml" => Some(unsafe { include_str!("nvim_treesitter/queries/yaml/highlight.scm") }),
-        "make" => Some(unsafe { include_str!("nvim_treesitter/queries/make/highlight.scm") }),
-        "dockerfile" => Some(unsafe { include_str!("nvim_treesitter/queries/dockerfile/highlight.scm") }),
-        "regex" => Some(unsafe { include_str!("nvim_treesitter/queries/regex/highlight.scm") }),
-        "comment" => Some(unsafe { include_str!("nvim_treesitter/queries/comment/highlight.scm") }),
     _ => None
     }
 }

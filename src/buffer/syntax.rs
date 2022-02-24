@@ -9,7 +9,8 @@ use crate::{
 use noa_languages::{
     language::Language,
     tree_sitter::{
-        self, get_tree_sitter_parser, InputEdit, Node, Query, QueryCursor, TextProvider,
+        self, get_highlight_query, get_tree_sitter_parser, InputEdit, Node, Query, QueryCursor,
+        TextProvider,
     },
 };
 
@@ -42,14 +43,15 @@ pub struct Syntax {
 
 impl Syntax {
     pub fn new(lang: &'static Language) -> Option<Syntax> {
-        lang.tree_sitter.as_ref().and_then(|def| {
+        lang.tree_sitter.as_ref().and_then(|_def| {
             let mut parser = tree_sitter::Parser::new();
-            let lang = get_tree_sitter_parser(lang.name).unwrap();
-            match parser.set_language(lang) {
+            let ts_lang = get_tree_sitter_parser(&lang.name).unwrap();
+            match parser.set_language(ts_lang) {
                 Ok(()) => {
                     // TODO: Parse the query only once in noa_languages.
+                    let source = get_highlight_query(&lang.name).unwrap_or("");
                     let highlight_query =
-                        Query::new(lang, todo!()).expect("invalid highlight query");
+                        Query::new(ts_lang, source).expect("invalid highlight query");
 
                     let mut highlight_query_indices = HashMap::new();
                     for (i, name) in highlight_query.capture_names().iter().enumerate() {
