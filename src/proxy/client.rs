@@ -17,7 +17,7 @@ use noa_common::{
     dirs::{log_file_path, proxy_pid_path, proxy_sock_path},
     oops::OopsExt,
 };
-use noa_languages::{language::Language, lsp::Lsp};
+use noa_languages::language::{Language, Lsp};
 use parking_lot::Mutex;
 use tokio::{
     fs::{self},
@@ -35,9 +35,9 @@ use crate::protocol::{
     LspRequest, LspResponse, Notification, RequestId, Response, ToClient, ToServer,
 };
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 enum ProxyKind {
-    Lsp(&'static str /* language ID */),
+    Lsp(String /* language ID */),
 }
 
 pub struct Client {
@@ -169,8 +169,8 @@ impl Client {
     }
 
     async fn request(&self, lang: &Language, request: LspRequest) -> Result<LspResponse> {
-        if let Some(lsp) = lang.lsp.as_ref() {
-            let resp = self.do_request(lsp, request).await?;
+        if lang.lsp.is_some() {
+            let resp = self.do_request(&lang.name, request).await?;
             match resp {
                 Response::Ok { body } => {
                     serde_json::from_value::<LspResponse>(body).context("unexpected LSP respones")
@@ -178,12 +178,12 @@ impl Client {
                 Response::Err { reason } => Err(anyhow::anyhow!("LSP error: {}", reason)),
             }
         } else {
-            bail!("LSP unavailable for {}", lang.id);
+            bail!("LSP unavailable for {}", lang.name);
         }
     }
 
-    async fn do_request(&self, lsp: &Lsp, request: LspRequest) -> Result<Response> {
-        let kind = ProxyKind::Lsp(lsp.language_id);
+    async fn do_request(&self, name: &str, request: LspRequest) -> Result<Response> {
+        let kind = ProxyKind::Lsp(name.to_owned());
         let (resp_tx, resp_rx) = oneshot::channel();
         {
             let id = self.next_request_id.fetch_add(1, Ordering::SeqCst).into();
@@ -202,16 +202,22 @@ impl Client {
                     // request and spawn the task to handle it asynchronously.
                     let (tx, rx) = mpsc::unbounded_channel();
                     tx.send(message)?;
-                    proxies.insert(kind, tx);
+                    proxies.insert(kind.clone(), tx);
 
                     let workspace_dir = self.workspace_dir.clone();
                     let sent_requests = self.sent_requests.clone();
                     let notification_tx = self.notification_tx.clone();
 
                     tokio::spawn(async move {
-                        proxy_client_task(workspace_dir, kind, sent_requests, notification_tx, rx)
-                            .await
-                            .oops()
+                        proxy_client_task(
+                            workspace_dir,
+                            kind.clone(),
+                            sent_requests,
+                            notification_tx,
+                            rx,
+                        )
+                        .await
+                        .oops()
                     });
                 }
             }
@@ -243,7 +249,8 @@ async fn proxy_client_task(
                 Some(write_end) => write_end,
                 None => {
                     cached_write_end = Some(
-                        spawn_proxy(&workspace_dir, kind, &sent_requests, &notification_tx).await?,
+                        spawn_proxy(&workspace_dir, &kind, &sent_requests, &notification_tx)
+                            .await?,
                     );
                     cached_write_end.as_mut().unwrap()
                 }
@@ -277,7 +284,7 @@ async fn proxy_client_task(
 // Spawns a proxy process.
 async fn spawn_proxy(
     workspace_dir: &Path,
-    kind: ProxyKind,
+    kind: &ProxyKind,
     sent_requests: &Arc<Mutex<HashMap<RequestId, oneshot::Sender<Response>>>>,
     notification_tx: &UnboundedSender<Notification>,
 ) -> Result<OwnedWriteHalf> {

@@ -1004,6 +1004,7 @@ dependencies = [
  "cc",
  "log",
  "num_cpus",
+ "once_cell",
  "serde",
  "serde_yaml",
  "toml",

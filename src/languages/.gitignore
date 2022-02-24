@@ -1,3 +1,2 @@
-/tree_sitter/grammars
-/tree_sitter/nvim_treesitter
+/tree_sitter
 languages.bincode

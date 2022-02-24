@@ -7,7 +7,7 @@ use std::{
 };
 
 use noa_editorconfig::{EditorConfig, IndentStyle};
-use noa_languages::{definitions::PLAIN, language::Language};
+use noa_languages::language::{get_language_by_name, Language};
 
 use crate::{
     cursor::{Cursor, CursorId, CursorSet, Position, Range},
@@ -35,7 +35,7 @@ pub struct Buffer {
 impl Buffer {
     pub fn new() -> Buffer {
         Buffer {
-            lang: &PLAIN,
+            lang: get_language_by_name("plain").unwrap(),
             syntax: None,
             buf: UndoableRawBuffer::new(),
             cursors: CursorSet::new(),

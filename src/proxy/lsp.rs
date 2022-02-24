@@ -20,8 +20,8 @@ use lsp_types::{
     TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams,
     VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
-use noa_languages::lsp::Lsp;
 
+use noa_languages::language::Lsp;
 use tokio::{
     io::BufReader,
     process::{Child, ChildStdin, ChildStdout, Command},
@@ -244,27 +244,24 @@ async fn receive_responses(
 }
 
 pub struct LspServer {
+    language_id: String,
     workspace_dir: PathBuf,
     lsp_stdin: ChildStdin,
     _lsp_server: Child,
-    lsp_config: &'static Lsp,
     next_req_id: usize,
     req_id_tx_map: ReqIdTxMap,
 }
 
 impl LspServer {
     pub async fn spawn(
+        name: String,
         notification_tx: UnboundedSender<Notification>,
         lsp_config: &'static Lsp,
         workspace_dir: &Path,
     ) -> Result<LspServer> {
-        trace!(
-            "spawning lsp server {} ({})",
-            lsp_config.language_id,
-            workspace_dir.display()
-        );
-        let argv = (lsp_config.get_argv)();
-        let envp = (lsp_config.get_envp)();
+        trace!("spawning lsp server {} ({})", name, workspace_dir.display());
+        let argv = &lsp_config.argv;
+        let envp = &lsp_config.envp;
         let mut lsp_server = Command::new(&argv[0])
             .args(&argv[1..])
             .current_dir(workspace_dir)
@@ -277,7 +274,7 @@ impl LspServer {
             .with_context(|| {
                 format!(
                     "failed to spawn LSP server for {} (have you installed required packages?)",
-                    lsp_config.language_id
+                    name
                 )
             })?;
 
@@ -292,10 +289,10 @@ impl LspServer {
         }
 
         Ok(LspServer {
+            language_id: name.to_owned(),
             workspace_dir: workspace_dir.to_path_buf(),
             lsp_stdin,
             _lsp_server: lsp_server,
-            lsp_config,
             next_req_id: 1,
             req_id_tx_map,
         })
@@ -390,7 +387,7 @@ impl Server for LspServer {
                 self.send_notification::<DidOpenTextDocument>(DidOpenTextDocumentParams {
                     text_document: lsp_types::TextDocumentItem {
                         uri: parse_path_as_uri(&path),
-                        language_id: self.lsp_config.language_id.to_string(),
+                        language_id: self.language_id.clone(),
                         version: 0,
                         text,
                     },

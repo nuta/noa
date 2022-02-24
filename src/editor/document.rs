@@ -19,7 +19,7 @@ use noa_common::{
     dirs::{backup_dir, noa_dir},
     oops::OopsExt,
 };
-use noa_languages::definitions::guess_language;
+use noa_languages::language::guess_language;
 
 use crate::{
     completion::Completion,
@@ -93,7 +93,9 @@ impl Document {
             notify_warn!("A backup file exists in {}", backup_dir().display());
         }
 
-        buffer.set_language(guess_language(&path));
+        if let Some(lang) = guess_language(&path) {
+            buffer.set_language(lang);
+        }
 
         Ok(Document {
             id,

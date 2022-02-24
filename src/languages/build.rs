@@ -1,6 +1,6 @@
 use bincode::Encode;
 use serde::{Deserialize, Serialize};
-use std::{path::Path, process::Command};
+use std::{collections::HashMap, path::Path, process::Command};
 
 #[derive(Deserialize, Serialize, Encode)]
 struct TreeSitter {
@@ -8,6 +8,13 @@ struct TreeSitter {
     dir: String,
     url: String,
     sources: Vec<String>,
+}
+
+#[derive(Deserialize, Serialize, Encode)]
+pub struct Lsp {
+    argv: Vec<String>,
+    #[serde(default)]
+    envp: HashMap<String, String>,
 }
 
 #[derive(Deserialize, Serialize, Encode)]
@@ -19,6 +26,8 @@ struct Language {
     extensions: Vec<String>,
     #[serde(default)]
     tree_sitter: Option<TreeSitter>,
+    #[serde(default)]
+    lsp: Option<Lsp>,
 }
 
 #[derive(Deserialize, Serialize, Encode)]
@@ -88,6 +97,42 @@ fn main() {
                 .compile(&format!("tree-sitter-{}", lang.name));
         }
     }
+
+    println!("Generating tree_sitter/mod.rs");
+    let mut mod_rs = String::new();
+    mod_rs.push_str("pub use tree_sitter::*;\n");
+    mod_rs.push_str("extern \"C\" {\n");
+    for lang in &yaml.languages {
+        mod_rs.push_str(&format!(
+            "    fn tree_sitter_{}() -> Language;\n",
+            lang.name
+        ));
+    }
+    mod_rs.push_str("}\n\n");
+    mod_rs.push_str("pub fn get_tree_sitter_parser(name: &str) -> Option<Language> {\n");
+    mod_rs.push_str("   match name {\n");
+    for lang in &yaml.languages {
+        mod_rs.push_str(&format!(
+            "        \"{}\" => Some(unsafe {{ tree_sitter_{}() }}),\n",
+            lang.name, lang.name
+        ));
+    }
+    mod_rs.push_str("    _ => None\n");
+    mod_rs.push_str("    }\n");
+    mod_rs.push_str("}\n\n");
+    mod_rs.push_str("pub fn get_highlight_query(name: &str) -> Option<&str> {\n");
+    mod_rs.push_str("   match name {\n");
+    for lang in &yaml.languages {
+        mod_rs.push_str(&format!(
+            "        \"{}\" => Some(unsafe {{ include_str!(\"nvim_treesitter/queries/{}/highlight.scm\") }}),\n",
+            lang.name, lang.name
+        ));
+    }
+    mod_rs.push_str("    _ => None\n");
+    mod_rs.push_str("    }\n");
+    mod_rs.push_str("}\n");
+
+    std::fs::write("tree_sitter/mod.rs", mod_rs).unwrap();
 
     println!("Generating languages.bincode");
     let mut file = std::fs::File::create("languages.bincode").unwrap();

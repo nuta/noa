@@ -8,7 +8,9 @@ use crate::{
 
 use noa_languages::{
     language::Language,
-    tree_sitter::{self, InputEdit, Node, Query, QueryCursor, TextProvider},
+    tree_sitter::{
+        self, get_tree_sitter_parser, InputEdit, Node, Query, QueryCursor, TextProvider,
+    },
 };
 
 struct RopeByteChunks<'a>(ropey::iter::Chunks<'a>);
@@ -42,12 +44,12 @@ impl Syntax {
     pub fn new(lang: &'static Language) -> Option<Syntax> {
         lang.tree_sitter.as_ref().and_then(|def| {
             let mut parser = tree_sitter::Parser::new();
-            let lang = (def.get_language)();
+            let lang = get_tree_sitter_parser(lang.name).unwrap();
             match parser.set_language(lang) {
                 Ok(()) => {
                     // TODO: Parse the query only once in noa_languages.
                     let highlight_query =
-                        Query::new(lang, def.highlight_query).expect("invalid highlight query");
+                        Query::new(lang, todo!()).expect("invalid highlight query");
 
                     let mut highlight_query_indices = HashMap::new();
                     for (i, name) in highlight_query.capture_names().iter().enumerate() {

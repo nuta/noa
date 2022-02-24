@@ -16,8 +16,7 @@ use anyhow::Context;
 use clap::Parser;
 use daemonize::Daemonize;
 use lsp::LspServer;
-
-use noa_languages::definitions::get_language_by_lsp_id;
+use noa_languages::language::get_language_by_name;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -58,15 +57,22 @@ async fn main() {
                 .lsp_language_id
                 .as_ref()
                 .expect("--lsp-language-id is not set");
-            let lsp = get_language_by_lsp_id(lang_id)
+            let lsp = get_language_by_name(lang_id)
                 .with_context(|| format!("unsupported lsp language id {}", lang_id))
-                .unwrap();
+                .unwrap()
+                .lsp
+                .as_ref()
+                .expect("lsp is not supported");
 
-            let mut server =
-                LspServer::spawn(eventloop.notification_tx(), lsp, &args.workspace_dir)
-                    .await
-                    .with_context(|| format!("failed to spawn LSP server for {}", lang_id))
-                    .unwrap();
+            let mut server = LspServer::spawn(
+                lang_id.to_owned(),
+                eventloop.notification_tx(),
+                lsp,
+                &args.workspace_dir,
+            )
+            .await
+            .with_context(|| format!("failed to spawn LSP server for {}", lang_id))
+            .unwrap();
 
             trace!("initializing LSP server");
             server.initialize().await.unwrap();
