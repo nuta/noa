@@ -80,7 +80,7 @@ mod tests {
             "    }\n",
             "}\n",
         ));
-        b.set_language(&RUST);
+        b.set_language(get_language_by_name("rust").unwrap());
         b.post_update_hook();
 
         // The cursor is located in "123".
