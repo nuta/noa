@@ -124,23 +124,29 @@ fn main() {
     mod_rs.push_str("    _ => None\n");
     mod_rs.push_str("    }\n");
     mod_rs.push_str("}\n\n");
-    mod_rs.push_str("pub fn get_highlight_query(name: &str) -> Option<&str> {\n");
-    mod_rs.push_str("   match name {\n");
-    for lang in &yaml.languages {
-        let scm = format!(
-            "tree_sitter/nvim_treesitter/queries/{}/highlights.scm",
-            lang.name
-        );
-        if Path::new(&scm).exists() {
-            mod_rs.push_str(&format!(
-                "        \"{}\" => Some(include_str!(\"../{}\")),\n",
-                lang.name, scm
-            ));
+
+    for scm_name in &["highlights", "indents"] {
+        mod_rs.push_str(&format!(
+            "pub fn get_{}_query(name: &str) -> Option<&str> {{\n",
+            scm_name
+        ));
+        mod_rs.push_str("   match name {\n");
+        for lang in &yaml.languages {
+            let scm = format!(
+                "tree_sitter/nvim_treesitter/queries/{}/{}.scm",
+                lang.name, scm_name
+            );
+            if Path::new(&scm).exists() {
+                mod_rs.push_str(&format!(
+                    "        \"{}\" => Some(include_str!(\"../{}\")),\n",
+                    lang.name, scm
+                ));
+            }
         }
+        mod_rs.push_str("    _ => None\n");
+        mod_rs.push_str("    }\n");
+        mod_rs.push_str("}\n");
     }
-    mod_rs.push_str("    _ => None\n");
-    mod_rs.push_str("    }\n");
-    mod_rs.push_str("}\n");
 
     std::fs::write("tree_sitter/mod.rs", mod_rs).unwrap();
 

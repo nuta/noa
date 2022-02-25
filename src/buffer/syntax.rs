@@ -9,7 +9,7 @@ use crate::{
 use noa_languages::{
     language::Language,
     tree_sitter::{
-        self, get_highlight_query, get_tree_sitter_parser, InputEdit, Node, Query, QueryCursor,
+        self, get_highlights_query, get_tree_sitter_parser, InputEdit, Node, Query, QueryCursor,
         TextProvider,
     },
 };
@@ -49,7 +49,7 @@ impl Syntax {
             match parser.set_language(ts_lang) {
                 Ok(()) => {
                     // TODO: Parse the query only once in noa_languages.
-                    let source = get_highlight_query(&lang.name).unwrap_or("");
+                    let source = get_highlights_query(&lang.name).unwrap_or("");
                     let highlight_query =
                         Query::new(ts_lang, source).expect("invalid highlight query");
 

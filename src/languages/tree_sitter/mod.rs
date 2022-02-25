@@ -12,10 +12,17 @@ pub fn get_tree_sitter_parser(name: &str) -> Option<Language> {
     }
 }
 
-pub fn get_highlight_query(name: &str) -> Option<&str> {
+pub fn get_highlights_query(name: &str) -> Option<&str> {
    match name {
         "rust" => Some(include_str!("../tree_sitter/nvim_treesitter/queries/rust/highlights.scm")),
         "c" => Some(include_str!("../tree_sitter/nvim_treesitter/queries/c/highlights.scm")),
+    _ => None
+    }
+}
+pub fn get_indents_query(name: &str) -> Option<&str> {
+   match name {
+        "rust" => Some(include_str!("../tree_sitter/nvim_treesitter/queries/rust/indents.scm")),
+        "c" => Some(include_str!("../tree_sitter/nvim_treesitter/queries/c/indents.scm")),
     _ => None
     }
 }
