@@ -289,7 +289,7 @@ impl LspServer {
         }
 
         Ok(LspServer {
-            language_id: name.to_owned(),
+            language_id: name,
             workspace_dir: workspace_dir.to_path_buf(),
             lsp_stdin,
             _lsp_server: lsp_server,
