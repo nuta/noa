@@ -40,7 +40,7 @@ mod tests {
     use crate::cursor::Cursor;
 
     use super::*;
-    use noa_languages::definitions::RUST;
+    use noa_languages::language::get_language_by_name;
     use pretty_assertions::assert_eq;
 
     fn selected_str(buf: &Buffer) -> Cow<'_, str> {
@@ -50,7 +50,7 @@ mod tests {
     #[test]
     fn expand_selections() {
         let mut b = Buffer::from_text("");
-        b.set_language(&RUST);
+        b.set_language(get_language_by_name("rust").unwrap());
         b.post_update_hook();
         b.set_cursors_for_test(&[Cursor::new(0, 0)]);
         b.expand_selections();

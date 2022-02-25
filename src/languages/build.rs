@@ -70,7 +70,7 @@ fn main() {
     println!("cargo:rerun-if-changed=languages.yaml");
 
     let nvim_treesitter_dir = Path::new("tree_sitter/nvim_treesitter");
-    git_clone_and_pull(NVIM_TREESITTER_REPO, &nvim_treesitter_dir);
+    git_clone_and_pull(NVIM_TREESITTER_REPO, nvim_treesitter_dir);
 
     let yaml: Languages = serde_yaml::from_str(include_str!("languages.yaml"))
         .expect("failed to parse languages.yaml");
