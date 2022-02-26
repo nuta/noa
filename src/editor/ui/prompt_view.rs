@@ -1,0 +1,127 @@
+use noa_compositor::{
+    canvas::CanvasViewMut,
+    line_edit::LineEdit,
+    surface::{HandledEvent, Layout, RectSize, Surface},
+    terminal::{KeyCode, KeyEvent, KeyModifiers},
+    Compositor,
+};
+
+use crate::editor::{Editor, OnceCallback};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PromptMode {
+    String,
+    SingleChar,
+}
+
+pub struct PromptView {
+    name: String,
+    callback: OnceCallback,
+    mode: PromptMode,
+    pub input: LineEdit,
+    pub canceled: bool,
+}
+
+impl PromptView {
+    pub fn new<S: Into<String>>(mode: PromptMode, name: S, callback: OnceCallback) -> PromptView {
+        PromptView {
+            mode,
+            name: name.into(),
+            input: LineEdit::new(),
+            callback,
+            canceled: false,
+        }
+    }
+}
+
+impl Surface for PromptView {
+    type Context = Editor;
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn is_active(&self, _editor: &mut Editor) -> bool {
+        true
+    }
+
+    fn layout(&mut self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
+        let height = 1;
+        (
+            Layout::Fixed {
+                y: screen_size.height.saturating_sub(height),
+                x: 0,
+            },
+            RectSize {
+                height,
+                width: screen_size.width,
+            },
+        )
+    }
+
+    fn cursor_position(&self, _editor: &mut Editor) -> Option<(usize, usize)> {
+        Some((0, 1 + self.input.cursor_position()))
+    }
+
+    fn render(&mut self, _editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
+        canvas.clear();
+
+        self.input.relocate_scroll(canvas.width());
+    }
+
+    fn handle_key_event(
+        &mut self,
+        compositor: &mut Compositor<Self::Context>,
+        editor: &mut Editor,
+        key: KeyEvent,
+    ) -> HandledEvent {
+        const NONE: KeyModifiers = KeyModifiers::NONE;
+        const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        // const ALT: KeyModifiers = KeyModifiers::ALT;
+        // const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
+
+        match (key.code, key.modifiers) {
+            (KeyCode::Enter, NONE) => {
+                editor.invoke_once_callback(compositor, self.callback);
+            }
+            (KeyCode::Esc, _) | (KeyCode::Char('q'), CTRL) => {
+                self.canceled = true;
+                editor.invoke_once_callback(compositor, self.callback);
+            }
+            _ => {
+                self.input.consume_key_event(key);
+                if self.mode == PromptMode::SingleChar && !self.input.is_empty() {
+                    editor.invoke_once_callback(compositor, self.callback);
+                }
+            }
+        }
+
+        HandledEvent::Consumed
+    }
+
+    fn handle_key_batch_event(
+        &mut self,
+        _compositor: &mut Compositor<Editor>,
+        _editor: &mut Editor,
+        input: &str,
+    ) -> HandledEvent {
+        self.input.insert(&input.replace('\n', " "));
+        HandledEvent::Consumed
+    }
+
+    fn handle_mouse_event(
+        &mut self,
+        _compositor: &mut Compositor<Self::Context>,
+        _ctx: &mut Self::Context,
+        _kind: noa_compositor::terminal::MouseEventKind,
+        _modifiers: noa_compositor::terminal::KeyModifiers,
+        _surface_y: usize,
+        _surface_x: usize,
+    ) -> HandledEvent {
+        HandledEvent::Consumed
+    }
+}

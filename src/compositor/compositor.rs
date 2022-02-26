@@ -84,6 +84,11 @@ impl<C> Compositor<C> {
     }
 
     pub fn add_frontmost_layer(&mut self, surface: Box<dyn Surface<Context = C> + Send>) {
+        debug_assert!(self
+            .layers
+            .iter()
+            .all(|l| l.surface.name() != surface.name()));
+
         self.layers.push(Layer {
             surface,
             canvas: Canvas::new(0, 0),

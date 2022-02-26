@@ -1,4 +1,6 @@
 use std::{
+    collections::HashMap,
+    num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -11,6 +13,7 @@ use noa_buffer::{
     undoable_raw_buffer::Change,
 };
 use noa_common::oops::OopsExt;
+use noa_compositor::Compositor;
 use noa_languages::language::Language;
 use noa_proxy::{client::Client as ProxyClient, lsp_types::TextEdit, protocol::Notification};
 use tokio::sync::{
@@ -25,12 +28,21 @@ use crate::{
     linemap::LineMap,
 };
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct OnceCallback(NonZeroUsize);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct MutCallback(NonZeroUsize);
+
 pub struct Editor {
     pub documents: DocumentManager,
     pub clipboard: Box<dyn ClipboardProvider>,
     pub repo: Option<Arc<Repo>>,
     pub proxy: Arc<noa_proxy::client::Client>,
     pub render_request: Arc<Notify>,
+    once_callbacks: HashMap<OnceCallback, Box<dyn FnOnce(&mut Compositor<Editor>, &mut Editor)>>,
+    mut_callbacks: HashMap<MutCallback, Box<dyn FnMut(&mut Compositor<Editor>, &mut Editor)>>,
+    next_callback_id: usize,
 }
 
 impl Editor {
@@ -58,6 +70,9 @@ impl Editor {
             repo,
             proxy,
             render_request,
+            once_callbacks: HashMap::new(),
+            mut_callbacks: HashMap::new(),
+            next_callback_id: 1,
         }
     }
 
@@ -112,6 +127,40 @@ impl Editor {
                     notify_warn!("{}: {:?}", diag.range.start.line + 1, diag.message);
                 }
             }
+        }
+    }
+
+    pub fn register_callback<F>(&mut self, callback: F) -> MutCallback
+    where
+        F: FnMut(&mut Compositor<Editor>, &mut Editor) + 'static,
+    {
+        let id = MutCallback(NonZeroUsize::new(self.next_callback_id).unwrap());
+        self.next_callback_id += 1;
+
+        self.mut_callbacks.insert(id, Box::new(callback));
+        id
+    }
+
+    pub fn invoke_callback(&mut self, compositor: &mut Compositor<Editor>, id: MutCallback) {
+        if let Some(mut callback) = self.mut_callbacks.remove(&id) {
+            callback(compositor, self);
+        }
+    }
+
+    pub fn register_once_callback<F>(&mut self, callback: F) -> OnceCallback
+    where
+        F: FnOnce(&mut Compositor<Editor>, &mut Editor) + 'static,
+    {
+        let id = OnceCallback(NonZeroUsize::new(self.next_callback_id).unwrap());
+        self.next_callback_id += 1;
+
+        self.once_callbacks.insert(id, Box::new(callback));
+        id
+    }
+
+    pub fn invoke_once_callback(&mut self, compositor: &mut Compositor<Editor>, id: OnceCallback) {
+        if let Some(callback) = self.once_callbacks.remove(&id) {
+            callback(compositor, self);
         }
     }
 }

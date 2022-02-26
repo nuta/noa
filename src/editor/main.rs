@@ -1,5 +1,6 @@
 #![feature(test)]
 #![feature(vec_retain_mut)]
+#![allow(unused)]
 
 extern crate test;
 
