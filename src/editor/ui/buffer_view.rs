@@ -106,9 +106,6 @@ impl Surface for BufferView {
 
         self.buffer_x = buffer_x;
 
-        // FIXME: remove
-        editor.documents.words();
-
         let doc = editor.documents.current();
         let buffer = doc.buffer();
         let main_cursor = buffer.main_cursor();
