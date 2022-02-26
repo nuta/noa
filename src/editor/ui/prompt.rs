@@ -24,10 +24,10 @@ pub fn prompt<S, F, C>(
     let enter_cb = {
         let title = title.clone();
         editor.register_callback(move |compositor, editor| {
-            let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name(&title);
+            let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
 
-            let result = if prompt_view.canceled {
-                Some(prompt_view.input.text())
+            let result = if prompt_view.is_canceled() {
+                Some(prompt_view.input().text())
             } else {
                 None
             };
@@ -44,21 +44,13 @@ pub fn prompt<S, F, C>(
     let completion_cb = {
         let title = title.clone();
         editor.register_callback(move |compositor, editor| {
-            let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name(&title);
-
-            let result = if prompt_view.canceled {
-                Some(prompt_view.input.text())
-            } else {
-                None
-            };
-
-            let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name(&title);
-            if let Some(items) = completion_callback(editor, &prompt_view.input) {
+            let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
+            if let Some(items) = completion_callback(editor, prompt_view.input()) {
                 // prompt_view.set_completion_items(items);
             }
         })
     };
 
-    let prompt_view = PromptView::new(mode, title, enter_cb);
-    compositor.add_frontmost_layer(Box::new(prompt_view));
+    let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
+    prompt_view.activate(PromptMode::SingleChar, title, enter_cb);
 }

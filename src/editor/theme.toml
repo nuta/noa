@@ -13,7 +13,7 @@
 "line_status.added" = { bg = "green" }
 "line_status.deleted" = { bg = "deepRed" }
 
-"prompt.name" = { bg = "grey", decorations = ["bold"] }
+"prompt.title" = { bg = "grey", decorations = ["bold"] }
 "meta_line.first_line" = { decorations = ["bold", "inverted"] }
 
 "finder.input" = { fg = "default" }

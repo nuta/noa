@@ -183,7 +183,7 @@ impl Document {
         let a = self.buffer.raw_buffer();
         let b = &self.saved_buffer;
 
-        a.len_chars() == b.len_chars() && a != b
+        a.len_chars() != b.len_chars() && a != b
     }
 
     pub fn path(&self) -> &Path {

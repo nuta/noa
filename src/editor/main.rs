@@ -20,8 +20,12 @@ use tokio::sync::{
     oneshot, Notify,
 };
 use ui::{
-    buffer_view::BufferView, completion_view::CompletionView, finder_view::FinderView,
-    meta_line_view::MetaLineView, prompt::prompt, prompt_view::PromptMode,
+    buffer_view::BufferView,
+    completion_view::CompletionView,
+    finder_view::FinderView,
+    meta_line_view::MetaLineView,
+    prompt::prompt,
+    prompt_view::{PromptMode, PromptView},
     too_small_view::TooSmallView,
 };
 
@@ -87,7 +91,7 @@ async fn main() {
         }
     }
 
-    let (quit_tx, mut quit_rx) = oneshot::channel();
+    let (quit_tx, mut quit_rx) = unbounded_channel();
     let (force_quit_tx, mut force_quit_rx) = unbounded_channel();
     compositor.add_frontmost_layer(Box::new(TooSmallView::new("too small!")));
     compositor.add_frontmost_layer(Box::new(BufferView::new(quit_tx, render_request.clone())));
@@ -97,6 +101,7 @@ async fn main() {
         render_request.clone(),
         &workspace_dir,
     )));
+    compositor.add_frontmost_layer(Box::new(PromptView::new()));
     compositor.add_frontmost_layer(Box::new(CompletionView::new()));
 
     if open_finder {
@@ -118,8 +123,8 @@ async fn main() {
                 break;
            }
 
-            _ = &mut quit_rx => {
-                 check_if_dirty(&mut compositor, &mut editor, force_quit_tx.clone());
+            Some(()) =  quit_rx.recv() => {
+                check_if_dirty(&mut compositor, &mut editor, force_quit_tx.clone());
             }
 
             Some(ev) = compositor.recv_terminal_event() => {

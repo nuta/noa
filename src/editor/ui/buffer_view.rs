@@ -15,7 +15,7 @@ use noa_compositor::{
     Compositor,
 };
 use noa_proxy::lsp_types::HoverContents;
-use tokio::sync::{oneshot, Notify};
+use tokio::sync::{mpsc::UnboundedSender, oneshot, Notify};
 
 use crate::{
     clipboard::{ClipboardData, SystemClipboardData},
@@ -27,7 +27,7 @@ use crate::{
 };
 
 pub struct BufferView {
-    quit_tx: Option<oneshot::Sender<()>>,
+    quit_tx: UnboundedSender<()>,
     render_request: Arc<Notify>,
     /// The cursor position in surface-local `(y, x)`.
     cursor_position: (usize, usize),
@@ -38,9 +38,9 @@ pub struct BufferView {
 }
 
 impl BufferView {
-    pub fn new(quit_tx: oneshot::Sender<()>, render_request: Arc<Notify>) -> BufferView {
+    pub fn new(quit_tx: UnboundedSender<()>, render_request: Arc<Notify>) -> BufferView {
         BufferView {
-            quit_tx: Some(quit_tx),
+            quit_tx,
             render_request,
             cursor_position: (0, 0),
             selection_start: None,
@@ -246,7 +246,7 @@ impl Surface for BufferView {
 
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), CTRL) => {
-                self.quit_tx.take().unwrap().send(()).oops();
+                self.quit_tx.send(()).oops();
             }
             (KeyCode::Esc, NONE) => {
                 doc.buffer_mut().clear_secondary_cursors();
