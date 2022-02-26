@@ -24,12 +24,13 @@ pub fn prompt<S, F, C>(
     let enter_cb = {
         let title = title.clone();
         editor.register_callback(move |compositor, editor| {
+            info!("Enter pressed in prompt");
             let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
 
             let result = if prompt_view.is_canceled() {
-                Some(prompt_view.input().text())
-            } else {
                 None
+            } else {
+                Some(prompt_view.input().text())
             };
 
             match enter_callback(compositor, editor, result) {

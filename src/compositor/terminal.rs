@@ -87,6 +87,7 @@ impl Drop for Terminal {
         execute!(stdout(), LeaveAlternateScreen).ok();
         execute!(stdout(), cursor::Show).ok();
         disable_raw_mode().ok();
+        stdout().flush().ok();
     }
 }
 

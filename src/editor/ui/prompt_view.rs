@@ -58,10 +58,12 @@ impl PromptView {
         self.title = title.into();
         self.title_width = self.title.display_width();
         self.enter_cb = Some(callback);
+        self.input.clear();
     }
 
     pub fn deactivate(&mut self) {
         self.active = false;
+        self.input.clear();
     }
 }
 
@@ -125,6 +127,7 @@ impl Surface for PromptView {
         // const ALT: KeyModifiers = KeyModifiers::ALT;
         // const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
+        trace!("prompt: {:?}", key);
         match (key.code, key.modifiers) {
             (KeyCode::Enter, NONE) => {
                 if let Some(enter_cb) = self.enter_cb.as_ref() {

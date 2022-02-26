@@ -192,7 +192,7 @@ fn check_if_dirty(
     let title = if num_dirty_docs == 1 {
         format!("save {}? [yn]", dirty_doc.unwrap().name())
     } else {
-        format!("save {} dirty files? [yn]", num_dirty_docs)
+        format!("save {} dirty buffers? [yn]", num_dirty_docs)
     };
 
     if compositor.contains_surface_with_name(&title) {
@@ -209,6 +209,7 @@ fn check_if_dirty(
         move |_, editor, answer| {
             match answer {
                 Some(answer) if answer == "y" => {
+                    info!("saving dirty buffers...");
                     editor.documents.save_all_on_drop(true);
                     force_quit_tx.send(());
                 }
@@ -221,7 +222,7 @@ fn check_if_dirty(
                     // Abort.
                 }
                 _ => {
-                    error!("invalid answer");
+                    notify_error!("invalid answer");
                     return ControlFlow::Continue(());
                 }
             }
