@@ -6,7 +6,7 @@
 "string" = { fg = "green" }
 
 "buffer.find_match" = { bg = "chalky" }
-"buffer.current_line" = { bg = "grey" }
+"buffer.current_line" = { bg = "lightgrey" }
 "buffer.line_status" = { fg = "grey" }
 
 "line_status.modified" = { bg = "purple" }
@@ -44,4 +44,5 @@ deepRed = "#BE5046"
 
 default = "default"
 grey = "#323232"
+lightgrey = "#efefef"
 black = "#111111"
