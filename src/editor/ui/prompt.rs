@@ -12,11 +12,11 @@ pub fn prompt<S, F, C>(
     mode: PromptMode,
     title: S,
     enter_callback: F,
-    mut completion_callback: Option<C>,
+    mut completion_callback: C,
 ) where
     S: Into<String>,
     F: FnOnce(&mut Compositor<Editor>, &mut Editor, Option<String>) + 'static,
-    C: FnMut(&mut Editor, &LineEdit) -> FuzzyVec<String> + 'static,
+    C: FnMut(&mut Editor, &LineEdit) -> Option<FuzzyVec<String>> + 'static,
 {
     let title = title.into();
     let enter_cb = {
@@ -46,9 +46,8 @@ pub fn prompt<S, F, C>(
                 None
             };
 
-            if let Some(mut callback) = completion_callback.as_mut() {
-                let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name(&title);
-                let items = callback(editor, &prompt_view.input);
+            let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name(&title);
+            if let Some(items) = completion_callback(editor, &prompt_view.input) {
                 // prompt_view.set_completion_items(items);
             }
         })

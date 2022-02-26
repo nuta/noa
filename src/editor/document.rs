@@ -39,6 +39,7 @@ pub struct Document {
     backup_path: Option<PathBuf>,
     name: String,
     buffer: Buffer,
+    saved_buffer: RawBuffer,
     view: View,
     movement_state: MovementState,
     completion: Arc<Completion>,
@@ -103,6 +104,7 @@ impl Document {
             path: path.to_owned(),
             backup_path: Some(backup_path),
             name,
+            saved_buffer: buffer.raw_buffer().clone(),
             buffer,
             view: View::new(),
             movement_state: MovementState::new(),
@@ -124,22 +126,30 @@ impl Document {
     pub fn save_to_file(&mut self) -> Result<()> {
         self.buffer.save_undo();
 
-        match self.buffer.save_to_file(&self.path) {
+        let with_sudo = match self.buffer.save_to_file(&self.path) {
             Ok(()) => {
                 if let Some(backup_path) = &self.backup_path {
                     std::fs::remove_file(backup_path).oops();
                 }
+
+                false
             }
             Err(err) if err.kind() == ErrorKind::PermissionDenied => {
                 trace!("saving {} with sudo", self.path.display());
                 self.buffer.save_to_file_with_sudo(&self.path)?;
+                true
             }
             Err(err) => {
                 return Err(anyhow::anyhow!("failed to save: {}", err));
             }
-        }
+        };
 
-        notify_info!("written {} lines", self.buffer.num_lines());
+        self.saved_buffer = self.buffer.raw_buffer().clone();
+        notify_info!(
+            "written {} lines{}",
+            self.buffer.num_lines(),
+            if with_sudo { " w/ sudo" } else { "" }
+        );
         Ok(())
     }
 
@@ -157,6 +167,13 @@ impl Document {
 
     pub fn set_find_query<T: Into<String>>(&mut self, find_query: T) {
         self.find_query = find_query.into();
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        let a = self.buffer.raw_buffer();
+        let b = &self.saved_buffer;
+
+        a.len_chars() == b.len_chars() && a != b
     }
 
     pub fn path(&self) -> &Path {

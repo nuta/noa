@@ -88,7 +88,7 @@ impl Surface for PromptView {
         canvas.write_str(
             0,
             input_x,
-            truncate_to_width(&self.input.text(), canvas.width() - self.name_width - 2),
+            truncate_to_width(&self.input.text(), canvas.width() - input_x),
         );
         canvas.apply_style(0, input_x, canvas.width(), theme_for("prompt.name"));
     }
@@ -108,7 +108,7 @@ impl Surface for PromptView {
             (KeyCode::Enter, NONE) => {
                 editor.invoke_once_callback(compositor, self.callback);
             }
-            (KeyCode::Esc, _) | (KeyCode::Char('q'), CTRL) => {
+            (KeyCode::Esc, _) | (KeyCode::Char('g'), CTRL) => {
                 self.canceled = true;
                 editor.invoke_once_callback(compositor, self.callback);
             }

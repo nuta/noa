@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 
 use arc_swap::ArcSwap;
 use once_cell::sync::Lazy;
@@ -37,6 +40,15 @@ impl NotificationManager {
 
     pub fn notify(&self, noti: Notification) {
         info!("notification: {:?}", noti);
+
+        if PRINT_TO_STDOUT.load(Ordering::SeqCst) {
+            match &noti {
+                Notification::Error(msg) => eprintln!("{}", msg),
+                Notification::Warn(msg) => eprintln!("{}", msg),
+                Notification::Info(msg) => eprintln!("{}", msg),
+            }
+        }
+
         self.notification.store(Arc::new(Some(noti)));
     }
 }
@@ -78,7 +90,12 @@ macro_rules! notify_anyhow_error {
 }
 
 static NOTIFICATIONS: Lazy<NotificationManager> = Lazy::new(NotificationManager::new);
+static PRINT_TO_STDOUT: AtomicBool = AtomicBool::new(false);
 
 pub fn notification_manager() -> &'static Lazy<NotificationManager> {
     &NOTIFICATIONS
+}
+
+pub fn set_stdout_mode(enable: bool) {
+    PRINT_TO_STDOUT.store(enable, Ordering::SeqCst);
 }

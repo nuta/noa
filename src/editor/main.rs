@@ -11,13 +11,15 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use clap::Parser;
 
-use noa_common::{logger::install_logger, time_report::TimeReport};
+use editor::Editor;
+use noa_common::{logger::install_logger, oops::OopsExt, time_report::TimeReport};
 use noa_compositor::{terminal::Event, Compositor};
 use theme::parse_default_theme;
 use tokio::sync::{mpsc, oneshot, Notify};
 use ui::{
     buffer_view::BufferView, completion_view::CompletionView, finder_view::FinderView,
-    meta_line_view::MetaLineView, too_small_view::TooSmallView,
+    meta_line_view::MetaLineView, prompt::prompt, prompt_view::PromptMode,
+    too_small_view::TooSmallView,
 };
 
 #[macro_use]
@@ -109,6 +111,7 @@ async fn main() {
             biased;
 
             _ = &mut quit_rx => {
+                check_if_dirty(&mut compositor, &mut editor);
                 break;
             }
 
@@ -147,4 +150,68 @@ async fn main() {
         }
         idle_timer.reset();
     }
+
+    // Drop compoisitor first to restore the terminal.
+    drop(compositor);
+    notification::set_stdout_mode(true);
+}
+
+fn check_if_dirty(compositor: &mut Compositor<Editor>, editor: &mut Editor) {
+    let mut dirty_doc = None;
+    let mut num_dirty_docs = 0;
+    for (_, doc) in editor.documents.documents() {
+        if doc.is_dirty() {
+            dirty_doc = Some(doc);
+            num_dirty_docs += 1;
+        }
+    }
+
+    if num_dirty_docs == 0 {
+        return;
+    }
+
+    let title = if num_dirty_docs == 1 {
+        format!("save {}? [Yn]", dirty_doc.unwrap().name())
+    } else {
+        format!("save {} dirty files? [Yn]", num_dirty_docs)
+    };
+
+    if compositor.contains_surface_with_name(&title) {
+        // Ctrl-Q is pressed twice. Save all dirty documents and quit.
+        for (_, doc) in editor.documents.documents_mut() {
+            if let Err(err) = doc.save_to_file() {
+                notify_warn!("failed to save {}: {}", doc.path().display(), err);
+            }
+        }
+        return;
+    }
+
+    prompt(
+        compositor,
+        editor,
+        PromptMode::SingleChar,
+        title,
+        |_, editor, answer| {
+            match answer {
+                Some(answer) if answer == "y" => {
+                    // Save all files.
+                    for (_, doc) in editor.documents.documents_mut() {
+                        if let Err(err) = doc.save_to_file() {
+                            notify_warn!("failed to save {}: {}", doc.path().display(), err);
+                        }
+                    }
+                }
+                Some(answer) if answer == "n" => {
+                    // Quit without saving dirty files.
+                }
+                None => {
+                    // Abort.
+                }
+                _ => {
+                    error!("invalid answer");
+                }
+            }
+        },
+        |_, _| None,
+    )
 }

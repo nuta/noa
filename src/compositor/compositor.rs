@@ -97,6 +97,10 @@ impl<C> Compositor<C> {
         });
     }
 
+    pub fn contains_surface_with_name(&self, name: &str) -> bool {
+        self.layers.iter().any(|l| l.surface.name() == name)
+    }
+
     pub fn get_mut_surface_by_name<S>(&mut self, name: &str) -> &mut S
     where
         S: Surface<Context = C>,
