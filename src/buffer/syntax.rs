@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::ControlFlow};
 
 use crate::{
     cursor::{Position, Range},
@@ -109,7 +109,7 @@ impl Syntax {
         }
     }
 
-    pub fn highlight<F>(&self, mut callback: F, buffer: &RawBuffer, range: Range)
+    pub fn highlight<F>(&self, buffer: &RawBuffer, range: Range, mut callback: F)
     where
         F: FnMut(Range, &str),
     {
@@ -129,6 +129,68 @@ impl Syntax {
                 }
             }
         }
+    }
+
+    pub fn words<F>(&self, mut callback: F)
+    where
+        F: FnMut(Range) -> ControlFlow<()>,
+    {
+        const WORD_LEN_MAX: usize = 32;
+
+        self.visit_all_nodes(|node, range| {
+            if range.start.y != range.end.y {
+                return ControlFlow::Continue(());
+            }
+
+            if range.start.x.abs_diff(range.end.x) < WORD_LEN_MAX {
+                return ControlFlow::Continue(());
+            }
+
+            if !node.kind().ends_with("identifier") {
+                return ControlFlow::Continue(());
+            }
+
+            callback(range)
+        });
+    }
+
+    fn visit_ts_node<'a, 'b, 'tree, F>(
+        &self,
+        parent: tree_sitter::Node<'tree>,
+        cursor: &'b mut tree_sitter::TreeCursor<'tree>,
+        callback: &mut F,
+    ) -> ControlFlow<()>
+    where
+        F: FnMut(&tree_sitter::Node<'tree>, Range) -> ControlFlow<()>,
+    {
+        for node in parent.children(cursor) {
+            let node_start = node.start_position();
+            let node_end = node.end_position();
+            let start_pos = Position::new(node_start.row, node_start.column);
+            let end_pos = Position::new(node_end.row, node_end.column);
+            let range = Range::from_positions(start_pos, end_pos);
+
+            if callback(&node, range) == ControlFlow::Break(()) {
+                return ControlFlow::Break(());
+            }
+
+            let mut node_cursor = node.walk();
+            if node.child_count() > 0 {
+                if self.visit_ts_node(node, &mut node_cursor, callback) == ControlFlow::Break(()) {
+                    return ControlFlow::Break(());
+                }
+            }
+        }
+
+        ControlFlow::Continue(())
+    }
+
+    fn visit_all_nodes<F>(&self, mut callback: F)
+    where
+        F: FnMut(&tree_sitter::Node<'_>, Range) -> ControlFlow<()>,
+    {
+        let root = self.tree.root_node();
+        self.visit_ts_node(root, &mut root.walk(), &mut callback);
     }
 }
 

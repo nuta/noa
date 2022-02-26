@@ -85,7 +85,7 @@ impl Buffer {
     {
         let buffer = self.raw_buffer().clone();
         if let Some(syntax) = self.syntax.as_ref() {
-            syntax.highlight(&mut callback, &buffer, range);
+            syntax.highlight(&buffer, range, &mut callback);
         }
     }
 

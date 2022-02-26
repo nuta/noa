@@ -4,11 +4,13 @@ use std::{
     fs::{create_dir_all, OpenOptions},
     io::ErrorKind,
     num::NonZeroUsize,
+    ops::ControlFlow,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
+    time::{Duration, Instant},
 };
 
 use anyhow::Result;
@@ -368,13 +370,26 @@ impl DocumentManager {
         self.save_all_on_drop = enable;
     }
 
-    pub fn words(&mut self) -> FuzzyVec<()> {
-        let mut vec = FuzzyVec::new();
+    pub fn words(&self) -> FuzzyVec<()> {
+        const WORDS_SCAN_DURATION_MAX: Duration = Duration::from_millis(100);
+
+        let mut started_at = Instant::now();
+        let mut words = FuzzyVec::new();
         for doc in self.documents.values() {
-            // TODO:
-            // vec.insert(word, (), 0);
+            let buffer = doc.buffer();
+            if let Some(syntax) = buffer.syntax().as_ref() {
+                syntax.words(|range| {
+                    let word = buffer.substr(range);
+                    words.insert(word, (), 0);
+                    if started_at.elapsed() >= WORDS_SCAN_DURATION_MAX {
+                        ControlFlow::Break(())
+                    } else {
+                        ControlFlow::Continue(())
+                    }
+                });
+            }
         }
-        vec
+        words
     }
 }
 
