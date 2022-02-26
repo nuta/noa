@@ -1,3 +1,4 @@
+use noa_buffer::display_width::DisplayWidth;
 use noa_compositor::{
     canvas::CanvasViewMut,
     line_edit::LineEdit,
@@ -6,7 +7,12 @@ use noa_compositor::{
     Compositor,
 };
 
-use crate::editor::{Editor, OnceCallback};
+use crate::{
+    editor::{Editor, OnceCallback},
+    theme::theme_for,
+};
+
+use super::helpers::truncate_to_width;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PromptMode {
@@ -16,6 +22,7 @@ pub enum PromptMode {
 
 pub struct PromptView {
     name: String,
+    name_width: usize,
     callback: OnceCallback,
     mode: PromptMode,
     pub input: LineEdit,
@@ -24,9 +31,12 @@ pub struct PromptView {
 
 impl PromptView {
     pub fn new<S: Into<String>>(mode: PromptMode, name: S, callback: OnceCallback) -> PromptView {
+        let name = name.into();
+        let name_width = name.display_width();
         PromptView {
             mode,
-            name: name.into(),
+            name,
+            name_width,
             input: LineEdit::new(),
             callback,
             canceled: false,
@@ -64,13 +74,23 @@ impl Surface for PromptView {
     }
 
     fn cursor_position(&self, _editor: &mut Editor) -> Option<(usize, usize)> {
-        Some((0, 1 + self.input.cursor_position()))
+        Some((0, 1 + self.name_width + self.input.cursor_position()))
     }
 
     fn render(&mut self, _editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
         canvas.clear();
 
         self.input.relocate_scroll(canvas.width());
+
+        let input_x = 1 + self.name.display_width() + 1;
+
+        canvas.write_str_with_style(0, 1, &self.name, theme_for("prompt.name"));
+        canvas.write_str(
+            0,
+            input_x,
+            truncate_to_width(&self.input.text(), canvas.width() - self.name_width - 2),
+        );
+        canvas.apply_style(0, input_x, canvas.width(), theme_for("prompt.name"));
     }
 
     fn handle_key_event(

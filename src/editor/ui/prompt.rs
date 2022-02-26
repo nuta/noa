@@ -31,6 +31,7 @@ pub fn prompt<S, F, C>(
             };
 
             enter_callback(compositor, editor, result);
+            compositor.remove_layer(&title);
         })
     };
 
@@ -47,7 +48,8 @@ pub fn prompt<S, F, C>(
 
             if let Some(mut callback) = completion_callback.as_mut() {
                 let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name(&title);
-                callback(editor, &prompt_view.input);
+                let items = callback(editor, &prompt_view.input);
+                // prompt_view.set_completion_items(items);
             }
         })
     };

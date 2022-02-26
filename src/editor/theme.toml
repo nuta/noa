@@ -13,7 +13,8 @@
 "line_status.added" = { bg = "green" }
 "line_status.deleted" = { bg = "deepRed" }
 
-"meta_line.first_line" = { decorations = [ "bold", "inverted" ] }
+"prompt.name" = { bg = "grey", decorations = ["bold"] }
+"meta_line.first_line" = { decorations = ["bold", "inverted"] }
 
 "finder.input" = { fg = "default" }
 "finder.selected" = { fg = "malibu" }

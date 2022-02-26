@@ -124,6 +124,11 @@ impl<C> Compositor<C> {
         unreachable!("surface {} not found", name);
     }
 
+    pub fn remove_layer(&mut self, name: &str) {
+        self.layers.retain(|l| l.surface.name() != name);
+        self.past_layers.retain(|l| l.surface.name() != name);
+    }
+
     pub fn resize_screen(&mut self, height: usize, width: usize) {
         self.screen_size = RectSize { height, width };
         self.screens = [Canvas::new(height, width), Canvas::new(height, width)];
