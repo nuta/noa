@@ -372,21 +372,31 @@ impl DocumentManager {
 
     pub fn words(&self) -> FuzzyVec<()> {
         const WORDS_SCAN_DURATION_MAX: Duration = Duration::from_millis(100);
+        const NON_CODING_LANGS: &[&str] = &["markdown", "json", "yaml", "toml"];
 
         let mut started_at = Instant::now();
         let mut words = FuzzyVec::new();
         for doc in self.documents.values() {
             let buffer = doc.buffer();
-            if let Some(syntax) = buffer.syntax().as_ref() {
-                syntax.words(|range| {
-                    let word = buffer.substr(range);
-                    words.insert(word, (), 0);
-                    if started_at.elapsed() >= WORDS_SCAN_DURATION_MAX {
-                        ControlFlow::Break(())
-                    } else {
-                        ControlFlow::Continue(())
-                    }
-                });
+            let fallback = NON_CODING_LANGS
+                .iter()
+                .any(|l| l == &buffer.language().name);
+
+            match (buffer.syntax().as_ref(), fallback) {
+                (Some(syntax), false) => {
+                    syntax.words(|range| {
+                        let word = buffer.substr(range);
+                        words.insert(word, (), 0);
+                        if started_at.elapsed() >= WORDS_SCAN_DURATION_MAX {
+                            ControlFlow::Break(())
+                        } else {
+                            ControlFlow::Continue(())
+                        }
+                    });
+                }
+                _ => {
+                    // TODO: Implement a fallback for buffers without tree-sitter support.
+                }
             }
         }
         words
