@@ -83,11 +83,16 @@ impl Terminal {
 
 impl Drop for Terminal {
     fn drop(&mut self) {
-        execute!(stdout(), DisableMouseCapture).ok();
-        execute!(stdout(), LeaveAlternateScreen).ok();
-        execute!(stdout(), cursor::Show).ok();
+        let mut stdout = stdout();
+        queue!(
+            stdout,
+            DisableMouseCapture,
+            LeaveAlternateScreen,
+            cursor::Show
+        )
+        .ok();
         disable_raw_mode().ok();
-        stdout().flush().ok();
+        stdout.flush().ok();
     }
 }
 

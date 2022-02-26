@@ -17,6 +17,7 @@ use arc_swap::ArcSwap;
 use noa_buffer::{buffer::Buffer, raw_buffer::RawBuffer, undoable_raw_buffer::Change};
 use noa_common::{
     dirs::{backup_dir, noa_dir},
+    fuzzyvec::FuzzyVec,
     oops::OopsExt,
 };
 use noa_languages::language::guess_language;
@@ -365,6 +366,15 @@ impl DocumentManager {
 
     pub fn save_all_on_drop(&mut self, enable: bool) {
         self.save_all_on_drop = enable;
+    }
+
+    pub fn words(&mut self) -> FuzzyVec<()> {
+        let mut vec = FuzzyVec::new();
+        for doc in self.documents.values() {
+            // TODO:
+            // vec.insert(word, (), 0);
+        }
+        vec
     }
 }
 
