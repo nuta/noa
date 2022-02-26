@@ -1,4 +1,5 @@
 #[macro_use]
+#[allow(unused)]
 extern crate log;
 
 pub mod buffer;
