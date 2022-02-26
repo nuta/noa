@@ -175,7 +175,7 @@ fn check_if_dirty(
 ) {
     let mut dirty_doc = None;
     let mut num_dirty_docs = 0;
-    for (_, doc) in editor.documents.documents() {
+    for doc in editor.documents.documents().values() {
         if doc.is_dirty() && !doc.is_virtual_file() {
             dirty_doc = Some(doc);
             num_dirty_docs += 1;
