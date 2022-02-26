@@ -157,6 +157,8 @@ async fn main() {
             }
         }
 
+        editor.run_pending_callbacks(&mut compositor);
+
         if !skip_rendering {
             compositor.render_to_terminal(&mut editor);
         }
@@ -188,9 +190,9 @@ fn check_if_dirty(
     }
 
     let title = if num_dirty_docs == 1 {
-        format!("save {}? [Yn]", dirty_doc.unwrap().name())
+        format!("save {}? [yn]", dirty_doc.unwrap().name())
     } else {
-        format!("save {} dirty files? [Yn]", num_dirty_docs)
+        format!("save {} dirty files? [yn]", num_dirty_docs)
     };
 
     if compositor.contains_surface_with_name(&title) {

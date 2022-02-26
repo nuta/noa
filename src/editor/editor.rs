@@ -40,8 +40,8 @@ pub struct Editor {
     pub repo: Option<Arc<Repo>>,
     pub proxy: Arc<noa_proxy::client::Client>,
     pub render_request: Arc<Notify>,
-    once_callbacks: HashMap<OnceCallback, Box<dyn FnOnce(&mut Compositor<Editor>, &mut Editor)>>,
-    mut_callbacks: HashMap<Callback, Box<dyn FnMut(&mut Compositor<Editor>, &mut Editor)>>,
+    callbacks: HashMap<Callback, Box<dyn FnMut(&mut Compositor<Editor>, &mut Editor)>>,
+    callback_invocations: Vec<Callback>,
     next_callback_id: usize,
 }
 
@@ -70,8 +70,8 @@ impl Editor {
             repo,
             proxy,
             render_request,
-            once_callbacks: HashMap::new(),
-            mut_callbacks: HashMap::new(),
+            callbacks: HashMap::new(),
+            callback_invocations: Vec::new(),
             next_callback_id: 1,
         }
     }
@@ -137,31 +137,23 @@ impl Editor {
         let id = Callback(NonZeroUsize::new(self.next_callback_id).unwrap());
         self.next_callback_id += 1;
 
-        self.mut_callbacks.insert(id, Box::new(callback));
+        self.callbacks.insert(id, Box::new(callback));
         id
     }
 
-    pub fn invoke_callback(&mut self, compositor: &mut Compositor<Editor>, id: Callback) {
-        if let Some(mut callback) = self.mut_callbacks.remove(&id) {
-            callback(compositor, self);
-        }
+    pub fn invoke_callback_later(&mut self, id: Callback) {
+        self.callback_invocations.push(id);
     }
 
-    pub fn register_once_callback<F>(&mut self, callback: F) -> OnceCallback
-    where
-        F: FnOnce(&mut Compositor<Editor>, &mut Editor) + 'static,
-    {
-        let id = OnceCallback(NonZeroUsize::new(self.next_callback_id).unwrap());
-        self.next_callback_id += 1;
-
-        self.once_callbacks.insert(id, Box::new(callback));
-        id
-    }
-
-    pub fn invoke_once_callback(&mut self, compositor: &mut Compositor<Editor>, id: OnceCallback) {
-        if let Some(callback) = self.once_callbacks.remove(&id) {
-            callback(compositor, self);
+    pub fn run_pending_callbacks(&mut self, compositor: &mut Compositor<Editor>) {
+        let queue = self.callback_invocations.clone();
+        for id in queue {
+            if let Some(mut callback) = self.callbacks.remove(&id) {
+                callback(compositor, self);
+            }
         }
+
+        self.callback_invocations.clear();
     }
 }
 

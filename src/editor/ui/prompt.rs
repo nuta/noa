@@ -35,7 +35,8 @@ pub fn prompt<S, F, C>(
             match enter_callback(compositor, editor, result) {
                 ControlFlow::Continue(()) => {}
                 ControlFlow::Break(()) => {
-                    compositor.remove_layer(&title);
+                    let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
+                    prompt_view.deactivate();
                 }
             }
         })

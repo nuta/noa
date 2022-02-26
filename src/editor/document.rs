@@ -371,10 +371,18 @@ impl DocumentManager {
 impl Drop for DocumentManager {
     fn drop(&mut self) {
         if self.save_all_on_drop {
+            let mut failed_any = false;
+            let mut num_saved_files = 0;
             for doc in self.documents.values_mut() {
                 if let Err(err) = doc.save_to_file() {
                     notify_warn!("failed to save {}: {}", doc.path().display(), err);
+                    failed_any = true;
+                    num_saved_files += 1;
                 }
+            }
+
+            if !failed_any {
+                notify_info!("successfully saved {} files", num_saved_files);
             }
         }
     }

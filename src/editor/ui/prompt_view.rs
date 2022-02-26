@@ -59,6 +59,10 @@ impl PromptView {
         self.title_width = self.title.display_width();
         self.enter_cb = Some(callback);
     }
+
+    pub fn deactivate(&mut self) {
+        self.active = false;
+    }
 }
 
 impl Surface for PromptView {
@@ -73,7 +77,7 @@ impl Surface for PromptView {
     }
 
     fn is_active(&self, _editor: &mut Editor) -> bool {
-        true
+        self.active
     }
 
     fn layout(&mut self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
@@ -124,20 +128,20 @@ impl Surface for PromptView {
         match (key.code, key.modifiers) {
             (KeyCode::Enter, NONE) => {
                 if let Some(enter_cb) = self.enter_cb.as_ref() {
-                    editor.invoke_callback(compositor, *enter_cb);
+                    editor.invoke_callback_later(*enter_cb);
                 }
             }
-            (KeyCode::Esc, _) | (KeyCode::Char('g'), CTRL) => {
+            (KeyCode::Esc, _) | (KeyCode::Char('q'), CTRL) => {
                 self.canceled = true;
                 if let Some(enter_cb) = self.enter_cb.as_ref() {
-                    editor.invoke_callback(compositor, *enter_cb);
+                    editor.invoke_callback_later(*enter_cb);
                 }
             }
             _ => {
                 self.input.consume_key_event(key);
                 if self.mode == PromptMode::SingleChar && !self.input.is_empty() {
                     if let Some(enter_cb) = self.enter_cb.as_ref() {
-                        editor.invoke_callback(compositor, *enter_cb);
+                        editor.invoke_callback_later(*enter_cb);
                     }
                 }
             }
