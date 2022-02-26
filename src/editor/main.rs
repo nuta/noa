@@ -7,7 +7,7 @@ extern crate test;
 #[macro_use]
 extern crate log;
 
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{ops::ControlFlow, path::PathBuf, sync::Arc, time::Duration};
 
 use clap::Parser;
 
@@ -15,7 +15,10 @@ use editor::Editor;
 use noa_common::{logger::install_logger, oops::OopsExt, time_report::TimeReport};
 use noa_compositor::{terminal::Event, Compositor};
 use theme::parse_default_theme;
-use tokio::sync::{mpsc, oneshot, Notify};
+use tokio::sync::{
+    mpsc::{self, unbounded_channel, UnboundedSender},
+    oneshot, Notify,
+};
 use ui::{
     buffer_view::BufferView, completion_view::CompletionView, finder_view::FinderView,
     meta_line_view::MetaLineView, prompt::prompt, prompt_view::PromptMode,
@@ -85,6 +88,7 @@ async fn main() {
     }
 
     let (quit_tx, mut quit_rx) = oneshot::channel();
+    let (force_quit_tx, mut force_quit_rx) = unbounded_channel();
     compositor.add_frontmost_layer(Box::new(TooSmallView::new("too small!")));
     compositor.add_frontmost_layer(Box::new(BufferView::new(quit_tx, render_request.clone())));
     compositor.add_frontmost_layer(Box::new(MetaLineView::new()));
@@ -110,9 +114,12 @@ async fn main() {
         tokio::select! {
             biased;
 
-            _ = &mut quit_rx => {
-                check_if_dirty(&mut compositor, &mut editor);
+            _ = force_quit_rx.recv() => {
                 break;
+           }
+
+            _ = &mut quit_rx => {
+                 check_if_dirty(&mut compositor, &mut editor, force_quit_tx.clone());
             }
 
             Some(ev) = compositor.recv_terminal_event() => {
@@ -156,17 +163,22 @@ async fn main() {
     notification::set_stdout_mode(true);
 }
 
-fn check_if_dirty(compositor: &mut Compositor<Editor>, editor: &mut Editor) {
+fn check_if_dirty(
+    compositor: &mut Compositor<Editor>,
+    editor: &mut Editor,
+    force_quit_tx: UnboundedSender<()>,
+) {
     let mut dirty_doc = None;
     let mut num_dirty_docs = 0;
     for (_, doc) in editor.documents.documents() {
-        if doc.is_dirty() {
+        if doc.is_dirty() && !doc.is_virtual_file() {
             dirty_doc = Some(doc);
             num_dirty_docs += 1;
         }
     }
 
     if num_dirty_docs == 0 {
+        force_quit_tx.send(());
         return;
     }
 
@@ -178,11 +190,7 @@ fn check_if_dirty(compositor: &mut Compositor<Editor>, editor: &mut Editor) {
 
     if compositor.contains_surface_with_name(&title) {
         // Ctrl-Q is pressed twice. Save all dirty documents and quit.
-        for (_, doc) in editor.documents.documents_mut() {
-            if let Err(err) = doc.save_to_file() {
-                notify_warn!("failed to save {}: {}", doc.path().display(), err);
-            }
-        }
+        editor.documents.save_all_on_drop(true);
         return;
     }
 
@@ -191,27 +199,28 @@ fn check_if_dirty(compositor: &mut Compositor<Editor>, editor: &mut Editor) {
         editor,
         PromptMode::SingleChar,
         title,
-        |_, editor, answer| {
+        move |_, editor, answer| {
             match answer {
                 Some(answer) if answer == "y" => {
-                    // Save all files.
-                    for (_, doc) in editor.documents.documents_mut() {
-                        if let Err(err) = doc.save_to_file() {
-                            notify_warn!("failed to save {}: {}", doc.path().display(), err);
-                        }
-                    }
+                    editor.documents.save_all_on_drop(true);
+                    force_quit_tx.send(());
                 }
                 Some(answer) if answer == "n" => {
                     // Quit without saving dirty files.
+                    editor.documents.save_all_on_drop(false);
+                    force_quit_tx.send(());
                 }
                 None => {
                     // Abort.
                 }
                 _ => {
                     error!("invalid answer");
+                    return ControlFlow::Continue(());
                 }
             }
+
+            ControlFlow::Break(())
         },
         |_, _| None,
-    )
+    );
 }

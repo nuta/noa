@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 use noa_common::fuzzyvec::FuzzyVec;
 use noa_compositor::{line_edit::LineEdit, Compositor};
 
@@ -11,17 +13,17 @@ pub fn prompt<S, F, C>(
     editor: &mut Editor,
     mode: PromptMode,
     title: S,
-    enter_callback: F,
+    mut enter_callback: F,
     mut completion_callback: C,
 ) where
     S: Into<String>,
-    F: FnOnce(&mut Compositor<Editor>, &mut Editor, Option<String>) + 'static,
+    F: FnMut(&mut Compositor<Editor>, &mut Editor, Option<String>) -> ControlFlow<()> + 'static,
     C: FnMut(&mut Editor, &LineEdit) -> Option<FuzzyVec<String>> + 'static,
 {
     let title = title.into();
     let enter_cb = {
         let title = title.clone();
-        editor.register_once_callback(move |compositor, editor| {
+        editor.register_callback(move |compositor, editor| {
             let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name(&title);
 
             let result = if prompt_view.canceled {
@@ -30,8 +32,12 @@ pub fn prompt<S, F, C>(
                 None
             };
 
-            enter_callback(compositor, editor, result);
-            compositor.remove_layer(&title);
+            match enter_callback(compositor, editor, result) {
+                ControlFlow::Continue(()) => {}
+                ControlFlow::Break(()) => {
+                    compositor.remove_layer(&title);
+                }
+            }
         })
     };
 

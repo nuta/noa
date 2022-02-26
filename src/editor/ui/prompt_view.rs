@@ -8,7 +8,7 @@ use noa_compositor::{
 };
 
 use crate::{
-    editor::{Editor, OnceCallback},
+    editor::{Callback, Editor, OnceCallback},
     theme::theme_for,
 };
 
@@ -23,14 +23,14 @@ pub enum PromptMode {
 pub struct PromptView {
     name: String,
     name_width: usize,
-    callback: OnceCallback,
+    enter_cb: Callback,
     mode: PromptMode,
     pub input: LineEdit,
     pub canceled: bool,
 }
 
 impl PromptView {
-    pub fn new<S: Into<String>>(mode: PromptMode, name: S, callback: OnceCallback) -> PromptView {
+    pub fn new<S: Into<String>>(mode: PromptMode, name: S, callback: Callback) -> PromptView {
         let name = name.into();
         let name_width = name.display_width();
         PromptView {
@@ -38,7 +38,7 @@ impl PromptView {
             name,
             name_width,
             input: LineEdit::new(),
-            callback,
+            enter_cb: callback,
             canceled: false,
         }
     }
@@ -106,16 +106,16 @@ impl Surface for PromptView {
 
         match (key.code, key.modifiers) {
             (KeyCode::Enter, NONE) => {
-                editor.invoke_once_callback(compositor, self.callback);
+                editor.invoke_callback(compositor, self.enter_cb);
             }
             (KeyCode::Esc, _) | (KeyCode::Char('g'), CTRL) => {
                 self.canceled = true;
-                editor.invoke_once_callback(compositor, self.callback);
+                editor.invoke_callback(compositor, self.enter_cb);
             }
             _ => {
                 self.input.consume_key_event(key);
                 if self.mode == PromptMode::SingleChar && !self.input.is_empty() {
-                    editor.invoke_once_callback(compositor, self.callback);
+                    editor.invoke_callback(compositor, self.enter_cb);
                 }
             }
         }

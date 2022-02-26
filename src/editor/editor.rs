@@ -32,7 +32,7 @@ use crate::{
 pub struct OnceCallback(NonZeroUsize);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct MutCallback(NonZeroUsize);
+pub struct Callback(NonZeroUsize);
 
 pub struct Editor {
     pub documents: DocumentManager,
@@ -41,7 +41,7 @@ pub struct Editor {
     pub proxy: Arc<noa_proxy::client::Client>,
     pub render_request: Arc<Notify>,
     once_callbacks: HashMap<OnceCallback, Box<dyn FnOnce(&mut Compositor<Editor>, &mut Editor)>>,
-    mut_callbacks: HashMap<MutCallback, Box<dyn FnMut(&mut Compositor<Editor>, &mut Editor)>>,
+    mut_callbacks: HashMap<Callback, Box<dyn FnMut(&mut Compositor<Editor>, &mut Editor)>>,
     next_callback_id: usize,
 }
 
@@ -130,18 +130,18 @@ impl Editor {
         }
     }
 
-    pub fn register_callback<F>(&mut self, callback: F) -> MutCallback
+    pub fn register_callback<F>(&mut self, callback: F) -> Callback
     where
         F: FnMut(&mut Compositor<Editor>, &mut Editor) + 'static,
     {
-        let id = MutCallback(NonZeroUsize::new(self.next_callback_id).unwrap());
+        let id = Callback(NonZeroUsize::new(self.next_callback_id).unwrap());
         self.next_callback_id += 1;
 
         self.mut_callbacks.insert(id, Box::new(callback));
         id
     }
 
-    pub fn invoke_callback(&mut self, compositor: &mut Compositor<Editor>, id: MutCallback) {
+    pub fn invoke_callback(&mut self, compositor: &mut Compositor<Editor>, id: Callback) {
         if let Some(mut callback) = self.mut_callbacks.remove(&id) {
             callback(compositor, self);
         }

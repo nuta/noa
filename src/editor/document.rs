@@ -37,6 +37,7 @@ pub struct Document {
     version: usize,
     path: PathBuf,
     backup_path: Option<PathBuf>,
+    virtual_file: bool,
     name: String,
     buffer: Buffer,
     saved_buffer: RawBuffer,
@@ -103,6 +104,7 @@ impl Document {
             version: 1,
             path: path.to_owned(),
             backup_path: Some(backup_path),
+            virtual_file: false,
             name,
             saved_buffer: buffer.raw_buffer().clone(),
             buffer,
@@ -163,6 +165,14 @@ impl Document {
 
     pub fn set_name<S: Into<String>>(&mut self, name: S) {
         self.name = name.into();
+    }
+
+    pub fn is_virtual_file(&self) -> bool {
+        self.virtual_file
+    }
+
+    pub fn set_virtual_file(&mut self, virtual_file: bool) {
+        self.virtual_file = virtual_file;
     }
 
     pub fn set_find_query<T: Into<String>>(&mut self, find_query: T) {
@@ -289,6 +299,7 @@ impl Document {
 pub struct DocumentManager {
     current: DocumentId,
     documents: HashMap<DocumentId, Document>,
+    save_all_on_drop: bool,
 }
 
 impl DocumentManager {
@@ -296,10 +307,12 @@ impl DocumentManager {
         let mut scratch_doc =
             Document::new(&noa_dir().join("scratch.txt")).expect("failed to open scratch");
         scratch_doc.set_name("**scratch**");
+        scratch_doc.set_virtual_file(true);
 
         let mut manager = DocumentManager {
             current: scratch_doc.id,
             documents: HashMap::new(),
+            save_all_on_drop: false,
         };
         manager.add(scratch_doc);
         manager
@@ -348,5 +361,21 @@ impl DocumentManager {
 
     pub fn current_mut(&mut self) -> &mut Document {
         self.documents.get_mut(&self.current).unwrap()
+    }
+
+    pub fn save_all_on_drop(&mut self, enable: bool) {
+        self.save_all_on_drop = enable;
+    }
+}
+
+impl Drop for DocumentManager {
+    fn drop(&mut self) {
+        if self.save_all_on_drop {
+            for doc in self.documents.values_mut() {
+                if let Err(err) = doc.save_to_file() {
+                    notify_warn!("failed to save {}: {}", doc.path().display(), err);
+                }
+            }
+        }
     }
 }
