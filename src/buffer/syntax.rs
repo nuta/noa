@@ -142,7 +142,7 @@ impl Syntax {
                 return ControlFlow::Continue(());
             }
 
-            if range.start.x.abs_diff(range.end.x) < WORD_LEN_MAX {
+            if range.start.x.abs_diff(range.end.x) > WORD_LEN_MAX {
                 return ControlFlow::Continue(());
             }
 

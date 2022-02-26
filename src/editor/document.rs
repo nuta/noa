@@ -380,6 +380,7 @@ impl DocumentManager {
             if let Some(syntax) = buffer.syntax().as_ref() {
                 syntax.words(|range| {
                     let word = buffer.substr(range);
+                    trace!("word: \"{}\"", word);
                     words.insert(word, (), 0);
                     if started_at.elapsed() >= WORDS_SCAN_DURATION_MAX {
                         ControlFlow::Break(())
