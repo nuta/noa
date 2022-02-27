@@ -23,7 +23,6 @@ fn walk_ts_node<'tree>(
 
     for node in parent.children(cursor) {
         let range = node.buffer_range();
-        dbg!(&range);
         if range.contains_range(selection) && range != selection {
             // A child node may contain narrower selection than `range`.
             return walk_ts_node(node, &mut node.walk(), selection);
@@ -94,6 +93,8 @@ mod tests {
         assert_eq!(selected_str(&b), "(vec![123 + 0, 456])");
         b.expand_selections();
         assert_eq!(selected_str(&b), "dbg!(vec![123 + 0, 456])");
+        b.expand_selections();
+        assert_eq!(selected_str(&b), "dbg!(vec![123 + 0, 456]);");
         b.expand_selections();
         assert_eq!(
             selected_str(&b),

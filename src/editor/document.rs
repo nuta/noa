@@ -16,7 +16,9 @@ use std::{
 use anyhow::Result;
 
 use arc_swap::ArcSwap;
-use noa_buffer::{buffer::Buffer, raw_buffer::RawBuffer, undoable_raw_buffer::Change};
+use noa_buffer::{
+    buffer::Buffer, cursor::Position, raw_buffer::RawBuffer, undoable_raw_buffer::Change,
+};
 use noa_common::{
     dirs::{backup_dir, noa_dir},
     fuzzyvec::FuzzyVec,
@@ -371,7 +373,11 @@ impl DocumentManager {
     }
 
     pub fn words(&self) -> FuzzyVec<()> {
-        const WORDS_SCAN_DURATION_MAX: Duration = Duration::from_millis(100);
+        const WORDS_SCAN_DURATION_MAX: Duration = Duration::from_millis(5);
+        self.words_with_deadline(WORDS_SCAN_DURATION_MAX)
+    }
+
+    pub fn words_with_deadline(&self, max_duration: Duration) -> FuzzyVec<()> {
         const NON_CODING_LANGS: &[&str] = &["markdown", "json", "yaml", "toml"];
 
         let mut started_at = Instant::now();
@@ -387,7 +393,7 @@ impl DocumentManager {
                     syntax.words(|range| {
                         let word = buffer.substr(range);
                         words.insert(word, (), 0);
-                        if started_at.elapsed() >= WORDS_SCAN_DURATION_MAX {
+                        if started_at.elapsed() >= max_duration {
                             ControlFlow::Break(())
                         } else {
                             ControlFlow::Continue(())
@@ -396,6 +402,14 @@ impl DocumentManager {
                 }
                 _ => {
                     // TODO: Implement a fallback for buffers without tree-sitter support.
+                    let iter = buffer.word_iter_from_beginning_of_word(Position::new(0, 0));
+                    for word in iter {
+                        if started_at.elapsed() >= max_duration {
+                            break;
+                        }
+
+                        words.insert(word.text(), (), 0);
+                    }
                 }
             }
         }
@@ -420,5 +434,64 @@ impl Drop for DocumentManager {
                 notify_info!("successfully saved {} files", num_saved_files);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use noa_languages::language::get_language_by_name;
+    use tempfile::NamedTempFile;
+
+    use super::*;
+
+    fn create_documents(
+        num_files: usize,
+        num_lines: usize,
+    ) -> (DocumentManager, Vec<NamedTempFile>) {
+        let text = &(format!("{}\n", "int hello; ".repeat(80 / 10))).repeat(num_lines);
+
+        let mut documents = DocumentManager::new();
+        let mut dummy_files = Vec::new();
+        for _ in 0..num_files {
+            let dummy_file = tempfile::NamedTempFile::new().unwrap();
+            let mut doc = Document::new(dummy_file.path()).unwrap();
+            doc.buffer_mut().insert(&text);
+            doc.buffer_mut()
+                .set_language(get_language_by_name("c").unwrap());
+            documents.add(doc);
+            dummy_files.push(dummy_file);
+        }
+
+        (documents, dummy_files)
+    }
+
+    #[bench]
+    fn bench_words_10_lines(b: &mut test::Bencher) {
+        let (documents, _dummy_files) = create_documents(1, 10);
+        b.iter(|| documents.words_with_deadline(Duration::from_secs(128)));
+    }
+
+    #[bench]
+    fn bench_words_1000_lines(b: &mut test::Bencher) {
+        let (documents, _dummy_files) = create_documents(1, 1000);
+        b.iter(|| documents.words_with_deadline(Duration::from_secs(128)));
+    }
+
+    #[bench]
+    fn bench_words_10000_lines(b: &mut test::Bencher) {
+        let (documents, _dummy_files) = create_documents(1, 10000);
+        b.iter(|| documents.words_with_deadline(Duration::from_secs(128)));
+    }
+
+    #[bench]
+    fn bench_words_1_file(b: &mut test::Bencher) {
+        let (documents, _dummy_files) = create_documents(1, 1000);
+        b.iter(|| documents.words_with_deadline(Duration::from_secs(128)));
+    }
+
+    #[bench]
+    fn bench_words_16_files(b: &mut test::Bencher) {
+        let (documents, _dummy_files) = create_documents(16, 1000);
+        b.iter(|| documents.words_with_deadline(Duration::from_secs(128)));
     }
 }
