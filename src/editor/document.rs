@@ -478,20 +478,8 @@ mod tests {
     }
 
     #[bench]
-    fn bench_words_10000_lines(b: &mut test::Bencher) {
-        let (documents, _dummy_files) = create_documents(1, 10000);
-        b.iter(|| documents.words_with_deadline(Duration::from_secs(128)));
-    }
-
-    #[bench]
     fn bench_words_1_file(b: &mut test::Bencher) {
         let (documents, _dummy_files) = create_documents(1, 1000);
-        b.iter(|| documents.words_with_deadline(Duration::from_secs(128)));
-    }
-
-    #[bench]
-    fn bench_words_16_files(b: &mut test::Bencher) {
-        let (documents, _dummy_files) = create_documents(16, 1000);
         b.iter(|| documents.words_with_deadline(Duration::from_secs(128)));
     }
 }

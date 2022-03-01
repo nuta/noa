@@ -15,7 +15,7 @@ use crate::{
     theme::theme_for,
 };
 
-use super::helpers::truncate_to_width;
+use super::helpers::{truncate_to_width, truncate_to_width_reverse};
 
 struct LastNotification {
     theme_key: &'static str,
@@ -26,8 +26,6 @@ pub struct MetaLineView {
     search_query: LineEdit,
     last_notification: Option<LastNotification>,
     clear_notification_after: usize,
-    notification_height: usize,
-    search_query_height: usize,
 }
 
 impl MetaLineView {
@@ -36,8 +34,6 @@ impl MetaLineView {
             search_query: LineEdit::new(),
             last_notification: None,
             clear_notification_after: 0,
-            notification_height: 0,
-            search_query_height: 0,
         }
     }
 }
@@ -58,50 +54,16 @@ impl Surface for MetaLineView {
     }
 
     fn layout(&mut self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
-        let mut height = 1;
-        let half_width = screen_size.width / 2;
-        let width = screen_size
-            .width
-            .clamp(min(25, half_width), min(50, half_width));
-
-        // Notification.
-        if let Some(noti) = notification_manager().last_notification().as_ref() {
-            let (theme_key, text) = match noti {
-                Notification::Info(message) => ("notification.info", message.as_str()),
-                Notification::Warn(message) => ("notification.warn", message.as_str()),
-                Notification::Error(err) => ("notification.error", err.as_str()),
-            };
-
-            if self.clear_notification_after == 0 {
-                self.clear_notification_after = 3;
-            }
-
-            let wrapped_text = textwrap::fill(text, width);
-            self.notification_height = min(8, wrapped_text.lines().count());
-            self.last_notification = Some(LastNotification {
-                theme_key,
-                wrapped_text,
-            });
-            height += self.notification_height;
-        } else {
-            self.notification_height = 0;
-            self.last_notification = None;
-        };
-
-        // Search query.
-        if !self.search_query.is_empty() {
-            self.search_query_height = 1;
-            height += 1;
-        } else {
-            self.search_query_height = 0;
-        }
-
+        let height = 1;
         (
             Layout::Fixed {
                 y: screen_size.height.saturating_sub(height),
-                x: screen_size.width.saturating_sub(width),
+                x: 0,
             },
-            RectSize { height, width },
+            RectSize {
+                height,
+                width: screen_size.width,
+            },
         )
     }
 
@@ -141,49 +103,78 @@ impl Surface for MetaLineView {
             format!("{}", cursor_pos.x)
         };
         let cursor_pos_width = cursor_pos_str.display_width();
-        let filename_max_width = canvas.width() - cursor_pos_width - 2;
+        let filename_max_width = 32usize;
         let search_query = self.search_query.text();
 
         // Notification.
-        if let Some(LastNotification {
-            theme_key,
-            wrapped_text,
-        }) = self.last_notification.as_ref()
-        {
-            let style = theme_for(theme_key);
-            for (y, line) in wrapped_text
-                .lines()
-                .take(self.notification_height)
-                .enumerate()
-            {
-                canvas.write_str(y, 0, line);
-                canvas.apply_style(y, 0, canvas.width(), style);
-            }
-        }
+        // if let Some(LastNotification {
+        //     theme_key,
+        //     wrapped_text,
+        // }) = self.last_notification.as_ref()
+        // {
+        //     let style = theme_for(theme_key);
+        //     for (y, line) in wrapped_text
+        //         .lines()
+        //         .take(self.notification_height)
+        //         .enumerate()
+        //     {
+        //         canvas.write_str(y, 0, line);
+        //         canvas.apply_style(y, 0, canvas.width(), style);
+        //     }
+        // }
+
+        // if let Some(noti) = notification_manager().last_notification().as_ref() {
+        //     let (theme_key, text) = match noti {
+        //         Notification::Info(message) => ("notification.info", message.as_str()),
+        //         Notification::Warn(message) => ("notification.warn", message.as_str()),
+        //         Notification::Error(err) => ("notification.error", err.as_str()),
+        //     };
+
+        //     if self.clear_notification_after == 0 {
+        //         self.clear_notification_after = 3;
+        //     }
+
+        //     let wrapped_text = textwrap::fill(text, width);
+        //     self.notification_height = min(8, wrapped_text.lines().count());
+        //     self.last_notification = Some(LastNotification {
+        //         theme_key,
+        //         wrapped_text,
+        //     });
+        //     height += self.notification_height;
+        // } else {
+        //     self.notification_height = 0;
+        //     self.last_notification = None;
+        // };
 
         // // Search query.
-        canvas.write_str(self.notification_height, 1, &search_query);
+        canvas.write_str(0, 1, &search_query);
 
         // File name.
+        let filename = truncate_to_width_reverse(
+            doc.name(),
+            filename_max_width.saturating_sub(cursor_pos_width + 2),
+        );
         canvas.write_str(
-            self.notification_height + self.search_query_height,
-            1,
-            truncate_to_width(doc.name(), filename_max_width),
+            0,
+            canvas.width() - 1 - cursor_pos_width - 1 - filename.display_width() - 1,
+            filename,
         );
 
         // Cursor position.
-        canvas.write_str(
-            self.notification_height + self.search_query_height,
-            canvas.width() - 1 - cursor_pos_width,
-            &cursor_pos_str,
-        );
+        canvas.write_str(0, canvas.width() - 1 - cursor_pos_width, &cursor_pos_str);
 
-        // The first line.
+        // Apply the style.
         canvas.apply_style(
-            self.notification_height + self.search_query_height,
             0,
+            0,
+            canvas.width() - 1 - cursor_pos_width,
+            theme_for("meta_line.background"),
+        );
+        canvas.apply_style(
+            0,
+            canvas.width() - 2 - cursor_pos_width,
             canvas.width(),
-            theme_for("meta_line.first_line"),
+            theme_for("meta_line.cursor_pos"),
         );
     }
 
