@@ -112,7 +112,7 @@ impl Surface for MetaLineView {
             format!("{}", cursor_pos.x)
         };
         let cursor_pos_width = cursor_pos_str.display_width();
-        let search_query = editor.search_query.text();
+        let search_query = doc.find_query().text();
 
         // Apply the style.
         canvas.apply_style(0, 0, canvas.width(), theme_for("meta_line.background"));
@@ -170,14 +170,20 @@ impl Surface for MetaLineView {
             MetaLineMode::Search => match (key.code, key.modifiers) {
                 (KeyCode::Esc, NONE) => {
                     self.mode = MetaLineMode::Normal;
-                    editor.search_query.clear();
+                    editor.documents.current_mut().find_query_mut().clear();
                     HandledEvent::Consumed
                 }
-                _ => editor.search_query.consume_key_event(key),
+                _ => editor
+                    .documents
+                    .current_mut()
+                    .find_query_mut()
+                    .consume_key_event(key),
             },
             MetaLineMode::Normal => match (key.code, key.modifiers) {
-                (KeyCode::Esc, NONE) if !editor.search_query.is_empty() => {
-                    editor.search_query.clear();
+                (KeyCode::Esc, NONE)
+                    if !editor.documents.current_mut().find_query_mut().is_empty() =>
+                {
+                    editor.documents.current_mut().find_query_mut().clear();
                     HandledEvent::Consumed
                 }
                 (KeyCode::Esc, NONE) if self.last_notification.is_some() => {
@@ -206,7 +212,7 @@ impl Surface for MetaLineView {
     ) -> HandledEvent {
         match self.mode {
             MetaLineMode::Search => {
-                editor.search_query.insert(s);
+                editor.documents.current_mut().find_query_mut().insert(s);
                 HandledEvent::Consumed
             }
             MetaLineMode::Normal => HandledEvent::Ignored,

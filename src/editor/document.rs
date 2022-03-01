@@ -24,6 +24,7 @@ use noa_common::{
     fuzzyvec::FuzzyVec,
     oops::OopsExt,
 };
+use noa_compositor::line_edit::LineEdit;
 use noa_languages::language::guess_language;
 
 use crate::{
@@ -51,7 +52,7 @@ pub struct Document {
     completion: Arc<Completion>,
     flashes: FlashManager,
     linemap: Arc<ArcSwap<LineMap>>,
-    find_query: String,
+    find_query: LineEdit,
     post_update_hook: Option<Box<dyn FnMut(usize /* version */, &RawBuffer, Vec<Change>)>>,
 }
 
@@ -118,7 +119,7 @@ impl Document {
             completion: Arc::new(Completion::new()),
             flashes: FlashManager::new(),
             linemap: Arc::new(ArcSwap::from_pointee(LineMap::new())),
-            find_query: String::new(),
+            find_query: LineEdit::new(),
             post_update_hook: None,
         })
     }
@@ -180,8 +181,12 @@ impl Document {
         self.virtual_file = virtual_file;
     }
 
-    pub fn set_find_query<T: Into<String>>(&mut self, find_query: T) {
-        self.find_query = find_query.into();
+    pub fn find_query(&self) -> &LineEdit {
+        &self.find_query
+    }
+
+    pub fn find_query_mut(&mut self) -> &mut LineEdit {
+        &mut self.find_query
     }
 
     pub fn is_dirty(&self) -> bool {
@@ -236,11 +241,12 @@ impl Document {
         self.view.layout(&self.buffer, height, width);
         self.view.clear_highlights(height);
 
+        let visible_range = self.view.visible_range();
+
         // FIXME: Deal with the borrow checker and stop using this temporary vec
         //        to avoid unnecessary memory copies.
         let mut highlights = Vec::new();
-        let range = self.view.visible_range();
-        self.buffer.highlight(range, |range, span| {
+        self.buffer.highlight(visible_range, |range, span| {
             highlights.push((range, span.to_owned()));
         });
 
@@ -251,7 +257,7 @@ impl Document {
         // Highlight find matches in visible rows.
         for range in self
             .buffer
-            .find_iter(&self.find_query, self.view.first_visible_position())
+            .find_iter(&self.find_query.text(), self.view.first_visible_position())
         {
             if range.front() > self.view.last_visible_position() {
                 break;

@@ -343,7 +343,7 @@ impl Surface for BufferView {
 
                 if let Some(word_range) = word_range {
                     let text = buffer.substr(word_range);
-                    doc.set_find_query(text);
+                    doc.find_query_mut().set_text(&text);
                 }
             }
             // Select all occurrences of the current word or the current selection.
