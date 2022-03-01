@@ -13,7 +13,7 @@ use noa_buffer::{
     undoable_raw_buffer::Change,
 };
 use noa_common::oops::OopsExt;
-use noa_compositor::Compositor;
+use noa_compositor::{line_edit::LineEdit, Compositor};
 use noa_languages::language::Language;
 use noa_proxy::{client::Client as ProxyClient, lsp_types::TextEdit, protocol::Notification};
 use tokio::sync::{
@@ -40,6 +40,7 @@ pub struct Editor {
     pub repo: Option<Arc<Repo>>,
     pub proxy: Arc<noa_proxy::client::Client>,
     pub render_request: Arc<Notify>,
+    pub search_query: LineEdit,
     callbacks: HashMap<Callback, Box<dyn FnMut(&mut Compositor<Editor>, &mut Editor)>>,
     callback_invocations: Vec<Callback>,
     next_callback_id: usize,
@@ -70,6 +71,7 @@ impl Editor {
             repo,
             proxy,
             render_request,
+            search_query: LineEdit::new(),
             callbacks: HashMap::new(),
             callback_invocations: Vec::new(),
             next_callback_id: 1,

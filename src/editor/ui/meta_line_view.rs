@@ -29,7 +29,6 @@ struct LastNotification {
 
 pub struct MetaLineView {
     mode: MetaLineMode,
-    search_query: LineEdit,
     last_notification: Option<LastNotification>,
     clear_notification_after: usize,
 }
@@ -38,7 +37,6 @@ impl MetaLineView {
     pub fn new() -> MetaLineView {
         MetaLineView {
             mode: MetaLineMode::Normal,
-            search_query: LineEdit::new(),
             last_notification: None,
             clear_notification_after: 0,
         }
@@ -46,10 +44,6 @@ impl MetaLineView {
 
     pub fn set_mode(&mut self, mode: MetaLineMode) {
         self.mode = mode;
-    }
-
-    pub fn set_search_query(&mut self, query: &str) {
-        self.search_query.set_text(query);
     }
 }
 
@@ -118,7 +112,7 @@ impl Surface for MetaLineView {
             format!("{}", cursor_pos.x)
         };
         let cursor_pos_width = cursor_pos_str.display_width();
-        let search_query = self.search_query.text();
+        let search_query = editor.search_query.text();
 
         // Apply the style.
         canvas.apply_style(0, 0, canvas.width(), theme_for("meta_line.background"));
@@ -164,7 +158,7 @@ impl Surface for MetaLineView {
     fn handle_key_event(
         &mut self,
         _compositor: &mut Compositor<Self::Context>,
-        _editor: &mut Editor,
+        editor: &mut Editor,
         key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
@@ -176,14 +170,14 @@ impl Surface for MetaLineView {
             MetaLineMode::Search => match (key.code, key.modifiers) {
                 (KeyCode::Esc, NONE) => {
                     self.mode = MetaLineMode::Normal;
-                    self.search_query.clear();
+                    editor.search_query.clear();
                     HandledEvent::Consumed
                 }
-                _ => self.search_query.consume_key_event(key),
+                _ => editor.search_query.consume_key_event(key),
             },
             MetaLineMode::Normal => match (key.code, key.modifiers) {
-                (KeyCode::Esc, NONE) if !self.search_query.is_empty() => {
-                    self.search_query.clear();
+                (KeyCode::Esc, NONE) if !editor.search_query.is_empty() => {
+                    editor.search_query.clear();
                     HandledEvent::Consumed
                 }
                 (KeyCode::Esc, NONE) if self.last_notification.is_some() => {
@@ -207,12 +201,12 @@ impl Surface for MetaLineView {
     fn handle_key_batch_event(
         &mut self,
         _compositor: &mut Compositor<Editor>,
-        _editor: &mut Editor,
+        editor: &mut Editor,
         s: &str,
     ) -> HandledEvent {
         match self.mode {
             MetaLineMode::Search => {
-                self.search_query.insert(s);
+                editor.search_query.insert(s);
                 HandledEvent::Consumed
             }
             MetaLineMode::Normal => HandledEvent::Ignored,
