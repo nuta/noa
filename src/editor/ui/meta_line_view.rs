@@ -17,12 +17,18 @@ use crate::{
 
 use super::helpers::{truncate_to_width, truncate_to_width_suffix};
 
+pub enum MetaLineMode {
+    Normal,
+    Search,
+}
+
 struct LastNotification {
     theme_key: &'static str,
     wrapped_text: String,
 }
 
 pub struct MetaLineView {
+    mode: MetaLineMode,
     search_query: LineEdit,
     last_notification: Option<LastNotification>,
     clear_notification_after: usize,
@@ -31,10 +37,19 @@ pub struct MetaLineView {
 impl MetaLineView {
     pub fn new() -> MetaLineView {
         MetaLineView {
+            mode: MetaLineMode::Normal,
             search_query: LineEdit::new(),
             last_notification: None,
             clear_notification_after: 0,
         }
+    }
+
+    pub fn set_mode(&mut self, mode: MetaLineMode) {
+        self.mode = mode;
+    }
+
+    pub fn set_search_query(&mut self, query: &str) {
+        self.search_query.set_text(query);
     }
 }
 
@@ -157,27 +172,35 @@ impl Surface for MetaLineView {
         // const ALT: KeyModifiers = KeyModifiers::ALT;
         // const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
-        trace!("MetaLineView::handle_key_event: {:?}", key);
-
-        match (key.code, key.modifiers) {
-            (KeyCode::Esc, NONE) if !self.search_query.is_empty() => {
-                self.search_query.clear();
-                HandledEvent::Consumed
-            }
-            (KeyCode::Esc, NONE) if self.last_notification.is_some() => {
-                notification_manager().clear();
-                self.last_notification = None;
-                HandledEvent::Consumed
-            }
-            _ => {
-                self.clear_notification_after = self.clear_notification_after.saturating_sub(1);
-                if self.clear_notification_after == 0 {
+        match self.mode {
+            MetaLineMode::Search => match (key.code, key.modifiers) {
+                (KeyCode::Esc, NONE) => {
+                    self.mode = MetaLineMode::Normal;
+                    self.search_query.clear();
+                    HandledEvent::Consumed
+                }
+                _ => self.search_query.consume_key_event(key),
+            },
+            MetaLineMode::Normal => match (key.code, key.modifiers) {
+                (KeyCode::Esc, NONE) if !self.search_query.is_empty() => {
+                    self.search_query.clear();
+                    HandledEvent::Consumed
+                }
+                (KeyCode::Esc, NONE) if self.last_notification.is_some() => {
                     notification_manager().clear();
                     self.last_notification = None;
+                    HandledEvent::Consumed
                 }
+                _ => {
+                    self.clear_notification_after = self.clear_notification_after.saturating_sub(1);
+                    if self.clear_notification_after == 0 {
+                        notification_manager().clear();
+                        self.last_notification = None;
+                    }
 
-                HandledEvent::Ignored
-            }
+                    HandledEvent::Ignored
+                }
+            },
         }
     }
 
@@ -185,8 +208,14 @@ impl Surface for MetaLineView {
         &mut self,
         _compositor: &mut Compositor<Editor>,
         _editor: &mut Editor,
-        _s: &str,
+        s: &str,
     ) -> HandledEvent {
-        HandledEvent::Ignored
+        match self.mode {
+            MetaLineMode::Search => {
+                self.search_query.insert(s);
+                HandledEvent::Consumed
+            }
+            MetaLineMode::Normal => HandledEvent::Ignored,
+        }
     }
 }

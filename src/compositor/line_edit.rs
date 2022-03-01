@@ -22,6 +22,11 @@ impl LineEdit {
         le
     }
 
+    pub fn set_text(&mut self, text: &str) {
+        self.buffer.clear();
+        self.insert(text);
+    }
+
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
