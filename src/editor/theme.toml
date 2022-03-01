@@ -14,8 +14,7 @@
 "line_status.deleted" = { bg = "deepRed" }
 
 "prompt.name" = { bg = "grey", decorations = ["bold"] }
-"meta_line.right_side" = { bg = "lightgrey2" }
-"meta_line.cursor_pos" = { bg = "lightgrey2" }
+"meta_line.background" = { bg = "lightgrey2" }
 
 "finder.input" = { fg = "default" }
 "finder.selected" = { fg = "malibu" }
@@ -47,5 +46,6 @@ deepRed = "#BE5046"
 default = "default"
 grey = "#323232"
 lightgrey = "#3a3a3a"
-lightgrey2 = "#2545aa"
+lightgrey2 = "#15155a"
+lightgrey3 = "#2545aa"
 black = "#111111"

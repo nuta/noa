@@ -17,7 +17,7 @@ pub fn truncate_to_width(s: &str, width: usize) -> &str {
     prev_substr.unwrap_or(s)
 }
 
-pub fn truncate_to_width_reverse(s: &str, width: usize) -> &str {
+pub fn truncate_to_width_suffix(s: &str, width: usize) -> &str {
     if s.display_width() <= width {
         return s;
     }
@@ -50,11 +50,11 @@ mod tests {
 
     #[test]
     fn test_truncate_to_width_reserve() {
-        assert_eq!(truncate_to_width_reverse("", 0), "");
-        assert_eq!(truncate_to_width_reverse("a", 0), "");
-        assert_eq!(truncate_to_width_reverse("abc", 3), "abc");
-        assert_eq!(truncate_to_width_reverse("abc", 2), "bc");
-        assert_eq!(truncate_to_width_reverse("あい", 3), "い");
-        assert_eq!(truncate_to_width_reverse("あ", 1), "");
+        assert_eq!(truncate_to_width_suffix("", 0), "");
+        assert_eq!(truncate_to_width_suffix("a", 0), "");
+        assert_eq!(truncate_to_width_suffix("abc", 3), "abc");
+        assert_eq!(truncate_to_width_suffix("abc", 2), "bc");
+        assert_eq!(truncate_to_width_suffix("あい", 3), "い");
+        assert_eq!(truncate_to_width_suffix("あ", 1), "");
     }
 }
