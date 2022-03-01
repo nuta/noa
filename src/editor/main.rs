@@ -32,6 +32,7 @@ use ui::{
 #[macro_use]
 mod notification;
 
+mod actions;
 mod clipboard;
 mod completion;
 mod document;

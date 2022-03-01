@@ -186,6 +186,35 @@ impl Buffer {
         self.cursors.update_cursors(&new_cursors);
     }
 
+    pub fn foreach_cursors<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&mut UndoableRawBuffer, &mut Cursor, &mut [Cursor]),
+    {
+        self.cursors.foreach(|c, past_cursors| {
+            f(&mut self.buf, c, past_cursors);
+        });
+    }
+
+    pub fn edit_selection_current_word<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&str) -> String,
+    {
+        self.foreach_cursors(|buf, c, past_cursors| {
+            if c.selection().is_empty() {
+                // Select the current word.
+                if let Some(selection) = buf.current_word(c.moving_position()) {
+                    c.select_pos(selection);
+                }
+            }
+
+            if c.selection().is_empty() {
+                let text = buf.substr(c.selection());
+                let new_text = f(&text);
+                buf.edit_at_cursor(c, past_cursors, &new_text);
+            }
+        });
+    }
+
     pub fn deselect_cursors(&mut self) {
         self.cursors.foreach(|c, _past_cursors| {
             c.move_to(c.moving_position().y, c.moving_position().x);
