@@ -455,7 +455,7 @@ mod tests {
         for _ in 0..num_files {
             let dummy_file = tempfile::NamedTempFile::new().unwrap();
             let mut doc = Document::new(dummy_file.path()).unwrap();
-            doc.buffer_mut().insert(&text);
+            doc.buffer_mut().insert(text);
             doc.buffer_mut()
                 .set_language(get_language_by_name("c").unwrap());
             documents.add(doc);

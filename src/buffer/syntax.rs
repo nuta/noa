@@ -175,10 +175,8 @@ impl Syntax {
             }
 
             let mut node_cursor = node.walk();
-            if node.child_count() > 0 {
-                if self.visit_ts_node(node, &mut node_cursor, callback) == ControlFlow::Break(()) {
-                    return ControlFlow::Break(());
-                }
+            if node.child_count() > 0 && self.visit_ts_node(node, &mut node_cursor, callback) == ControlFlow::Break(()) {
+                return ControlFlow::Break(());
             }
         }
 
