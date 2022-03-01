@@ -73,7 +73,12 @@ impl Terminal {
     }
 
     pub fn clear(&mut self) {
-        execute!(stdout(), Clear(ClearType::All)).ok();
+        execute!(
+            stdout(),
+            SetAttribute(Attribute::Reset),
+            Clear(ClearType::All)
+        )
+        .ok();
     }
 
     pub fn drawer(&mut self) -> Drawer {

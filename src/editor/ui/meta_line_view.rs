@@ -156,23 +156,29 @@ impl Surface for MetaLineView {
         );
         canvas.write_str(
             0,
-            canvas.width() - 1 - cursor_pos_width - 1 - filename.display_width() - 1,
+            canvas
+                .width()
+                .saturating_sub(cursor_pos_width + filename.display_width() + 3),
             filename,
         );
 
         // Cursor position.
-        canvas.write_str(0, canvas.width() - 1 - cursor_pos_width, &cursor_pos_str);
+        canvas.write_str(
+            0,
+            canvas.width().saturating_sub(1 + cursor_pos_width),
+            &cursor_pos_str,
+        );
 
         // Apply the style.
         canvas.apply_style(
             0,
             0,
-            canvas.width() - 1 - cursor_pos_width,
+            canvas.width().saturating_sub(1 + cursor_pos_width),
             theme_for("meta_line.background"),
         );
         canvas.apply_style(
             0,
-            canvas.width() - 2 - cursor_pos_width,
+            canvas.width().saturating_sub(2 + cursor_pos_width),
             canvas.width(),
             theme_for("meta_line.cursor_pos"),
         );
