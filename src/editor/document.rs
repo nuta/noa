@@ -378,48 +378,36 @@ impl DocumentManager {
         self.save_all_on_drop = enable;
     }
 
-    pub fn words(&self) -> FuzzyVec<()> {
-        const WORDS_SCAN_DURATION_MAX: Duration = Duration::from_millis(5);
-        self.words_with_deadline(WORDS_SCAN_DURATION_MAX)
-    }
+    pub fn words(&self) -> std::collections::HashSet<String> {
+        use rayon::prelude::*;
 
-    pub fn words_with_deadline(&self, max_duration: Duration) -> FuzzyVec<()> {
-        const NON_CODING_LANGS: &[&str] = &["markdown", "json", "yaml", "toml"];
+        const MIN_WORD_LEN: usize = 8;
 
-        let mut started_at = Instant::now();
-        let mut words = FuzzyVec::new();
-        for doc in self.documents.values() {
-            let buffer = doc.buffer();
-            let fallback = NON_CODING_LANGS
-                .iter()
-                .any(|l| l == &buffer.language().name);
+        let buffers: Vec<RawBuffer> = self
+            .documents
+            .values()
+            .map(|doc| doc.raw_buffer().clone())
+            .collect();
 
-            match (buffer.syntax().as_ref(), fallback) {
-                (Some(syntax), false) => {
-                    syntax.words(|range| {
-                        let word = buffer.substr(range);
-                        words.insert(word, (), 0);
-                        if started_at.elapsed() >= max_duration {
-                            ControlFlow::Break(())
-                        } else {
-                            ControlFlow::Continue(())
-                        }
-                    });
-                }
-                _ => {
-                    // TODO: Implement a fallback for buffers without tree-sitter support.
-                    let iter = buffer.word_iter_from_beginning_of_word(Position::new(0, 0));
-                    for word in iter {
-                        if started_at.elapsed() >= max_duration {
-                            break;
-                        }
-
-                        words.insert(word.text(), (), 0);
+        buffers
+            .into_par_iter()
+            .fold(std::collections::HashSet::new, |mut words, buffer| {
+                let iter = buffer.word_iter_from_beginning_of_word(Position::new(0, 0));
+                for (i, word) in iter.enumerate() {
+                    let text = word.text();
+                    if text.len() < MIN_WORD_LEN {
+                        continue;
                     }
+
+                    words.insert(text);
                 }
-            }
-        }
-        words
+
+                words
+            })
+            .reduce(std::collections::HashSet::new, |mut acc, words| {
+                acc.extend(words);
+                acc
+            })
     }
 }
 
@@ -454,7 +442,7 @@ mod tests {
         num_files: usize,
         num_lines: usize,
     ) -> (DocumentManager, Vec<NamedTempFile>) {
-        let text = &(format!("{}\n", "int hello; ".repeat(80 / 10))).repeat(num_lines);
+        let text = &(format!("{}\n", "int helloworld; ".repeat(5))).repeat(num_lines);
 
         let mut documents = DocumentManager::new();
         let mut dummy_files = Vec::new();
@@ -474,18 +462,24 @@ mod tests {
     #[bench]
     fn bench_words_10_lines(b: &mut test::Bencher) {
         let (documents, _dummy_files) = create_documents(1, 10);
-        b.iter(|| documents.words_with_deadline(Duration::from_secs(128)));
+        b.iter(|| documents.words());
     }
 
     #[bench]
     fn bench_words_1000_lines(b: &mut test::Bencher) {
         let (documents, _dummy_files) = create_documents(1, 1000);
-        b.iter(|| documents.words_with_deadline(Duration::from_secs(128)));
+        b.iter(|| documents.words());
     }
 
     #[bench]
-    fn bench_words_1_file(b: &mut test::Bencher) {
-        let (documents, _dummy_files) = create_documents(1, 1000);
-        b.iter(|| documents.words_with_deadline(Duration::from_secs(128)));
+    fn bench_words_4_files(b: &mut test::Bencher) {
+        let (documents, _dummy_files) = create_documents(4, 1000);
+        b.iter(|| documents.words());
+    }
+
+    #[bench]
+    fn bench_words_16_files(b: &mut test::Bencher) {
+        let (documents, _dummy_files) = create_documents(16, 1000);
+        b.iter(|| documents.words());
     }
 }
