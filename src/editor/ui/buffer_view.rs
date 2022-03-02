@@ -243,13 +243,19 @@ impl Surface for BufferView {
         const ALT: KeyModifiers = KeyModifiers::ALT;
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
-        let doc = editor.documents.current_mut();
-        let prev_rope = doc.buffer().raw_buffer().rope().clone();
+        let prev_rope = editor
+            .documents
+            .current()
+            .buffer()
+            .raw_buffer()
+            .rope()
+            .clone();
 
         if let Some(binding) = get_keybinding_for("buffer", key.code, key.modifiers) {
             execute_action_or_notify(editor, compositor, &binding.action);
         }
 
+        let doc = editor.documents.current_mut();
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), CTRL) => {
                 self.quit_tx.send(()).oops();

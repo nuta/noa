@@ -11,7 +11,7 @@ use once_cell::sync::Lazy;
 use serde::Deserialize;
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
-enum Modifier {
+pub enum Modifier {
     Shift,
     Ctrl,
     Alt,
