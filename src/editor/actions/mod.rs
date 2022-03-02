@@ -7,13 +7,13 @@ use once_cell::sync::Lazy;
 
 use crate::editor::Editor;
 
+mod basic_editing;
 mod change_case;
-mod truncate;
 
 pub const ACTIONS: &[&dyn Action] = &[
     &change_case::ToUpperCase,
     &change_case::ToLowerCase,
-    &truncate::Truncate,
+    &basic_editing::Truncate,
 ];
 
 pub trait Action: Any + Send + Sync {

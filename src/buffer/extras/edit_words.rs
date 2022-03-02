@@ -48,7 +48,7 @@ impl Buffer {
         self.update_cursors_with_prev_word(|c, word| c.move_to_pos(word.range().front()));
     }
 
-    pub fn backspace_previous_word(&mut self) {
+    pub fn backspace_word(&mut self) {
         self.cursors.foreach(|c, past_cursors| {
             if c.selection().is_empty() {
                 // Select the previous word.

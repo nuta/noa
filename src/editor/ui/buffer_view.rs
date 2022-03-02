@@ -279,31 +279,10 @@ impl Surface for BufferView {
             (KeyCode::Char('y'), CTRL) => {
                 doc.buffer_mut().redo();
             }
-            (KeyCode::Char('c'), CTRL) => {
-                if let Err(err) = editor
-                    .clipboard
-                    .copy_into_clipboard(ClipboardData::from_buffer(doc.buffer()))
-                {
-                    notify_warn!("failed to copy to clipboard: {}", err);
-                }
-            }
-            (KeyCode::Char('x'), CTRL) => {
-                let buffer = doc.buffer_mut();
-                match editor.clipboard.copy_from_clipboard() {
-                    Ok(SystemClipboardData::Ours(ClipboardData { texts })) => {
-                        let strs: Vec<&str> = texts.iter().map(|s| s.as_str()).collect();
-                        buffer.insert_multiple(&strs);
-                    }
-                    Ok(SystemClipboardData::Others(string)) => {
-                        buffer.insert(&string);
-                    }
-                    Err(err) => {
-                        error!("failed to copy from clipboard: {:?}", err);
-                    }
-                }
-            }
+            (KeyCode::Char('c'), CTRL) => {}
+            (KeyCode::Char('x'), CTRL) => {}
             (KeyCode::Char('w'), CTRL) => {
-                doc.buffer_mut().backspace_previous_word();
+                doc.buffer_mut().backspace_word();
             }
             (KeyCode::Char('a'), CTRL) => {
                 doc.buffer_mut().move_to_beginning_of_line();
