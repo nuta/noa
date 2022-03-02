@@ -186,6 +186,144 @@ impl Action for SelectAllCurrentWord {
     }
 }
 
+pub struct SelectPrevWord;
+
+impl Action for SelectPrevWord {
+    fn name(&self) -> &'static str {
+        "select_prev_word"
+    }
+
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+        editor.current_buffer_mut().select_prev_word();
+        Ok(())
+    }
+}
+
+pub struct SelectNextWord;
+
+impl Action for SelectNextWord {
+    fn name(&self) -> &'static str {
+        "select_next_word"
+    }
+
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+        editor.current_buffer_mut().select_next_word();
+        Ok(())
+    }
+}
+
+pub struct MoveLineUp;
+
+impl Action for MoveLineUp {
+    fn name(&self) -> &'static str {
+        "move_lines_up"
+    }
+
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+        editor.current_buffer_mut().move_lines_up();
+        Ok(())
+    }
+}
+
+pub struct MoveLinesDown;
+
+impl Action for MoveLinesDown {
+    fn name(&self) -> &'static str {
+        "move_lines_down"
+    }
+
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+        editor.current_buffer_mut().move_lines_down();
+        Ok(())
+    }
+}
+
+pub struct AddCursorsUp;
+
+impl Action for AddCursorsUp {
+    fn name(&self) -> &'static str {
+        "add_cursors_up"
+    }
+
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+        editor.documents.current_mut().movement().add_cursors_up();
+        Ok(())
+    }
+}
+
+pub struct AddCursorsDown;
+
+impl Action for AddCursorsDown {
+    fn name(&self) -> &'static str {
+        "add_cursors_down"
+    }
+
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+        editor.documents.current_mut().movement().add_cursors_down();
+        Ok(())
+    }
+}
+
+pub struct DuplicateLinesUp;
+
+impl Action for DuplicateLinesUp {
+    fn name(&self) -> &'static str {
+        "duplicate_lines_up"
+    }
+
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+        editor.current_buffer_mut().duplicate_lines_up();
+        Ok(())
+    }
+}
+
+pub struct DuplicateLinesDown;
+
+impl Action for DuplicateLinesDown {
+    fn name(&self) -> &'static str {
+        "duplicate_lines_down"
+    }
+
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+        editor.current_buffer_mut().duplicate_lines_down();
+        Ok(())
+    }
+}
+
+pub struct SelectUntilBeginningOfLine;
+
+impl Action for SelectUntilBeginningOfLine {
+    fn name(&self) -> &'static str {
+        "select_until_beginning_of_line"
+    }
+
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+        editor
+            .documents
+            .current_mut()
+            .movement()
+            .select_until_beginning_of_line();
+        Ok(())
+    }
+}
+
+pub struct SelectUntilEndOfLine;
+
+impl Action for SelectUntilEndOfLine {
+    fn name(&self) -> &'static str {
+        "select_until_end_of_line"
+    }
+
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+        editor
+            .documents
+            .current_mut()
+            .movement()
+            .select_until_end_of_line();
+        Ok(())
+    }
+}
+
 pub struct Cut;
 
 impl Action for Cut {

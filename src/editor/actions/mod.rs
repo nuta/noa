@@ -12,9 +12,8 @@ mod change_case;
 mod linemap;
 
 pub const ACTIONS: &[&dyn Action] = &[
-    &change_case::ToUpperCase,
-    &change_case::ToLowerCase,
-    &basic_editing::Truncate,
+    &basic_editing::Save,
+    &basic_editing::OpenFilder,
     &basic_editing::BackspaceWord,
     &basic_editing::Truncate,
     &basic_editing::Delete,
@@ -22,13 +21,27 @@ pub const ACTIONS: &[&dyn Action] = &[
     &basic_editing::MoveToEndOfLine,
     &basic_editing::MoveToNextWord,
     &basic_editing::MoveToPrevWord,
+    &basic_editing::FindCurrentWord,
+    &basic_editing::SelectAllCurrentWord,
+    &basic_editing::SelectPrevWord,
+    &basic_editing::SelectNextWord,
+    &basic_editing::MoveLineUp,
+    &basic_editing::MoveLinesDown,
+    &basic_editing::AddCursorsUp,
+    &basic_editing::AddCursorsDown,
+    &basic_editing::DuplicateLinesUp,
+    &basic_editing::DuplicateLinesDown,
+    &basic_editing::SelectUntilBeginningOfLine,
+    &basic_editing::SelectUntilEndOfLine,
     &basic_editing::Cut,
     &basic_editing::Copy,
     &basic_editing::Paste,
     &basic_editing::Undo,
     &basic_editing::Redo,
-    &basic_editing::Save,
-    &basic_editing::OpenFilder,
+    &change_case::ToUpperCase,
+    &change_case::ToLowerCase,
+    &linemap::MoveToNextDiff,
+    &linemap::MoveToPrevDiff,
 ];
 
 pub trait Action: Any + Send + Sync {

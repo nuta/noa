@@ -243,19 +243,9 @@ impl Surface for BufferView {
         const ALT: KeyModifiers = KeyModifiers::ALT;
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
-        let prev_rope = editor
-            .documents
-            .current()
-            .buffer()
-            .raw_buffer()
-            .rope()
-            .clone();
-
-        if let Some(binding) = get_keybinding_for("buffer", key.code, key.modifiers) {
-            execute_action_or_notify(editor, compositor, &binding.action);
-        }
-
         let doc = editor.documents.current_mut();
+        let prev_rope = doc.raw_buffer().rope().clone();
+
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), CTRL) => {
                 self.quit_tx.send(()).oops();
@@ -263,99 +253,10 @@ impl Surface for BufferView {
             (KeyCode::Esc, NONE) => {
                 doc.buffer_mut().clear_secondary_cursors();
             }
-            (KeyCode::Char('f'), CTRL) => {
-                compositor
-                    .get_mut_surface_by_name::<FinderView>("finder")
-                    .set_active(true);
-            }
-            (KeyCode::Char('s'), CTRL) => {
-                if let Err(err) = doc.save_to_file() {
-                    notify_anyhow_error!(err);
-                }
-            }
-            (KeyCode::Char('u'), CTRL) => {
-                doc.buffer_mut().undo();
-            }
-            (KeyCode::Char('y'), CTRL) => {
-                doc.buffer_mut().redo();
-            }
-            (KeyCode::Char('c'), CTRL) => {}
-            (KeyCode::Char('x'), CTRL) => {}
-            (KeyCode::Char('w'), CTRL) => {
-                doc.buffer_mut().backspace_word();
-            }
-            (KeyCode::Char('a'), CTRL) => {
-                doc.buffer_mut().move_to_beginning_of_line();
-            }
-            (KeyCode::Char('e'), CTRL) => {
-                doc.buffer_mut().move_to_end_of_line();
-            }
-            (KeyCode::Char('f'), ALT) => {
-                doc.buffer_mut().move_to_next_word();
-            }
-            (KeyCode::Char('b'), ALT) => {
-                doc.buffer_mut().move_to_prev_word();
-            }
-            (KeyCode::Up, modifiers) if modifiers == (ALT) => {}
-            (KeyCode::Down, modifiers) if modifiers == (ALT) => {}
-            // Find the current word or the selection.
-            (KeyCode::F(1), NONE) => {
-                let buffer = doc.buffer_mut();
-                buffer.clear_secondary_cursors();
-                let c = buffer.main_cursor();
-                let word_range = if c.is_selection() {
-                    Some(c.selection())
-                } else {
-                    buffer.current_word(c.moving_position())
-                };
-
-                if let Some(word_range) = word_range {
-                    let text = buffer.substr(word_range);
-                    doc.find_query_mut().set_text(&text);
-                }
-            }
-            // Select all occurrences of the current word or the current selection.
-            (KeyCode::F(2), NONE) => {
-                let buffer = doc.buffer_mut();
-                buffer.clear_secondary_cursors();
-                let c = buffer.main_cursor();
-                let word_range = if c.is_selection() {
-                    Some(c.selection())
-                } else {
-                    buffer.current_word(c.moving_position())
-                };
-
-                if let Some(word_range) = word_range {
-                    let text = buffer.substr(word_range);
-                    let selections: Vec<Range> =
-                        buffer.find_iter(&text, Position::new(0, 0)).collect();
-                    for selection in selections {
-                        buffer.add_cursor(selection);
-                    }
-                }
-            }
-            (KeyCode::Up, ALT) => {
-                doc.buffer_mut().move_lines_up();
-            }
-            (KeyCode::Down, ALT) => {
-                doc.buffer_mut().move_lines_down();
-            }
-            (KeyCode::Up, modifiers) if modifiers == (CTRL | ALT) => {
-                doc.movement().add_cursors_up();
-            }
-            (KeyCode::Down, modifiers) if modifiers == (CTRL | ALT) => {
-                doc.movement().add_cursors_down();
-            }
-            (KeyCode::Up, modifiers) if modifiers == (SHIFT | ALT) => {
-                doc.buffer_mut().duplicate_lines_up();
-            }
-            (KeyCode::Down, modifiers) if modifiers == (SHIFT | ALT) => {
-                doc.buffer_mut().duplicate_lines_down();
-            }
             (KeyCode::Backspace, NONE) => {
                 doc.buffer_mut().backspace();
             }
-            (KeyCode::Char('d'), CTRL) | (KeyCode::Delete, _) => {
+            (KeyCode::Delete, _) => {
                 doc.buffer_mut().delete();
             }
             (KeyCode::Up, NONE) => {
@@ -370,12 +271,6 @@ impl Surface for BufferView {
             (KeyCode::Right, NONE) => {
                 doc.movement().move_cursors_right();
             }
-            (KeyCode::Left, modifiers) if modifiers == ALT => {
-                doc.buffer_mut().move_to_prev_word();
-            }
-            (KeyCode::Right, modifiers) if modifiers == ALT => {
-                doc.buffer_mut().move_to_next_word();
-            }
             (KeyCode::Up, SHIFT) => {
                 doc.movement().select_up();
             }
@@ -388,18 +283,6 @@ impl Surface for BufferView {
             (KeyCode::Right, SHIFT) => {
                 doc.movement().select_right();
             }
-            (KeyCode::Left, modifiers) if modifiers == (SHIFT | CTRL) => {
-                doc.movement().select_until_beginning_of_line();
-            }
-            (KeyCode::Right, modifiers) if modifiers == (SHIFT | CTRL) => {
-                doc.movement().select_until_end_of_line();
-            }
-            (KeyCode::Left, modifiers) if modifiers == (SHIFT | ALT) => {
-                doc.buffer_mut().select_prev_word();
-            }
-            (KeyCode::Right, modifiers) if modifiers == (SHIFT | ALT) => {
-                doc.buffer_mut().select_next_word();
-            }
             (KeyCode::Enter, NONE) => {
                 doc.buffer_mut().insert_newline_and_indent();
             }
@@ -409,17 +292,19 @@ impl Surface for BufferView {
             (KeyCode::BackTab, _) => {
                 doc.buffer_mut().deindent();
             }
-            (KeyCode::Char(ch), NONE) => {
-                doc.buffer_mut().insert_char(ch);
-            }
-            (KeyCode::Char(ch), SHIFT) => {
+            (KeyCode::Char(ch), NONE) | (KeyCode::Char(ch), SHIFT) => {
                 doc.buffer_mut().insert_char(ch);
             }
             _ => {
-                trace!("unhandled key = {:?}", key);
+                if let Some(binding) = get_keybinding_for("buffer", key.code, key.modifiers) {
+                    execute_action_or_notify(editor, compositor, &binding.action);
+                } else {
+                    trace!("unhandled key = {:?}", key);
+                }
             }
         }
 
+        let doc = editor.documents.current_mut();
         let current_rope = doc.buffer().raw_buffer().rope().clone();
         if prev_rope != current_rope {
             doc.post_update_job();
