@@ -64,8 +64,8 @@ fn parse_keybindings(
             "F10" => KeyCode::F(10),
             "F11" => KeyCode::F(11),
             "F12" => KeyCode::F(12),
-            s @ _ if s.len() == 1 => KeyCode::Char(s.chars().next().unwrap()),
-            s @ _ => {
+            s if s.len() == 1 => KeyCode::Char(s.chars().next().unwrap()),
+            s => {
                 panic!("invalid key binding: key='{}'", s);
             }
         };
