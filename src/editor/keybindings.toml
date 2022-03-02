@@ -1,0 +1,4 @@
+[[buffer]]
+key = "k"
+modifiers = ["ctrl"]
+action = "truncate"

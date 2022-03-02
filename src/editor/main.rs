@@ -38,6 +38,7 @@ mod document;
 mod editor;
 mod flash;
 mod git;
+mod keybindings;
 mod linemap;
 mod markdown;
 mod movement;

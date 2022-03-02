@@ -18,8 +18,10 @@ use noa_proxy::lsp_types::HoverContents;
 use tokio::sync::{mpsc::UnboundedSender, oneshot, Notify};
 
 use crate::{
+    actions::{execute_action, execute_action_or_notify},
     clipboard::{ClipboardData, SystemClipboardData},
     editor::Editor,
+    keybindings::get_keybinding_for,
     linemap::LineStatus,
     markdown::Markdown,
     theme::theme_for,
@@ -243,6 +245,10 @@ impl Surface for BufferView {
 
         let doc = editor.documents.current_mut();
         let prev_rope = doc.buffer().raw_buffer().rope().clone();
+
+        if let Some(binding) = get_keybinding_for("buffer", key.code, key.modifiers) {
+            execute_action_or_notify(editor, compositor, &binding.action);
+        }
 
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), CTRL) => {

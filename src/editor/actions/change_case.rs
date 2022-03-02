@@ -12,7 +12,7 @@ impl Action for ToUpperCase {
         "to_upper_case"
     }
 
-    fn run(&mut self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
         editor
             .documents
             .current_mut()
@@ -30,7 +30,7 @@ impl Action for ToLowerCase {
         "to_lower_case"
     }
 
-    fn run(&mut self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
         editor
             .documents
             .current_mut()
