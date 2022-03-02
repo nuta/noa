@@ -207,7 +207,7 @@ fn check_if_dirty(
         editor,
         PromptMode::SingleChar,
         title,
-        move |_, editor, answer| {
+        move |compositor, editor, answer| {
             match answer {
                 Some(answer) if answer == "y" => {
                     info!("saving dirty buffers...");
@@ -223,6 +223,9 @@ fn check_if_dirty(
                     // Abort.
                 }
                 _ => {
+                    let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
+                    prompt_view.clear();
+
                     notify_error!("invalid answer");
                     return ControlFlow::Continue(());
                 }

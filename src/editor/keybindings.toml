@@ -1,4 +1,3 @@
-[[buffer]]
-key = "k"
-modifiers = ["ctrl"]
-action = "truncate"
+buffer = [
+    { key = "k", modifiers = ["ctrl"], action = "truncate" }
+]

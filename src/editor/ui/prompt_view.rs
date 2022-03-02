@@ -65,6 +65,10 @@ impl PromptView {
         self.active = false;
         self.input.clear();
     }
+
+    pub fn clear(&mut self) {
+        self.input.clear();
+    }
 }
 
 impl Surface for PromptView {
