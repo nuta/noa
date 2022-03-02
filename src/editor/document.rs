@@ -382,6 +382,7 @@ impl DocumentManager {
         use rayon::prelude::*;
 
         const MIN_WORD_LEN: usize = 8;
+        const MAX_NUM_WORDS_PER_BUFFER: usize = 10000;
 
         let buffers: Vec<RawBuffer> = self
             .documents
@@ -389,11 +390,12 @@ impl DocumentManager {
             .map(|doc| doc.raw_buffer().clone())
             .collect();
 
+        // Scan all buffers to extract words in parallel.
         buffers
             .into_par_iter()
             .fold(std::collections::HashSet::new, |mut words, buffer| {
                 let iter = buffer.word_iter_from_beginning_of_word(Position::new(0, 0));
-                for (i, word) in iter.enumerate() {
+                for word in iter.take(MAX_NUM_WORDS_PER_BUFFER) {
                     let text = word.text();
                     if text.len() < MIN_WORD_LEN {
                         continue;
