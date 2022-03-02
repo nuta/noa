@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use noa_buffer::cursor::{Position, Range};
 use noa_compositor::Compositor;
 
 use crate::{
@@ -8,6 +9,35 @@ use crate::{
 };
 
 use super::Action;
+
+pub struct Save;
+
+impl Action for Save {
+    fn name(&self) -> &'static str {
+        "save"
+    }
+
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+        editor.documents.current_mut().save_to_file()?;
+        Ok(())
+    }
+}
+
+pub struct OpenFilder;
+
+impl Action for OpenFilder {
+    fn name(&self) -> &'static str {
+        "open_filder"
+    }
+
+    fn run(&self, _editor: &mut Editor, compositor: &mut Compositor<Editor>) -> Result<()> {
+        compositor
+            .get_mut_surface_by_name::<FinderView>("finder")
+            .set_active(true);
+
+        Ok(())
+    }
+}
 
 pub struct BackspaceWord;
 
@@ -100,6 +130,62 @@ impl Action for MoveToPrevWord {
     }
 }
 
+pub struct FindCurrentWord;
+
+impl Action for FindCurrentWord {
+    fn name(&self) -> &'static str {
+        "find_current_word"
+    }
+
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+        let doc = editor.documents.current_mut();
+        let buffer = doc.buffer_mut();
+        buffer.clear_secondary_cursors();
+        let c = buffer.main_cursor();
+        let word_range = if c.is_selection() {
+            Some(c.selection())
+        } else {
+            buffer.current_word(c.moving_position())
+        };
+
+        if let Some(word_range) = word_range {
+            let text = buffer.substr(word_range);
+            doc.find_query_mut().set_text(&text);
+        }
+        Ok(())
+    }
+}
+
+pub struct SelectAllCurrentWord;
+
+impl Action for SelectAllCurrentWord {
+    fn name(&self) -> &'static str {
+        "select_all_current_word"
+    }
+
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+        let doc = editor.documents.current_mut();
+        let buffer = doc.buffer_mut();
+
+        buffer.clear_secondary_cursors();
+        let c = buffer.main_cursor();
+        let word_range = if c.is_selection() {
+            Some(c.selection())
+        } else {
+            buffer.current_word(c.moving_position())
+        };
+
+        if let Some(word_range) = word_range {
+            let text = buffer.substr(word_range);
+            let selections: Vec<Range> = buffer.find_iter(&text, Position::new(0, 0)).collect();
+            for selection in selections {
+                buffer.add_cursor(selection);
+            }
+        }
+        Ok(())
+    }
+}
+
 pub struct Cut;
 
 impl Action for Cut {
@@ -181,35 +267,6 @@ impl Action for Redo {
 
     fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
         editor.current_buffer_mut().redo();
-        Ok(())
-    }
-}
-
-pub struct Save;
-
-impl Action for Save {
-    fn name(&self) -> &'static str {
-        "save"
-    }
-
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
-        editor.documents.current_mut().save_to_file()?;
-        Ok(())
-    }
-}
-
-pub struct OpenFilder;
-
-impl Action for OpenFilder {
-    fn name(&self) -> &'static str {
-        "open_filder"
-    }
-
-    fn run(&self, _editor: &mut Editor, compositor: &mut Compositor<Editor>) -> Result<()> {
-        compositor
-            .get_mut_surface_by_name::<FinderView>("finder")
-            .set_active(true);
-
         Ok(())
     }
 }

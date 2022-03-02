@@ -9,11 +9,26 @@ use crate::editor::Editor;
 
 mod basic_editing;
 mod change_case;
+mod linemap;
 
 pub const ACTIONS: &[&dyn Action] = &[
     &change_case::ToUpperCase,
     &change_case::ToLowerCase,
     &basic_editing::Truncate,
+    &basic_editing::BackspaceWord,
+    &basic_editing::Truncate,
+    &basic_editing::Delete,
+    &basic_editing::MoveToBeginningOfLine,
+    &basic_editing::MoveToEndOfLine,
+    &basic_editing::MoveToNextWord,
+    &basic_editing::MoveToPrevWord,
+    &basic_editing::Cut,
+    &basic_editing::Copy,
+    &basic_editing::Paste,
+    &basic_editing::Undo,
+    &basic_editing::Redo,
+    &basic_editing::Save,
+    &basic_editing::OpenFilder,
 ];
 
 pub trait Action: Any + Send + Sync {

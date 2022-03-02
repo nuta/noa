@@ -296,28 +296,8 @@ impl Surface for BufferView {
             (KeyCode::Char('b'), ALT) => {
                 doc.buffer_mut().move_to_prev_word();
             }
-            (KeyCode::Up, modifiers) if modifiers == (ALT) => {
-                let linemap = doc.linemap().load();
-                match linemap.prev_diff_line(doc.buffer().main_cursor().moving_position().y) {
-                    Some(pos) => {
-                        doc.buffer_mut().move_main_cursor_to_pos(pos);
-                    }
-                    None => {
-                        notify_warn!("no previous diff line");
-                    }
-                }
-            }
-            (KeyCode::Down, modifiers) if modifiers == (ALT) => {
-                let linemap = doc.linemap().load();
-                match linemap.next_diff_line(doc.buffer().main_cursor().moving_position().y) {
-                    Some(pos) => {
-                        doc.buffer_mut().move_main_cursor_to_pos(pos);
-                    }
-                    None => {
-                        notify_warn!("no next diff line");
-                    }
-                }
-            }
+            (KeyCode::Up, modifiers) if modifiers == (ALT) => {}
+            (KeyCode::Down, modifiers) if modifiers == (ALT) => {}
             // Find the current word or the selection.
             (KeyCode::F(1), NONE) => {
                 let buffer = doc.buffer_mut();
