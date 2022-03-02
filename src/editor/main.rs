@@ -226,7 +226,7 @@ fn check_if_dirty(
                     let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
                     prompt_view.clear();
 
-                    notify_error!("invalid answer {:?}", answer);
+                    notify_error!("invalid answer");
                     return ControlFlow::Continue(());
                 }
             }
