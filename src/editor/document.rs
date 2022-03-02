@@ -17,7 +17,10 @@ use anyhow::Result;
 
 use arc_swap::ArcSwap;
 use noa_buffer::{
-    buffer::Buffer, cursor::Position, raw_buffer::RawBuffer, undoable_raw_buffer::Change,
+    buffer::Buffer,
+    cursor::{Position, Range},
+    raw_buffer::RawBuffer,
+    undoable_raw_buffer::Change,
 };
 use noa_common::{
     dirs::{backup_dir, noa_dir},
@@ -28,10 +31,10 @@ use noa_compositor::line_edit::LineEdit;
 use noa_languages::language::guess_language;
 
 use crate::{
-    completion::Completion,
     flash::FlashManager,
     linemap::LineMap,
     movement::{Movement, MovementState},
+    ui::completion_view::CompletionItem,
     view::View,
 };
 
@@ -49,7 +52,7 @@ pub struct Document {
     saved_buffer: RawBuffer,
     view: View,
     movement_state: MovementState,
-    completion: Arc<Completion>,
+    completion_items: Vec<CompletionItem>,
     flashes: FlashManager,
     linemap: Arc<ArcSwap<LineMap>>,
     find_query: LineEdit,
@@ -116,7 +119,7 @@ impl Document {
             buffer,
             view: View::new(),
             movement_state: MovementState::new(),
-            completion: Arc::new(Completion::new()),
+            completion_items: Vec::new(),
             flashes: FlashManager::new(),
             linemap: Arc::new(ArcSwap::from_pointee(LineMap::new())),
             find_query: LineEdit::new(),
@@ -224,8 +227,8 @@ impl Document {
         &mut self.flashes
     }
 
-    pub fn completion(&self) -> &Completion {
-        &self.completion
+    pub fn completion_items(&self) -> &[CompletionItem] {
+        &self.completion_items
     }
 
     pub fn linemap(&self) -> &Arc<ArcSwap<LineMap>> {
@@ -287,7 +290,7 @@ impl Document {
     pub fn post_update_job(&mut self) {
         self.version += 1;
         let changes = self.buffer.post_update_hook();
-        self.completion.clear();
+        self.completion_items.clear();
 
         if let Some(hook) = &mut self.post_update_hook {
             (*hook)(self.version, self.buffer.raw_buffer(), changes);
