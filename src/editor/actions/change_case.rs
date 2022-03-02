@@ -8,6 +8,10 @@ use super::Action;
 pub struct ToUpperCase;
 
 impl Action for ToUpperCase {
+    fn name(&self) -> &'static str {
+        "to_upper_case"
+    }
+
     fn run(&mut self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
         editor
             .documents
@@ -22,6 +26,10 @@ impl Action for ToUpperCase {
 pub struct ToLowerCase;
 
 impl Action for ToLowerCase {
+    fn name(&self) -> &'static str {
+        "to_lower_case"
+    }
+
     fn run(&mut self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
         editor
             .documents
