@@ -152,13 +152,21 @@ impl Editor {
 
     pub fn run_pending_callbacks(&mut self, compositor: &mut Compositor<Editor>) {
         let queue = self.callback_invocations.clone();
+        let mut new_callbacks = HashMap::new();
         for id in queue {
+            info!("invoke id : {:?}", id);
             if let Some(mut callback) = self.callbacks.remove(&id) {
                 callback(compositor, self);
+                new_callbacks.insert(id, callback);
             }
         }
 
         self.callback_invocations.clear();
+
+        for (id, callback) in self.callbacks.drain() {
+            new_callbacks.insert(id, callback);
+        }
+        self.callbacks = new_callbacks;
     }
 }
 
