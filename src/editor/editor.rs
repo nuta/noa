@@ -8,6 +8,7 @@ use std::{
 use anyhow::Result;
 use arc_swap::ArcSwap;
 use noa_buffer::{
+    buffer::Buffer,
     cursor::{Position, Range},
     raw_buffer::RawBuffer,
     undoable_raw_buffer::Change,
@@ -74,6 +75,10 @@ impl Editor {
             callback_invocations: Vec::new(),
             next_callback_id: 1,
         }
+    }
+
+    pub fn current_buffer_mut(&mut self) -> &mut Buffer {
+        self.documents.current_mut().buffer_mut()
     }
 
     pub fn open_file(&mut self, path: &Path, cursor_pos: Option<Position>) -> Result<DocumentId> {
