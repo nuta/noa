@@ -19,17 +19,19 @@ languages:
   lsp:
     argv: ["clangd", "--pretty", "--log=verbose"]
 
+# FIXME: Fix link error for c++ (.cc) files
+#
 # - name: cpp
 #   extensions: ["cpp", "cxx", "hpp", "hxx"]
 #   tree_sitter:
 #     url: "https://github.com/tree-sitter/tree-sitter-cpp"
 #     sources: ["src/parser.c", "src/scanner.cc"]
 
-# - name: javascript
-#   extensions: ["js"]
-#   tree_sitter:
-#     url: "https://github.com/tree-sitter/tree-sitter-javascript"
-#     sources: ["src/parser.c", "src/scanner.c"]
+- name: javascript
+  extensions: ["js"]
+  tree_sitter:
+    url: "https://github.com/tree-sitter/tree-sitter-javascript"
+    sources: ["src/parser.c", "src/scanner.c"]
 
 # - name: python
 #   extensions: ["py"]
@@ -37,11 +39,11 @@ languages:
 #     url: "https://github.com/tree-sitter/tree-sitter-python"
 #     sources: ["src/parser.c", "src/scanner.cc"]
 
-# - name: go
-#   extensions: ["go"]
-#   tree_sitter:
-#     url: "https://github.com/tree-sitter/tree-sitter-go"
-#     sources: ["src/parser.c"]
+- name: go
+  extensions: ["go"]
+  tree_sitter:
+    url: "https://github.com/tree-sitter/tree-sitter-go"
+    sources: ["src/parser.c"]
 
 # - name: bash
 #   extensions: ["sh", "bash"]
@@ -55,31 +57,31 @@ languages:
 #     url: "https://github.com/tree-sitter/tree-sitter-html"
 #     sources: ["src/parser.c", "src/scanner.cc"]
 
-# - name: css
-#   extensions: ["css"]
-#   tree_sitter:
-#     url: "https://github.com/tree-sitter/tree-sitter-css"
-#     sources: ["src/parser.c", "src/scanner.c"]
+- name: css
+  extensions: ["css"]
+  tree_sitter:
+    url: "https://github.com/tree-sitter/tree-sitter-css"
+    sources: ["src/parser.c", "src/scanner.c"]
 
-# - name: scss
-#   extensions: ["scss"]
-#   tree_sitter:
-#     url: "https://github.com/serenadeai/tree-sitter-scss"
-#     sources: ["src/parser.c", "src/scanner.c"]
+- name: scss
+  extensions: ["scss"]
+  tree_sitter:
+    url: "https://github.com/serenadeai/tree-sitter-scss"
+    sources: ["src/parser.c", "src/scanner.c"]
 
-# - name: typescript
-#   extensions: ["ts"]
-#   tree_sitter:
-#     url: "https://github.com/tree-sitter/tree-sitter-typescript"
-#     sources: ["src/parser.c", "src/scanner.c"]
-#     dir: "typescript"
+- name: typescript
+  extensions: ["ts"]
+  tree_sitter:
+    url: "https://github.com/tree-sitter/tree-sitter-typescript"
+    sources: ["src/parser.c", "src/scanner.c"]
+    dir: "typescript"
 
-# - name: tsx
-#   extensions: ["tsx"]
-#   tree_sitter:
-#     url: "https://github.com/tree-sitter/tree-sitter-typescript"
-#     sources: ["src/parser.c", "src/scanner.c"]
-#     dir: "tsx"
+- name: tsx
+  extensions: ["tsx"]
+  tree_sitter:
+    url: "https://github.com/tree-sitter/tree-sitter-typescript"
+    sources: ["src/parser.c", "src/scanner.c"]
+    dir: "tsx"
 
 # - name: markdown
 #   extensions: ["md"]
@@ -87,17 +89,17 @@ languages:
 #     url: "https://github.com/MDeiml/tree-sitter-markdown"
 #     sources: ["src/parser.c", "src/scanner.cc"]
 
-# - name: toml
-#   extensions: ["toml"]
-#   tree_sitter:
-#     url: "https://github.com/ikatyang/tree-sitter-toml"
-#     sources: ["src/parser.c", "src/scanner.c"]
+- name: toml
+  extensions: ["toml"]
+  tree_sitter:
+    url: "https://github.com/ikatyang/tree-sitter-toml"
+    sources: ["src/parser.c", "src/scanner.c"]
 
-# - name: json
-#   extensions: ["json"]
-#   tree_sitter:
-#     url: "https://github.com/tree-sitter/tree-sitter-json"
-#     sources: ["src/parser.c"]
+- name: json
+  extensions: ["json"]
+  tree_sitter:
+    url: "https://github.com/tree-sitter/tree-sitter-json"
+    sources: ["src/parser.c"]
 
 # - name: yaml
 #   extensions: ["yml", "yaml"]
@@ -105,26 +107,26 @@ languages:
 #     url: "https://github.com/ikatyang/tree-sitter-yaml"
 #     sources: ["src/parser.c", "src/scanner.cc"]
 
-# - name: make
-#   filenames: ["Makefile"]
-#   extensions: ["mk", "makefile"]
-#   tree_sitter:
-#     url: "https://github.com/alemuller/tree-sitter-make"
-#     sources: ["src/parser.c"]
+- name: make
+  filenames: ["Makefile"]
+  extensions: ["mk", "makefile"]
+  tree_sitter:
+    url: "https://github.com/alemuller/tree-sitter-make"
+    sources: ["src/parser.c"]
 
-# - name: dockerfile
-#   filenames: ["Dockerfile"]
-#   extensions: ["dockerfile"]
-#   tree_sitter:
-#     url: "https://github.com/camdencheek/tree-sitter-dockerfile"
-#     sources: [ "src/parser.c"]
+- name: dockerfile
+  filenames: ["Dockerfile"]
+  extensions: ["dockerfile"]
+  tree_sitter:
+    url: "https://github.com/camdencheek/tree-sitter-dockerfile"
+    sources: [ "src/parser.c"]
 
-# - name: regex
-#   tree_sitter:
-#     url: "https://github.com/tree-sitter/tree-sitter-regex"
-#     sources: [ "src/parser.c"]
+- name: regex
+  tree_sitter:
+    url: "https://github.com/tree-sitter/tree-sitter-regex"
+    sources: [ "src/parser.c"]
 
-# - name: comment
-#   tree_sitter:
-#     url: "https://github.com/stsewd/tree-sitter-comment"
-#     sources: ["src/parser.c", "src/scanner.c"]
+- name: comment
+  tree_sitter:
+    url: "https://github.com/stsewd/tree-sitter-comment"
+    sources: ["src/parser.c", "src/scanner.c"]
