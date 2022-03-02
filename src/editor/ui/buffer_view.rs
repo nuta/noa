@@ -305,7 +305,6 @@ impl Surface for BufferView {
             (KeyCode::Char('w'), CTRL) => {
                 doc.buffer_mut().backspace_previous_word();
             }
-            (KeyCode::Char('k'), CTRL) => {}
             (KeyCode::Char('a'), CTRL) => {
                 doc.buffer_mut().move_to_beginning_of_line();
             }

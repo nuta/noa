@@ -5,7 +5,7 @@ use noa_compositor::Compositor;
 
 use super::Action;
 
-struct Truncate;
+pub struct Truncate;
 
 impl Action for Truncate {
     fn name(&self) -> &'static str {

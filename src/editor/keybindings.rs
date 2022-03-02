@@ -11,6 +11,7 @@ use once_cell::sync::Lazy;
 use serde::Deserialize;
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Modifier {
     Shift,
     Ctrl,
