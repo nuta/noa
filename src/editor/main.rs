@@ -70,8 +70,6 @@ async fn main() {
         .unwrap_or_else(|| PathBuf::from("."));
 
     let render_request = Arc::new(Notify::new());
-    let (_update_completion_request_tx, mut update_completion_request_rx) =
-        mpsc::unbounded_channel();
     let (notification_tx, mut notification_rx) = mpsc::unbounded_channel();
     let mut editor = editor::Editor::new(&workspace_dir, render_request.clone(), notification_tx);
     let mut compositor = Compositor::new();
@@ -143,10 +141,6 @@ async fn main() {
             Some(noti) = notification_rx.recv() => {
                 trace!("proxy notification: {:?}", noti);
                 editor.handle_notification(noti);
-            }
-
-            Some(doc_id) = update_completion_request_rx.recv() => {
-                editor.documents.get_mut_document_by_id(doc_id).unwrap().update_completion();
             }
 
             _ = render_request.notified() => {

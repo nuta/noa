@@ -14,8 +14,5 @@ fern = "0"
 anyhow = "1"
 dirs = "3"
 serde = { version = "1.0", features = ["derive"] }
-fxhash = "0"
 once_cell = "1"
-rayon = "1"
-fuzzy-matcher = "0"
 parking_lot = "0"

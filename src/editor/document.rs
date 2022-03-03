@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     env::current_dir,
     fs::{create_dir_all, OpenOptions},
     io::ErrorKind,
@@ -24,7 +24,6 @@ use noa_buffer::{
 };
 use noa_common::{
     dirs::{backup_dir, noa_dir},
-    fuzzyvec::FuzzyVec,
     oops::OopsExt,
 };
 use noa_compositor::line_edit::LineEdit;
@@ -45,6 +44,7 @@ pub struct Document {
     id: DocumentId,
     version: usize,
     path: PathBuf,
+    path_in_str: String,
     backup_path: Option<PathBuf>,
     virtual_file: bool,
     name: String,
@@ -112,6 +112,7 @@ impl Document {
             id,
             version: 1,
             path: path.to_owned(),
+            path_in_str: path.to_str().unwrap().to_owned(),
             backup_path: Some(backup_path),
             virtual_file: false,
             name,
@@ -203,6 +204,10 @@ impl Document {
         &self.path
     }
 
+    pub fn path_in_str(&self) -> &str {
+        &self.path_in_str
+    }
+
     pub fn buffer(&self) -> &Buffer {
         &self.buffer
     }
@@ -270,21 +275,6 @@ impl Document {
         }
 
         self.flashes.highlight(&mut self.view);
-    }
-
-    pub fn update_completion(&mut self) {
-        // Word completion.
-        // TODO:
-        // if let Some(current_word) = self.buffer.current_word_str() {
-        //     let words = self.words.load();
-        //     words.filter_by_key(&current_word);
-        //     for (word, _) in words.top_entries() {
-        //         self.completion.push(CompletionItem {
-        //             kind: CompletionKind::CurrentWord,
-        //             insert_text: word,
-        //         });
-        //     }
-        // }
     }
 
     pub fn post_update_job(&mut self) {
@@ -381,7 +371,7 @@ impl DocumentManager {
         self.save_all_on_drop = enable;
     }
 
-    pub fn words(&self) -> std::collections::HashSet<String> {
+    pub fn words(&self) -> HashSet<String> {
         use rayon::prelude::*;
 
         const MIN_WORD_LEN: usize = 8;
@@ -396,7 +386,7 @@ impl DocumentManager {
         // Scan all buffers to extract words in parallel.
         buffers
             .into_par_iter()
-            .fold(std::collections::HashSet::new, |mut words, buffer| {
+            .fold(HashSet::new, |mut words, buffer| {
                 let iter = buffer.word_iter_from_beginning_of_word(Position::new(0, 0));
                 for word in iter.take(MAX_NUM_WORDS_PER_BUFFER) {
                     let text = word.text();
@@ -409,9 +399,9 @@ impl DocumentManager {
 
                 words
             })
-            .reduce(std::collections::HashSet::new, |mut acc, words| {
-                acc.extend(words);
-                acc
+            .reduce(HashSet::new, |mut all_words, words| {
+                all_words.extend(words);
+                all_words
             })
     }
 }

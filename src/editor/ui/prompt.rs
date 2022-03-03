@@ -1,6 +1,5 @@
 use std::ops::ControlFlow;
 
-use noa_common::fuzzyvec::FuzzyVec;
 use noa_compositor::{line_edit::LineEdit, Compositor};
 
 use crate::{
@@ -18,7 +17,7 @@ pub fn prompt<S, F, C>(
 ) where
     S: Into<String>,
     F: FnMut(&mut Compositor<Editor>, &mut Editor, Option<String>) -> ControlFlow<()> + 'static,
-    C: FnMut(&mut Editor, &LineEdit) -> Option<FuzzyVec<String>> + 'static,
+    C: FnMut(&mut Editor, &LineEdit) -> Option<Vec<String>> + 'static,
 {
     let title = title.into();
     let enter_cb = {
