@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::{
     char_iter::CharIter,
     cursor::{Position, Range},
@@ -236,6 +238,12 @@ impl Default for RawBuffer {
 impl PartialEq for RawBuffer {
     fn eq(&self, other: &Self) -> bool {
         self.rope == other.rope
+    }
+}
+
+impl fmt::Debug for RawBuffer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "RawBuffer {{ num_lines: {} }}", self.num_lines())
     }
 }
 

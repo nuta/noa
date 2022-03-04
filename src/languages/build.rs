@@ -54,14 +54,6 @@ fn git_clone_and_pull(repo_url: &str, repo_dir: &Path) {
         if !ok {
             panic!("failed to clone {}", repo_url);
         }
-        // } else {
-        //     println!("Pulling {}", repo_url);
-        //     Command::new("git")
-        //         .arg("pull")
-        //         .spawn()
-        //         .expect("failed to pull a tree-sitter grammar repo")
-        //         .wait()
-        //         .expect("failed to wait git-pull(1)");
     }
 }
 
