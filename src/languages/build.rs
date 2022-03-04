@@ -68,6 +68,7 @@ fn git_clone_and_pull(repo_url: &str, repo_dir: &Path) {
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=languages.yaml");
+    println!("cargo:rustc-link-lib=dylib=stdc++");
 
     let nvim_treesitter_dir = Path::new("tree_sitter/nvim_treesitter");
     git_clone_and_pull(NVIM_TREESITTER_REPO, nvim_treesitter_dir);

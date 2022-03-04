@@ -16,6 +16,7 @@ use std::{
 use anyhow::Result;
 
 use arc_swap::ArcSwap;
+use fuzzy_matcher::FuzzyMatcher;
 use noa_buffer::{
     buffer::Buffer,
     cursor::{Position, Range},
@@ -25,11 +26,13 @@ use noa_buffer::{
 use noa_common::{
     dirs::{backup_dir, noa_dir},
     oops::OopsExt,
+    prioritized_vec::PrioritizedVec,
 };
 use noa_compositor::line_edit::LineEdit;
 use noa_languages::language::guess_language;
 
 use crate::{
+    completion::build_fuzzy_matcher,
     flash::FlashManager,
     linemap::LineMap,
     movement::{Movement, MovementState},
@@ -277,6 +280,7 @@ impl Document {
         self.flashes.highlight(&mut self.view);
     }
 
+    /// Called when the buffer is modified.
     pub fn post_update_job(&mut self) {
         self.version += 1;
         let changes = self.buffer.post_update_hook();
@@ -371,38 +375,14 @@ impl DocumentManager {
         self.save_all_on_drop = enable;
     }
 
-    pub fn words(&self) -> HashSet<String> {
-        use rayon::prelude::*;
-
-        const MIN_WORD_LEN: usize = 8;
-        const MAX_NUM_WORDS_PER_BUFFER: usize = 10000;
-
+    pub fn words(&self) -> Words {
         let buffers: Vec<RawBuffer> = self
             .documents
             .values()
             .map(|doc| doc.raw_buffer().clone())
             .collect();
 
-        // Scan all buffers to extract words in parallel.
-        buffers
-            .into_par_iter()
-            .fold(HashSet::new, |mut words, buffer| {
-                let iter = buffer.word_iter_from_beginning_of_word(Position::new(0, 0));
-                for word in iter.take(MAX_NUM_WORDS_PER_BUFFER) {
-                    let text = word.text();
-                    if text.len() < MIN_WORD_LEN {
-                        continue;
-                    }
-
-                    words.insert(text);
-                }
-
-                words
-            })
-            .reduce(HashSet::new, |mut all_words, words| {
-                all_words.extend(words);
-                all_words
-            })
+        Words(buffers)
     }
 }
 
@@ -423,6 +403,47 @@ impl Drop for DocumentManager {
                 notify_info!("successfully saved {} files", num_saved_files);
             }
         }
+    }
+}
+
+pub struct Words(Vec<RawBuffer>);
+
+impl Words {
+    pub fn search(self, query: &str, max_num_results: usize) -> PrioritizedVec<i64, String> {
+        use rayon::prelude::*;
+
+        const MIN_WORD_LEN: usize = 8;
+        const MAX_NUM_WORDS_PER_BUFFER: usize = 10000;
+        let fuzzy_matcher = build_fuzzy_matcher();
+
+        // Scan all buffers to extract words in parallel.
+        self.0
+            .into_par_iter()
+            .fold(
+                || PrioritizedVec::with_max_capacity(max_num_results),
+                |mut words, buffer| {
+                    let iter = buffer.word_iter_from_beginning_of_word(Position::new(0, 0));
+                    for word in iter.take(MAX_NUM_WORDS_PER_BUFFER) {
+                        let text = word.text();
+                        if text.len() < MIN_WORD_LEN {
+                            continue;
+                        }
+
+                        if let Some(score) = fuzzy_matcher.fuzzy_match(&text, query) {
+                            words.insert(score, text);
+                        }
+                    }
+
+                    words
+                },
+            )
+            .reduce(
+                || PrioritizedVec::with_max_capacity(max_num_results),
+                |mut all_words, words| {
+                    all_words.extend(words);
+                    all_words
+                },
+            )
     }
 }
 

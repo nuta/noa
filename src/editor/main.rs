@@ -34,6 +34,7 @@ mod notification;
 
 mod actions;
 mod clipboard;
+mod completion;
 mod document;
 mod editor;
 mod flash;

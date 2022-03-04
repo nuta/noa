@@ -7,6 +7,7 @@ use std::{
 
 use anyhow::Result;
 use arc_swap::ArcSwap;
+use futures::Future;
 use noa_buffer::{
     buffer::Buffer,
     cursor::{Position, Range},

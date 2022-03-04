@@ -29,7 +29,9 @@ use tokio::sync::{
     Notify,
 };
 
-use crate::{document::DocumentId, editor::Editor, theme::theme_for};
+use crate::{
+    completion::build_fuzzy_matcher, document::DocumentId, editor::Editor, theme::theme_for,
+};
 
 use super::helpers::truncate_to_width;
 
@@ -49,10 +51,6 @@ enum FinderItem {
         matched: std::ops::Range<usize>,
         after: std::ops::RangeFrom<usize>,
     },
-}
-
-fn build_fuzzy_matcher() -> SkimMatcherV2 {
-    SkimMatcherV2::default().smart_case().use_cache(true)
 }
 
 pub struct FinderView {
@@ -87,6 +85,12 @@ impl FinderView {
             self.item_selected = 0;
             self.input.clear();
         }
+    }
+
+    fn set_items(&mut self, items: Vec<FinderItem>) {
+        self.items = items;
+        self.item_selected = 0;
+        self.num_visible_items = min(self.items.len(), 20);
     }
 
     pub fn update(&mut self, editor: &Editor) {
@@ -131,13 +135,20 @@ impl FinderView {
             }
         });
 
-        let render_request = self.render_request.clone();
-        tokio::task::spawn(async move {
+        // let callback = editor.register_callback(|compositor, _editor| {
+        //     // let finder_view: &mut FinderView = compositor.get_mut_surface_by_name("finder");
+        //     // TODO:
+        //     // finder_view.set_items(new_items);
+        // });
+
+        let callback_request = self.render_request.clone();
+        tokio::spawn(async move {
             while let Some((score, item)) = items_rx.recv().await {
                 new_items.insert(score, item);
             }
 
-            render_request.notify_one();
+            // TODO:
+            // callback_request.send(callback);
         });
     }
 }

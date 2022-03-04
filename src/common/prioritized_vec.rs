@@ -38,8 +38,11 @@ impl<P: Ord, T> PrioritizedVec<P, T> {
         }
     }
 
-    pub fn set_max_capacity(&mut self, max_capacity: usize) {
-        self.max_capacity = max_capacity;
+    pub fn with_max_capacity(max_capacity: usize) -> Self {
+        PrioritizedVec {
+            heap: BinaryHeap::new(),
+            max_capacity,
+        }
     }
 
     pub fn insert(&mut self, priority: P, value: T) {
