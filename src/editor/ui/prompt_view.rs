@@ -1,4 +1,5 @@
 use noa_buffer::display_width::DisplayWidth;
+use noa_common::oops::OopsExt;
 use noa_compositor::{
     canvas::CanvasViewMut,
     line_edit::LineEdit,
@@ -6,6 +7,7 @@ use noa_compositor::{
     terminal::{KeyCode, KeyEvent, KeyModifiers},
     Compositor,
 };
+use tokio::sync::{mpsc::UnboundedSender, watch};
 
 use crate::{
     editor::{Callback, Editor, OnceCallback},
@@ -26,7 +28,7 @@ pub struct PromptView {
     mode: PromptMode,
     title: String,
     title_width: usize,
-    enter_cb: Option<Callback>,
+    enter_tx: Option<watch::Sender<()>>,
     input: LineEdit,
 }
 
@@ -39,7 +41,7 @@ impl PromptView {
             title: "".to_string(),
             title_width: 0,
             input: LineEdit::new(),
-            enter_cb: None,
+            enter_tx: None,
         }
     }
 
@@ -51,13 +53,18 @@ impl PromptView {
         self.canceled
     }
 
-    pub fn activate<S: Into<String>>(&mut self, mode: PromptMode, title: S, callback: Callback) {
+    pub fn activate<S: Into<String>>(
+        &mut self,
+        mode: PromptMode,
+        title: S,
+        enter_tx: watch::Sender<()>,
+    ) {
         self.active = true;
         self.canceled = false;
         self.mode = mode;
         self.title = title.into();
         self.title_width = self.title.display_width();
-        self.enter_cb = Some(callback);
+        self.enter_tx = Some(enter_tx);
         self.input.clear();
     }
 
@@ -134,21 +141,21 @@ impl Surface for PromptView {
         trace!("prompt: {:?}", key);
         match (key.code, key.modifiers) {
             (KeyCode::Enter, NONE) => {
-                if let Some(enter_cb) = self.enter_cb.as_ref() {
-                    editor.invoke_callback_later(*enter_cb);
+                if let Some(enter_tx) = self.enter_tx.as_ref() {
+                    enter_tx.send(()).oops();
                 }
             }
             (KeyCode::Esc, _) | (KeyCode::Char('q'), CTRL) => {
                 self.canceled = true;
-                if let Some(enter_cb) = self.enter_cb.as_ref() {
-                    editor.invoke_callback_later(*enter_cb);
+                if let Some(enter_tx) = self.enter_tx.as_ref() {
+                    enter_tx.send(()).oops();
                 }
             }
             _ => {
                 self.input.consume_key_event(key);
                 if self.mode == PromptMode::SingleChar && !self.input.is_empty() {
-                    if let Some(enter_cb) = self.enter_cb.as_ref() {
-                        editor.invoke_callback_later(*enter_cb);
+                    if let Some(enter_tx) = self.enter_tx.as_ref() {
+                        enter_tx.send(()).oops();
                     }
                 }
             }

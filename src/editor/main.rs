@@ -29,6 +29,8 @@ use ui::{
     too_small_view::TooSmallView,
 };
 
+use crate::job::CompletedJob;
+
 #[macro_use]
 mod notification;
 
@@ -144,8 +146,16 @@ async fn main() {
                 editor.handle_notification(noti);
             }
 
-            Some(callback) = editor.jobs.get_completed_job() => {
-                callback(&mut editor, &mut compositor);
+            Some(completed) = editor.jobs.get_completed() => {
+                match completed {
+                    CompletedJob::Completed(callback) => {
+                        callback(&mut editor, &mut compositor);
+                    }
+                    CompletedJob::Notified { id, mut callback } => {
+                        callback(&mut editor, &mut compositor);
+                        editor.jobs.insert_back_notified(id, callback);
+                    }
+                }
             }
 
             _ = render_request.notified() => {

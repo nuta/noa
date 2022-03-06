@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::Result;
 use arc_swap::ArcSwap;
-use futures::{future::BoxFuture, Future};
+use futures::{future::BoxFuture, Future, Stream};
 use noa_buffer::{
     buffer::Buffer,
     cursor::{Position, Range},
@@ -173,13 +173,22 @@ impl Editor {
         self.callbacks = new_callbacks;
     }
 
+    pub fn stream_in_mainloop<S, Ret, Then>(&mut self, stream: S, then: Then)
+    where
+        S: Stream<Item = Result<Ret>> + Send + 'static,
+        Ret: Send + 'static,
+        Then: FnMut(&mut Editor, &mut Compositor<Editor>, Ret) + Send + 'static,
+    {
+        // self.jobs.push_stream(stream, then);
+    }
+
     pub fn await_in_mainloop<Fut, Ret, Then>(&mut self, future: Fut, then: Then)
     where
         Fut: Future<Output = Result<Ret>> + Send + 'static,
         Ret: Send + 'static,
         Then: FnOnce(&mut Editor, &mut Compositor<Editor>, Ret) + Send + 'static,
     {
-        self.jobs.push(future, then);
+        self.jobs.push_future(future, then);
     }
 }
 

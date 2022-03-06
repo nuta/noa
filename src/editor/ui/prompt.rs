@@ -1,6 +1,7 @@
 use std::ops::ControlFlow;
 
 use noa_compositor::{line_edit::LineEdit, Compositor};
+use tokio::sync::watch;
 
 use crate::{
     editor::Editor,
@@ -20,27 +21,29 @@ pub fn prompt<S, F, C>(
     C: FnMut(&mut Editor, &LineEdit) -> Option<Vec<String>> + 'static,
 {
     let title = title.into();
-    let enter_cb = {
-        let title = title.clone();
-        editor.register_callback(move |compositor, editor| {
-            info!("Enter pressed in prompt");
-            let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
+    let (enter_tx, enter_rx) = watch::channel(());
+    let enter_cb = todo!();
+    // let enter_cb = {
+    //     let title = title.clone();
+    //     editor.register_callback(move |compositor, editor| {
+    //         info!("Enter pressed in prompt");
+    //         let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
 
-            let result = if prompt_view.is_canceled() {
-                None
-            } else {
-                Some(prompt_view.input().text())
-            };
+    //         let result = if prompt_view.is_canceled() {
+    //             None
+    //         } else {
+    //             Some(prompt_view.input().text())
+    //         };
 
-            match enter_callback(compositor, editor, result) {
-                ControlFlow::Continue(()) => {}
-                ControlFlow::Break(()) => {
-                    let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
-                    prompt_view.deactivate();
-                }
-            }
-        })
-    };
+    //         match enter_callback(compositor, editor, result) {
+    //             ControlFlow::Continue(()) => {}
+    //             ControlFlow::Break(()) => {
+    //                 let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
+    //                 prompt_view.deactivate();
+    //             }
+    //         }
+    //     })
+    // };
 
     let completion_cb = {
         let title = title.clone();

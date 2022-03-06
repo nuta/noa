@@ -664,12 +664,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
-name = "id-arena"
-version = "2.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25a2bc672d1148e28034f176e01fffebb08b35768468cc954630da77a1449005"
-
-[[package]]
 name = "idna"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -924,7 +918,6 @@ dependencies = [
  "fuzzy-matcher",
  "git2",
  "grep",
- "id-arena",
  "ignore",
  "libgit2-sys",
  "log",
@@ -939,7 +932,6 @@ dependencies = [
  "pretty_assertions 0.7.2",
  "rayon",
  "regex",
- "ropey",
  "serde",
  "tempfile",
  "textwrap",
