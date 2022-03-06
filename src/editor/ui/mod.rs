@@ -7,4 +7,5 @@ pub mod meta_line_view;
 pub mod prompt_view;
 pub mod too_small_view;
 
+pub mod markdown;
 pub mod prompt;

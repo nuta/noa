@@ -23,9 +23,9 @@ use crate::{
     editor::Editor,
     keybindings::get_keybinding_for,
     linemap::LineStatus,
-    markdown::Markdown,
     theme::theme_for,
     ui::finder_view::FinderView,
+    ui::markdown::Markdown,
 };
 
 pub struct BufferView {

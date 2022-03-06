@@ -48,7 +48,5 @@ pub fn complete(proxy: Arc<ProxyClient>, buffer: RawBuffer, main_cursor: Cursor,
         if let Ok(lsp_items) = lsp_items_rx.await {
             // items.extend(lsp_items);
         }
-
-        // TODO: Apply changes
     });
 }

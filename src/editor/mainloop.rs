@@ -1,96 +1,35 @@
-#![feature(test)]
-#![feature(vec_retain_mut)]
-#![allow(unused)]
-
-extern crate test;
-
-#[macro_use]
-extern crate log;
-
 use std::{ops::ControlFlow, path::PathBuf, sync::Arc, time::Duration};
 
-use clap::Parser;
-
-use editor::Editor;
-use noa_common::{logger::install_logger, oops::OopsExt, time_report::TimeReport};
+use noa_common::time_report::TimeReport;
 use noa_compositor::{terminal::Event, Compositor};
-use theme::parse_default_theme;
 use tokio::sync::{
-    mpsc::{self, unbounded_channel, UnboundedSender},
-    oneshot, Notify,
-};
-use ui::{
-    buffer_view::BufferView,
-    completion_view::CompletionView,
-    finder_view::FinderView,
-    meta_line_view::MetaLineView,
-    prompt::prompt,
-    prompt_view::{PromptMode, PromptView},
-    too_small_view::TooSmallView,
+    mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
+    Notify,
 };
 
-#[macro_use]
-mod notification;
+use crate::{
+    editor::Editor,
+    job::JobManager,
+    notification::set_stdout_mode,
+    ui::{
+        buffer_view::BufferView,
+        completion_view::CompletionView,
+        finder_view::FinderView,
+        meta_line_view::MetaLineView,
+        prompt::prompt,
+        prompt_view::{PromptMode, PromptView},
+        too_small_view::TooSmallView,
+    },
+};
 
-mod actions;
-mod clipboard;
-mod completion;
-mod document;
-mod editor;
-mod flash;
-mod git;
-mod job;
-mod keybindings;
-mod linemap;
-mod movement;
-mod theme;
-mod ui;
-mod view;
-
-#[derive(Parser, Debug)]
-struct Args {
-    #[clap(name = "FILE", parse(from_os_str))]
-    files: Vec<PathBuf>,
-}
-
-#[tokio::main]
-async fn main() {
-    let boot_time = TimeReport::new("boot time");
-
-    // Parse the default theme here to print panics in stderr.
-    parse_default_theme();
-
-    install_logger("main");
-    let args = Args::parse();
-
-    let workspace_dir = args
-        .files
-        .iter()
-        .find(|path| path.is_dir())
-        .cloned()
-        .unwrap_or_else(|| PathBuf::from("."));
-
-    let render_request = Arc::new(Notify::new());
-    let (notification_tx, mut notification_rx) = mpsc::unbounded_channel();
-    let mut editor = editor::Editor::new(&workspace_dir, render_request.clone(), notification_tx);
-    let mut compositor = Compositor::new();
-
-    let mut open_finder = true;
-    for path in args.files {
-        if !path.is_dir() {
-            match editor.open_file(&path, None) {
-                Ok(id) => {
-                    editor.documents.switch_by_id(id);
-                }
-                Err(err) => {
-                    notify_anyhow_error!(err);
-                }
-            }
-
-            open_finder = false;
-        }
-    }
-
+pub async fn mainloop(
+    mut editor: Editor,
+    mut compositor: Compositor<Editor>,
+    workspace_dir: PathBuf,
+    open_finder: bool,
+    render_request: Arc<Notify>,
+    mut notification_rx: UnboundedReceiver<noa_proxy::protocol::Notification>,
+) {
     let (quit_tx, mut quit_rx) = unbounded_channel();
     let (force_quit_tx, mut force_quit_rx) = unbounded_channel();
     compositor.add_frontmost_layer(Box::new(TooSmallView::new("too small!")));
@@ -111,8 +50,8 @@ async fn main() {
     }
 
     compositor.render_to_terminal(&mut editor);
-    drop(boot_time);
 
+    let mut job_manager = JobManager::new();
     let mut idle_timer = tokio::time::interval(Duration::from_millis(1200));
     loop {
         let mut skip_rendering = false;
@@ -144,7 +83,7 @@ async fn main() {
                 editor.handle_notification(noti);
             }
 
-            Some(callback) = editor.jobs.get_completed_job() => {
+            Some(callback) = job_manager.get_completed_job() => {
                 callback(&mut editor, &mut compositor);
             }
 
@@ -167,7 +106,7 @@ async fn main() {
 
     // Drop compoisitor first to restore the terminal.
     drop(compositor);
-    notification::set_stdout_mode(true);
+    set_stdout_mode(true);
 }
 
 fn check_if_dirty(

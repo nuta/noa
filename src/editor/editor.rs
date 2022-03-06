@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::Result;
 use arc_swap::ArcSwap;
-use futures::Future;
+use futures::{future::BoxFuture, Future};
 use noa_buffer::{
     buffer::Buffer,
     cursor::{Position, Range},
@@ -27,6 +27,7 @@ use crate::{
     clipboard::{self, ClipboardProvider},
     document::{Document, DocumentId, DocumentManager},
     git::Repo,
+    job::JobManager,
     linemap::LineMap,
 };
 
@@ -38,6 +39,7 @@ pub struct Callback(NonZeroUsize);
 
 pub struct Editor {
     pub documents: DocumentManager,
+    pub jobs: JobManager,
     pub clipboard: Box<dyn ClipboardProvider>,
     pub repo: Option<Arc<Repo>>,
     pub proxy: Arc<noa_proxy::client::Client>,
@@ -68,6 +70,7 @@ impl Editor {
 
         Editor {
             documents: DocumentManager::new(),
+            jobs: JobManager::new(),
             clipboard: clipboard::build_provider(),
             repo,
             proxy,
@@ -168,6 +171,15 @@ impl Editor {
             new_callbacks.insert(id, callback);
         }
         self.callbacks = new_callbacks;
+    }
+
+    pub fn await_in_mainloop<Fut, Ret, Then>(&mut self, future: Fut, then: Then)
+    where
+        Fut: Future<Output = Result<Ret>> + Send + 'static,
+        Ret: Send + 'static,
+        Then: FnOnce(&mut Editor, &mut Compositor<Editor>, Ret) + Send + 'static,
+    {
+        self.jobs.push(future, then);
     }
 }
 
