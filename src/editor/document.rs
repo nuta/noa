@@ -144,7 +144,7 @@ impl Document {
         let with_sudo = match self.buffer.save_to_file(&self.path) {
             Ok(()) => {
                 if let Some(backup_path) = &self.backup_path {
-                    std::fs::remove_file(backup_path).oops();
+                    let _ = std::fs::remove_file(backup_path);
                 }
 
                 false
