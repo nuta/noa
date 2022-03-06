@@ -127,7 +127,7 @@ impl FinderView {
 
                 if let Err(err) = search_globally(&workspace_dir, &query[1..], items_tx) {
                     notify_warn!("failed to search globally: {}", err);
-                    return;
+                    
                 }
             }
             _ => {

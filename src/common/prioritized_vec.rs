@@ -69,3 +69,9 @@ impl<P: Ord, T> PrioritizedVec<P, T> {
         }
     }
 }
+
+impl<P: Ord, T> Default for PrioritizedVec<P, T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
