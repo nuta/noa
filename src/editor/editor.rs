@@ -26,16 +26,11 @@ use tokio::sync::{
 use crate::{
     clipboard::{self, ClipboardProvider},
     document::{Document, DocumentId, DocumentManager},
+    event_listener::EventListener,
     git::Repo,
     job::JobManager,
     linemap::LineMap,
 };
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct OnceCallback(NonZeroUsize);
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct Callback(NonZeroUsize);
 
 pub struct Editor {
     pub documents: DocumentManager,
@@ -44,9 +39,6 @@ pub struct Editor {
     pub repo: Option<Arc<Repo>>,
     pub proxy: Arc<noa_proxy::client::Client>,
     pub render_request: Arc<Notify>,
-    callbacks: HashMap<Callback, Box<dyn FnMut(&mut Compositor<Editor>, &mut Editor)>>,
-    callback_invocations: Vec<Callback>,
-    next_callback_id: usize,
 }
 
 impl Editor {
@@ -75,9 +67,6 @@ impl Editor {
             repo,
             proxy,
             render_request,
-            callbacks: HashMap::new(),
-            callback_invocations: Vec::new(),
-            next_callback_id: 1,
         }
     }
 
@@ -138,48 +127,11 @@ impl Editor {
             }
         }
     }
-
-    pub fn register_callback<F>(&mut self, callback: F) -> Callback
+    pub fn listen_in_mainloop<Callback>(&mut self, listener: EventListener, callback: Callback)
     where
-        F: FnMut(&mut Compositor<Editor>, &mut Editor) + 'static,
+        Callback: FnMut(&mut Editor, &mut Compositor<Editor>) + Send + 'static,
     {
-        let id = Callback(NonZeroUsize::new(self.next_callback_id).unwrap());
-        self.next_callback_id += 1;
-
-        self.callbacks.insert(id, Box::new(callback));
-        id
-    }
-
-    pub fn invoke_callback_later(&mut self, id: Callback) {
-        self.callback_invocations.push(id);
-    }
-
-    pub fn run_pending_callbacks(&mut self, compositor: &mut Compositor<Editor>) {
-        let queue = self.callback_invocations.clone();
-        let mut new_callbacks = HashMap::new();
-        for id in queue {
-            info!("invoke id : {:?}", id);
-            if let Some(mut callback) = self.callbacks.remove(&id) {
-                callback(compositor, self);
-                new_callbacks.insert(id, callback);
-            }
-        }
-
-        self.callback_invocations.clear();
-
-        for (id, callback) in self.callbacks.drain() {
-            new_callbacks.insert(id, callback);
-        }
-        self.callbacks = new_callbacks;
-    }
-
-    pub fn stream_in_mainloop<S, Ret, Then>(&mut self, stream: S, then: Then)
-    where
-        S: Stream<Item = Result<Ret>> + Send + 'static,
-        Ret: Send + 'static,
-        Then: FnMut(&mut Editor, &mut Compositor<Editor>, Ret) + Send + 'static,
-    {
-        // self.jobs.push_stream(stream, then);
+        self.jobs.push_event_listener(listener, callback);
     }
 
     pub fn await_in_mainloop<Fut, Ret, Then>(&mut self, future: Fut, then: Then)

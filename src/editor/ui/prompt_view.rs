@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use noa_buffer::display_width::DisplayWidth;
 use noa_common::oops::OopsExt;
 use noa_compositor::{
@@ -7,10 +9,11 @@ use noa_compositor::{
     terminal::{KeyCode, KeyEvent, KeyModifiers},
     Compositor,
 };
-use tokio::sync::{mpsc::UnboundedSender, watch};
+use tokio::sync::{mpsc::UnboundedSender, watch, Notify};
 
 use crate::{
-    editor::{Callback, Editor, OnceCallback},
+    editor::Editor,
+    event_listener::{event_pair, EventListener, EventPair, EventProducer},
     theme::theme_for,
 };
 
@@ -28,8 +31,8 @@ pub struct PromptView {
     mode: PromptMode,
     title: String,
     title_width: usize,
-    enter_tx: Option<watch::Sender<()>>,
     input: LineEdit,
+    entered_event: EventPair,
 }
 
 impl PromptView {
@@ -41,7 +44,7 @@ impl PromptView {
             title: "".to_string(),
             title_width: 0,
             input: LineEdit::new(),
-            enter_tx: None,
+            entered_event: event_pair(),
         }
     }
 
@@ -53,18 +56,16 @@ impl PromptView {
         self.canceled
     }
 
-    pub fn activate<S: Into<String>>(
-        &mut self,
-        mode: PromptMode,
-        title: S,
-        enter_tx: watch::Sender<()>,
-    ) {
+    pub fn entered_event_listener(&self) -> &EventListener {
+        &self.entered_event.listener
+    }
+
+    pub fn activate<S: Into<String>>(&mut self, mode: PromptMode, title: S) {
         self.active = true;
         self.canceled = false;
         self.mode = mode;
         self.title = title.into();
         self.title_width = self.title.display_width();
-        self.enter_tx = Some(enter_tx);
         self.input.clear();
     }
 
@@ -141,22 +142,16 @@ impl Surface for PromptView {
         trace!("prompt: {:?}", key);
         match (key.code, key.modifiers) {
             (KeyCode::Enter, NONE) => {
-                if let Some(enter_tx) = self.enter_tx.as_ref() {
-                    enter_tx.send(()).oops();
-                }
+                self.entered_event.producer.notify_all();
             }
             (KeyCode::Esc, _) | (KeyCode::Char('q'), CTRL) => {
                 self.canceled = true;
-                if let Some(enter_tx) = self.enter_tx.as_ref() {
-                    enter_tx.send(()).oops();
-                }
+                self.entered_event.producer.notify_all();
             }
             _ => {
                 self.input.consume_key_event(key);
                 if self.mode == PromptMode::SingleChar && !self.input.is_empty() {
-                    if let Some(enter_tx) = self.enter_tx.as_ref() {
-                        enter_tx.send(()).oops();
-                    }
+                    self.entered_event.producer.notify_all();
                 }
             }
         }

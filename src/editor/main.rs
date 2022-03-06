@@ -39,6 +39,7 @@ mod clipboard;
 mod completion;
 mod document;
 mod editor;
+mod event_listener;
 mod flash;
 mod git;
 mod job;
@@ -166,8 +167,6 @@ async fn main() {
                 skip_rendering = true;
             }
         }
-
-        editor.run_pending_callbacks(&mut compositor);
 
         if !skip_rendering {
             compositor.render_to_terminal(&mut editor);

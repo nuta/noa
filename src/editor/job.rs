@@ -22,20 +22,18 @@ use tokio::sync::{
     watch, Notify,
 };
 
-use crate::editor::Editor;
+use crate::{editor::Editor, event_listener::EventListener};
 
 type CompletedCallback = dyn FnOnce(&mut Editor, &mut Compositor<Editor>) + Send + 'static;
 type NotifyCallback = dyn FnMut(&mut Editor, &mut Compositor<Editor>) + Send + 'static;
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
-pub struct NotifyCallbackId(NonZeroUsize);
+pub struct CallbackId(NonZeroUsize);
 
-impl NotifyCallbackId {
-    fn alloc() -> NotifyCallbackId {
+impl CallbackId {
+    fn alloc() -> CallbackId {
         static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
-        NotifyCallbackId(unsafe {
-            NonZeroUsize::new_unchecked(NEXT_ID.fetch_add(1, Ordering::SeqCst))
-        })
+        CallbackId(unsafe { NonZeroUsize::new_unchecked(NEXT_ID.fetch_add(1, Ordering::SeqCst)) })
     }
 }
 
@@ -44,16 +42,16 @@ pub enum CompletedJob {
     /// Note: Once you used the callback, you must reeturn it into the job manager
     ///       again through `JobManager::insert_back_notified`.
     Notified {
-        id: NotifyCallbackId,
+        id: CallbackId,
         callback: Box<NotifyCallback>,
     },
 }
 
 pub struct JobManager {
     futures: FuturesUnordered<BoxFuture<'static, Result<Box<CompletedCallback>>>>,
-    notified_tx: UnboundedSender<NotifyCallbackId>,
-    notified_rx: UnboundedReceiver<NotifyCallbackId>,
-    notify_callbacks: HashMap<NotifyCallbackId, Box<NotifyCallback>>,
+    notified_tx: UnboundedSender<CallbackId>,
+    notified_rx: UnboundedReceiver<CallbackId>,
+    mut_callbacks: HashMap<CallbackId, Box<NotifyCallback>>,
 }
 
 impl JobManager {
@@ -63,7 +61,7 @@ impl JobManager {
             futures: FuturesUnordered::new(),
             notified_tx,
             notified_rx,
-            notify_callbacks: HashMap::new(),
+            mut_callbacks: HashMap::new(),
         }
     }
 
@@ -82,7 +80,7 @@ impl JobManager {
             Some(id) = self.notified_rx.recv() => {
                 // Remove the callback temporarily so that the caller don't
                 // need self's mutable reference to use the callback.
-                let callback = self.notify_callbacks.remove(&id).unwrap();
+                let callback = self.mut_callbacks.remove(&id).unwrap();
                 Some(CompletedJob::Notified{ id, callback })
             }
 
@@ -94,21 +92,21 @@ impl JobManager {
 
     /// XXX: This is a hack to get around the ownership rule by taking the callback
     ///      out of `Editor` temporarily.
-    pub fn insert_back_notified(&mut self, id: NotifyCallbackId, callback: Box<NotifyCallback>) {
-        self.notify_callbacks.insert(id, callback);
+    pub fn insert_back_notified(&mut self, id: CallbackId, callback: Box<NotifyCallback>) {
+        self.mut_callbacks.insert(id, callback);
     }
 
-    pub fn push_notify<Callback>(&mut self, mut notify: Arc<Notify>, callback: Callback)
+    pub fn push_event_listener<Callback>(&mut self, mut listener: EventListener, callback: Callback)
     where
         Callback: FnMut(&mut Editor, &mut Compositor<Editor>) + Send + 'static,
     {
-        let id = NotifyCallbackId::alloc();
-        self.notify_callbacks.insert(id, Box::new(callback));
+        let id = CallbackId::alloc();
+        self.mut_callbacks.insert(id, Box::new(callback));
         let notified_tx = self.notified_tx.clone();
 
         tokio::spawn(async move {
             loop {
-                notify.notified().await;
+                listener.notified().await;
                 notified_tx.send(id);
             }
         });
