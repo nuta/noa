@@ -124,6 +124,12 @@ impl From<Position> for lsp_types::Position {
     }
 }
 
+impl From<lsp_types::Position> for Position {
+    fn from(pos: lsp_types::Position) -> Position {
+        Position::new(pos.line as usize, pos.character as usize)
+    }
+}
+
 /// An exclusive range in the buffer.
 ///
 /// Note that `start` don't have to be less (in respect to its `Ord` implementation)
@@ -230,6 +236,15 @@ impl From<Range> for lsp_types::Range {
         lsp_types::Range {
             start: range.front().into(),
             end: range.back().into(),
+        }
+    }
+}
+
+impl From<lsp_types::Range> for Range {
+    fn from(range: lsp_types::Range) -> Range {
+        Range {
+            start: range.start.into(),
+            end: range.end.into(),
         }
     }
 }

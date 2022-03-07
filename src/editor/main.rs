@@ -100,7 +100,7 @@ async fn main() {
     compositor.add_frontmost_layer(Box::new(BufferView::new(quit_tx, render_request.clone())));
     compositor.add_frontmost_layer(Box::new(MetaLineView::new()));
     compositor.add_frontmost_layer(Box::new(FinderView::new(
-        &editor,
+        &mut editor,
         render_request.clone(),
         &workspace_dir,
     )));

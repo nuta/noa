@@ -395,6 +395,7 @@ impl Drop for DocumentManager {
                 if let Err(err) = doc.save_to_file() {
                     notify_warn!("failed to save {}: {}", doc.path().display(), err);
                     failed_any = true;
+                } else {
                     num_saved_files += 1;
                 }
             }

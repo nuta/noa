@@ -64,7 +64,11 @@ pub struct FinderView {
 }
 
 impl FinderView {
-    pub fn new(editor: &Editor, render_request: Arc<Notify>, workspace_dir: &Path) -> FinderView {
+    pub fn new(
+        editor: &mut Editor,
+        render_request: Arc<Notify>,
+        workspace_dir: &Path,
+    ) -> FinderView {
         let mut finder = FinderView {
             render_request,
             workspace_dir: workspace_dir.to_path_buf(),
@@ -93,18 +97,18 @@ impl FinderView {
         self.num_visible_items = min(self.items.len(), 20);
     }
 
-    pub fn update(&mut self, editor: &Editor) {
+    pub fn update(&mut self, editor: &mut Editor) {
         let workspace_dir = self.workspace_dir.clone();
         let query = self.input.text();
 
-        let mut new_items = PrioritizedVec::new();
+        let mut items = PrioritizedVec::new();
         let mut visited_paths = HashSet::new();
 
         // Buffers.
         let matcher = build_fuzzy_matcher();
         for (id, doc) in editor.documents.documents().iter() {
             if let Some(score) = matcher.fuzzy_match(doc.path_in_str(), &query) {
-                new_items.insert(
+                items.insert(
                     score + 100,
                     FinderItem::Buffer {
                         name: doc.name().to_owned(),
@@ -118,6 +122,7 @@ impl FinderView {
         }
 
         let (items_tx, mut items_rx) = unbounded_channel();
+        // Search file contents or paths.
         tokio::task::spawn_blocking(move || match query.chars().next() {
             Some('/') => {
                 if query.len() < 4 {
@@ -127,7 +132,6 @@ impl FinderView {
 
                 if let Err(err) = search_globally(&workspace_dir, &query[1..], items_tx) {
                     notify_warn!("failed to search globally: {}", err);
-                    
                 }
             }
             _ => {
@@ -135,21 +139,18 @@ impl FinderView {
             }
         });
 
-        // let callback = editor.register_callback(|compositor, _editor| {
-        //     // let finder_view: &mut FinderView = compositor.get_mut_surface_by_name("finder");
-        //     // TODO:
-        //     // finder_view.set_items(new_items);
-        // });
-
-        let callback_request = self.render_request.clone();
-        tokio::spawn(async move {
-            while let Some((score, item)) = items_rx.recv().await {
-                new_items.insert(score, item);
-            }
-
-            // TODO:
-            // callback_request.send(callback);
-        });
+        editor.await_in_mainloop(
+            async move {
+                while let Some((priority, item)) = items_rx.recv().await {
+                    items.insert(priority, item);
+                }
+                Ok(items.into_sorted_vec())
+            },
+            |editor, compositor, items| {
+                let finder_view: &mut FinderView = compositor.get_mut_surface_by_name("finder");
+                finder_view.set_items(items);
+            },
+        );
     }
 }
 
