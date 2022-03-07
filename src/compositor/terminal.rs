@@ -4,7 +4,7 @@ use std::{
 };
 
 use crossterm::{
-    cursor::{self, MoveTo},
+    cursor::{self, MoveTo, RestorePosition, SavePosition},
     event::{DisableMouseCapture, EnableMouseCapture, Event as TermEvent, EventStream},
     execute, queue,
     style::{Attribute, Print, SetAttribute, SetBackgroundColor, SetForegroundColor},
@@ -49,6 +49,7 @@ impl Terminal {
         let mut stdout = stdout();
         queue!(
             stdout,
+            SavePosition,
             EnterAlternateScreen,
             EnableMouseCapture,
             SetCursorShape::BlinkingBeam,
@@ -89,15 +90,14 @@ impl Terminal {
 impl Drop for Terminal {
     fn drop(&mut self) {
         let mut stdout = stdout();
-        queue!(
-            stdout,
-            DisableMouseCapture,
-            LeaveAlternateScreen,
-            cursor::Show
-        )
-        .ok();
+        let _ = execute!(stdout, DisableMouseCapture);
+        let _ = execute!(stdout, LeaveAlternateScreen);
+        trace!("left alternative mode");
+        std::thread::sleep(std::time::Duration::from_secs(3));
+        trace!("disabling raw mode");
         disable_raw_mode().ok();
-        stdout.flush().ok();
+        std::thread::sleep(std::time::Duration::from_secs(3));
+        trace!("dropped terminal");
     }
 }
 

@@ -176,7 +176,14 @@ async fn main() {
 
     // Drop compoisitor first to restore the terminal.
     drop(compositor);
-    notification::set_stdout_mode(true);
+    trace!("dropped compositor");
+    std::thread::sleep(std::time::Duration::from_secs(3));
+
+    trace!("dropped editor");
+    drop(editor);
+    std::thread::sleep(std::time::Duration::from_secs(3));
+    trace!("foo");
+    // notification::set_stdout_mode(true);
 }
 
 fn check_if_dirty(

@@ -140,6 +140,10 @@ impl<C> Compositor<C> {
         // Re-layout layers.
         let mut prev_cursor_pos = None;
         for layer in self.layers.iter_mut() {
+            if !layer.surface.is_active(ctx) {
+                continue;
+            }
+
             let ((screen_y, screen_x), rect_size) =
                 relayout_layer(ctx, &mut *layer.surface, self.screen_size, prev_cursor_pos);
             layer.screen_x = screen_x;

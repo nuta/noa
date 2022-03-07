@@ -49,7 +49,7 @@ pub async fn complete(
         return None;
     }
 
-    let pos = main_cursor.moving_position().into();
+    let pos = main_cursor.moving_position();
     let current_word_range = match buffer.current_word(pos) {
         Some(range) => range,
         None => return None,
