@@ -82,8 +82,11 @@ impl Terminal {
         .ok();
     }
 
-    pub fn drawer(&mut self) -> Drawer {
-        Drawer { stdout: stdout() }
+    pub fn drawer(&mut self) -> Drawer<'_> {
+        Drawer {
+            stdout: stdout(),
+            _terminal: self,
+        }
     }
 }
 
@@ -92,12 +95,7 @@ impl Drop for Terminal {
         let mut stdout = stdout();
         let _ = execute!(stdout, DisableMouseCapture);
         let _ = execute!(stdout, LeaveAlternateScreen);
-        trace!("left alternative mode");
-        std::thread::sleep(std::time::Duration::from_secs(3));
-        trace!("disabling raw mode");
         disable_raw_mode().ok();
-        std::thread::sleep(std::time::Duration::from_secs(3));
-        trace!("dropped terminal");
     }
 }
 
@@ -187,11 +185,14 @@ where
     });
 }
 
-pub struct Drawer {
+pub struct Drawer<'a> {
     stdout: Stdout,
+    // Keep the terminal reference so that we don't write into stdout after
+    // it has been dropped.
+    _terminal: &'a Terminal,
 }
 
-impl Drawer {
+impl<'a> Drawer<'a> {
     pub fn before_drawing(&mut self) {
         // Hide the cursor to prevent flickering.
         queue!(
@@ -249,7 +250,7 @@ impl Drawer {
     }
 }
 
-impl Drop for Drawer {
+impl<'a> Drop for Drawer<'a> {
     fn drop(&mut self) {
         self.flush();
     }

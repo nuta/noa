@@ -21,7 +21,6 @@ pub struct Layer<C> {
 pub struct Compositor<C> {
     terminal: Terminal,
     term_rx: mpsc::UnboundedReceiver<terminal::Event>,
-    renderer_tx: mpsc::UnboundedSender<(Vec<DrawOp>, Option<(usize, usize)>)>,
     screens: [Canvas; 2],
     screen_size: RectSize,
     active_screen_index: usize,
@@ -44,30 +43,9 @@ impl<C> Compositor<C> {
             width: terminal.width(),
         };
 
-        let mut drawer = terminal.drawer();
-        let (renderer_tx, mut renderer_rx) =
-            mpsc::unbounded_channel::<(Vec<DrawOp>, Option<(usize, usize)>)>();
-        tokio::task::spawn_blocking(move || {
-            while let Some((draw_ops, cursor)) = renderer_rx.blocking_recv() {
-                let _drawer_time = TimeReport::new("drawer time");
-                drawer.before_drawing();
-
-                trace!("draw changes: {} items", draw_ops.len());
-                for op in draw_ops {
-                    drawer.draw(&op);
-                }
-                if let Some((screen_y, screen_x)) = cursor {
-                    drawer.move_cursor(screen_y, screen_x);
-                }
-
-                drawer.flush();
-            }
-        });
-
         Compositor {
             terminal,
             term_rx,
-            renderer_tx,
             screens: [
                 Canvas::new(screen_size.height, screen_size.width),
                 Canvas::new(screen_size.height, screen_size.width),
@@ -177,7 +155,22 @@ impl<C> Compositor<C> {
         let draw_ops =
             self.screens[screen_index].compute_draw_updates(&self.screens[prev_screen_index]);
 
-        self.renderer_tx.send((draw_ops, cursor)).oops();
+        // Write into the terminal.
+        {
+            let mut drawer = self.terminal.drawer();
+            let _drawer_time = TimeReport::new("drawer time");
+            drawer.before_drawing();
+
+            trace!("draw changes: {} items", draw_ops.len());
+            for op in draw_ops {
+                drawer.draw(&op);
+            }
+            if let Some((screen_y, screen_x)) = cursor {
+                drawer.move_cursor(screen_y, screen_x);
+            }
+
+            drawer.flush();
+        }
     }
 
     pub fn handle_input(&mut self, ctx: &mut C, input: InputEvent) {
