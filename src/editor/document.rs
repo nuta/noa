@@ -32,11 +32,10 @@ use noa_compositor::line_edit::LineEdit;
 use noa_languages::language::guess_language;
 
 use crate::{
-    completion::build_fuzzy_matcher,
+    completion::{build_fuzzy_matcher, CompletionItem},
     flash::FlashManager,
     linemap::LineMap,
     movement::{Movement, MovementState},
-    ui::completion_view::CompletionItem,
     view::View,
 };
 
@@ -178,6 +177,10 @@ impl Document {
 
     pub fn set_name<S: Into<String>>(&mut self, name: S) {
         self.name = name.into();
+    }
+
+    pub fn set_completion_items(&mut self, items: Vec<CompletionItem>) {
+        self.completion_items = items;
     }
 
     pub fn is_virtual_file(&self) -> bool {

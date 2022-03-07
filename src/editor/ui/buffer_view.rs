@@ -20,6 +20,7 @@ use tokio::sync::{mpsc::UnboundedSender, oneshot, Notify};
 use crate::{
     actions::{execute_action, execute_action_or_notify},
     clipboard::{ClipboardData, SystemClipboardData},
+    completion::complete,
     editor::Editor,
     keybindings::get_keybinding_for,
     linemap::LineStatus,
@@ -27,6 +28,8 @@ use crate::{
     ui::finder_view::FinderView,
     ui::markdown::Markdown,
 };
+
+use super::completion_view::CompletionView;
 
 pub struct BufferView {
     quit_tx: UnboundedSender<()>,
@@ -52,6 +55,38 @@ impl BufferView {
             num_clicked: 0,
             buffer_x: 0,
         }
+    }
+
+    pub fn post_update_job(&mut self, editor: &mut Editor) {
+        let doc = editor.documents.current_mut();
+        doc.post_update_job();
+
+        let doc_id = doc.id();
+        let proxy = editor.proxy.clone();
+        let buffer = doc.raw_buffer().clone();
+        let lang = doc.buffer().language();
+        let path = doc.path().to_owned();
+        let main_cursor = doc.buffer().main_cursor().clone();
+        let words = editor.documents.words();
+        editor.await_in_mainloop(
+            async move {
+                let items = complete(proxy, buffer, lang, path, main_cursor, words).await;
+                Ok(items)
+            },
+            move |editor, compositor, items| {
+                if let Some(items) = items {
+                    editor
+                        .documents
+                        .get_mut_document_by_id(doc_id)
+                        .unwrap()
+                        .set_completion_items(items);
+
+                    let view: &mut CompletionView =
+                        compositor.get_mut_surface_by_name("completion");
+                    view.set_active(true);
+                }
+            },
+        )
     }
 }
 
@@ -303,10 +338,16 @@ impl Surface for BufferView {
             }
         }
 
-        let doc = editor.documents.current_mut();
-        let current_rope = doc.buffer().raw_buffer().rope().clone();
+        let current_rope = editor
+            .documents
+            .current()
+            .buffer()
+            .raw_buffer()
+            .rope()
+            .clone();
+
         if prev_rope != current_rope {
-            doc.post_update_job();
+            self.post_update_job(editor);
         }
 
         HandledEvent::Consumed
@@ -320,7 +361,7 @@ impl Surface for BufferView {
     ) -> HandledEvent {
         let doc = editor.documents.current_mut();
         doc.buffer_mut().insert(s);
-        doc.post_update_job();
+        self.post_update_job(editor);
         HandledEvent::Consumed
     }
 

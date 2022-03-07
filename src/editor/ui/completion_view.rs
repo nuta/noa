@@ -8,27 +8,21 @@ use noa_compositor::{
     Compositor,
 };
 
-use crate::{editor::Editor, theme::theme_for};
+use crate::{completion::CompletionItem, editor::Editor, theme::theme_for};
 
 use super::helpers::truncate_to_width;
 
-#[derive(Clone, Debug)]
-pub enum CompletionKind {
-    AnyWord,
+pub struct CompletionView {
+    active: bool,
 }
-
-#[derive(Clone, Debug)]
-pub struct CompletionItem {
-    pub kind: CompletionKind,
-    pub insert_text: String,
-    pub range: Range,
-}
-
-pub struct CompletionView {}
 
 impl CompletionView {
     pub fn new() -> CompletionView {
-        CompletionView {}
+        CompletionView { active: false }
+    }
+
+    pub fn set_active(&mut self, active: bool) {
+        self.active = active;
     }
 }
 
@@ -44,7 +38,7 @@ impl Surface for CompletionView {
     }
 
     fn is_active(&self, _editor: &mut Editor) -> bool {
-        true
+        self.active
     }
 
     fn layout(&mut self, editor: &mut Editor, _screen_size: RectSize) -> (Layout, RectSize) {
