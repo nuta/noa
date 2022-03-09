@@ -17,6 +17,12 @@ use crate::{
     undoable_raw_buffer::{Change, UndoableRawBuffer},
 };
 
+#[derive(Clone, Debug)]
+pub struct TextEdit {
+    pub range: Range,
+    pub new_text: String,
+}
+
 struct UndoState {
     buf: RawBuffer,
     cursors: CursorSet,
@@ -341,6 +347,39 @@ impl Buffer {
                 self.buf.edit_at_cursor(c, past_cursors, "");
             }
         });
+    }
+
+    fn do_apply_text_edit(&mut self, edit: &TextEdit) {
+        self.cursors.add_cursor(edit.range);
+        let mut applied = false;
+        self.cursors.foreach(|c, past_cursors| {
+            if c.selection() == edit.range {
+                self.buf.edit_at_cursor(c, past_cursors, &edit.new_text);
+                applied = true;
+            }
+        });
+
+        debug_assert!(applied);
+    }
+
+    pub fn apply_text_edit(&mut self, edit: &TextEdit) {
+        // Turn selections into a normal cursors so that edit.range won't merge
+        // them.
+        self.cursors.deselect_cursors();
+
+        self.do_apply_text_edit(edit);
+    }
+
+    pub fn apply_text_edits(&mut self, mut edits: Vec<TextEdit>) {
+        // Turn selections into a normal cursors so that edit.range won't merge
+        // them.
+        self.cursors.deselect_cursors();
+
+        // Apply edits from the bottom of the buffer.
+        edits.sort_by_key(|edit| edit.range.front());
+        for edit in edits.iter().rev() {
+            self.do_apply_text_edit(edit);
+        }
     }
 
     /// Returns true if the buffer was modified since the last undo save.

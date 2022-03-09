@@ -591,6 +591,14 @@ impl CursorSet {
         self.update_cursors(&new_cursors);
     }
 
+    pub fn deselect_cursors(&mut self) {
+        self.foreach(|cursor, _| {
+            if cursor.is_selection() {
+                cursor.selection = Range::from_single_position(cursor.moving_position());
+            }
+        });
+    }
+
     pub fn clear_undo_and_redo_stacks(&mut self) {
         self.undo_stack.clear();
         self.redo_stack.clear();

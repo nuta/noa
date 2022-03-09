@@ -1,9 +1,9 @@
 use std::slice;
 
-use noa_common::{oops::OopsExt, time_report::TimeReport};
+use noa_common::time_report::TimeReport;
 use tokio::sync::mpsc;
 
-use crate::{canvas::DrawOp, surface::HandledEvent, terminal::InputEvent};
+use crate::{surface::HandledEvent, terminal::InputEvent};
 
 use super::{
     canvas::Canvas,
@@ -34,7 +34,7 @@ pub struct Compositor<C> {
 impl<C> Compositor<C> {
     pub fn new() -> Compositor<C> {
         let (term_tx, term_rx) = mpsc::unbounded_channel();
-        let mut terminal = Terminal::new(move |ev| {
+        let terminal = Terminal::new(move |ev| {
             term_tx.send(ev).ok();
         });
 

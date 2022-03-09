@@ -2,7 +2,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use fuzzy_matcher::skim::SkimMatcherV2;
 use noa_buffer::{
-    buffer::Buffer,
+    buffer::{Buffer, TextEdit},
     cursor::{Cursor, Position, Range},
     raw_buffer::RawBuffer,
 };
@@ -26,11 +26,11 @@ pub enum CompletionKind {
     LspItem,
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Debug)]
 pub struct CompletionItem {
     pub kind: CompletionKind,
-    pub range: Range,
-    pub insert_text: String,
+    pub label: String,
+    pub text_edit: TextEdit,
 }
 
 /// This should be called after `Document::post_update_job` because the buffer
@@ -73,8 +73,11 @@ pub async fn complete(
             .drain(..)
             .map(|word| CompletionItem {
                 kind: CompletionKind::AnyWord,
-                range: current_word_range,
-                insert_text: word,
+                label: word.clone(),
+                text_edit: TextEdit {
+                    range: current_word_range,
+                    new_text: word,
+                },
             }),
     );
 
@@ -84,13 +87,27 @@ pub async fn complete(
             let item = match (&lsp_item.insert_text, &lsp_item.text_edit) {
                 (Some(insert_text), None) => CompletionItem {
                     kind: CompletionKind::LspItem,
-                    range: current_word_range,
-                    insert_text: insert_text.to_owned(),
+                    label: lsp_item.label,
+                    text_edit: TextEdit {
+                        range: current_word_range,
+                        new_text: insert_text.to_owned(),
+                    },
                 },
                 (None, Some(CompletionTextEdit::Edit(edit))) => CompletionItem {
                     kind: CompletionKind::LspItem,
-                    range: edit.range.into(),
-                    insert_text: edit.new_text.to_owned(),
+                    label: lsp_item.label,
+                    text_edit: TextEdit {
+                        range: edit.range.into(),
+                        new_text: edit.new_text.to_owned(),
+                    },
+                },
+                (None, Some(CompletionTextEdit::InsertAndReplace(edit))) => CompletionItem {
+                    kind: CompletionKind::LspItem,
+                    label: lsp_item.label,
+                    text_edit: TextEdit {
+                        range: edit.insert.into(),
+                        new_text: edit.new_text.to_owned(),
+                    },
                 },
                 _ => {
                     warn!("unsupported LSP completion item: {:?}", lsp_item);

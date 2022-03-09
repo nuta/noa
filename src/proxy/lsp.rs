@@ -299,6 +299,23 @@ impl LspServer {
     }
 
     pub async fn initialize(&mut self) -> Result<()> {
+        let capabilities = lsp_types::ClientCapabilities {
+            workspace: None,
+            text_document: Some(lsp_types::TextDocumentClientCapabilities {
+                completion: Some(lsp_types::CompletionClientCapabilities {
+                    completion_item: Some(lsp_types::CompletionItemCapability {
+                        insert_replace_support: Some(true),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            window: None,
+            experimental: None,
+            general: None,
+        };
+
         self.call_method::<Initialize>(
             // `root_path` is deprecated. We already use root_uri instead.
             #[allow(deprecated)]
@@ -308,13 +325,7 @@ impl LspServer {
                 root_uri: Some(parse_path_as_uri(&self.workspace_dir)),
                 locale: None,
                 initialization_options: None,
-                capabilities: lsp_types::ClientCapabilities {
-                    workspace: None,
-                    text_document: None,
-                    window: None,
-                    experimental: None,
-                    general: None,
-                },
+                capabilities,
                 trace: None,
                 workspace_folders: None,
                 client_info: None,

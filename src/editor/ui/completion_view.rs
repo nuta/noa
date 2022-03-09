@@ -4,7 +4,7 @@ use noa_buffer::cursor::Range;
 use noa_compositor::{
     canvas::CanvasViewMut,
     surface::{HandledEvent, Layout, RectSize, Surface},
-    terminal::{KeyEvent, KeyModifiers, MouseEventKind},
+    terminal::{KeyCode, KeyEvent, KeyModifiers, MouseEventKind},
     Compositor,
 };
 
@@ -44,7 +44,7 @@ impl Surface for CompletionView {
     fn layout(&mut self, editor: &mut Editor, _screen_size: RectSize) -> (Layout, RectSize) {
         let doc = editor.documents.current();
         let items = doc.completion_items();
-        let longest_entry_len = items.iter().map(|e| e.insert_text.len()).max().unwrap_or(0);
+        let longest_entry_len = items.iter().map(|e| e.label.len()).max().unwrap_or(0);
 
         let height = min(6, items.len());
         let width = min(32, longest_entry_len);
@@ -65,7 +65,7 @@ impl Surface for CompletionView {
             .enumerate()
             .take(canvas.height())
         {
-            canvas.write_str(i, 0, truncate_to_width(&e.insert_text, canvas.width()));
+            canvas.write_str(i, 0, truncate_to_width(&e.label, canvas.width()));
             canvas.apply_style(i, 0, canvas.width(), theme_for("completion.item"));
         }
     }
@@ -73,10 +73,31 @@ impl Surface for CompletionView {
     fn handle_key_event(
         &mut self,
         _compositor: &mut Compositor<Self::Context>,
-        _editor: &mut Editor,
-        _key: KeyEvent,
+        editor: &mut Editor,
+        key: KeyEvent,
     ) -> HandledEvent {
-        HandledEvent::Ignored
+        const NONE: KeyModifiers = KeyModifiers::NONE;
+        const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        // const ALT: KeyModifiers = KeyModifiers::ALT;
+        // const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
+
+        let doc = editor.documents.current_mut();
+
+        if doc.completion_items().is_empty() {
+            return HandledEvent::Ignored;
+        }
+
+        match (key.code, key.modifiers) {
+            (KeyCode::Enter, NONE) => {
+                let item = doc.completion_items().get(0 /* FIXME: */).unwrap().clone();
+                doc.buffer_mut().apply_text_edit(&item.text_edit);
+            }
+            _ => {
+                return HandledEvent::Ignored;
+            }
+        }
+
+        HandledEvent::Consumed
     }
 
     fn handle_key_batch_event(

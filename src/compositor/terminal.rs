@@ -4,7 +4,7 @@ use std::{
 };
 
 use crossterm::{
-    cursor::{self, MoveTo, RestorePosition, SavePosition},
+    cursor::{self, MoveTo},
     event::{DisableMouseCapture, EnableMouseCapture, Event as TermEvent, EventStream},
     execute, queue,
     style::{Attribute, Print, SetAttribute, SetBackgroundColor, SetForegroundColor},
@@ -49,7 +49,6 @@ impl Terminal {
         let mut stdout = stdout();
         queue!(
             stdout,
-            SavePosition,
             EnterAlternateScreen,
             EnableMouseCapture,
             SetCursorShape::BlinkingBeam,
