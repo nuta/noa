@@ -1,3 +1,5 @@
+use anyhow::Result;
+
 use noa_common::oops::OopsExt;
 use tokio::sync::watch;
 
@@ -13,8 +15,8 @@ impl EventProducer {
 pub struct EventListener(watch::Receiver<()>);
 
 impl EventListener {
-    pub async fn notified(&mut self) {
-        let _ = self.0.changed().await;
+    pub async fn notified(&mut self) -> Result<()> {
+        self.0.changed().await.map_err(Into::into)
     }
 }
 

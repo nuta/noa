@@ -105,8 +105,7 @@ impl JobManager {
         let notified_tx = self.notified_tx.clone();
 
         tokio::spawn(async move {
-            loop {
-                listener.notified().await;
+            while let Ok(()) = listener.notified().await {
                 notified_tx.send(id);
             }
         });
@@ -132,4 +131,8 @@ impl JobManager {
             .boxed(),
         );
     }
+}
+
+impl Drop for JobManager {
+    fn drop(&mut self) {}
 }
