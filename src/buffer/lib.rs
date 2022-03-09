@@ -1,7 +1,3 @@
-#[macro_use]
-#[allow(unused)]
-extern crate log;
-
 pub mod buffer;
 pub mod char_iter;
 pub mod cursor;

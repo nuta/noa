@@ -188,12 +188,15 @@ impl Range {
         self.front() <= pos && pos < self.back()
     }
 
+    pub fn cotains_or_edge(&self, pos: Position) -> bool {
+        self.front() <= pos && pos <= self.back()
+    }
+
     pub fn contains_range(&self, range: Range) -> bool {
         self.front() <= range.front() && range.back() <= self.back()
     }
 
     pub fn overlaps(&self, pos: Position) -> bool {
-        // FIXME: Merge contains
         self.overlaps_with(Range::from_positions(pos, pos))
     }
 

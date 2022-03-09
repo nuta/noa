@@ -305,6 +305,7 @@ impl View {
                 }
             }
 
+            trace!("layout_line: y={}, graphemes={:?}", y, graphemes);
             rows.push(DisplayRow {
                 lineno: y + 1,
                 len_chars,
