@@ -176,14 +176,8 @@ async fn main() {
 
     // Drop compoisitor first to restore the terminal.
     drop(compositor);
-    trace!("dropped compositor");
-    trace!("dropped editor");
-    drop(editor);
-
-    foobar();
+    notification::set_stdout_mode(true);
 }
-
-pub fn foobar() {}
 
 fn check_if_dirty(
     compositor: &mut Compositor<Editor>,
@@ -230,6 +224,7 @@ fn check_if_dirty(
                 }
                 Some(answer) if answer == "n" => {
                     // Quit without saving dirty files.
+                    info!("quitting without saving dirty buffers...");
                     editor.documents.save_all_on_drop(false);
                     force_quit_tx.send(());
                 }
