@@ -61,6 +61,7 @@ impl BufferView {
         let doc = editor.documents.current_mut();
         doc.post_update_job();
 
+        // Completion.
         if doc.buffer().cursors().len() == 1 {
             let doc_id = doc.id();
             let proxy = editor.proxy.clone();
