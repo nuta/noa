@@ -519,6 +519,12 @@ impl CursorSet {
         id
     }
 
+    pub fn remove_cursor(&mut self, id: CursorId) {
+        let mut new_cursors = self.cursors.to_vec();
+        new_cursors.retain(|c| c.id != id);
+        self.update_cursors(&new_cursors);
+    }
+
     pub fn clear_secondary_cursors(&mut self) {
         self.update_cursors(&[self.main_cursor().clone()]);
     }

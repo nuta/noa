@@ -73,12 +73,12 @@ impl Buffer {
         self.buf.line_len(y)
     }
 
-    pub fn config(&self) -> &EditorConfig {
+    pub fn editorconfig(&self) -> &EditorConfig {
         &self.config
     }
 
-    pub fn set_config(&mut self, config: &EditorConfig) {
-        self.config = *config;
+    pub fn set_editorconfig(&mut self, config: EditorConfig) {
+        self.config = config;
     }
 
     pub fn syntax(&self) -> Option<&Syntax> {
@@ -227,7 +227,9 @@ impl Buffer {
         });
     }
 
-    pub fn save_to_file(&self, path: &Path) -> std::io::Result<()> {
+    pub fn save_to_file(&mut self, path: &Path) -> std::io::Result<()> {
+        self.ensure_insert_final_newline();
+
         let f = OpenOptions::new()
             .create(true)
             .write(true)
@@ -237,7 +239,9 @@ impl Buffer {
         Ok(())
     }
 
-    pub fn save_to_file_with_sudo(&self, path: &Path) -> std::io::Result<()> {
+    pub fn save_to_file_with_sudo(&mut self, path: &Path) -> std::io::Result<()> {
+        self.ensure_insert_final_newline();
+
         let magic = "sudo is available without password";
         let check_sudo_output = Command::new("sudo")
             .args(&["echo", magic])
@@ -274,6 +278,24 @@ impl Buffer {
         self.buf.write_to(stdin)?;
 
         Ok(())
+    }
+
+    /// Inserts a newline if the buffer doesn't end with a newline.
+    fn ensure_insert_final_newline(&mut self) {
+        let last_y = self.num_lines() - 1;
+        let last_x = self.line_len(last_y);
+        trace!(
+            "ensure_insert_final_newline: last_y={}, last_x={}, config={}",
+            last_y,
+            last_x,
+            self.config.insert_final_newline
+        );
+        if self.config.insert_final_newline && last_x > 0 {
+            self.apply_text_edit(&TextEdit {
+                range: Range::from_single_position(Position::new(last_y, last_x)),
+                new_text: "\n".to_string(),
+            })
+        }
     }
 
     pub fn clear(&mut self) {
@@ -350,7 +372,7 @@ impl Buffer {
     }
 
     fn do_apply_text_edit(&mut self, edit: &TextEdit) {
-        self.cursors.add_cursor(edit.range);
+        let id = self.cursors.add_cursor(edit.range);
         let mut applied = false;
         self.cursors.foreach(|c, past_cursors| {
             if c.selection() == edit.range {
@@ -359,6 +381,7 @@ impl Buffer {
             }
         });
 
+        self.cursors.remove_cursor(id);
         debug_assert!(applied);
     }
 
@@ -871,8 +894,8 @@ mod tests {
         let mut b = Buffer::from_text("");
         b.set_cursors_for_test(&[Cursor::new(0, 0)]);
         b.insert_newline_and_indent();
-        assert_eq!(b.config().indent_style, IndentStyle::Space);
-        assert_eq!(b.config().indent_size, 4);
+        assert_eq!(b.editorconfig().indent_style, IndentStyle::Space);
+        assert_eq!(b.editorconfig().indent_size, 4);
         assert_eq!(b.text(), "\n");
         assert_eq!(b.cursors(), &[Cursor::new(1, 0)]);
 
@@ -888,8 +911,8 @@ mod tests {
         let mut b = Buffer::from_text("");
         b.set_cursors_for_test(&[Cursor::new(0, 0)]);
         b.indent();
-        assert_eq!(b.config().indent_style, IndentStyle::Space);
-        assert_eq!(b.config().indent_size, 4);
+        assert_eq!(b.editorconfig().indent_style, IndentStyle::Space);
+        assert_eq!(b.editorconfig().indent_size, 4);
         assert_eq!(b.text(), "    ");
 
         //     abc

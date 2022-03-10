@@ -9,3 +9,6 @@ path = "lib.rs"
 
 [dependencies]
 log = "0"
+
+[dev-dependencies]
+pretty_assertions = "1"

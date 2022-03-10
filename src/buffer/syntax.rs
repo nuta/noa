@@ -50,8 +50,13 @@ impl Syntax {
                 Ok(()) => {
                     // TODO: Parse the query only once in noa_languages.
                     let source = get_highlights_query(&lang.name).unwrap_or("");
-                    let highlight_query =
-                        Query::new(ts_lang, source).expect("invalid highlight query");
+                    let highlight_query = match Query::new(ts_lang, source) {
+                        Ok(query) => query,
+                        Err(err) => {
+                            warn!("invalid highlight query: {}", err);
+                            return None;
+                        }
+                    };
 
                     let mut highlight_query_indices = HashMap::new();
                     for (i, name) in highlight_query.capture_names().iter().enumerate() {
@@ -175,7 +180,9 @@ impl Syntax {
             }
 
             let mut node_cursor = node.walk();
-            if node.child_count() > 0 && self.visit_ts_node(node, &mut node_cursor, callback) == ControlFlow::Break(()) {
+            if node.child_count() > 0
+                && self.visit_ts_node(node, &mut node_cursor, callback) == ControlFlow::Break(())
+            {
                 return ControlFlow::Break(());
             }
         }

@@ -29,6 +29,7 @@ use noa_common::{
     prioritized_vec::PrioritizedVec,
 };
 use noa_compositor::line_edit::LineEdit;
+use noa_editorconfig::EditorConfig;
 use noa_languages::language::guess_language;
 
 use crate::{
@@ -99,6 +100,8 @@ impl Document {
                 return Err(err.into());
             }
         };
+
+        buffer.set_editorconfig(EditorConfig::resolve_or_guess(&path));
 
         // Check if a backup file exists.
         let backup_path = backup_dir().join(path.strip_prefix("/")?);

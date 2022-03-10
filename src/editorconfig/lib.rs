@@ -2,6 +2,7 @@
 extern crate log;
 
 use std::{
+    env::current_dir,
     error::Error,
     path::{Path, PathBuf},
 };
@@ -28,7 +29,9 @@ pub struct EditorConfig {
     pub indent_style: IndentStyle,
     pub indent_size: usize,
     pub tab_width: usize,
+    // TODO: Implement `end_of_line`.
     pub end_of_line: EndOfLine,
+    pub insert_final_newline: bool,
 }
 
 impl EditorConfig {
@@ -47,11 +50,9 @@ impl EditorConfig {
     }
 
     pub fn resolve(source_file: &Path) -> Option<EditorConfig> {
-        resolve_config(
-            &source_file
-                .canonicalize()
-                .unwrap_or_else(|_| PathBuf::from(".").canonicalize().unwrap()),
-        )
+        current_dir()
+            .ok()
+            .and_then(|cwd| resolve_config(&cwd.join(source_file)))
     }
 }
 
@@ -62,6 +63,7 @@ impl Default for EditorConfig {
             indent_size: 4,
             tab_width: 8,
             end_of_line: EndOfLine::Lf,
+            insert_final_newline: false,
         }
     }
 }
@@ -73,7 +75,7 @@ struct Rule {
     indent_size: Option<usize>,
     tab_width: Option<usize>,
     end_of_line: Option<EndOfLine>,
-    // TODO: Support end_of_line and insert_final_newline
+    insert_final_newline: Option<bool>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -116,6 +118,9 @@ fn parse_config(body: &str) -> ConfigFile {
                 match key {
                     "root" => {
                         root = value == "true";
+                    }
+                    "insert_final_newline" => {
+                        rule.insert_final_newline = Some(value == "true");
                     }
                     "indent_style" => match value {
                         "space" => {
@@ -254,6 +259,7 @@ fn resolve_config(source_file: &Path) -> Option<EditorConfig> {
     // Visit from the root and determine the config for the source file.
     let mut ret = EditorConfig::default();
     let mut matched_any = false;
+    trace!("config: {:#?}", configs);
     for (dir, config) in configs.iter().rev() {
         for rule in &config.rules {
             let relative_path = if rule.pattern.starts_with('*') {
@@ -265,13 +271,15 @@ fn resolve_config(source_file: &Path) -> Option<EditorConfig> {
 
             if matches_pattern(&rule.pattern, relative_path) {
                 trace!("applying {}/.editorconfig", dir.as_path().display());
+                trace!("rule: {:#?}", rule);
                 ret.indent_style = rule.indent_style.unwrap_or(ret.indent_style);
                 ret.indent_size = rule.indent_size.unwrap_or(ret.indent_size);
                 ret.tab_width = rule.tab_width.unwrap_or(ret.tab_width);
+                ret.insert_final_newline = rule
+                    .insert_final_newline
+                    .unwrap_or(ret.insert_final_newline);
 
-                if rule.indent_style.is_some() {
-                    matched_any = true;
-                }
+                matched_any = true;
             }
         }
     }
@@ -297,6 +305,7 @@ fn read_to_string_4k(path: &Path) -> Result<String, Box<dyn Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_parse_config() {
@@ -305,15 +314,17 @@ mod tests {
                 r#"
                 # this is a comment
                 root = true
+                insert_final_newline = true
+                indent_style = space # comment
 
                 [*.rs] # comment
-                indent_style = space # comment
                 indent_size = 4 # comment
 
                 [*.md]
                 indent_style = tab
                 tab_width = 8
                 end_of_line = crlf
+                insert_final_newline = false
 
                 [broken]
                 foo =
@@ -325,10 +336,11 @@ mod tests {
                 rules: vec![
                     Rule {
                         pattern: "*.rs".to_owned(),
-                        indent_style: Some(IndentStyle::Space),
+                        indent_style: None,
                         indent_size: Some(4),
                         tab_width: None,
                         end_of_line: None,
+                        insert_final_newline: None,
                     },
                     Rule {
                         pattern: "*.md".to_owned(),
@@ -336,6 +348,7 @@ mod tests {
                         indent_size: None,
                         tab_width: Some(8),
                         end_of_line: Some(EndOfLine::CrLf),
+                        insert_final_newline: Some(false),
                     },
                     Rule {
                         pattern: "broken".to_owned(),
@@ -343,6 +356,7 @@ mod tests {
                         indent_size: None,
                         tab_width: None,
                         end_of_line: None,
+                        insert_final_newline: None,
                     }
                 ]
             }

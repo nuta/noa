@@ -259,7 +259,9 @@ impl View {
                     "\t" => {
                         // Compute the number of spaces to fill.
                         let mut n = 1;
-                        while (pos.x + n) % buffer.config().tab_width != 0 && width_remaining > 0 {
+                        while (pos.x + n) % buffer.editorconfig().tab_width != 0
+                            && width_remaining > 0
+                        {
                             n += 1;
                             width_remaining -= 1;
                         }
@@ -305,7 +307,6 @@ impl View {
                 }
             }
 
-            trace!("layout_line: y={}, graphemes={:?}", y, graphemes);
             rows.push(DisplayRow {
                 lineno: y + 1,
                 len_chars,
@@ -439,7 +440,7 @@ mod tests {
         };
 
         let mut buffer = Buffer::from_text("\tA");
-        buffer.set_config(&config);
+        buffer.set_editorconfig(&config);
         view.layout(&buffer, 1, 16);
         assert_eq!(view.rows.len(), 1);
         assert_eq!(
@@ -452,7 +453,7 @@ mod tests {
         );
 
         let mut buffer = Buffer::from_text("AB\tC");
-        buffer.set_config(&config);
+        buffer.set_editorconfig(&config);
         view.layout(&buffer, 1, 16);
         assert_eq!(view.rows.len(), 1);
         assert_eq!(
@@ -465,7 +466,7 @@ mod tests {
         );
 
         let mut buffer = Buffer::from_text("ABC\t\t");
-        buffer.set_config(&config);
+        buffer.set_editorconfig(&config);
         view.layout(&buffer, 1, 16);
         assert_eq!(view.rows.len(), 1);
         assert_eq!(
