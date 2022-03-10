@@ -104,6 +104,9 @@ impl Surface for CompletionView {
                     doc.buffer_mut().apply_text_edits(item.text_edits);
                     doc.buffer_mut().save_undo();
                 }
+
+                doc.clear_completion_items();
+                self.set_active(false);
             }
             (KeyCode::Up, NONE) => {
                 // In case the # of items was decreased (I think won't happen though).
