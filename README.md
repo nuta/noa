@@ -6,7 +6,7 @@ A modern [nano](https://www.nano-editor.org/)-like terminal-based text editor.
 - Smart auto completion and code navigation by [Langauge Server Protocol](https://microsoft.github.io/language-server-protocol/).
 - Language-aware syntax highlighting and editing by [tree-sitter](https://tree-sitter.github.io/tree-sitter/).
 - Fuzzy file filder and global search.
-- No distraction. No plugins. No customizability.
+- No distractions. No plugins. No customizability.
 
 ## Installation
 
