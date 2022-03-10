@@ -61,32 +61,34 @@ impl BufferView {
         let doc = editor.documents.current_mut();
         doc.post_update_job();
 
-        let doc_id = doc.id();
-        let proxy = editor.proxy.clone();
-        let buffer = doc.raw_buffer().clone();
-        let lang = doc.buffer().language();
-        let path = doc.path().to_owned();
-        let main_cursor = doc.buffer().main_cursor().clone();
-        let words = editor.documents.words();
-        editor.await_in_mainloop(
-            async move {
-                let items = complete(proxy, buffer, lang, path, main_cursor, words).await;
-                Ok(items)
-            },
-            move |editor, compositor, items| {
-                if let Some(items) = items {
-                    editor
-                        .documents
-                        .get_mut_document_by_id(doc_id)
-                        .unwrap()
-                        .set_completion_items(items);
+        if doc.buffer().cursors().len() == 1 {
+            let doc_id = doc.id();
+            let proxy = editor.proxy.clone();
+            let buffer = doc.raw_buffer().clone();
+            let lang = doc.buffer().language();
+            let path = doc.path().to_owned();
+            let main_cursor = doc.buffer().main_cursor().clone();
+            let words = editor.documents.words();
+            editor.await_in_mainloop(
+                async move {
+                    let items = complete(proxy, buffer, lang, path, main_cursor, words).await;
+                    Ok(items)
+                },
+                move |editor, compositor, items| {
+                    if let Some(items) = items {
+                        editor
+                            .documents
+                            .get_mut_document_by_id(doc_id)
+                            .unwrap()
+                            .set_completion_items(items);
 
-                    let view: &mut CompletionView =
-                        compositor.get_mut_surface_by_name("completion");
-                    view.set_active(true);
-                }
-            },
-        )
+                        let view: &mut CompletionView =
+                            compositor.get_mut_surface_by_name("completion");
+                        view.set_active(true);
+                    }
+                },
+            )
+        }
     }
 }
 
