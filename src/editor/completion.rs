@@ -35,7 +35,7 @@ pub enum CompletionKind {
 pub struct CompletionItem {
     pub kind: CompletionKind,
     pub label: String,
-    pub text_edit: TextEdit,
+    pub text_edits: Vec<TextEdit>,
 }
 
 /// This should be called after `Document::post_update_job` because the buffer
@@ -80,41 +80,60 @@ pub async fn complete(
             .map(|word| CompletionItem {
                 kind: CompletionKind::AnyWord,
                 label: word.clone(),
-                text_edit: TextEdit {
+                text_edits: vec![TextEdit {
                     range: current_word_range,
                     new_text: word,
-                },
+                }],
             }),
     );
 
     // Wait for the response from the LSP server.
     if let Ok(mut lsp_items) = lsp_items_rx.await {
         for lsp_item in lsp_items.drain(..) {
+            let mut text_edits: Vec<TextEdit> = lsp_item
+                .additional_text_edits
+                .clone().unwrap_or_default()
+                .drain(..)
+                .map(Into::into)
+                .collect();
+
             let item = match (&lsp_item.insert_text, &lsp_item.text_edit) {
-                (Some(insert_text), None) => CompletionItem {
-                    kind: CompletionKind::LspItem,
-                    label: lsp_item.label,
-                    text_edit: TextEdit {
+                (Some(insert_text), None) => {
+                    text_edits.push(TextEdit {
                         range: current_word_range,
                         new_text: insert_text.to_owned(),
-                    },
-                },
-                (None, Some(CompletionTextEdit::Edit(edit))) => CompletionItem {
-                    kind: CompletionKind::LspItem,
-                    label: lsp_item.label,
-                    text_edit: TextEdit {
+                    });
+
+                    CompletionItem {
+                        kind: CompletionKind::LspItem,
+                        label: lsp_item.label,
+                        text_edits,
+                    }
+                }
+                (None, Some(CompletionTextEdit::Edit(edit))) => {
+                    text_edits.push(TextEdit {
                         range: edit.range.into(),
                         new_text: edit.new_text.to_owned(),
-                    },
-                },
-                (None, Some(CompletionTextEdit::InsertAndReplace(edit))) => CompletionItem {
-                    kind: CompletionKind::LspItem,
-                    label: lsp_item.label,
-                    text_edit: TextEdit {
+                    });
+
+                    CompletionItem {
+                        kind: CompletionKind::LspItem,
+                        label: lsp_item.label,
+                        text_edits,
+                    }
+                }
+                (None, Some(CompletionTextEdit::InsertAndReplace(edit))) => {
+                    text_edits.push(TextEdit {
                         range: edit.insert.into(),
                         new_text: edit.new_text.to_owned(),
-                    },
-                },
+                    });
+
+                    CompletionItem {
+                        kind: CompletionKind::LspItem,
+                        label: lsp_item.label,
+                        text_edits,
+                    }
+                }
                 _ => {
                     warn!("unsupported LSP completion item: {:?}", lsp_item);
                     continue;
@@ -128,7 +147,7 @@ pub async fn complete(
     // Make items unique.
     let mut unique_items: Vec<CompletionItem> = Vec::with_capacity(items.len());
     for item in items {
-        if unique_items.iter().all(|i| i.text_edit != item.text_edit) {
+        if unique_items.iter().all(|i| i.text_edits != item.text_edits) {
             unique_items.push(item);
         }
     }

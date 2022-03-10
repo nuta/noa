@@ -23,6 +23,15 @@ pub struct TextEdit {
     pub new_text: String,
 }
 
+impl From<lsp_types::TextEdit> for TextEdit {
+    fn from(edit: lsp_types::TextEdit) -> Self {
+        Self {
+            range: edit.range.into(),
+            new_text: edit.new_text,
+        }
+    }
+}
+
 struct UndoState {
     buf: RawBuffer,
     cursors: CursorSet,

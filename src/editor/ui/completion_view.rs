@@ -101,7 +101,7 @@ impl Surface for CompletionView {
             }
             (KeyCode::Tab, NONE) => {
                 if let Some(item) = doc.completion_items().get(self.selected_index).cloned() {
-                    doc.buffer_mut().apply_text_edit(&item.text_edit);
+                    doc.buffer_mut().apply_text_edits(item.text_edits);
                     doc.buffer_mut().save_undo();
                 }
             }
