@@ -31,6 +31,7 @@ use noa_common::{
 use noa_compositor::line_edit::LineEdit;
 use noa_editorconfig::EditorConfig;
 use noa_languages::language::guess_language;
+use tokio::sync::broadcast;
 
 use crate::{
     completion::{build_fuzzy_matcher, CompletionItem},
@@ -39,6 +40,13 @@ use crate::{
     movement::{Movement, MovementState},
     view::View,
 };
+
+#[derive(Clone, Debug)]
+pub struct OnChangeData {
+    pub version: usize,
+    pub raw_buffer: RawBuffer,
+    pub changes: Vec<Change>,
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct DocumentId(NonZeroUsize);
@@ -59,7 +67,8 @@ pub struct Document {
     flashes: FlashManager,
     linemap: Arc<ArcSwap<LineMap>>,
     find_query: LineEdit,
-    post_update_hook: Option<Box<dyn FnMut(usize /* version */, &RawBuffer, Vec<Change>)>>,
+    onchange_broadcast_tx: broadcast::Sender<OnChangeData>,
+    onchange_broadcast_rx: broadcast::Receiver<OnChangeData>,
 }
 
 static NEXT_DOCUMENT_ID: AtomicUsize = AtomicUsize::new(1);
@@ -113,6 +122,7 @@ impl Document {
             buffer.set_language(lang);
         }
 
+        let (onchange_broadcast_tx, onchange_broadcast_rx) = broadcast::channel(8);
         Ok(Document {
             id,
             version: 1,
@@ -129,15 +139,9 @@ impl Document {
             flashes: FlashManager::new(),
             linemap: Arc::new(ArcSwap::from_pointee(LineMap::new())),
             find_query: LineEdit::new(),
-            post_update_hook: None,
+            onchange_broadcast_tx,
+            onchange_broadcast_rx,
         })
-    }
-
-    pub fn set_post_update_hook<F>(&mut self, post_update_hook: F)
-    where
-        F: FnMut(usize /* version */, &RawBuffer, Vec<Change>) + 'static,
-    {
-        self.post_update_hook = Some(Box::new(post_update_hook));
     }
 
     pub fn save_to_file(&mut self) -> Result<()> {
@@ -237,6 +241,10 @@ impl Document {
         &self.view
     }
 
+    pub fn subscribe_onchange(&self) -> broadcast::Receiver<OnChangeData> {
+        self.onchange_broadcast_tx.subscribe()
+    }
+
     pub fn flashes(&self) -> &FlashManager {
         &self.flashes
     }
@@ -296,9 +304,11 @@ impl Document {
         let changes = self.buffer.post_update_hook();
         self.completion_items.clear();
 
-        if let Some(hook) = &mut self.post_update_hook {
-            (*hook)(self.version, self.buffer.raw_buffer(), changes);
-        }
+        self.onchange_broadcast_tx.send(OnChangeData {
+            version: self.version,
+            raw_buffer: self.buffer.raw_buffer().clone(),
+            changes,
+        });
     }
 
     pub fn idle_job(&mut self) {

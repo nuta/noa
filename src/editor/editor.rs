@@ -19,13 +19,14 @@ use noa_compositor::{line_edit::LineEdit, Compositor};
 use noa_languages::language::Language;
 use noa_proxy::{client::Client as ProxyClient, lsp_types::TextEdit, protocol::Notification};
 use tokio::sync::{
+    broadcast,
     mpsc::{self, UnboundedSender},
     Notify,
 };
 
 use crate::{
     clipboard::{self, ClipboardProvider},
-    document::{Document, DocumentId, DocumentManager},
+    document::{Document, DocumentId, DocumentManager, OnChangeData},
     event_listener::EventListener,
     git::Repo,
     job::JobManager,
@@ -80,9 +81,8 @@ impl Editor {
         // First run of tree sitter parsering, etc.
         doc.post_update_job();
 
-        let (lsp_sync_tx, lsp_sync_rx) = mpsc::unbounded_channel();
         tokio::spawn(lsp_file_sync_task(
-            lsp_sync_rx,
+            doc.subscribe_onchange(),
             doc.id(),
             self.proxy.clone(),
             doc.raw_buffer().clone(),
@@ -90,19 +90,13 @@ impl Editor {
             doc.buffer().language(),
         ));
 
-        let (git_diff_tx, git_diff_rx) = mpsc::unbounded_channel();
-        git_diff_task(
-            git_diff_rx,
+        tokio::spawn(git_diff_task(
+            doc.subscribe_onchange(),
             self.repo.clone(),
             doc.linemap().clone(),
             doc.path().to_owned(),
             self.render_request.clone(),
-        );
-
-        doc.set_post_update_hook(move |version, raw_buffer, changes| {
-            let _ = lsp_sync_tx.send((version, changes));
-            let _ = git_diff_tx.send(raw_buffer.clone());
-        });
+        ));
 
         if let Some(pos) = cursor_pos {
             doc.buffer_mut().move_main_cursor_to_pos(pos);
@@ -146,7 +140,7 @@ impl Editor {
 
 /// Synchronizes the latest buffer text with the LSP server.
 async fn lsp_file_sync_task(
-    mut rx: mpsc::UnboundedReceiver<(usize, Vec<Change>)>,
+    mut rx: broadcast::Receiver<OnChangeData>,
     _doc_id: DocumentId,
     proxy: Arc<ProxyClient>,
     initial_buffer: RawBuffer,
@@ -159,7 +153,12 @@ async fn lsp_file_sync_task(
         .oops();
 
     let path = path.clone();
-    while let Some((version, mut changes)) = rx.recv().await {
+    while let Ok(OnChangeData {
+        version,
+        mut changes,
+        ..
+    }) = rx.recv().await
+    {
         let edits = changes
             .drain(..)
             .map(|change| TextEdit {
@@ -175,22 +174,20 @@ async fn lsp_file_sync_task(
     }
 }
 
-fn git_diff_task(
-    mut rx: mpsc::UnboundedReceiver<RawBuffer>,
+async fn git_diff_task(
+    mut rx: broadcast::Receiver<OnChangeData>,
     repo: Option<Arc<Repo>>,
     linemap: Arc<ArcSwap<LineMap>>,
     path: PathBuf,
     render_request: Arc<Notify>,
 ) {
-    tokio::task::spawn_blocking(move || {
-        while let Some(raw_buffer) = rx.blocking_recv() {
-            if let Some(repo) = &repo {
-                let buffer_text = raw_buffer.text();
-                let mut new_linemap = LineMap::new();
-                new_linemap.update_git_line_statuses(repo, &path, &buffer_text);
-                linemap.store(Arc::new(new_linemap));
-                render_request.notify_one();
-            }
+    while let Ok(OnChangeData { raw_buffer, .. }) = rx.recv().await {
+        if let Some(repo) = &repo {
+            let buffer_text = raw_buffer.text();
+            let mut new_linemap = LineMap::new();
+            new_linemap.update_git_line_statuses(repo, &path, &buffer_text);
+            linemap.store(Arc::new(new_linemap));
+            render_request.notify_one();
         }
-    });
+    }
 }
