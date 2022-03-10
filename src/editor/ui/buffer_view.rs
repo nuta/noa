@@ -60,36 +60,40 @@ impl BufferView {
     pub fn post_update_job(&mut self, editor: &mut Editor) {
         let doc = editor.documents.current_mut();
         doc.post_update_job();
+    }
 
-        // Completion.
-        if doc.buffer().cursors().len() == 1 {
-            let doc_id = doc.id();
-            let proxy = editor.proxy.clone();
-            let buffer = doc.raw_buffer().clone();
-            let lang = doc.buffer().language();
-            let path = doc.path().to_owned();
-            let main_cursor = doc.buffer().main_cursor().clone();
-            let words = editor.documents.words();
-            editor.await_in_mainloop(
-                async move {
-                    let items = complete(proxy, buffer, lang, path, main_cursor, words).await;
-                    Ok(items)
-                },
-                move |editor, compositor, items| {
-                    if let Some(items) = items {
-                        editor
-                            .documents
-                            .get_mut_document_by_id(doc_id)
-                            .unwrap()
-                            .set_completion_items(items);
-
-                        let view: &mut CompletionView =
-                            compositor.get_mut_surface_by_name("completion");
-                        view.set_active(true);
-                    }
-                },
-            )
+    pub fn show_completion(&mut self, editor: &mut Editor) {
+        let doc = editor.documents.current_mut();
+        if doc.buffer().cursors().len() != 1 {
+            return;
         }
+
+        let doc_id = doc.id();
+        let proxy = editor.proxy.clone();
+        let buffer = doc.raw_buffer().clone();
+        let lang = doc.buffer().language();
+        let path = doc.path().to_owned();
+        let main_cursor = doc.buffer().main_cursor().clone();
+        let words = editor.documents.words();
+        editor.await_in_mainloop(
+            async move {
+                let items = complete(proxy, buffer, lang, path, main_cursor, words).await;
+                Ok(items)
+            },
+            move |editor, compositor, items| {
+                if let Some(items) = items {
+                    editor
+                        .documents
+                        .get_mut_document_by_id(doc_id)
+                        .unwrap()
+                        .set_completion_items(items);
+
+                    let view: &mut CompletionView =
+                        compositor.get_mut_surface_by_name("completion");
+                    view.set_active(true);
+                }
+            },
+        )
     }
 }
 
@@ -285,6 +289,7 @@ impl Surface for BufferView {
 
         clear_completion(doc, compositor);
 
+        let mut show_completion = false;
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), CTRL) => {
                 self.quit_tx.send(()).oops();
@@ -333,6 +338,7 @@ impl Surface for BufferView {
             }
             (KeyCode::Char(ch), NONE) | (KeyCode::Char(ch), SHIFT) => {
                 doc.buffer_mut().insert_char(ch);
+                show_completion = true;
             }
             _ => {
                 if let Some(binding) = get_keybinding_for("buffer", key.code, key.modifiers) {
@@ -353,6 +359,9 @@ impl Surface for BufferView {
 
         if prev_rope != current_rope {
             self.post_update_job(editor);
+            if show_completion {
+                self.show_completion(editor);
+            }
         }
 
         HandledEvent::Consumed

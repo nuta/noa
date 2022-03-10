@@ -71,28 +71,31 @@ pub async fn complete(
     // Any word comopletion.
     let mut items = Vec::new();
     let current_word = buffer.substr(current_word_range);
-    items.extend(
-        words
-            .search(&current_word, NUM_ITEMS_MAX)
-            .into_sorted_vec()
-            .drain(..)
-            .filter(|word| word != &current_word)
-            .map(|word| CompletionItem {
-                kind: CompletionKind::AnyWord,
-                label: word.clone(),
-                text_edits: vec![TextEdit {
-                    range: current_word_range,
-                    new_text: word,
-                }],
-            }),
-    );
+    if current_word.len() >= 3 {
+        items.extend(
+            words
+                .search(&current_word, NUM_ITEMS_MAX)
+                .into_sorted_vec()
+                .drain(..)
+                .filter(|word| word != &current_word)
+                .map(|word| CompletionItem {
+                    kind: CompletionKind::AnyWord,
+                    label: word.clone(),
+                    text_edits: vec![TextEdit {
+                        range: current_word_range,
+                        new_text: word,
+                    }],
+                }),
+        );
+    }
 
     // Wait for the response from the LSP server.
     if let Ok(mut lsp_items) = lsp_items_rx.await {
         for lsp_item in lsp_items.drain(..) {
             let mut text_edits: Vec<TextEdit> = lsp_item
                 .additional_text_edits
-                .clone().unwrap_or_default()
+                .clone()
+                .unwrap_or_default()
                 .drain(..)
                 .map(Into::into)
                 .collect();
