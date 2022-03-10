@@ -71,6 +71,7 @@ pub async fn complete(
             .search(&current_word, NUM_ITEMS_MAX)
             .into_sorted_vec()
             .drain(..)
+            .filter(|word| word != &current_word)
             .map(|word| CompletionItem {
                 kind: CompletionKind::AnyWord,
                 label: word.clone(),
@@ -119,5 +120,13 @@ pub async fn complete(
         }
     }
 
-    Some(items)
+    // Make items unique.
+    let mut unique_items: Vec<CompletionItem> = Vec::with_capacity(items.len());
+    for item in items {
+        if unique_items.iter().all(|i| i.text_edit != item.text_edit) {
+            unique_items.push(item);
+        }
+    }
+
+    Some(unique_items)
 }

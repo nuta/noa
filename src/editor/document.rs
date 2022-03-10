@@ -429,6 +429,7 @@ impl Words {
             .fold(
                 || PrioritizedVec::with_max_capacity(max_num_results),
                 |mut words, buffer| {
+                    let mut seen_words = HashSet::new();
                     let iter = buffer.word_iter_from_beginning_of_word(Position::new(0, 0));
                     for word in iter.take(MAX_NUM_WORDS_PER_BUFFER) {
                         let text = word.text();
@@ -437,7 +438,10 @@ impl Words {
                         }
 
                         if let Some(score) = fuzzy_matcher.fuzzy_match(&text, query) {
-                            words.insert(score, text);
+                            if !seen_words.contains(&text) {
+                                words.insert(score, text.clone());
+                                seen_words.insert(text);
+                            }
                         }
                     }
 

@@ -17,7 +17,7 @@ use crate::{
     undoable_raw_buffer::{Change, UndoableRawBuffer},
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct TextEdit {
     pub range: Range,
     pub new_text: String,
