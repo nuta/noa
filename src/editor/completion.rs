@@ -7,6 +7,7 @@ use noa_buffer::{
     raw_buffer::RawBuffer,
 };
 use noa_common::prioritized_vec::PrioritizedVec;
+use noa_compositor::Compositor;
 use noa_languages::language::Language;
 use noa_proxy::{
     client::Client as ProxyClient,
@@ -14,7 +15,11 @@ use noa_proxy::{
 };
 use tokio::sync::oneshot;
 
-use crate::document::Words;
+use crate::{
+    document::{Document, Words},
+    editor::Editor,
+    ui::completion_view::CompletionView,
+};
 
 pub fn build_fuzzy_matcher() -> SkimMatcherV2 {
     SkimMatcherV2::default().smart_case().use_cache(true)
@@ -129,4 +134,12 @@ pub async fn complete(
     }
 
     Some(unique_items)
+}
+
+pub fn clear_completion(doc: &mut Document, compositor: &mut Compositor<Editor>) {
+    compositor
+        .get_mut_surface_by_name::<CompletionView>("completion")
+        .set_active(false);
+
+    doc.clear_completion_items();
 }

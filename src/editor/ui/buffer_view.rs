@@ -20,7 +20,7 @@ use tokio::sync::{mpsc::UnboundedSender, oneshot, Notify};
 use crate::{
     actions::{execute_action, execute_action_or_notify},
     clipboard::{ClipboardData, SystemClipboardData},
-    completion::complete,
+    completion::{clear_completion, complete},
     editor::Editor,
     keybindings::get_keybinding_for,
     linemap::LineStatus,
@@ -283,6 +283,8 @@ impl Surface for BufferView {
         let doc = editor.documents.current_mut();
         let prev_rope = doc.raw_buffer().rope().clone();
 
+        clear_completion(doc, compositor);
+
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), CTRL) => {
                 self.quit_tx.send(()).oops();
@@ -358,11 +360,12 @@ impl Surface for BufferView {
 
     fn handle_key_batch_event(
         &mut self,
-        _compositor: &mut Compositor<Editor>,
+        compositor: &mut Compositor<Editor>,
         editor: &mut Editor,
         s: &str,
     ) -> HandledEvent {
         let doc = editor.documents.current_mut();
+        clear_completion(doc, compositor);
         doc.buffer_mut().insert(s);
         self.post_update_job(editor);
         HandledEvent::Consumed
@@ -370,7 +373,7 @@ impl Surface for BufferView {
 
     fn handle_mouse_event(
         &mut self,
-        _compositor: &mut Compositor<Self::Context>,
+        compositor: &mut Compositor<Self::Context>,
         editor: &mut Editor,
         kind: MouseEventKind,
         modifiers: KeyModifiers,
@@ -383,6 +386,8 @@ impl Surface for BufferView {
         const _SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
         let doc = editor.documents.current_mut();
+
+        clear_completion(doc, compositor);
 
         if kind == MouseEventKind::ScrollDown {
             doc.movement().scroll_down();

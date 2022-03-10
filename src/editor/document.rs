@@ -186,6 +186,10 @@ impl Document {
         self.completion_items = items;
     }
 
+    pub fn clear_completion_items(&mut self) {
+        self.completion_items.clear();
+    }
+
     pub fn is_virtual_file(&self) -> bool {
         self.virtual_file
     }

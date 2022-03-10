@@ -14,15 +14,22 @@ use super::helpers::truncate_to_width;
 
 pub struct CompletionView {
     active: bool,
+    selected_index: usize,
 }
 
 impl CompletionView {
     pub fn new() -> CompletionView {
-        CompletionView { active: false }
+        CompletionView {
+            active: false,
+            selected_index: 0,
+        }
     }
 
     pub fn set_active(&mut self, active: bool) {
         self.active = active;
+        if !self.active {
+            self.selected_index = 0;
+        }
     }
 }
 
@@ -88,9 +95,30 @@ impl Surface for CompletionView {
         }
 
         match (key.code, key.modifiers) {
-            (KeyCode::Enter, NONE) => {
-                let item = doc.completion_items().get(0 /* FIXME: */).unwrap().clone();
-                doc.buffer_mut().apply_text_edit(&item.text_edit);
+            (KeyCode::Esc, NONE) => {
+                doc.clear_completion_items();
+                self.set_active(false);
+            }
+            (KeyCode::Tab, NONE) => {
+                if let Some(item) = doc.completion_items().get(self.selected_index).cloned() {
+                    doc.buffer_mut().apply_text_edit(&item.text_edit);
+                    doc.buffer_mut().save_undo();
+                }
+            }
+            (KeyCode::Up, NONE) => {
+                // In case the # of items was decreased (I think won't happen though).
+                self.selected_index = min(
+                    self.selected_index,
+                    doc.completion_items().len().saturating_sub(1),
+                );
+
+                self.selected_index = self.selected_index.saturating_sub(1);
+            }
+            (KeyCode::Down, NONE) => {
+                self.selected_index = min(
+                    self.selected_index + 1,
+                    doc.completion_items().len().saturating_sub(1),
+                );
             }
             _ => {
                 return HandledEvent::Ignored;
