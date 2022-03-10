@@ -440,7 +440,7 @@ mod tests {
         };
 
         let mut buffer = Buffer::from_text("\tA");
-        buffer.set_editorconfig(&config);
+        buffer.set_editorconfig(config);
         view.layout(&buffer, 1, 16);
         assert_eq!(view.rows.len(), 1);
         assert_eq!(
@@ -453,7 +453,7 @@ mod tests {
         );
 
         let mut buffer = Buffer::from_text("AB\tC");
-        buffer.set_editorconfig(&config);
+        buffer.set_editorconfig(config);
         view.layout(&buffer, 1, 16);
         assert_eq!(view.rows.len(), 1);
         assert_eq!(
@@ -466,7 +466,7 @@ mod tests {
         );
 
         let mut buffer = Buffer::from_text("ABC\t\t");
-        buffer.set_editorconfig(&config);
+        buffer.set_editorconfig(config);
         view.layout(&buffer, 1, 16);
         assert_eq!(view.rows.len(), 1);
         assert_eq!(
