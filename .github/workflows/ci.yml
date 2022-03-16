@@ -170,7 +170,7 @@ jobs:
       
       - name: Install libstdc++6
         run: sudo apt-get install -y libstdc++6
-        if: runner.os == 'Linux'
+        if: matrix.os == "ubuntu-latest"
       
       - name: Cache cargo registry
         uses: actions/cache@v2.1.7
