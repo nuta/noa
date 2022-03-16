@@ -13,7 +13,7 @@ use noa_buffer::{
 };
 use noa_common::oops::OopsExt;
 use noa_compositor::{line_edit::LineEdit, Compositor};
-use noa_languages::language::{Lsp};
+use noa_languages::language::Lsp;
 use noa_proxy::{client::Client as ProxyClient, lsp_types::TextEdit, protocol::Notification};
 use tokio::sync::{broadcast, mpsc::UnboundedSender, Notify};
 

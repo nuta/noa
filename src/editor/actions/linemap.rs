@@ -1,9 +1,7 @@
-use anyhow::{Result};
+use anyhow::Result;
 use noa_compositor::Compositor;
 
-use crate::{
-    editor::Editor,
-};
+use crate::editor::Editor;
 
 use super::Action;
 
