@@ -98,6 +98,9 @@ jobs:
         with:
           command: build
 
+      - name: List dependencies
+        run: ldd target/debug/noa
+        if: "matrix.os == 'ubuntu-latest'"
 
   build:
     name: "Build (release)"
