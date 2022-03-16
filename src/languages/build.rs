@@ -121,6 +121,7 @@ fn main() {
 
     println!("Generating tree_sitter/mod.rs");
     let mut mod_rs = String::new();
+    mod_rs.push_str("#![allow(clippy::all)]\n");
     mod_rs.push_str("pub use tree_sitter::*;\n");
     mod_rs.push_str("extern \"C\" {\n");
     for lang in &yaml.languages {
