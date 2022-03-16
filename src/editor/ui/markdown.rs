@@ -14,7 +14,7 @@ impl Markdown {
     pub fn render(&self, width: usize) -> Vec<String> {
         // TODO: Parse self.0
         textwrap::wrap(&self.0, width)
-            .drain(..)
+            .into_iter()
             .map(|line| line.into_owned())
             .collect()
     }

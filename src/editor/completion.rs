@@ -71,7 +71,7 @@ pub async fn complete(
             words
                 .search(&current_word, NUM_ITEMS_MAX)
                 .into_sorted_vec()
-                .drain(..)
+                .into_iter()
                 .filter(|word| word != &current_word)
                 .map(|word| CompletionItem {
                     kind: CompletionKind::AnyWord,
@@ -85,13 +85,13 @@ pub async fn complete(
     }
 
     // Wait for the response from the LSP server.
-    if let Ok(mut lsp_items) = lsp_items_rx.await {
-        for lsp_item in lsp_items.drain(..) {
+    if let Ok(lsp_items) = lsp_items_rx.await {
+        for lsp_item in lsp_items.into_iter() {
             let mut text_edits: Vec<TextEdit> = lsp_item
                 .additional_text_edits
                 .clone()
                 .unwrap_or_default()
-                .drain(..)
+                .into_iter()
                 .map(Into::into)
                 .collect();
 

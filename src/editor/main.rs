@@ -45,6 +45,7 @@ mod finder;
 mod flash;
 mod git;
 mod hook;
+mod hooks;
 mod job;
 mod keybindings;
 mod linemap;

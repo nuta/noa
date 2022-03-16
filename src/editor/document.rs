@@ -168,9 +168,9 @@ impl Document {
                 let format_future =
                     proxy.format(lsp, &self.path, (*self.buffer.editorconfig()).into());
                 match block_on(timeout(Duration::from_secs(3), format_future)) {
-                    Ok(Ok(mut edits)) => {
+                    Ok(Ok(edits)) => {
                         self.buffer
-                            .apply_text_edits(edits.drain(..).map(Into::into).collect());
+                            .apply_text_edits(edits.into_iter().map(Into::into).collect());
                     }
                     Ok(Err(err)) => {
                         notify_warn!("LSP formatting failed");

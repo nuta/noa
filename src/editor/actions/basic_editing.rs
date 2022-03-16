@@ -47,7 +47,7 @@ impl Action for BackspaceWord {
     }
 
     fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
-        editor.current_buffer_mut().backspace_word();
+        editor.documents.current_mut().buffer_mut().backspace_word();
         Ok(())
     }
 }
@@ -60,7 +60,7 @@ impl Action for Truncate {
     }
 
     fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
-        editor.current_buffer_mut().truncate();
+        editor.documents.current_mut().buffer_mut().truncate();
         Ok(())
     }
 }
@@ -73,7 +73,7 @@ impl Action for Delete {
     }
 
     fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
-        editor.current_buffer_mut().delete();
+        editor.documents.current_mut().buffer_mut().delete();
         Ok(())
     }
 }
@@ -86,7 +86,11 @@ impl Action for MoveToBeginningOfLine {
     }
 
     fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
-        editor.current_buffer_mut().move_to_beginning_of_line();
+        editor
+            .documents
+            .current_mut()
+            .buffer_mut()
+            .move_to_beginning_of_line();
         Ok(())
     }
 }
@@ -99,7 +103,11 @@ impl Action for MoveToEndOfLine {
     }
 
     fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
-        editor.current_buffer_mut().move_to_end_of_line();
+        editor
+            .documents
+            .current_mut()
+            .buffer_mut()
+            .move_to_end_of_line();
         Ok(())
     }
 }
@@ -112,7 +120,11 @@ impl Action for MoveToNextWord {
     }
 
     fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
-        editor.current_buffer_mut().move_to_next_word();
+        editor
+            .documents
+            .current_mut()
+            .buffer_mut()
+            .move_to_next_word();
         Ok(())
     }
 }
@@ -125,7 +137,11 @@ impl Action for MoveToPrevWord {
     }
 
     fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
-        editor.current_buffer_mut().move_to_prev_word();
+        editor
+            .documents
+            .current_mut()
+            .buffer_mut()
+            .move_to_prev_word();
         Ok(())
     }
 }
@@ -194,7 +210,11 @@ impl Action for SelectPrevWord {
     }
 
     fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
-        editor.current_buffer_mut().select_prev_word();
+        editor
+            .documents
+            .current_mut()
+            .buffer_mut()
+            .select_prev_word();
         Ok(())
     }
 }
@@ -207,7 +227,11 @@ impl Action for SelectNextWord {
     }
 
     fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
-        editor.current_buffer_mut().select_next_word();
+        editor
+            .documents
+            .current_mut()
+            .buffer_mut()
+            .select_next_word();
         Ok(())
     }
 }
@@ -220,7 +244,7 @@ impl Action for MoveLineUp {
     }
 
     fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
-        editor.current_buffer_mut().move_lines_up();
+        editor.documents.current_mut().buffer_mut().move_lines_up();
         Ok(())
     }
 }
@@ -233,7 +257,11 @@ impl Action for MoveLinesDown {
     }
 
     fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
-        editor.current_buffer_mut().move_lines_down();
+        editor
+            .documents
+            .current_mut()
+            .buffer_mut()
+            .move_lines_down();
         Ok(())
     }
 }
@@ -272,7 +300,11 @@ impl Action for DuplicateLinesUp {
     }
 
     fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
-        editor.current_buffer_mut().duplicate_lines_up();
+        editor
+            .documents
+            .current_mut()
+            .buffer_mut()
+            .duplicate_lines_up();
         Ok(())
     }
 }
@@ -285,7 +317,11 @@ impl Action for DuplicateLinesDown {
     }
 
     fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
-        editor.current_buffer_mut().duplicate_lines_down();
+        editor
+            .documents
+            .current_mut()
+            .buffer_mut()
+            .duplicate_lines_down();
         Ok(())
     }
 }
@@ -378,7 +414,7 @@ impl Action for Paste {
     }
 
     fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
-        editor.current_buffer_mut().truncate();
+        editor.documents.current_mut().buffer_mut().truncate();
         Ok(())
     }
 }
@@ -391,7 +427,7 @@ impl Action for Undo {
     }
 
     fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
-        editor.current_buffer_mut().undo();
+        editor.documents.current_mut().buffer_mut().undo();
         Ok(())
     }
 }
@@ -404,7 +440,7 @@ impl Action for Redo {
     }
 
     fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
-        editor.current_buffer_mut().redo();
+        editor.documents.current_mut().buffer_mut().redo();
         Ok(())
     }
 }

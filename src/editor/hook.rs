@@ -1,9 +1,9 @@
-use std::{any::Any, collections::HashMap};
+use std::{collections::HashMap};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result};
 
 use noa_compositor::Compositor;
-use once_cell::sync::Lazy;
+
 
 use crate::editor::Editor;
 
@@ -13,13 +13,9 @@ pub enum Hook {
     BeforeSave,
 }
 
-pub trait HookCallback: Any + Send + Sync {
-    fn run(&self, editor: &mut Editor, compositor: &mut Compositor<Editor>) -> Result<()>;
-}
-
 struct Entry {
     name: &'static str,
-    callback: Box<dyn HookCallback>,
+    callback: Box<dyn FnMut(&mut Editor, &mut Compositor<Editor>) -> Result<()>>,
 }
 
 pub struct HookManager {
@@ -33,7 +29,10 @@ impl HookManager {
         }
     }
 
-    pub fn register(&mut self, hook: Hook, name: &'static str, callback: impl HookCallback) {
+    pub fn register<F>(&mut self, hook: Hook, name: &'static str, callback: F)
+    where
+        F: FnMut(&mut Editor, &mut Compositor<Editor>) -> Result<()> + 'static,
+    {
         self.callbacks
             .entry(hook)
             .or_insert_with(Vec::new)
@@ -44,9 +43,9 @@ impl HookManager {
     }
 
     pub fn invoke(&mut self, editor: &mut Editor, compositor: &mut Compositor<Editor>, hook: Hook) {
-        if let Some(entries) = self.callbacks.get(&hook) {
+        if let Some(entries) = self.callbacks.get_mut(&hook) {
             for entry in entries {
-                if let Err(err) = entry.callback.run(editor, compositor) {
+                if let Err(err) = (entry.callback)(editor, compositor) {
                     warn!("hook {} ({:?}) failed: {}", entry.name, hook, err);
                 }
             }
