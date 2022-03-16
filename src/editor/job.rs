@@ -53,6 +53,42 @@ impl JobManager {
         }
     }
 
+    pub fn listen_in_mainloop<Callback>(&mut self, mut listener: EventListener, callback: Callback)
+    where
+        Callback: FnMut(&mut Editor, &mut Compositor<Editor>) + Send + 'static,
+    {
+        let id = CallbackId::alloc();
+        self.mut_callbacks.insert(id, Box::new(callback));
+        let notified_tx = self.notified_tx.clone();
+
+        tokio::spawn(async move {
+            while let Ok(()) = listener.notified().await {
+                let _ = notified_tx.send(id);
+            }
+        });
+    }
+
+    pub fn await_in_mainloop<Fut, Ret, Then>(&mut self, future: Fut, then: Then)
+    where
+        Fut: Future<Output = Result<Ret>> + Send + 'static,
+        Ret: Send + 'static,
+        Then: FnOnce(&mut Editor, &mut Compositor<Editor>, Ret) + Send + 'static,
+    {
+        self.futures.push(
+            async move {
+                let result = future.await?;
+
+                // Curring the callback.
+                let boxed_callback: Box<
+                    dyn FnOnce(&mut Editor, &mut Compositor<Editor>) + Send + 'static,
+                > = Box::new(move |editor, compositor| then(editor, compositor, result));
+
+                Ok(boxed_callback)
+            }
+            .boxed(),
+        );
+    }
+
     pub async fn get_completed(&mut self) -> Option<CompletedJob> {
         tokio::select! {
             Some(callback) = self.futures.next() => {
@@ -82,42 +118,6 @@ impl JobManager {
     ///      out of `Editor` temporarily.
     pub fn insert_back_notified(&mut self, id: CallbackId, callback: Box<NotifyCallback>) {
         self.mut_callbacks.insert(id, callback);
-    }
-
-    pub fn push_event_listener<Callback>(&mut self, mut listener: EventListener, callback: Callback)
-    where
-        Callback: FnMut(&mut Editor, &mut Compositor<Editor>) + Send + 'static,
-    {
-        let id = CallbackId::alloc();
-        self.mut_callbacks.insert(id, Box::new(callback));
-        let notified_tx = self.notified_tx.clone();
-
-        tokio::spawn(async move {
-            while let Ok(()) = listener.notified().await {
-                let _ = notified_tx.send(id);
-            }
-        });
-    }
-
-    pub fn push_future<Fut, Ret, Callback>(&mut self, future: Fut, callback: Callback)
-    where
-        Fut: Future<Output = Result<Ret>> + Send + 'static,
-        Ret: Send + 'static,
-        Callback: FnOnce(&mut Editor, &mut Compositor<Editor>, Ret) + Send + 'static,
-    {
-        self.futures.push(
-            async move {
-                let result = future.await?;
-
-                // Curring the callback.
-                let boxed_callback: Box<
-                    dyn FnOnce(&mut Editor, &mut Compositor<Editor>) + Send + 'static,
-                > = Box::new(move |editor, compositor| callback(editor, compositor, result));
-
-                Ok(boxed_callback)
-            }
-            .boxed(),
-        );
     }
 }
 

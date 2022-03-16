@@ -146,8 +146,8 @@ impl Surface for MetaLineView {
 
     fn handle_key_event(
         &mut self,
-        _compositor: &mut Compositor<Self::Context>,
         editor: &mut Editor,
+        _compositor: &mut Compositor<Self::Context>,
         key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
@@ -195,8 +195,8 @@ impl Surface for MetaLineView {
 
     fn handle_key_batch_event(
         &mut self,
-        _compositor: &mut Compositor<Editor>,
         editor: &mut Editor,
+        _compositor: &mut Compositor<Editor>,
         s: &str,
     ) -> HandledEvent {
         match self.mode {

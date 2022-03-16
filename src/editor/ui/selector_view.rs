@@ -232,8 +232,8 @@ impl Surface for SelectorView {
 
     fn handle_key_event(
         &mut self,
-        compositor: &mut Compositor<Self::Context>,
         editor: &mut Editor,
+        compositor: &mut Compositor<Self::Context>,
         key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
@@ -283,8 +283,8 @@ impl Surface for SelectorView {
 
     fn handle_key_batch_event(
         &mut self,
-        _compositor: &mut Compositor<Editor>,
         _editor: &mut Editor,
+        _compositor: &mut Compositor<Editor>,
         text: &str,
     ) -> HandledEvent {
         if let Some(input) = self.input.as_mut() {
@@ -296,8 +296,8 @@ impl Surface for SelectorView {
 
     fn handle_mouse_event(
         &mut self,
-        _compositor: &mut Compositor<Self::Context>,
         _ctx: &mut Self::Context,
+        _compositor: &mut Compositor<Self::Context>,
         _kind: noa_compositor::terminal::MouseEventKind,
         _modifiers: noa_compositor::terminal::KeyModifiers,
         _surface_y: usize,

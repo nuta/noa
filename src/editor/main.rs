@@ -44,6 +44,7 @@ mod file_watch;
 mod finder;
 mod flash;
 mod git;
+mod hook;
 mod job;
 mod keybindings;
 mod linemap;
@@ -141,7 +142,17 @@ async fn main() {
 
             Some(noti) = notification_rx.recv() => {
                 trace!("proxy notification: {:?}", noti);
-                editor.handle_notification(noti);
+                match noti {
+                    noa_proxy::protocol::Notification::Diagnostics { diags, path } => {
+                        if path != editor.documents.current().path() {
+                            return;
+                        }
+
+                        if let Some(diag) = diags.first() {
+                            notify_warn!("{}: {:?}", diag.range.start.line + 1, diag.message);
+                        }
+                    }
+                }
             }
 
             Some(completed) = editor.jobs.get_completed() => {

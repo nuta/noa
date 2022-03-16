@@ -148,7 +148,7 @@ fn update_items(editor: &mut Editor, query: &str) {
         }
     });
 
-    editor.await_in_mainloop(
+    editor.jobs.await_in_mainloop(
         async move {
             while let Some((priority, item)) = items_rx.recv().await {
                 items.insert(priority, item);

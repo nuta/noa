@@ -22,6 +22,7 @@ use crate::{
     document::{Document, DocumentId, DocumentManager, OnChangeData},
     event_listener::EventListener,
     git::Repo,
+    hook::HookManager,
     job::JobManager,
     linemap::LineMap,
 };
@@ -30,6 +31,7 @@ pub struct Editor {
     pub workspace_dir: PathBuf,
     pub documents: DocumentManager,
     pub jobs: JobManager,
+    pub hooks: HookManager,
     pub clipboard: Box<dyn ClipboardProvider>,
     pub find_query: LineEdit,
     pub repo: Option<Arc<Repo>>,
@@ -60,6 +62,7 @@ impl Editor {
             workspace_dir: workspace_dir.to_path_buf(),
             documents: DocumentManager::new(),
             jobs: JobManager::new(),
+            hooks: HookManager::new(),
             clipboard: clipboard::build_provider(),
             find_query: LineEdit::new(),
             repo,
@@ -100,27 +103,28 @@ impl Editor {
         // Watch changes on disk and reload it if changed.
         if let Some(listener) = doc.modified_listener().cloned() {
             let doc_id = doc.id();
-            self.listen_in_mainloop(listener, move |editor, _compositor| {
-                let current_id = editor.documents.current().id();
-                let doc = match editor.documents.get_mut_document_by_id(doc_id) {
-                    Some(doc) => doc,
-                    None => {
-                        warn!("document {:?} was closed", doc_id);
-                        return;
-                    }
-                };
+            self.jobs
+                .listen_in_mainloop(listener, move |editor, _compositor| {
+                    let current_id = editor.documents.current().id();
+                    let doc = match editor.documents.get_mut_document_by_id(doc_id) {
+                        Some(doc) => doc,
+                        None => {
+                            warn!("document {:?} was closed", doc_id);
+                            return;
+                        }
+                    };
 
-                match doc.reload() {
-                    Ok(_) => {
-                        if current_id == doc.id() {
-                            notify_info!("reloaded from the disk");
+                    match doc.reload() {
+                        Ok(_) => {
+                            if current_id == doc.id() {
+                                notify_info!("reloaded from the disk");
+                            }
+                        }
+                        Err(err) => {
+                            warn!("failed to reload {}: {:?}", doc.path().display(), err);
                         }
                     }
-                    Err(err) => {
-                        warn!("failed to reload {}: {:?}", doc.path().display(), err);
-                    }
-                }
-            });
+                });
         }
 
         if let Some(pos) = cursor_pos {
@@ -131,35 +135,6 @@ impl Editor {
         let id = doc.id();
         self.documents.add(doc);
         Ok(id)
-    }
-
-    pub fn handle_notification(&mut self, notification: Notification) {
-        match notification {
-            Notification::Diagnostics { diags, path } => {
-                if path != self.documents.current().path() {
-                    return;
-                }
-
-                if let Some(diag) = diags.first() {
-                    notify_warn!("{}: {:?}", diag.range.start.line + 1, diag.message);
-                }
-            }
-        }
-    }
-    pub fn listen_in_mainloop<Callback>(&mut self, listener: EventListener, callback: Callback)
-    where
-        Callback: FnMut(&mut Editor, &mut Compositor<Editor>) + Send + 'static,
-    {
-        self.jobs.push_event_listener(listener, callback);
-    }
-
-    pub fn await_in_mainloop<Fut, Ret, Then>(&mut self, future: Fut, then: Then)
-    where
-        Fut: Future<Output = Result<Ret>> + Send + 'static,
-        Ret: Send + 'static,
-        Then: FnOnce(&mut Editor, &mut Compositor<Editor>, Ret) + Send + 'static,
-    {
-        self.jobs.push_future(future, then);
     }
 }
 
