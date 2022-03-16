@@ -1,0 +1,195 @@
+name: CI
+on:
+  pull_request:
+  push:
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v3
+
+      - name: Install nightly toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+          components: rustfmt, clippy
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v2.1.7
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-v2-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-v2-cargo-registry-
+
+      - name: Cache cargo index
+        uses: actions/cache@v2.1.7
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-v2-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-v2-cargo-index-
+
+      - name: Cache cargo target dir
+        uses: actions/cache@v2.1.7
+        with:
+          path: target
+          key: ${{ runner.os }}-v2-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-v2-cargo-build-target-      
+
+      - name: make sure cargo fmt is already applied
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+
+      - name: Run clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+
+  debug_build:
+    name: "Build (debug)"
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+        rust:
+          - nightly
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v3
+
+      - name: Install nightly toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v2.1.7
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-v2-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-v2-cargo-registry-
+
+      - name: Cache cargo index
+        uses: actions/cache@v2.1.7
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-v2-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-v2-cargo-index-
+
+      - name: Cache cargo target dir
+        uses: actions/cache@v2.1.7
+        with:
+          path: target
+          key: ${{ runner.os }}-v2-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-v2-cargo-build-target-      
+
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+
+
+  build:
+    name: "Build (release)"
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+        rust:
+          - nightly
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v3
+
+      - name: Install nightly toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v2.1.7
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-v2-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-v2-cargo-registry-
+
+      - name: Cache cargo index
+        uses: actions/cache@v2.1.7
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-v2-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-v2-cargo-index-
+
+      - name: Cache cargo target dir
+        uses: actions/cache@v2.1.7
+        with:
+          path: target
+          key: ${{ runner.os }}-v2-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-v2-cargo-build-target-      
+
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+
+  test:
+    name: Tests
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+        rust:
+          - nightly
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v3
+
+      - name: Install nightly toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v2.1.7
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-v2-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-v2-cargo-registry-
+
+      - name: Cache cargo index
+        uses: actions/cache@v2.1.7
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-v2-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-v2-cargo-index-
+
+      - name: Cache cargo target dir
+        uses: actions/cache@v2.1.7
+        with:
+          path: target
+          key: ${{ runner.os }}-v2-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-v2-cargo-build-target-      
+
+      - name: Run tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
