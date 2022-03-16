@@ -5,7 +5,7 @@ use noa_compositor::Compositor;
 use crate::{
     clipboard::{ClipboardData, SystemClipboardData},
     editor::Editor,
-    ui::finder_view::FinderView,
+    finder::open_finder,
 };
 
 use super::Action;
@@ -18,7 +18,10 @@ impl Action for Save {
     }
 
     fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
-        editor.documents.current_mut().save_to_file()?;
+        editor
+            .documents
+            .current_mut()
+            .save_to_file(Some(&editor.proxy))?;
         Ok(())
     }
 }
@@ -27,14 +30,11 @@ pub struct OpenFilder;
 
 impl Action for OpenFilder {
     fn name(&self) -> &'static str {
-        "open_filder"
+        "open_finder"
     }
 
-    fn run(&self, _editor: &mut Editor, compositor: &mut Compositor<Editor>) -> Result<()> {
-        compositor
-            .get_mut_surface_by_name::<FinderView>("finder")
-            .set_active(true);
-
+    fn run(&self, editor: &mut Editor, compositor: &mut Compositor<Editor>) -> Result<()> {
+        open_finder(compositor, editor);
         Ok(())
     }
 }
@@ -150,7 +150,7 @@ impl Action for FindCurrentWord {
 
         if let Some(word_range) = word_range {
             let text = buffer.substr(word_range);
-            doc.find_query_mut().set_text(&text);
+            editor.find_query.set_text(&text);
         }
         Ok(())
     }

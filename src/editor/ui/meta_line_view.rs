@@ -1,9 +1,6 @@
-use std::cmp::min;
-
 use noa_buffer::display_width::DisplayWidth;
 use noa_compositor::{
     canvas::CanvasViewMut,
-    line_edit::LineEdit,
     surface::{HandledEvent, KeyEvent, Layout, RectSize, Surface},
     terminal::{KeyCode, KeyModifiers},
     Compositor,
@@ -15,21 +12,15 @@ use crate::{
     theme::theme_for,
 };
 
-use super::helpers::{truncate_to_width, truncate_to_width_suffix};
+use super::helpers::truncate_to_width_suffix;
 
 pub enum MetaLineMode {
     Normal,
     Search,
 }
 
-struct LastNotification {
-    theme_key: &'static str,
-    wrapped_text: String,
-}
-
 pub struct MetaLineView {
     mode: MetaLineMode,
-    last_notification: Option<LastNotification>,
     clear_notification_after: usize,
 }
 
@@ -37,13 +28,8 @@ impl MetaLineView {
     pub fn new() -> MetaLineView {
         MetaLineView {
             mode: MetaLineMode::Normal,
-            last_notification: None,
             clear_notification_after: 0,
         }
-    }
-
-    pub fn set_mode(&mut self, mode: MetaLineMode) {
-        self.mode = mode;
     }
 }
 
@@ -83,6 +69,7 @@ impl Surface for MetaLineView {
     fn render(&mut self, editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
         canvas.clear();
 
+        let search_query = editor.find_query.text();
         let doc = editor.documents.current();
         let view = doc.view();
         let buffer = doc.buffer();
@@ -112,30 +99,32 @@ impl Surface for MetaLineView {
             format!("{}", cursor_pos.x)
         };
         let cursor_pos_width = cursor_pos_str.display_width();
-        let search_query = doc.find_query().text();
 
         // Apply the style.
         canvas.apply_style(0, 0, canvas.width(), theme_for("meta_line.background"));
 
-        let leftside_width = if !search_query.is_empty() {
-            // Search query.
-            let max_width = canvas.width().saturating_sub(cursor_pos_width + 2);
-            let truncated_query = truncate_to_width_suffix(&search_query, max_width);
-            canvas.write_str(0, 1, truncated_query);
-            truncated_query.display_width()
-        } else {
-            // File name.
-            let filename = truncate_to_width_suffix(
-                doc.name(),
-                canvas.width().saturating_sub(cursor_pos_width + 2),
-            );
-            let filename_width = filename.display_width();
-            canvas.write_str(0, 1, filename);
+        let leftside_width = match self.mode {
+            MetaLineMode::Search => {
+                // Search query.
+                let max_width = canvas.width().saturating_sub(cursor_pos_width + 2);
+                let truncated_query = truncate_to_width_suffix(&search_query, max_width);
+                canvas.write_str(0, 1, truncated_query);
+                truncated_query.display_width()
+            }
+            MetaLineMode::Normal => {
+                // File name.
+                let filename = truncate_to_width_suffix(
+                    doc.name(),
+                    canvas.width().saturating_sub(cursor_pos_width + 2),
+                );
+                let filename_width = filename.display_width();
+                canvas.write_str(0, 1, filename);
 
-            // Cursor position.
-            canvas.write_str(0, 1 + filename_width + 1, &cursor_pos_str);
+                // Cursor position.
+                canvas.write_str(0, 1 + filename_width + 1, &cursor_pos_str);
 
-            1 + filename_width + 1
+                1 + filename_width + 1
+            }
         };
 
         // Notification.
@@ -148,7 +137,7 @@ impl Surface for MetaLineView {
 
             let message = text.lines().next().unwrap_or("");
             let message_width = message.display_width();
-            let max_width = canvas.width().saturating_sub(leftside_width + 2);
+            let _max_width = canvas.width().saturating_sub(leftside_width + 2);
             let x = canvas.width().saturating_sub(message_width + 1);
             canvas.write_str(0, x, message);
             canvas.apply_style(0, x, x + message_width, theme_for(theme_key));
@@ -162,46 +151,46 @@ impl Surface for MetaLineView {
         key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
-        // const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        const CTRL: KeyModifiers = KeyModifiers::CONTROL;
         // const ALT: KeyModifiers = KeyModifiers::ALT;
         // const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
         match self.mode {
             MetaLineMode::Search => match (key.code, key.modifiers) {
-                (KeyCode::Esc, NONE) => {
+                (KeyCode::Esc, _) => {
                     self.mode = MetaLineMode::Normal;
-                    editor.documents.current_mut().find_query_mut().clear();
-                    HandledEvent::Consumed
+                    editor.find_query.clear();
                 }
-                _ => editor
-                    .documents
-                    .current_mut()
-                    .find_query_mut()
-                    .consume_key_event(key),
+                (KeyCode::Enter, NONE) => {
+                    self.mode = MetaLineMode::Normal;
+                    editor.find_query.save_undo();
+                }
+                _ => {
+                    editor.find_query.consume_key_event(key);
+                }
             },
             MetaLineMode::Normal => match (key.code, key.modifiers) {
-                (KeyCode::Esc, NONE)
-                    if !editor.documents.current_mut().find_query_mut().is_empty() =>
-                {
-                    editor.documents.current_mut().find_query_mut().clear();
-                    HandledEvent::Consumed
+                (KeyCode::Esc, NONE) if !editor.find_query.is_empty() => {
+                    editor.find_query.clear();
                 }
-                (KeyCode::Esc, NONE) if self.last_notification.is_some() => {
+                (KeyCode::Esc, NONE) if !notification_manager().is_empty() => {
                     notification_manager().clear();
-                    self.last_notification = None;
-                    HandledEvent::Consumed
+                }
+                (KeyCode::Char('l'), CTRL) => {
+                    self.mode = MetaLineMode::Search;
                 }
                 _ => {
                     self.clear_notification_after = self.clear_notification_after.saturating_sub(1);
                     if self.clear_notification_after == 0 {
                         notification_manager().clear();
-                        self.last_notification = None;
                     }
 
-                    HandledEvent::Ignored
+                    return HandledEvent::Ignored;
                 }
             },
         }
+
+        HandledEvent::Consumed
     }
 
     fn handle_key_batch_event(
@@ -212,7 +201,7 @@ impl Surface for MetaLineView {
     ) -> HandledEvent {
         match self.mode {
             MetaLineMode::Search => {
-                editor.documents.current_mut().find_query_mut().insert(s);
+                editor.find_query.insert(s);
                 HandledEvent::Consumed
             }
             MetaLineMode::Normal => HandledEvent::Ignored,

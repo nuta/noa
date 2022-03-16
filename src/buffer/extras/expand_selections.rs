@@ -19,8 +19,6 @@ fn walk_ts_node<'tree>(
     cursor: &mut tree_sitter::TreeCursor<'tree>,
     selection: Range,
 ) -> Range {
-    dbg!(parent.kind());
-
     for node in parent.children(cursor) {
         let range = node.buffer_range();
         if range.contains_range(selection) && range != selection {

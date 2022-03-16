@@ -1,7 +1,7 @@
-use std::sync::Arc;
+use std::ops::ControlFlow;
 
 use noa_buffer::display_width::DisplayWidth;
-use noa_common::oops::OopsExt;
+
 use noa_compositor::{
     canvas::CanvasViewMut,
     line_edit::LineEdit,
@@ -9,11 +9,10 @@ use noa_compositor::{
     terminal::{KeyCode, KeyEvent, KeyModifiers},
     Compositor,
 };
-use tokio::sync::{mpsc::UnboundedSender, watch, Notify};
 
 use crate::{
     editor::Editor,
-    event_listener::{event_pair, EventListener, EventPair, EventProducer},
+    event_listener::{event_pair, EventListener, EventPair},
     theme::theme_for,
 };
 
@@ -130,8 +129,8 @@ impl Surface for PromptView {
 
     fn handle_key_event(
         &mut self,
-        compositor: &mut Compositor<Self::Context>,
-        editor: &mut Editor,
+        _compositor: &mut Compositor<Self::Context>,
+        _editor: &mut Editor,
         key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
@@ -180,4 +179,58 @@ impl Surface for PromptView {
     ) -> HandledEvent {
         HandledEvent::Consumed
     }
+}
+
+pub fn prompt<S, F, C>(
+    compositor: &mut Compositor<Editor>,
+    editor: &mut Editor,
+    _mode: PromptMode,
+    title: S,
+    mut enter_callback: F,
+    _completion_callback: C,
+) where
+    S: Into<String>,
+    F: FnMut(&mut Compositor<Editor>, &mut Editor, Option<String>) -> ControlFlow<()>
+        + Send
+        + 'static,
+    C: FnMut(&mut Editor, &LineEdit) -> Option<Vec<String>> + 'static,
+{
+    let title = title.into();
+
+    let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
+
+    editor.listen_in_mainloop(
+        prompt_view.entered_event_listener().clone(),
+        move |editor, compositor| {
+            info!("Enter pressed in prompt");
+            let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
+
+            let result = if prompt_view.is_canceled() {
+                None
+            } else {
+                Some(prompt_view.input().text())
+            };
+
+            match enter_callback(compositor, editor, result) {
+                ControlFlow::Continue(()) => {}
+                ControlFlow::Break(()) => {
+                    let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
+                    prompt_view.deactivate();
+                }
+            }
+        },
+    );
+
+    // let completion_cb = {
+    //     let title = title.clone();
+    //     editor.register_callback(move |compositor, editor| {
+    //         let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
+    //         if let Some(items) = completion_callback(editor, prompt_view.input()) {
+    //             // prompt_view.set_completion_items(items);
+    //         }
+    //     })
+    // };
+
+    let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
+    prompt_view.activate(PromptMode::SingleChar, title);
 }

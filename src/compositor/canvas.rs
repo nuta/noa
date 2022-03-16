@@ -21,7 +21,9 @@ pub enum DrawOp {
 pub struct Style {
     pub fg: Color,
     pub bg: Color,
-    pub deco: Decoration,
+    pub bold: bool,
+    pub underline: bool,
+    pub inverted: bool,
 }
 
 impl Style {
@@ -35,9 +37,9 @@ impl Style {
             self.bg = other.bg;
         }
 
-        self.deco.bold |= other.deco.bold;
-        self.deco.underline |= other.deco.underline;
-        self.deco.inverted |= other.deco.inverted;
+        self.bold |= other.bold;
+        self.underline |= other.underline;
+        self.inverted |= other.inverted;
 
         self
     }
@@ -48,48 +50,9 @@ impl Default for Style {
         Style {
             fg: Color::Reset,
             bg: Color::Reset,
-            deco: Decoration::default(),
-        }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Debug, Default)]
-pub struct Decoration {
-    pub bold: bool,
-    pub inverted: bool,
-    pub underline: bool,
-}
-
-impl Decoration {
-    pub const fn empty() -> Decoration {
-        Decoration {
             bold: false,
-            inverted: false,
             underline: false,
-        }
-    }
-
-    pub const fn bold() -> Decoration {
-        Decoration {
-            bold: true,
             inverted: false,
-            underline: false,
-        }
-    }
-
-    pub const fn underline() -> Decoration {
-        Decoration {
-            bold: false,
-            inverted: false,
-            underline: true,
-        }
-    }
-
-    pub const fn inverted() -> Decoration {
-        Decoration {
-            bold: false,
-            inverted: true,
-            underline: false,
         }
     }
 }
@@ -185,7 +148,9 @@ impl Canvas {
         let mut x = 0;
         let mut fg = Color::Reset;
         let mut bg = Color::Reset;
-        let mut deco = Decoration::default();
+        let mut bold = false;
+        let mut underline = false;
+        let mut inverted = false;
         let mut needs_move = false;
         let mut ops = Vec::with_capacity(self.width() * self.height());
         for (new, old) in self.graphs.iter().zip(&other.graphs) {
@@ -207,31 +172,31 @@ impl Canvas {
                     bg = new.style.bg;
                 }
 
-                if new.style.deco != deco {
-                    if new.style.deco.bold != deco.bold {
-                        ops.push(if new.style.deco.bold {
-                            DrawOp::Bold
-                        } else {
-                            DrawOp::NoBold
-                        });
-                    }
+                if new.style.bold != bold {
+                    bold = new.style.bold;
+                    ops.push(if new.style.bold {
+                        DrawOp::Bold
+                    } else {
+                        DrawOp::NoBold
+                    });
+                }
 
-                    if new.style.deco.inverted != deco.inverted {
-                        ops.push(if new.style.deco.inverted {
-                            DrawOp::Invert
-                        } else {
-                            DrawOp::NoInvert
-                        });
-                    }
+                if new.style.inverted != inverted {
+                    inverted = new.style.inverted;
+                    ops.push(if new.style.inverted {
+                        DrawOp::Invert
+                    } else {
+                        DrawOp::NoInvert
+                    });
+                }
 
-                    if new.style.deco.underline != deco.underline {
-                        ops.push(if new.style.deco.underline {
-                            DrawOp::Underline
-                        } else {
-                            DrawOp::NoUnderline
-                        });
-                    }
-                    deco = new.style.deco;
+                if new.style.underline != underline {
+                    underline = new.style.underline;
+                    ops.push(if new.style.underline {
+                        DrawOp::Underline
+                    } else {
+                        DrawOp::NoUnderline
+                    });
                 }
 
                 ops.push(DrawOp::Grapheme(new.chars));
@@ -276,6 +241,27 @@ impl<'a> CanvasViewMut<'a> {
 
     pub fn height(&self) -> usize {
         self.height
+    }
+
+    pub fn sub_view_mut(
+        &mut self,
+        y: usize,
+        x: usize,
+        y_end: usize,
+        x_end: usize,
+    ) -> CanvasViewMut<'_> {
+        debug_assert!(y <= y_end);
+        debug_assert!(x <= x_end);
+        debug_assert!(y_end <= self.height);
+        debug_assert!(x_end <= self.width);
+        CanvasViewMut {
+            graphs: self.graphs,
+            canvas_width: self.canvas_width,
+            y: self.y + y,
+            x: self.x + x,
+            width: x_end - x,
+            height: y_end - y,
+        }
     }
 
     pub fn clear(&mut self) {
@@ -328,15 +314,19 @@ impl<'a> CanvasViewMut<'a> {
         }
     }
 
-    pub fn set_decoration(&mut self, y: usize, x: usize, x_end: usize, deco: Decoration) {
-        self.update_range(y, x, y + 1, x_end, |graph| graph.style.deco = deco);
-    }
-
     pub fn apply_style(&mut self, y: usize, x: usize, x_end: usize, style: Style) {
         self.update_range(y, x, y + 1, x_end, |graph| {
             graph.style.fg = style.fg;
             graph.style.bg = style.bg;
-            graph.style.deco = style.deco;
+            graph.style.bold = style.bold;
+            graph.style.underline = style.underline;
+            graph.style.inverted = style.inverted;
+        });
+    }
+
+    pub fn set_inverted(&mut self, y: usize, x: usize, x_end: usize, inverted: bool) {
+        self.update_range(y, x, y + 1, x_end, |graph| {
+            graph.style.inverted = inverted;
         });
     }
 

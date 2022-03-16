@@ -1,26 +1,14 @@
 use std::{
     collections::HashMap,
-    marker::PhantomData,
     num::NonZeroUsize,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
+    sync::atomic::{AtomicUsize, Ordering},
 };
 
 use anyhow::Result;
-use futures::{
-    future::BoxFuture,
-    stream::{BoxStream, FuturesUnordered, SelectAll},
-    Future, FutureExt, Stream, StreamExt,
-};
+use futures::{future::BoxFuture, stream::FuturesUnordered, Future, FutureExt, StreamExt};
 use noa_compositor::Compositor;
-use once_cell::sync::Lazy;
-use parking_lot::Mutex;
-use tokio::sync::{
-    mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
-    watch, Notify,
-};
+
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 use crate::{editor::Editor, event_listener::EventListener};
 
@@ -106,7 +94,7 @@ impl JobManager {
 
         tokio::spawn(async move {
             while let Ok(()) = listener.notified().await {
-                notified_tx.send(id);
+                let _ = notified_tx.send(id);
             }
         });
     }

@@ -2,7 +2,23 @@ use std::fmt::{self, Display, Formatter};
 
 use noa_proxy::lsp_types::{MarkedString, MarkupContent};
 
+#[derive(Debug)]
 pub struct Markdown(String);
+
+impl Markdown {
+    pub fn new(text: String) -> Markdown {
+        Markdown(text)
+    }
+
+    /// Returns the rendered text. Each string in the returned vector is a line.
+    pub fn render(&self, width: usize) -> Vec<String> {
+        // TODO: Parse self.0
+        textwrap::wrap(&self.0, width)
+            .drain(..)
+            .map(|line| line.into_owned())
+            .collect()
+    }
+}
 
 impl Display for Markdown {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {

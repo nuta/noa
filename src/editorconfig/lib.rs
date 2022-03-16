@@ -68,6 +68,17 @@ impl Default for EditorConfig {
     }
 }
 
+impl From<EditorConfig> for lsp_types::FormattingOptions {
+    fn from(config: EditorConfig) -> Self {
+        lsp_types::FormattingOptions {
+            tab_size: config.tab_width as u32,
+            insert_spaces: config.indent_style == IndentStyle::Space,
+            insert_final_newline: Some(config.insert_final_newline),
+            ..Default::default()
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 struct Rule {
     pattern: String,

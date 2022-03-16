@@ -26,8 +26,11 @@ impl UndoableRawBuffer {
         }
     }
 
-    pub fn raw_buffer(&self) -> &RawBuffer {
-        &self.raw
+    pub fn from_raw_buffer(raw_buffer: RawBuffer) -> UndoableRawBuffer {
+        UndoableRawBuffer {
+            raw: raw_buffer,
+            changes: Vec::new(),
+        }
     }
 
     pub fn from_text(text: &str) -> UndoableRawBuffer {
@@ -42,6 +45,10 @@ impl UndoableRawBuffer {
             raw: RawBuffer::from_reader(reader)?,
             changes: Vec::new(),
         })
+    }
+
+    pub fn raw_buffer(&self) -> &RawBuffer {
+        &self.raw
     }
 
     pub fn clear_changes(&mut self) -> Vec<Change> {

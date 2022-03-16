@@ -31,7 +31,7 @@ pub struct Compositor<C> {
 }
 
 #[allow(clippy::new_without_default)]
-impl<C> Compositor<C> {
+impl<C: 'static> Compositor<C> {
     pub fn new() -> Compositor<C> {
         let (term_tx, term_rx) = mpsc::unbounded_channel();
         let terminal = Terminal::new(move |ev| {
@@ -55,6 +55,10 @@ impl<C> Compositor<C> {
             layers: Vec::new(),
             past_layers: Vec::new(),
         }
+    }
+
+    pub fn screen_size(&self) -> RectSize {
+        self.screen_size
     }
 
     pub async fn recv_terminal_event(&mut self) -> Option<terminal::Event> {
@@ -156,21 +160,18 @@ impl<C> Compositor<C> {
             self.screens[screen_index].compute_draw_updates(&self.screens[prev_screen_index]);
 
         // Write into the terminal.
-        {
-            let mut drawer = self.terminal.drawer();
-            let _drawer_time = TimeReport::new("drawer time");
-            drawer.before_drawing();
+        let mut drawer = self.terminal.drawer();
+        drawer.before_drawing();
 
-            trace!("draw changes: {} items", draw_ops.len());
-            for op in draw_ops {
-                drawer.draw(&op);
-            }
-            if let Some((screen_y, screen_x)) = cursor {
-                drawer.move_cursor(screen_y, screen_x);
-            }
-
-            drawer.flush();
+        trace!("draw changes: {} items", draw_ops.len());
+        for op in draw_ops {
+            drawer.draw(&op);
         }
+        if let Some((screen_y, screen_x)) = cursor {
+            drawer.move_cursor(screen_y, screen_x);
+        }
+
+        drawer.flush();
     }
 
     pub fn handle_input(&mut self, ctx: &mut C, input: InputEvent) {
@@ -242,7 +243,11 @@ impl<C> Compositor<C> {
 }
 
 /// Renders each surfaces and copy the compose into the screen canvas.
-fn compose_layers<C>(ctx: &mut C, screen: &mut Canvas, layers: slice::IterMut<'_, Layer<C>>) {
+fn compose_layers<C: 'static>(
+    ctx: &mut C,
+    screen: &mut Canvas,
+    layers: slice::IterMut<'_, Layer<C>>,
+) {
     screen.view_mut().clear();
 
     for layer in layers {

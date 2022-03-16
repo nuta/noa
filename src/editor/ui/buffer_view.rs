@@ -1,4 +1,5 @@
 use std::{
+    cmp::{max, min},
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -9,24 +10,22 @@ use noa_buffer::{
 };
 use noa_common::oops::OopsExt;
 use noa_compositor::{
-    canvas::{CanvasViewMut, Decoration},
+    canvas::CanvasViewMut,
     surface::{HandledEvent, KeyEvent, Layout, RectSize, Surface},
     terminal::{KeyCode, KeyModifiers, MouseButton, MouseEventKind},
     Compositor,
 };
 use noa_proxy::lsp_types::HoverContents;
-use tokio::sync::{mpsc::UnboundedSender, oneshot, Notify};
+use tokio::sync::{mpsc::UnboundedSender, Notify};
 
 use crate::{
-    actions::{execute_action, execute_action_or_notify},
-    clipboard::{ClipboardData, SystemClipboardData},
+    actions::execute_action_or_notify,
     completion::{clear_completion, complete},
     editor::Editor,
     keybindings::get_keybinding_for,
     linemap::LineStatus,
     theme::theme_for,
-    ui::finder_view::FinderView,
-    ui::markdown::Markdown,
+    ui::{bump_view::BumpView, markdown::Markdown},
 };
 
 use super::completion_view::CompletionView;
@@ -145,7 +144,7 @@ impl Surface for BufferView {
             buffer_width = canvas.width() - buffer_x  - 2 /* row_end_marker and mini map */;
             buffer_height = canvas.height();
 
-            doc.layout_view(buffer_height, buffer_width);
+            doc.layout_view(&editor.find_query.text(), buffer_height, buffer_width);
         }
 
         self.buffer_x = buffer_x;
@@ -217,7 +216,7 @@ impl Surface for BufferView {
                     if c.selection().contains(*pos)
                         || (!c.is_main_cursor() && c.position() == Some(*pos))
                     {
-                        canvas.set_decoration(y, x, x + 1, Decoration::inverted());
+                        canvas.set_inverted(y, x, x + 1, true);
 
                         let mut next_pos = *pos;
                         next_pos.move_by(buffer, 0, 0, 0, 1);
@@ -255,7 +254,7 @@ impl Surface for BufferView {
             }
 
             if let Some((_ch, x)) = row_end_marker {
-                canvas.set_decoration(y, x, x + 1, Decoration::inverted());
+                canvas.set_inverted(y, x, x + 1, true);
             }
 
             // The main cursor is at the end of line.
@@ -337,7 +336,7 @@ impl Surface for BufferView {
                 doc.buffer_mut().deindent();
             }
             (KeyCode::Char(ch), NONE) | (KeyCode::Char(ch), SHIFT) => {
-                doc.buffer_mut().insert_char(ch);
+                doc.buffer_mut().insert_char_with_smart_dedent(ch);
                 show_completion = true;
             }
             _ => {
@@ -392,7 +391,7 @@ impl Surface for BufferView {
         const NONE: KeyModifiers = KeyModifiers::NONE;
         const _CTRL: KeyModifiers = KeyModifiers::CONTROL;
         const ALT: KeyModifiers = KeyModifiers::ALT;
-        const _SHIFT: KeyModifiers = KeyModifiers::SHIFT;
+        const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
         let doc = editor.documents.current_mut();
 
@@ -409,69 +408,75 @@ impl Surface for BufferView {
         }
 
         if surface_x >= self.buffer_x {
-            if let Some(pos) = doc
+            if let Some(clicked_pos) = doc
                 .view()
                 .get_position_from_yx(surface_y, surface_x - self.buffer_x)
             {
                 match (kind, modifiers) {
                     (MouseEventKind::Down(MouseButton::Left), _) => {
-                        self.selection_start = Some(pos);
+                        self.selection_start = Some(clicked_pos);
                     }
                     // Single click.
                     (MouseEventKind::Up(MouseButton::Left), NONE)
                         if self.time_last_clicked.elapsed() > Duration::from_millis(400) =>
                     {
                         // Move cursor.
-                        if matches!(self.selection_start, Some(start) if start == pos) {
-                            doc.buffer_mut().move_main_cursor_to_pos(pos);
+                        if matches!(self.selection_start, Some(start) if start == clicked_pos) {
+                            doc.buffer_mut().move_main_cursor_to_pos(clicked_pos);
                         }
 
                         // Hover.
                         let proxy = editor.proxy.clone();
-                        let lang = doc.buffer().language();
                         let path = doc.path().to_owned();
                         let pos = doc.buffer().main_cursor().moving_position().into();
-                        tokio::spawn(async move {
-                            match proxy.hover(lang, &path, pos).await {
-                                Ok(Some(hover)) => match hover {
-                                    HoverContents::Scalar(text) => {
-                                        notify_info!("{}", Markdown::from(text));
-                                    }
-                                    HoverContents::Array(items) if !items.is_empty() => {
-                                        notify_info!("{}", Markdown::from(items[0].clone()));
-                                    }
-                                    HoverContents::Markup(markup) => {
-                                        notify_info!("{}", Markdown::from(markup));
-                                    }
-                                    _ => {
-                                        warn!("unsupported hover type: {:?}", hover);
+                        if let Some(lsp) = doc.buffer().language().lsp.as_ref() {
+                            editor.await_in_mainloop(
+                                async move {
+                                    let result = match proxy.hover(lsp, &path, pos).await {
+                                        Ok(Some(hover)) => match hover {
+                                            HoverContents::Scalar(text) => {
+                                                let markdown = Markdown::from(text);
+                                                notify_info!("{}", markdown);
+                                                Some(markdown)
+                                            }
+                                            HoverContents::Array(items) if !items.is_empty() => {
+                                                let markdown = Markdown::from(items[0].clone());
+                                                notify_info!("{}", markdown);
+                                                Some(markdown)
+                                            }
+                                            HoverContents::Markup(markup) => {
+                                                let markdown = Markdown::from(markup);
+                                                notify_info!("{}", markdown);
+                                                Some(markdown)
+                                            }
+                                            _ => {
+                                                warn!("unsupported hover type: {:?}", hover);
+                                                None
+                                            }
+                                        },
+                                        Ok(None) => {
+                                            notify_warn!("no hover info");
+                                            None
+                                        }
+                                        Err(err) => {
+                                            notify_error!("failed to get hover info: {}", err);
+                                            None
+                                        }
+                                    };
+
+                                    Ok(result)
+                                },
+                                |_editor, compositor, markdown| {
+                                    if let Some(markdown) = markdown {
+                                        let bump_view: &mut BumpView =
+                                            compositor.get_mut_surface_by_name("bump");
+                                        bump_view.open(markdown);
                                     }
                                 },
-                                Ok(None) => {
-                                    notify_warn!("no hover info");
-                                }
-                                Err(err) => {
-                                    notify_error!("failed to get hover info: {}", err);
-                                }
-                            }
-                        });
-
-                        trace!("Single click");
-                        self.time_last_clicked = Instant::now();
-                        self.num_clicked = 1;
-                        self.selection_start = None;
-                    }
-                    // Single click + Alt.
-                    (MouseEventKind::Up(MouseButton::Left), ALT)
-                        if self.time_last_clicked.elapsed() > Duration::from_millis(400) =>
-                    {
-                        // Add a cursor.
-                        if matches!(self.selection_start, Some(start) if start == pos) {
-                            doc.buffer_mut()
-                                .add_cursor(Range::from_single_position(pos));
+                            );
                         }
 
-                        trace!("Single click + Alt");
+                        trace!("Single click");
                         self.time_last_clicked = Instant::now();
                         self.num_clicked = 1;
                         self.selection_start = None;
@@ -486,7 +491,7 @@ impl Surface for BufferView {
                     // Triple click.
                     (MouseEventKind::Up(MouseButton::Left), NONE) if self.num_clicked == 2 => {
                         trace!("Triple click");
-                        doc.buffer_mut().select_whole_line(pos);
+                        doc.buffer_mut().select_whole_line(clicked_pos);
                         self.time_last_clicked = Instant::now();
                         self.num_clicked += 1;
                     }
@@ -499,17 +504,85 @@ impl Surface for BufferView {
                     }
                     // Dragging
                     (MouseEventKind::Drag(MouseButton::Left), NONE) => match self.selection_start {
-                        Some(start) if start != pos => {
-                            doc.buffer_mut()
-                                .select_main_cursor(start.y, start.x, pos.y, pos.x);
+                        Some(start) if start != clicked_pos => {
+                            doc.buffer_mut().select_main_cursor(
+                                start.y,
+                                start.x,
+                                clicked_pos.y,
+                                clicked_pos.x,
+                            );
                         }
                         _ => {}
                     },
+                    // Single click + Shift.
+                    (MouseEventKind::Up(MouseButton::Left), SHIFT)
+                        if self.time_last_clicked.elapsed() > Duration::from_millis(400) =>
+                    {
+                        // Select until the clicked position.
+                        doc.buffer_mut().deselect_cursors();
+                        let from = doc.buffer().main_cursor().moving_position();
+                        doc.buffer_mut().select_main_cursor(
+                            from.y,
+                            from.x,
+                            clicked_pos.y,
+                            clicked_pos.x,
+                        );
+
+                        self.time_last_clicked = Instant::now();
+                        self.num_clicked = 1;
+                        self.selection_start = None;
+                    }
+                    // Single click + Alt.
+                    (MouseEventKind::Up(MouseButton::Left), ALT)
+                        if self.time_last_clicked.elapsed() > Duration::from_millis(400) =>
+                    {
+                        // Add a cursor.
+                        if matches!(self.selection_start, Some(start) if start == clicked_pos) {
+                            doc.buffer_mut()
+                                .add_cursor(Range::from_single_position(clicked_pos));
+                        }
+
+                        trace!("Single click + Alt");
+                        self.time_last_clicked = Instant::now();
+                        self.num_clicked = 1;
+                        self.selection_start = None;
+                    }
+                    // Single click + Alt + Shift.
+                    (MouseEventKind::Up(MouseButton::Left), modifiers)
+                        if modifiers == ALT | SHIFT
+                            && self.time_last_clicked.elapsed() > Duration::from_millis(400) =>
+                    {
+                        // Add a cursor until the clicked position.
+                        let buffer = doc.buffer_mut();
+                        buffer.deselect_cursors();
+                        let main_cursor = buffer.main_cursor().selection();
+                        let main_pos = main_cursor.front();
+                        let n = if main_cursor.front().y == main_cursor.back().y {
+                            main_cursor.back().x - main_cursor.front().x
+                        } else {
+                            0
+                        };
+
+                        for y in min(main_pos.y, clicked_pos.y)..=max(main_pos.y, clicked_pos.y) {
+                            let x = main_pos.x;
+                            let line_len = buffer.line_len(y);
+                            buffer.add_cursor(Range::new(
+                                y,
+                                min(x, line_len),
+                                y,
+                                min(x + n, line_len),
+                            ));
+                        }
+
+                        self.time_last_clicked = Instant::now();
+                        self.num_clicked = 1;
+                        self.selection_start = None;
+                    }
                     // Dragging + Alt
                     (MouseEventKind::Drag(MouseButton::Left), ALT) => match self.selection_start {
-                        Some(start) if start != pos => {
+                        Some(start) if start != clicked_pos => {
                             doc.buffer_mut()
-                                .add_cursor(Range::from_positions(start, pos));
+                                .add_cursor(Range::from_positions(start, clicked_pos));
                         }
                         _ => {}
                     },

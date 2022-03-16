@@ -1,6 +1,5 @@
 use anyhow::Result;
 
-use noa_common::oops::OopsExt;
 use tokio::sync::watch;
 
 pub struct EventProducer(watch::Sender<()>);

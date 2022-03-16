@@ -9,6 +9,7 @@ path = "lib.rs"
 
 [dependencies]
 log = "0"
+lsp-types = "^0.91"
 
 [dev-dependencies]
 pretty_assertions = "1"

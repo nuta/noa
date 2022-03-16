@@ -6,11 +6,12 @@ use crate::{
     undoable_raw_buffer::Change,
 };
 
+
 use noa_languages::{
     language::Language,
     tree_sitter::{
-        self, get_highlights_query, get_tree_sitter_parser, InputEdit, Node, Query, QueryCursor,
-        TextProvider,
+        self, get_highlights_query, get_indents_query, get_tree_sitter_parser, InputEdit, Node,
+        QueryCursor, TextProvider,
     },
 };
 
@@ -34,11 +35,79 @@ impl<'a> TextProvider<'a> for RopeTextProvider<'a> {
     }
 }
 
+pub struct Query {
+    raw_query: tree_sitter::Query,
+    indices: HashMap<usize, String>,
+}
+
+impl Query {
+    pub fn new(
+        ts_lang: tree_sitter::Language,
+        query_str: &str,
+    ) -> Result<Query, tree_sitter::QueryError> {
+        let raw_query = tree_sitter::Query::new(ts_lang, query_str)?;
+        let mut indices = HashMap::new();
+        for (i, name) in raw_query.capture_names().iter().enumerate() {
+            indices.insert(i, name.to_owned());
+        }
+
+        Ok(Query { raw_query, indices })
+    }
+
+    pub fn query<F>(
+        &self,
+        tree: &tree_sitter::Tree,
+        buffer: &RawBuffer,
+        query_range: Option<Range>,
+        mut callback: F,
+    ) where
+        F: FnMut(Range, &str),
+    {
+        let mut cursor = QueryCursor::new();
+        if let Some(range) = query_range {
+            cursor.set_point_range(range.into());
+        }
+
+        let matches = cursor.matches(&self.raw_query, tree.root_node(), RopeTextProvider(buffer));
+        for m in matches {
+            for cap in m.captures {
+                if let Some(span) = self.indices.get(&m.pattern_index) {
+                    callback(cap.node.buffer_range(), span);
+                }
+            }
+        }
+    }
+
+    pub fn captures<F>(
+        &self,
+        tree: &tree_sitter::Tree,
+        buffer: &RawBuffer,
+        query_range: Option<Range>,
+        mut callback: F,
+    ) where
+        F: FnMut(Range, &str),
+    {
+        let mut cursor = QueryCursor::new();
+        if let Some(range) = query_range {
+            cursor.set_point_range(range.into());
+        }
+
+        let captures = cursor.captures(&self.raw_query, tree.root_node(), RopeTextProvider(buffer));
+        for (m, _) in captures {
+            for cap in m.captures {
+                if let Some(span) = self.indices.get(&(cap.index as usize)) {
+                    callback(cap.node.buffer_range(), span);
+                }
+            }
+        }
+    }
+}
+
 pub struct Syntax {
     tree: tree_sitter::Tree,
     parser: tree_sitter::Parser,
-    highlight_query: tree_sitter::Query,
-    highlight_query_indices: HashMap<usize, String>,
+    pub highlight_query: Query,
+    pub indents_query: Query,
 }
 
 impl Syntax {
@@ -48,26 +117,35 @@ impl Syntax {
             let ts_lang = get_tree_sitter_parser(&lang.name).unwrap();
             match parser.set_language(ts_lang) {
                 Ok(()) => {
-                    // TODO: Parse the query only once in noa_languages.
-                    let source = get_highlights_query(&lang.name).unwrap_or("");
-                    let highlight_query = match Query::new(ts_lang, source) {
-                        Ok(query) => query,
-                        Err(err) => {
-                            warn!("invalid highlight query: {}", err);
-                            return None;
-                        }
-                    };
+                    let highlight_query =
+                        match Query::new(ts_lang, get_highlights_query(&lang.name).unwrap_or("")) {
+                            Ok(query) => query,
+                            Err(err) => {
+                                warn!(
+                                    "failed to parse highlights query for {}: {}",
+                                    lang.name, err
+                                );
+                                return None;
+                            }
+                        };
 
-                    let mut highlight_query_indices = HashMap::new();
-                    for (i, name) in highlight_query.capture_names().iter().enumerate() {
-                        highlight_query_indices.insert(i, name.to_owned());
-                    }
+                    let indents_query =
+                        match Query::new(ts_lang, get_indents_query(&lang.name).unwrap_or("")) {
+                            Ok(query) => query,
+                            Err(err) => {
+                                warn!(
+                                    "failed to parse highlights query for {}: {}",
+                                    lang.name, err
+                                );
+                                return None;
+                            }
+                        };
 
                     Some(Syntax {
                         tree: parser.parse("", None).unwrap(),
                         parser,
                         highlight_query,
-                        highlight_query_indices,
+                        indents_query,
                     })
                 }
                 Err(_) => None,
@@ -114,26 +192,20 @@ impl Syntax {
         }
     }
 
-    pub fn highlight<F>(&self, buffer: &RawBuffer, range: Range, mut callback: F)
+    pub fn query_highlight<F>(&self, buffer: &RawBuffer, range: Range, mut callback: F)
     where
         F: FnMut(Range, &str),
     {
-        let mut cursor = QueryCursor::new();
-        cursor.set_point_range(range.into());
+        self.highlight_query
+            .query(self.tree(), buffer, Some(range), &mut callback);
+    }
 
-        let matches = cursor.matches(
-            &self.highlight_query,
-            self.tree.root_node(),
-            RopeTextProvider(buffer),
-        );
-
-        for m in matches {
-            for cap in m.captures {
-                if let Some(span) = self.highlight_query_indices.get(&m.pattern_index) {
-                    callback(cap.node.buffer_range(), span);
-                }
-            }
-        }
+    pub fn query_indents<F>(&self, buffer: &RawBuffer, range: Range, mut callback: F)
+    where
+        F: FnMut(Range, &str),
+    {
+        self.indents_query
+            .captures(self.tree(), buffer, Some(range), &mut callback);
     }
 
     pub fn words<F>(&self, mut callback: F)
@@ -157,6 +229,14 @@ impl Syntax {
 
             callback(range)
         });
+    }
+
+    pub fn visit_all_nodes<F>(&self, mut callback: F)
+    where
+        F: FnMut(&tree_sitter::Node<'_>, Range) -> ControlFlow<()>,
+    {
+        let root = self.tree.root_node();
+        self.visit_ts_node(root, &mut root.walk(), &mut callback);
     }
 
     fn visit_ts_node<'a, 'b, 'tree, F>(
@@ -188,14 +268,6 @@ impl Syntax {
         }
 
         ControlFlow::Continue(())
-    }
-
-    fn visit_all_nodes<F>(&self, mut callback: F)
-    where
-        F: FnMut(&tree_sitter::Node<'_>, Range) -> ControlFlow<()>,
-    {
-        let root = self.tree.root_node();
-        self.visit_ts_node(root, &mut root.walk(), &mut callback);
     }
 }
 

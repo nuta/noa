@@ -1,18 +1,11 @@
 use std::{path::PathBuf, sync::Arc};
 
 use fuzzy_matcher::skim::SkimMatcherV2;
-use noa_buffer::{
-    buffer::{Buffer, TextEdit},
-    cursor::{Cursor, Position, Range},
-    raw_buffer::RawBuffer,
-};
-use noa_common::prioritized_vec::PrioritizedVec;
+use noa_buffer::{buffer::TextEdit, cursor::Cursor, raw_buffer::RawBuffer};
+
 use noa_compositor::Compositor;
 use noa_languages::language::Language;
-use noa_proxy::{
-    client::Client as ProxyClient,
-    lsp_types::{self, CompletionTextEdit},
-};
+use noa_proxy::{client::Client as ProxyClient, lsp_types::CompletionTextEdit};
 use tokio::sync::oneshot;
 
 use crate::{
@@ -62,11 +55,13 @@ pub async fn complete(
 
     // Send the LSP request in background becuase it would take a time.
     let (lsp_items_tx, lsp_items_rx) = oneshot::channel();
-    tokio::spawn(async move {
-        if let Ok(lsp_items) = proxy.completion(lang, &path, pos.into()).await {
-            lsp_items_tx.send(lsp_items).unwrap();
-        }
-    });
+    if let Some(lsp) = lang.lsp.as_ref() {
+        tokio::spawn(async move {
+            if let Ok(lsp_items) = proxy.completion(lsp, &path, pos.into()).await {
+                lsp_items_tx.send(lsp_items).unwrap();
+            }
+        });
+    }
 
     // Any word comopletion.
     let mut items = Vec::new();

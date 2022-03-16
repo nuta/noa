@@ -2,30 +2,33 @@ use std::{cmp::min, collections::HashMap};
 
 use noa_editorconfig::{EditorConfig, IndentStyle};
 
-use crate::{
-    buffer::Buffer,
-    cursor::{Position, Range},
-    raw_buffer::RawBuffer,
-};
+use crate::{buffer::Buffer, cursor::Range, raw_buffer::RawBuffer};
 
 pub(crate) fn compute_desired_indent_len(
     buf: &RawBuffer,
     config: &EditorConfig,
     y: usize,
 ) -> usize {
-    let (prev_indent_len, char_at_cursor) = if y == 0 {
-        (0, None)
-    } else {
-        let prev_indent_len = buf.line_indent_len(y - 1);
-        let pos_at_newline = Position::new(y - 1, buf.line_len(y - 1));
-        let char_at_cursor = buf.char_iter(pos_at_newline).prev();
-        (prev_indent_len, char_at_cursor)
-    };
+    let current_line = buf.substr(Range::new(y, 0, y, buf.line_len(y)));
+    for prev_y in (0..y).rev() {
+        let prev_line = buf.substr(Range::new(prev_y, 0, prev_y, buf.line_len(prev_y)));
+        if prev_line.trim().is_empty() {
+            continue;
+        }
 
-    match char_at_cursor {
-        Some('{') => prev_indent_len + config.indent_size,
-        _ => prev_indent_len,
+        let mut desired_len = buf.line_indent_len(prev_y);
+        if prev_line.trim_end().ends_with('{') {
+            desired_len += config.indent_size;
+        }
+
+        if current_line.trim_start().starts_with('}') {
+            desired_len = desired_len.saturating_sub(config.indent_size);
+        }
+
+        return desired_len;
     }
+
+    0
 }
 
 impl Buffer {
@@ -142,6 +145,7 @@ impl Buffer {
 #[cfg(test)]
 mod tests {
     use crate::cursor::Cursor;
+    use noa_languages::language::get_language_by_name;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -208,5 +212,32 @@ mod tests {
         assert_eq!(buffer.text(), "A\n    B\n    C\n");
         buffer.deindent();
         assert_eq!(buffer.text(), "A\nB\n    C\n");
+    }
+
+    #[test]
+    fn smart_indent() {
+        let mut buffer = Buffer::from_text("if true {\n");
+        buffer.set_language(get_language_by_name("rust").unwrap());
+        assert_eq!(
+            compute_desired_indent_len(buffer.raw_buffer(), buffer.editorconfig(), 1),
+            4
+        );
+
+        let mut buffer = Buffer::from_text("    if true {\n\n");
+        buffer.set_language(get_language_by_name("rust").unwrap());
+        assert_eq!(
+            compute_desired_indent_len(buffer.raw_buffer(), buffer.editorconfig(), 2),
+            8
+        );
+    }
+
+    #[test]
+    fn smart_deindent() {
+        let mut buffer = Buffer::from_text("    if true {\n}");
+        buffer.set_language(get_language_by_name("rust").unwrap());
+        assert_eq!(
+            compute_desired_indent_len(buffer.raw_buffer(), buffer.editorconfig(), 1),
+            4
+        );
     }
 }

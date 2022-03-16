@@ -13,11 +13,11 @@ use lsp_types::{
         DidChangeTextDocument, DidOpenTextDocument, Initialized,
         Notification as LspNotificationTrait, PublishDiagnostics,
     },
-    request::{Completion, GotoDefinition, HoverRequest, Initialize, Request},
+    request::{Completion, Formatting, GotoDefinition, HoverRequest, Initialize, Request},
     CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
-    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, InitializeParams,
-    InitializedParams, PartialResultParams, PublishDiagnosticsParams,
-    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams,
+    DocumentFormattingParams, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams,
+    InitializeParams, InitializedParams, PartialResultParams, PublishDiagnosticsParams,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams, TextEdit,
     VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 
@@ -165,6 +165,11 @@ async fn receive_responses(
                         };
                         LspResponse::Completion(items)
                     }
+                    Formatting::METHOD => {
+                        let resp: Option<Vec<TextEdit>> =
+                            serde_json::from_value(json.result).unwrap();
+                        LspResponse::Edits(resp.unwrap_or_default())
+                    }
                     HoverRequest::METHOD => {
                         let contents = serde_json::from_value::<Hover>(json.result)
                             .ok()
@@ -307,6 +312,13 @@ impl LspServer {
                         insert_replace_support: Some(true),
                         ..Default::default()
                     }),
+                    ..Default::default()
+                }),
+                hover: Some(lsp_types::HoverClientCapabilities {
+                    content_format: Some(vec![
+                        lsp_types::MarkupKind::Markdown,
+                        lsp_types::MarkupKind::PlainText,
+                    ]),
                     ..Default::default()
                 }),
                 ..Default::default()
@@ -472,6 +484,19 @@ impl Server for LspServer {
                     partial_result_params: PartialResultParams {
                         partial_result_token: None,
                     },
+                    work_done_progress_params: WorkDoneProgressParams {
+                        work_done_token: None,
+                    },
+                })
+                .await
+            }
+            LspRequest::Format { path, options } => {
+                trace!("Format(path={})", path.display());
+                self.call_method::<Formatting>(DocumentFormattingParams {
+                    text_document: TextDocumentIdentifier {
+                        uri: parse_path_as_uri(&path),
+                    },
+                    options,
                     work_done_progress_params: WorkDoneProgressParams {
                         work_done_token: None,
                     },

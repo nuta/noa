@@ -49,6 +49,7 @@ pub struct TreeSitter {
 
 #[derive(Decode)]
 pub struct Lsp {
+    pub identifier: String,
     pub argv: Vec<String>,
     pub envp: HashMap<String, String>,
 }

@@ -30,6 +30,10 @@ impl NotificationManager {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.notification.load().is_none()
+    }
+
     pub fn last_notification(&self) -> arc_swap::Guard<Arc<Option<Notification>>> {
         self.notification.load()
     }

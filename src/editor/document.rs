@@ -4,37 +4,37 @@ use std::{
     fs::{create_dir_all, OpenOptions},
     io::ErrorKind,
     num::NonZeroUsize,
-    ops::ControlFlow,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
-    time::{Duration, Instant},
+    time::{Duration, SystemTime},
 };
 
 use anyhow::Result;
 
 use arc_swap::ArcSwap;
+use futures::executor::block_on;
 use fuzzy_matcher::FuzzyMatcher;
 use noa_buffer::{
-    buffer::Buffer,
-    cursor::{Position, Range},
-    raw_buffer::RawBuffer,
-    undoable_raw_buffer::Change,
+    buffer::Buffer, cursor::Position, raw_buffer::RawBuffer, undoable_raw_buffer::Change,
 };
 use noa_common::{
     dirs::{backup_dir, noa_dir},
     oops::OopsExt,
     prioritized_vec::PrioritizedVec,
 };
-use noa_compositor::line_edit::LineEdit;
+use noa_proxy::client::Client as ProxyClient;
+
 use noa_editorconfig::EditorConfig;
 use noa_languages::language::guess_language;
-use tokio::sync::broadcast;
+use tokio::{sync::broadcast, time::timeout};
 
 use crate::{
     completion::{build_fuzzy_matcher, CompletionItem},
+    event_listener::EventListener,
+    file_watch::{watch_file, FileWatcher},
     flash::FlashManager,
     linemap::LineMap,
     movement::{Movement, MovementState},
@@ -54,6 +54,7 @@ pub struct DocumentId(NonZeroUsize);
 pub struct Document {
     id: DocumentId,
     version: usize,
+    last_saved_at: Option<SystemTime>,
     path: PathBuf,
     path_in_str: String,
     backup_path: Option<PathBuf>,
@@ -66,9 +67,10 @@ pub struct Document {
     completion_items: Vec<CompletionItem>,
     flashes: FlashManager,
     linemap: Arc<ArcSwap<LineMap>>,
-    find_query: LineEdit,
     onchange_broadcast_tx: broadcast::Sender<OnChangeData>,
-    onchange_broadcast_rx: broadcast::Receiver<OnChangeData>,
+    _onchange_broadcast_rx: broadcast::Receiver<OnChangeData>,
+    _watcher: Option<FileWatcher>,
+    modified_listener: Option<EventListener>,
 }
 
 static NEXT_DOCUMENT_ID: AtomicUsize = AtomicUsize::new(1);
@@ -122,10 +124,21 @@ impl Document {
             buffer.set_language(lang);
         }
 
+        // I occationally see failure on watching a file. I'm still not sure
+        // why it may happen though.
+        let (watcher, modified_listener) = match watch_file(&path) {
+            Ok((watcher, listener)) => (Some(watcher), Some(listener)),
+            Err(err) => {
+                warn!("failed to watch file {}: {}", path.display(), err);
+                (None, None)
+            }
+        };
+
         let (onchange_broadcast_tx, onchange_broadcast_rx) = broadcast::channel(8);
         Ok(Document {
             id,
             version: 1,
+            last_saved_at: None,
             path: path.to_owned(),
             path_in_str: path.to_str().unwrap().to_owned(),
             backup_path: Some(backup_path),
@@ -138,15 +151,39 @@ impl Document {
             completion_items: Vec::new(),
             flashes: FlashManager::new(),
             linemap: Arc::new(ArcSwap::from_pointee(LineMap::new())),
-            find_query: LineEdit::new(),
             onchange_broadcast_tx,
-            onchange_broadcast_rx,
+            _onchange_broadcast_rx: onchange_broadcast_rx,
+            _watcher: watcher,
+            modified_listener,
         })
     }
 
-    pub fn save_to_file(&mut self) -> Result<()> {
+    pub fn save_to_file(&mut self, proxy: Option<&Arc<ProxyClient>>) -> Result<()> {
         self.buffer.save_undo();
 
+        // Format the document using LSP.
+        if let Some(proxy) = proxy {
+            if let Some(lsp) = self.buffer.language().lsp.as_ref() {
+                trace!("format on save: {}", self.path.display());
+                let format_future =
+                    proxy.format(lsp, &self.path, (*self.buffer.editorconfig()).into());
+                match block_on(timeout(Duration::from_secs(3), format_future)) {
+                    Ok(Ok(mut edits)) => {
+                        self.buffer
+                            .apply_text_edits(edits.drain(..).map(Into::into).collect());
+                    }
+                    Ok(Err(err)) => {
+                        notify_warn!("LSP formatting failed");
+                        warn!("LSP formatting failed: {}", err);
+                    }
+                    Err(_) => {
+                        notify_warn!("LSP formatting timed out");
+                    }
+                }
+            }
+        }
+
+        trace!("saving into a file: {}", self.path.display());
         let with_sudo = match self.buffer.save_to_file(&self.path) {
             Ok(()) => {
                 if let Some(backup_path) = &self.backup_path {
@@ -166,11 +203,19 @@ impl Document {
         };
 
         self.saved_buffer = self.buffer.raw_buffer().clone();
+
+        // FIXME: By any chance, the file was modified by another process
+        // between saving the file and updating the last saved time here.
+        //
+        // For now, we just ignore that case.
+        self.last_saved_at = Some(std::fs::metadata(&self.path)?.modified()?);
+
         notify_info!(
             "written {} lines{}",
             self.buffer.num_lines(),
             if with_sudo { " w/ sudo" } else { "" }
         );
+
         Ok(())
     }
 
@@ -200,14 +245,6 @@ impl Document {
 
     pub fn set_virtual_file(&mut self, virtual_file: bool) {
         self.virtual_file = virtual_file;
-    }
-
-    pub fn find_query(&self) -> &LineEdit {
-        &self.find_query
-    }
-
-    pub fn find_query_mut(&mut self) -> &mut LineEdit {
-        &mut self.find_query
     }
 
     pub fn is_dirty(&self) -> bool {
@@ -241,8 +278,16 @@ impl Document {
         &self.view
     }
 
+    pub fn view_mut(&mut self) -> &mut View {
+        &mut self.view
+    }
+
     pub fn subscribe_onchange(&self) -> broadcast::Receiver<OnChangeData> {
         self.onchange_broadcast_tx.subscribe()
+    }
+
+    pub fn modified_listener(&self) -> Option<&EventListener> {
+        self.modified_listener.as_ref()
     }
 
     pub fn flashes(&self) -> &FlashManager {
@@ -266,7 +311,7 @@ impl Document {
             .movement(&mut self.buffer, &mut self.view)
     }
 
-    pub fn layout_view(&mut self, height: usize, width: usize) {
+    pub fn layout_view(&mut self, find_query: &str, height: usize, width: usize) {
         self.view.layout(&self.buffer, height, width);
         self.view.clear_highlights(height);
 
@@ -286,7 +331,7 @@ impl Document {
         // Highlight find matches in visible rows.
         for range in self
             .buffer
-            .find_iter(&self.find_query.text(), self.view.first_visible_position())
+            .find_iter(find_query, self.view.first_visible_position())
         {
             if range.front() > self.view.last_visible_position() {
                 break;
@@ -295,7 +340,35 @@ impl Document {
             self.view.highlight(range, "buffer.find_match");
         }
 
+        // Highlight a matching bracket.
+        let main_pos = self.buffer.main_cursor().moving_position();
+        if let Some(range) = self.buffer.matching_bracket(main_pos) {
+            trace!("matching bracket: {:?}", range);
+            self.view.highlight(range, "buffer.matching_bracket");
+        }
+
         self.flashes.highlight(&mut self.view);
+    }
+
+    pub fn reload(&mut self) -> Result<()> {
+        if self.is_dirty() {
+            return Ok(());
+        }
+
+        if let Some(last_saved_at) = self.last_saved_at.as_ref() {
+            if *last_saved_at >= std::fs::metadata(&self.path)?.modified()? {
+                // The file hasn't been modified or modified by us. Ignore it.
+                return Ok(());
+            }
+        }
+
+        let file = OpenOptions::new().read(true).open(&self.path)?;
+        self.buffer.save_undo();
+        self.buffer.set_from_reader(file)?;
+        self.saved_buffer = self.buffer.raw_buffer().clone();
+        self.last_saved_at = Some(std::fs::metadata(&self.path)?.modified()?);
+
+        Ok(())
     }
 
     /// Called when the buffer is modified.
@@ -304,7 +377,7 @@ impl Document {
         let changes = self.buffer.post_update_hook();
         self.completion_items.clear();
 
-        self.onchange_broadcast_tx.send(OnChangeData {
+        let _ = self.onchange_broadcast_tx.send(OnChangeData {
             version: self.version,
             raw_buffer: self.buffer.raw_buffer().clone(),
             changes,
@@ -379,10 +452,6 @@ impl DocumentManager {
         &self.documents
     }
 
-    pub fn documents_mut(&mut self) -> &mut HashMap<DocumentId, Document> {
-        &mut self.documents
-    }
-
     pub fn current(&self) -> &Document {
         self.documents.get(&self.current).unwrap()
     }
@@ -412,7 +481,7 @@ impl Drop for DocumentManager {
             let mut failed_any = false;
             let mut num_saved_files = 0;
             for doc in self.documents.values_mut() {
-                if let Err(err) = doc.save_to_file() {
+                if let Err(err) = doc.save_to_file(None) {
                     notify_warn!("failed to save {}: {}", doc.path().display(), err);
                     failed_any = true;
                 } else {

@@ -1,28 +1,21 @@
 use std::{
-    collections::HashMap,
-    num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
 use anyhow::Result;
 use arc_swap::ArcSwap;
-use futures::{future::BoxFuture, Future, Stream};
+use futures::Future;
 use noa_buffer::{
     buffer::Buffer,
     cursor::{Position, Range},
     raw_buffer::RawBuffer,
-    undoable_raw_buffer::Change,
 };
 use noa_common::oops::OopsExt;
 use noa_compositor::{line_edit::LineEdit, Compositor};
-use noa_languages::language::Language;
+use noa_languages::language::{Lsp};
 use noa_proxy::{client::Client as ProxyClient, lsp_types::TextEdit, protocol::Notification};
-use tokio::sync::{
-    broadcast,
-    mpsc::{self, UnboundedSender},
-    Notify,
-};
+use tokio::sync::{broadcast, mpsc::UnboundedSender, Notify};
 
 use crate::{
     clipboard::{self, ClipboardProvider},
@@ -34,9 +27,11 @@ use crate::{
 };
 
 pub struct Editor {
+    pub workspace_dir: PathBuf,
     pub documents: DocumentManager,
     pub jobs: JobManager,
     pub clipboard: Box<dyn ClipboardProvider>,
+    pub find_query: LineEdit,
     pub repo: Option<Arc<Repo>>,
     pub proxy: Arc<noa_proxy::client::Client>,
     pub render_request: Arc<Notify>,
@@ -62,9 +57,11 @@ impl Editor {
         ));
 
         Editor {
+            workspace_dir: workspace_dir.to_path_buf(),
             documents: DocumentManager::new(),
             jobs: JobManager::new(),
             clipboard: clipboard::build_provider(),
+            find_query: LineEdit::new(),
             repo,
             proxy,
             render_request,
@@ -81,14 +78,16 @@ impl Editor {
         // First run of tree sitter parsering, etc.
         doc.post_update_job();
 
-        tokio::spawn(lsp_file_sync_task(
-            doc.subscribe_onchange(),
-            doc.id(),
-            self.proxy.clone(),
-            doc.raw_buffer().clone(),
-            doc.path().to_owned(),
-            doc.buffer().language(),
-        ));
+        if let Some(lsp) = doc.buffer().language().lsp.as_ref() {
+            tokio::spawn(lsp_file_sync_task(
+                doc.subscribe_onchange(),
+                doc.id(),
+                self.proxy.clone(),
+                doc.raw_buffer().clone(),
+                doc.path().to_owned(),
+                lsp,
+            ));
+        }
 
         tokio::spawn(git_diff_task(
             doc.subscribe_onchange(),
@@ -97,6 +96,32 @@ impl Editor {
             doc.path().to_owned(),
             self.render_request.clone(),
         ));
+
+        // Watch changes on disk and reload it if changed.
+        if let Some(listener) = doc.modified_listener().cloned() {
+            let doc_id = doc.id();
+            self.listen_in_mainloop(listener, move |editor, _compositor| {
+                let current_id = editor.documents.current().id();
+                let doc = match editor.documents.get_mut_document_by_id(doc_id) {
+                    Some(doc) => doc,
+                    None => {
+                        warn!("document {:?} was closed", doc_id);
+                        return;
+                    }
+                };
+
+                match doc.reload() {
+                    Ok(_) => {
+                        if current_id == doc.id() {
+                            notify_info!("reloaded from the disk");
+                        }
+                    }
+                    Err(err) => {
+                        warn!("failed to reload {}: {:?}", doc.path().display(), err);
+                    }
+                }
+            });
+        }
 
         if let Some(pos) = cursor_pos {
             doc.buffer_mut().move_main_cursor_to_pos(pos);
@@ -145,10 +170,10 @@ async fn lsp_file_sync_task(
     proxy: Arc<ProxyClient>,
     initial_buffer: RawBuffer,
     path: PathBuf,
-    lang: &'static Language,
+    lsp: &'static Lsp,
 ) {
     proxy
-        .open_file(lang, &path, &initial_buffer.text())
+        .open_file(lsp, &path, &initial_buffer.text())
         .await
         .oops();
 
@@ -168,7 +193,7 @@ async fn lsp_file_sync_task(
             .collect();
 
         proxy
-            .incremental_update_file(lang, &path, edits, version)
+            .incremental_update_file(lsp, &path, edits, version)
             .await
             .oops();
     }

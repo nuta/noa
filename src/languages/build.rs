@@ -12,6 +12,7 @@ struct TreeSitter {
 
 #[derive(Deserialize, Serialize, Encode)]
 pub struct Lsp {
+    identifier: String,
     argv: Vec<String>,
     #[serde(default)]
     envp: HashMap<String, String>,
@@ -55,6 +56,28 @@ fn git_clone_and_pull(repo_url: &str, repo_dir: &Path) {
             panic!("failed to clone {}", repo_url);
         }
     }
+}
+
+fn extract_inherits_in_scm(scm_path: &Path) -> Vec<String> {
+    let mut inherits = Vec::new();
+    for line in std::fs::read_to_string(scm_path).unwrap().lines() {
+        if line.starts_with("; inherits:") {
+            let mut parts = line.split("inherits:");
+            parts.next();
+            for lang in parts.next().unwrap().split(',') {
+                inherits.push(lang.trim().to_string());
+            }
+        }
+    }
+
+    inherits
+}
+
+fn get_query_path(lang_name: &str, scm_name: &str) -> String {
+    format!(
+        "tree_sitter/nvim_treesitter/queries/{}/{}.scm",
+        lang_name, scm_name
+    )
 }
 
 fn main() {
@@ -130,15 +153,23 @@ fn main() {
         ));
         mod_rs.push_str("   match name {\n");
         for lang in &yaml.languages {
-            let scm = format!(
-                "tree_sitter/nvim_treesitter/queries/{}/{}.scm",
-                lang.name, scm_name
-            );
-            if Path::new(&scm).exists() {
-                mod_rs.push_str(&format!(
-                    "        \"{}\" => Some(include_str!(\"../{}\")),\n",
-                    lang.name, scm
-                ));
+            let scm = get_query_path(&lang.name, scm_name);
+            let scm_path = Path::new(&scm);
+            if scm_path.exists() {
+                mod_rs.push_str(&format!("        \"{}\" => Some(concat!(\n", lang.name));
+                for inherit in extract_inherits_in_scm(scm_path) {
+                    let scm = get_query_path(&inherit, scm_name);
+                    if !Path::new(&scm).exists() {
+                        panic!(
+                            "{} is referenced from {}, but does not exist",
+                            scm, lang.name
+                        );
+                    }
+                    mod_rs.push_str(&format!("            include_str!(\"../{}\"),\n", scm));
+                }
+
+                mod_rs.push_str(&format!("            include_str!(\"../{}\"),\n", scm));
+                mod_rs.push_str("        )),\n");
             }
         }
         mod_rs.push_str("    _ => None\n");

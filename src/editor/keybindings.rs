@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+
 use noa_compositor::{
-    canvas::{Color, Decoration, Style},
     terminal::{KeyCode, KeyModifiers},
 };
 

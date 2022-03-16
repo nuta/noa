@@ -1,6 +1,5 @@
 #![feature(test)]
 #![feature(vec_retain_mut)]
-#![allow(unused)]
 
 extern crate test;
 
@@ -12,20 +11,21 @@ use std::{ops::ControlFlow, path::PathBuf, sync::Arc, time::Duration};
 use clap::Parser;
 
 use editor::Editor;
-use noa_common::{logger::install_logger, oops::OopsExt, time_report::TimeReport};
+use finder::open_finder;
+use noa_common::{logger::install_logger, time_report::TimeReport};
 use noa_compositor::{terminal::Event, Compositor};
 use theme::parse_default_theme;
 use tokio::sync::{
     mpsc::{self, unbounded_channel, UnboundedSender},
-    oneshot, Notify,
+    Notify,
 };
 use ui::{
     buffer_view::BufferView,
+    bump_view::BumpView,
     completion_view::CompletionView,
-    finder_view::FinderView,
     meta_line_view::MetaLineView,
-    prompt::prompt,
-    prompt_view::{PromptMode, PromptView},
+    prompt_view::{prompt, PromptMode, PromptView},
+    selector_view::SelectorView,
     too_small_view::TooSmallView,
 };
 
@@ -40,6 +40,8 @@ mod completion;
 mod document;
 mod editor;
 mod event_listener;
+mod file_watch;
+mod finder;
 mod flash;
 mod git;
 mod job;
@@ -78,7 +80,7 @@ async fn main() {
     let mut editor = editor::Editor::new(&workspace_dir, render_request.clone(), notification_tx);
     let mut compositor = Compositor::new();
 
-    let mut open_finder = true;
+    let mut no_files_opened = true;
     for path in args.files {
         if !path.is_dir() {
             match editor.open_file(&path, None) {
@@ -90,7 +92,7 @@ async fn main() {
                 }
             }
 
-            open_finder = false;
+            no_files_opened = false;
         }
     }
 
@@ -98,19 +100,14 @@ async fn main() {
     let (force_quit_tx, mut force_quit_rx) = unbounded_channel();
     compositor.add_frontmost_layer(Box::new(TooSmallView::new("too small!")));
     compositor.add_frontmost_layer(Box::new(BufferView::new(quit_tx, render_request.clone())));
+    compositor.add_frontmost_layer(Box::new(BumpView::new()));
     compositor.add_frontmost_layer(Box::new(MetaLineView::new()));
-    compositor.add_frontmost_layer(Box::new(FinderView::new(
-        &mut editor,
-        render_request.clone(),
-        &workspace_dir,
-    )));
+    compositor.add_frontmost_layer(Box::new(SelectorView::new()));
     compositor.add_frontmost_layer(Box::new(PromptView::new()));
     compositor.add_frontmost_layer(Box::new(CompletionView::new()));
 
-    if open_finder {
-        compositor
-            .get_mut_surface_by_name::<FinderView>("finder")
-            .set_active(true);
+    if no_files_opened {
+        open_finder(&mut compositor, &mut editor);
     }
 
     compositor.render_to_terminal(&mut editor);
@@ -194,7 +191,7 @@ fn check_if_dirty(
     }
 
     if num_dirty_docs == 0 {
-        force_quit_tx.send(());
+        let _ = force_quit_tx.send(());
         return;
     }
 
@@ -220,13 +217,13 @@ fn check_if_dirty(
                 Some(answer) if answer == "y" => {
                     info!("saving dirty buffers...");
                     editor.documents.save_all_on_drop(true);
-                    force_quit_tx.send(());
+                    let _ = force_quit_tx.send(());
                 }
                 Some(answer) if answer == "n" => {
                     // Quit without saving dirty files.
                     info!("quitting without saving dirty buffers...");
                     editor.documents.save_all_on_drop(false);
-                    force_quit_tx.send(());
+                    let _ = force_quit_tx.send(());
                 }
                 None => {
                     // Abort.

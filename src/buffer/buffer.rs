@@ -1,6 +1,5 @@
 use std::{
     cmp::min,
-    fs::OpenOptions,
     ops::Deref,
     path::Path,
     process::{Command, Stdio},
@@ -78,6 +77,22 @@ impl Buffer {
         })
     }
 
+    pub fn set_raw_buffer(&mut self, raw_buffer: RawBuffer) {
+        self.select_whole_buffer();
+        self.delete();
+        self.buf = UndoableRawBuffer::from_raw_buffer(raw_buffer);
+
+        // Reparse the whole buffer.
+        if let Some(syntax) = self.syntax.as_mut() {
+            syntax.update(&self.buf, None);
+        }
+    }
+
+    pub fn set_from_reader<T: std::io::Read>(&mut self, reader: T) -> std::io::Result<()> {
+        self.set_raw_buffer(RawBuffer::from_reader(reader)?);
+        Ok(())
+    }
+
     pub fn line_len(&self, y: usize) -> usize {
         self.buf.line_len(y)
     }
@@ -100,7 +115,7 @@ impl Buffer {
     {
         let buffer = self.raw_buffer().clone();
         if let Some(syntax) = self.syntax.as_ref() {
-            syntax.highlight(&buffer, range, &mut callback);
+            syntax.query_highlight(&buffer, range, &mut callback);
         }
     }
 
@@ -147,7 +162,7 @@ impl Buffer {
         self.cursors.add_cursor(selection)
     }
 
-    fn clamp_range(&self, range: Range) -> Range {
+    pub fn clamp_range(&self, range: Range) -> Range {
         let mut r = range;
         r.start.y = min(r.start.y, self.num_lines().saturating_sub(1));
         r.end.y = min(r.start.y, self.num_lines().saturating_sub(1));
@@ -239,12 +254,12 @@ impl Buffer {
     pub fn save_to_file(&mut self, path: &Path) -> std::io::Result<()> {
         self.ensure_insert_final_newline();
 
-        let f = OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(path)?;
-        self.buf.write_to(f)?;
+        // Write into a temporary file and then (hopefully atomically) move it
+        // to `path`.
+        let mut f = tempfile::NamedTempFile::new()?;
+        self.buf.write_to(&mut f)?;
+        f.persist(path)?;
+
         Ok(())
     }
 
@@ -293,12 +308,6 @@ impl Buffer {
     fn ensure_insert_final_newline(&mut self) {
         let last_y = self.num_lines() - 1;
         let last_x = self.line_len(last_y);
-        trace!(
-            "ensure_insert_final_newline: last_y={}, last_x={}, config={}",
-            last_y,
-            last_x,
-            self.config.insert_final_newline
-        );
         if self.config.insert_final_newline && last_x > 0 {
             self.apply_text_edit(&TextEdit {
                 range: Range::from_single_position(Position::new(last_y, last_x)),
@@ -316,6 +325,45 @@ impl Buffer {
         self.insert(&c.to_string());
     }
 
+    pub fn insert_char_with_smart_dedent(&mut self, c: char) {
+        self.insert(&c.to_string());
+
+        // Smart dedent.
+        if c == '}' {
+            self.cursors.foreach(|c, past_cursors| {
+                if c.is_selection() {
+                    return;
+                }
+
+                let pos = c.moving_position();
+                let current_indent_len = self.buf.line_indent_len(pos.y);
+                if pos.x - 1 /* len("}") */ > current_indent_len {
+                    return;
+                }
+
+                let desired_indent_size =
+                    compute_desired_indent_len(&self.buf, &self.config, c.front().y);
+                c.select(pos.y, 0, pos.y, 0);
+                self.buf.edit_at_cursor(
+                    c,
+                    past_cursors,
+                    &match self.config.indent_style {
+                        IndentStyle::Tab => "\t".repeat(desired_indent_size),
+                        IndentStyle::Space => " ".repeat(desired_indent_size),
+                    },
+                );
+
+                c.select(
+                    pos.y,
+                    desired_indent_size,
+                    pos.y,
+                    desired_indent_size + pos.x,
+                );
+                self.buf.edit_at_cursor(c, past_cursors, "}");
+            });
+        }
+    }
+
     pub fn insert_newline_and_indent(&mut self) {
         // Insert a newline.
         self.cursors
@@ -331,7 +379,7 @@ impl Buffer {
                     IndentStyle::Tab => "\t".repeat(indent_size),
                     IndentStyle::Space => " ".repeat(indent_size),
                 },
-            )
+            );
         });
     }
 
@@ -433,9 +481,8 @@ impl Buffer {
     }
 
     pub fn undo(&mut self) {
-        // TODO: Move to TrackedRawBuffer.
         if let Some(state) = self.undo_stack.pop() {
-            // self.buf.set_raw_buffer(state.buf.clone());
+            self.set_raw_buffer(state.buf.clone());
             self.cursors = state.cursors.clone();
             self.redo_stack.push(state);
         }
@@ -443,7 +490,7 @@ impl Buffer {
 
     pub fn redo(&mut self) {
         if let Some(state) = self.redo_stack.pop() {
-            // self.buf.set_raw_buffer(state.buf.clone());
+            self.set_raw_buffer(state.buf.clone());
             self.cursors = state.cursors.clone();
             self.redo_stack.push(state);
         }
@@ -913,55 +960,27 @@ mod tests {
         b.insert_newline_and_indent();
         assert_eq!(b.text(), "        ab\n        XYZ");
         assert_eq!(b.cursors(), &[Cursor::new(1, 8)]);
+
+        let mut b = Buffer::from_text("    if foo {");
+        b.set_cursors_for_test(&[Cursor::new(0, 12)]);
+        b.insert_newline_and_indent();
+        assert_eq!(b.text(), "    if foo {\n        ");
+        assert_eq!(b.cursors(), &[Cursor::new(1, 8)]);
+
+        let mut b = Buffer::from_text("    if foo {}");
+        b.set_cursors_for_test(&[Cursor::new(0, 12)]);
+        b.insert_newline_and_indent();
+        assert_eq!(b.text(), "    if foo {\n    }");
+        assert_eq!(b.cursors(), &[Cursor::new(1, 4)]);
     }
 
     #[test]
-    fn test_indent() {
-        let mut b = Buffer::from_text("");
-        b.set_cursors_for_test(&[Cursor::new(0, 0)]);
-        b.indent();
-        assert_eq!(b.editorconfig().indent_style, IndentStyle::Space);
-        assert_eq!(b.editorconfig().indent_size, 4);
-        assert_eq!(b.text(), "    ");
-
-        //     abc
-        let mut b = Buffer::from_text("    abc\n");
-        b.set_cursors_for_test(&[Cursor::new(1, 0)]);
-        b.indent();
-        assert_eq!(b.text(), "    abc\n    ");
-
-        // __
-        let mut b = Buffer::from_text("  ");
-        b.set_cursors_for_test(&[Cursor::new(0, 2)]);
-        b.indent();
-        assert_eq!(b.text(), "    ");
-
-        // a
-        let mut b = Buffer::from_text("a");
-        b.set_cursors_for_test(&[Cursor::new(0, 1)]);
-        b.indent();
-        assert_eq!(b.text(), "a   ");
-
-        // _____
-        let mut b = Buffer::from_text("     ");
-        b.set_cursors_for_test(&[Cursor::new(0, 5)]);
-        b.indent();
-        assert_eq!(b.text(), "        ");
-
-        // if true {
-        //     while true {
-        let mut b = Buffer::from_text("if true {\n    while true {\n");
-        b.set_cursors_for_test(&[Cursor::new(2, 0)]);
-        b.indent();
-        assert_eq!(b.text(), "if true {\n    while true {\n        ");
-
-        // if true {
-        //     while true {
-        // __
-        let mut b = Buffer::from_text("if true {\n    while true {\n  ");
-        b.set_cursors_for_test(&[Cursor::new(2, 2)]);
-        b.indent();
-        assert_eq!(b.text(), "if true {\n    while true {\n        ");
+    fn test_insert_char_with_smart_dedent() {
+        let mut b = Buffer::from_text("    if foo {\n        ");
+        b.set_cursors_for_test(&[Cursor::new(1, 8)]);
+        b.insert_char_with_smart_dedent('}');
+        assert_eq!(b.text(), "    if foo {\n    }");
+        assert_eq!(b.cursors(), &[Cursor::new(1, 5)]);
     }
 
     #[test]

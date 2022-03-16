@@ -347,11 +347,11 @@ impl Cursor {
     }
 
     pub fn moving_position(&self) -> Position {
-        self.selection.start
+        self.selection.end
     }
 
     pub fn fixed_position(&self) -> Position {
-        self.selection.end
+        self.selection.start
     }
 
     pub(crate) fn selection_mut(&mut self) -> &mut Range {
@@ -388,7 +388,7 @@ impl Cursor {
     }
 
     pub fn move_moving_position_to(&mut self, pos: Position) {
-        self.selection.start = pos;
+        self.selection.end = pos;
     }
 
     pub fn move_left(&mut self, buf: &RawBuffer) {

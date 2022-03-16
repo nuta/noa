@@ -17,7 +17,7 @@ use noa_common::{
     dirs::{log_file_path, proxy_pid_path, proxy_sock_path},
     oops::OopsExt,
 };
-use noa_languages::language::Language;
+use noa_languages::language::Lsp;
 use parking_lot::Mutex;
 use tokio::{
     fs::{self},
@@ -28,12 +28,14 @@ use tokio::{
         mpsc::{self, UnboundedReceiver, UnboundedSender},
         oneshot,
     },
-    time::sleep,
+    time::{sleep, timeout},
 };
 
 use crate::protocol::{
     LspRequest, LspResponse, Notification, RequestId, Response, ToClient, ToServer,
 };
+
+const LSP_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 enum ProxyKind {
@@ -59,10 +61,10 @@ impl Client {
         }
     }
 
-    pub async fn open_file(&self, lang: &Language, path: &Path, text: &str) -> Result<()> {
+    pub async fn open_file(&self, lsp: &Lsp, path: &Path, text: &str) -> Result<()> {
         match self
             .request(
-                lang,
+                lsp,
                 LspRequest::OpenFile {
                     path: path.to_owned(),
                     text: text.to_owned(),
@@ -78,14 +80,14 @@ impl Client {
 
     pub async fn update_file(
         &self,
-        lang: &Language,
+        lsp: &Lsp,
         path: &Path,
         text: &str,
         version: usize,
     ) -> Result<()> {
         match self
             .request(
-                lang,
+                lsp,
                 LspRequest::UpdateFile {
                     path: path.to_owned(),
                     text: text.to_owned(),
@@ -102,14 +104,14 @@ impl Client {
 
     pub async fn incremental_update_file(
         &self,
-        lang: &Language,
+        lsp: &Lsp,
         path: &Path,
         edits: Vec<TextEdit>,
         version: usize,
     ) -> Result<()> {
         match self
             .request(
-                lang,
+                lsp,
                 LspRequest::IncrementalUpdateFile {
                     path: path.to_owned(),
                     edits,
@@ -126,13 +128,13 @@ impl Client {
 
     pub async fn hover(
         &self,
-        lang: &Language,
+        lsp: &Lsp,
         path: &Path,
         position: lsp_types::Position,
     ) -> Result<Option<HoverContents>> {
         match self
             .request(
-                lang,
+                lsp,
                 LspRequest::Hover {
                     path: path.to_owned(),
                     position,
@@ -148,13 +150,13 @@ impl Client {
 
     pub async fn completion(
         &self,
-        lang: &Language,
+        lsp: &Lsp,
         path: &Path,
         position: lsp_types::Position,
     ) -> Result<Vec<CompletionItem>> {
         match self
             .request(
-                lang,
+                lsp,
                 LspRequest::Completion {
                     path: path.to_owned(),
                     position,
@@ -168,22 +170,49 @@ impl Client {
         }
     }
 
-    async fn request(&self, lang: &Language, request: LspRequest) -> Result<LspResponse> {
-        if lang.lsp.is_some() {
-            let resp = self.do_request(&lang.name, request).await?;
-            match resp {
+    pub async fn format(
+        &self,
+        lsp: &Lsp,
+        path: &Path,
+        options: lsp_types::FormattingOptions,
+    ) -> Result<Vec<TextEdit>> {
+        match self
+            .request(
+                lsp,
+                LspRequest::Format {
+                    path: path.to_owned(),
+                    options,
+                },
+            )
+            .await
+        {
+            Ok(LspResponse::Edits(edits)) => Ok(edits),
+            Ok(other) => bail!("unexpected response: {:?}", other),
+            Err(err) => Err(err),
+        }
+    }
+
+    async fn request(&self, lsp: &Lsp, request: LspRequest) -> Result<LspResponse> {
+        match timeout(
+            LSP_REQUEST_TIMEOUT,
+            self.do_request(&lsp.identifier, request),
+        )
+        .await
+        {
+            Ok(resp) => match resp? {
                 Response::Ok { body } => {
                     serde_json::from_value::<LspResponse>(body).context("unexpected LSP respones")
                 }
                 Response::Err { reason } => Err(anyhow::anyhow!("LSP error: {}", reason)),
+            },
+            Err(_) => {
+                bail!("LSP request timed out");
             }
-        } else {
-            bail!("LSP unavailable for {}", lang.name);
         }
     }
 
-    async fn do_request(&self, name: &str, request: LspRequest) -> Result<Response> {
-        let kind = ProxyKind::Lsp(name.to_owned());
+    async fn do_request(&self, lang_indent: &str, request: LspRequest) -> Result<Response> {
+        let kind = ProxyKind::Lsp(lang_indent.to_owned());
         let (resp_tx, resp_rx) = oneshot::channel();
         {
             let id = self.next_request_id.fetch_add(1, Ordering::SeqCst).into();

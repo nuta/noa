@@ -141,6 +141,11 @@ impl View {
         self.scroll = min(self.scroll + 1, self.rows.len().saturating_sub(1));
     }
 
+    pub fn centering(&mut self, pos: Position, height: usize) {
+        let row_index = self.locate_row_by_position(pos).0;
+        self.scroll = row_index.saturating_sub(height);
+    }
+
     /// Clears highlights in the given rows.
     pub fn clear_highlights(&mut self, height: usize) {
         for i in self.scroll..min(self.scroll + height, self.rows.len()) {

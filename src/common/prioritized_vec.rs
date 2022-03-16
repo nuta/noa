@@ -15,13 +15,13 @@ impl<P: Ord, T> Eq for Entry<P, T> {}
 
 impl<P: Ord, T> PartialOrd for Entry<P, T> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.priority.cmp(&other.priority))
+        Some(other.priority.cmp(&self.priority))
     }
 }
 
 impl<P: Ord, T> Ord for Entry<P, T> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.priority.cmp(&other.priority)
+        other.priority.cmp(&self.priority)
     }
 }
 

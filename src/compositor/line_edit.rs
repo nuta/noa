@@ -23,6 +23,10 @@ impl LineEdit {
     }
 
     pub fn set_text(&mut self, text: &str) {
+        if !text.is_empty() {
+            self.save_undo();
+        }
+
         self.buffer.clear();
         self.insert(text);
     }
@@ -112,6 +116,12 @@ impl LineEdit {
         self.buffer.move_to_prev_word();
     }
 
+    pub fn save_undo(&mut self) {
+        if !self.buffer.is_empty() {
+            self.buffer.save_undo();
+        }
+    }
+
     pub fn consume_key_event(&mut self, key: KeyEvent) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
         const CTRL: KeyModifiers = KeyModifiers::CONTROL;
@@ -136,6 +146,12 @@ impl LineEdit {
             }
             (NONE, KeyCode::Right) => {
                 self.move_right();
+            }
+            (NONE, KeyCode::Up) => {
+                self.buffer.undo();
+            }
+            (NONE, KeyCode::Down) => {
+                self.buffer.redo();
             }
             (CTRL, KeyCode::Char('a')) => {
                 self.move_to_beginning_of_line();

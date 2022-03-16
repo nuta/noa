@@ -1,7 +1,7 @@
 use std::{any::Any, collections::HashMap};
 
 use anyhow::{anyhow, Result};
-use crossbeam::epoch::Pointable;
+
 use noa_compositor::Compositor;
 use once_cell::sync::Lazy;
 
@@ -10,6 +10,7 @@ use crate::editor::Editor;
 mod basic_editing;
 mod change_case;
 mod linemap;
+mod scrolling;
 
 pub const ACTIONS: &[&dyn Action] = &[
     &basic_editing::Save,
@@ -42,6 +43,9 @@ pub const ACTIONS: &[&dyn Action] = &[
     &change_case::ToLowerCase,
     &linemap::MoveToNextDiff,
     &linemap::MoveToPrevDiff,
+    &scrolling::PageUp,
+    &scrolling::PageDown,
+    &scrolling::Centering,
 ];
 
 pub trait Action: Any + Send + Sync {

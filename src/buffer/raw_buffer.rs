@@ -46,6 +46,10 @@ impl RawBuffer {
         self.rope.write_to(writer)
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.rope.len_bytes() == 0
+    }
+
     /// Returns the number of lines in the buffer.
     ///
     /// # Complexity

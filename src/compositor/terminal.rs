@@ -222,7 +222,7 @@ impl<'a> Drawer<'a> {
                 queue!(self.stdout, SetAttribute(Attribute::Bold)).ok();
             }
             DrawOp::NoBold => {
-                queue!(self.stdout, SetAttribute(Attribute::NoBold)).ok();
+                queue!(self.stdout, SetAttribute(Attribute::NormalIntensity)).ok();
             }
             DrawOp::Invert => {
                 queue!(self.stdout, SetAttribute(Attribute::Reverse)).ok();

@@ -1,10 +1,8 @@
-use anyhow::{Context, Result};
+use anyhow::{Result};
 use noa_compositor::Compositor;
 
 use crate::{
-    clipboard::{ClipboardData, SystemClipboardData},
     editor::Editor,
-    ui::finder_view::FinderView,
 };
 
 use super::Action;

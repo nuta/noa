@@ -1,6 +1,5 @@
 use std::cmp::min;
 
-use noa_buffer::cursor::Range;
 use noa_compositor::{
     canvas::CanvasViewMut,
     surface::{HandledEvent, Layout, RectSize, Surface},
@@ -8,7 +7,7 @@ use noa_compositor::{
     Compositor,
 };
 
-use crate::{completion::CompletionItem, editor::Editor, theme::theme_for};
+use crate::{editor::Editor, theme::theme_for};
 
 use super::helpers::truncate_to_width;
 
@@ -84,7 +83,7 @@ impl Surface for CompletionView {
         key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
-        const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        const _CTRL: KeyModifiers = KeyModifiers::CONTROL;
         // const ALT: KeyModifiers = KeyModifiers::ALT;
         // const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 

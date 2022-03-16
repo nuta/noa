@@ -40,6 +40,10 @@ pub enum LspRequest {
         version: usize,
         edits: Vec<TextEdit>,
     },
+    Format {
+        path: PathBuf,
+        options: lsp_types::FormattingOptions,
+    },
     Hover {
         path: PathBuf,
         position: lsp_types::Position,
@@ -79,6 +83,7 @@ pub struct FileLocation {
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum LspResponse {
     NoContent,
+    Edits(Vec<TextEdit>),
     Completion(Vec<CompletionItem>),
     Hover(Option<HoverContents>),
     GoToDefinition(Vec<FileLocation>),

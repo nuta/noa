@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::{Context, Result};
-use noa_compositor::canvas::{Color, Decoration, Style};
+use noa_compositor::canvas::{Color, Style};
 
 use once_cell::sync::Lazy;
 
@@ -22,7 +22,11 @@ struct ThemeItem {
     #[serde(default)]
     pub bg: String,
     #[serde(default)]
-    pub decorations: Vec<ThemeDecoration>,
+    pub bold: bool,
+    #[serde(default)]
+    pub underline: bool,
+    #[serde(default)]
+    pub inverted: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
@@ -90,16 +94,17 @@ fn parse_theme(text: &str) -> Result<HashMap<String, Style>> {
             .get(&value.bg)
             .copied()
             .with_context(|| format!("failed to find color \"{}\"", value.bg))?;
-        let mut deco = Decoration::default();
-        for decoration in value.decorations {
-            match decoration {
-                ThemeDecoration::Underline => deco.underline = true,
-                ThemeDecoration::Bold => deco.bold = true,
-                ThemeDecoration::Inverted => deco.inverted = true,
-            }
-        }
 
-        styles.insert(key, Style { fg, bg, deco });
+        styles.insert(
+            key,
+            Style {
+                fg,
+                bg,
+                bold: value.bold,
+                underline: value.underline,
+                inverted: value.inverted,
+            },
+        );
     }
 
     Ok(styles)
@@ -109,7 +114,7 @@ pub fn theme_for(key: &str) -> Style {
     match THEME.get(key) {
         Some(style) => *style,
         None => {
-            warn!("the \"{}\" is not defined in the theme", key);
+            // warn!("the \"{}\" is not defined in the theme", key);
             Default::default()
         }
     }

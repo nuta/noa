@@ -8,25 +8,31 @@
 "buffer.find_match" = { bg = "chalky" }
 "buffer.current_line" = { bg = "lightgrey" }
 "buffer.line_status" = { fg = "grey" }
+"buffer.flash" = { fg = "yellow" }
+"buffer.matching_bracket" = { bg = "yellow", bold = true }
 
 "line_status.modified" = { bg = "purple" }
 "line_status.added" = { bg = "green" }
 "line_status.deleted" = { bg = "deepRed" }
 
-"prompt.name" = { bg = "grey", decorations = ["bold"] }
+"prompt.name" = { bg = "grey", bold = true }
 "meta_line.background" = { bg = "lightgrey2" }
 
-"finder.input" = { fg = "default" }
-"finder.selected" = { fg = "malibu" }
+"selector.input" = { fg = "default" }
+"selector.selected" = { fg = "malibu" }
 
 "notification.warn" = { fg = "coral" }
 "notification.info" = { fg = "fountainBlue" }
 "notification.error" = { fg = "error" }
 
-"flash" = { fg = "whiskey" }
-
 "completion.item" = { bg = "dark" }
 "completion.selected" = { bg = "grey" }
+
+"property" = { fg = "purple" }
+"value" = { fg = "green" }
+"boolean" = { fg = "whiskey" }
+"number" = { fg = "fountainBlue" }
+"float" = { fg = "deepRed" }
 
 [colors]
 chalky = "#e5c07b"
@@ -42,6 +48,7 @@ malibu = "#61afef"
 purple = "#c678dd"
 whiskey = "#d19a66"
 deepRed = "#BE5046"
+yellow = "#B0AC33"
 
 default = "default"
 grey = "#323232"
