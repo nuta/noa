@@ -3,23 +3,16 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::Result;
+use noa_compositor::line_edit::LineEdit;
 
-
-use noa_buffer::{
-    cursor::{Position, Range},
-};
-
-use noa_compositor::{line_edit::LineEdit};
-
-use noa_proxy::{protocol::Notification};
+use noa_proxy::protocol::Notification;
 use tokio::sync::{mpsc::UnboundedSender, Notify};
 
 use crate::{
     clipboard::{self, ClipboardProvider},
-    document::{Document, DocumentId, DocumentManager},
+    document::DocumentManager,
     git::Repo,
-    hook::{HookManager},
+    hook::HookManager,
     job::JobManager,
 };
 
@@ -65,24 +58,5 @@ impl Editor {
             proxy,
             render_request,
         }
-    }
-
-    pub fn open_file(&mut self, path: &Path, cursor_pos: Option<Position>) -> Result<DocumentId> {
-        let mut doc = Document::new(path)?;
-
-        // First run of tree sitter parsering, etc.
-        doc.post_update_job();
-
-        // Needs switch?
-        // self.hooks.invoke(self, compositor, Hook::AfterOpen);
-
-        if let Some(pos) = cursor_pos {
-            doc.buffer_mut().move_main_cursor_to_pos(pos);
-            doc.flashes_mut().flash(Range::from_positions(pos, pos));
-        }
-
-        let id = doc.id();
-        self.documents.add(doc);
-        Ok(id)
     }
 }

@@ -18,13 +18,17 @@ use arc_swap::ArcSwap;
 use futures::executor::block_on;
 use fuzzy_matcher::FuzzyMatcher;
 use noa_buffer::{
-    buffer::Buffer, cursor::Position, raw_buffer::RawBuffer, undoable_raw_buffer::Change,
+    buffer::Buffer,
+    cursor::{Position, Range},
+    raw_buffer::RawBuffer,
+    undoable_raw_buffer::Change,
 };
 use noa_common::{
     dirs::{backup_dir, noa_dir},
     oops::OopsExt,
     prioritized_vec::PrioritizedVec,
 };
+use noa_compositor::Compositor;
 use noa_proxy::client::Client as ProxyClient;
 
 use noa_editorconfig::EditorConfig;
@@ -33,6 +37,7 @@ use tokio::{sync::broadcast, time::timeout};
 
 use crate::{
     completion::{build_fuzzy_matcher, CompletionItem},
+    editor::Editor,
     event_listener::EventListener,
     file_watch::{watch_file, FileWatcher},
     flash::FlashManager,
@@ -494,6 +499,30 @@ impl Drop for DocumentManager {
             }
         }
     }
+}
+
+pub fn open_file(
+    _compositor: &mut Compositor<Editor>,
+    editor: &mut Editor,
+    path: &Path,
+    cursor_pos: Option<Position>,
+) -> Result<DocumentId> {
+    let mut doc = Document::new(path)?;
+
+    // First run of tree sitter parsering, etc.
+    doc.post_update_job();
+
+    // Needs switch?
+    // editor.hooks.invoke(Hook::AfterOpen { id: doc.id() });
+
+    if let Some(pos) = cursor_pos {
+        doc.buffer_mut().move_main_cursor_to_pos(pos);
+        doc.flashes_mut().flash(Range::from_positions(pos, pos));
+    }
+
+    let id = doc.id();
+    editor.documents.add(doc);
+    Ok(id)
 }
 
 pub struct Words(Vec<RawBuffer>);

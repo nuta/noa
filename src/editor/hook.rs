@@ -1,9 +1,8 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
-use anyhow::{Result};
+use anyhow::Result;
 
 use noa_compositor::Compositor;
-
 
 use crate::editor::Editor;
 
@@ -15,7 +14,7 @@ pub enum Hook {
 
 struct Entry {
     name: &'static str,
-    callback: Box<dyn FnMut(&mut Editor, &mut Compositor<Editor>) -> Result<()>>,
+    callback: Box<dyn FnMut(&mut Editor, &mut Compositor<Editor>) -> Result<()> + Send>,
 }
 
 pub struct HookManager {
@@ -31,7 +30,7 @@ impl HookManager {
 
     pub fn register<F>(&mut self, hook: Hook, name: &'static str, callback: F)
     where
-        F: FnMut(&mut Editor, &mut Compositor<Editor>) -> Result<()> + 'static,
+        F: FnMut(&mut Editor, &mut Compositor<Editor>) -> Result<()> + Send + 'static,
     {
         self.callbacks
             .entry(hook)
@@ -50,5 +49,42 @@ impl HookManager {
                 }
             }
         }
+    }
+}
+
+pub type HookCallback<T> = dyn FnMut(&mut Editor, &mut Compositor<Editor>, &T) -> Result<()>;
+
+pub struct Hook2<T> {
+    callbacks: Vec<Box<HookCallback<T>>>,
+    invoke_queue: Vec<T>,
+}
+
+impl<T> Hook2<T> {
+    pub fn new() -> Self {
+        Self {
+            callbacks: Vec::new(),
+            invoke_queue: Vec::new(),
+        }
+    }
+
+    pub fn register<F>(&mut self, _hook: Hook, _name: &'static str, callback: F)
+    where
+        F: FnMut(&mut Editor, &mut Compositor<Editor>, &T) -> Result<()> + 'static,
+    {
+        self.callbacks.push(Box::new(callback));
+    }
+
+    pub fn register_from_vec<F>(&mut self, callbacks: Vec<Box<HookCallback<T>>>) {
+        self.callbacks.extend(callbacks);
+    }
+
+    pub fn invoke(&mut self, value: T) {
+        self.invoke_queue.push(value);
+    }
+
+    pub fn queued_invocations(&mut self) -> (Vec<Box<HookCallback<T>>>, Vec<T>) {
+        let callbacks = std::mem::take(&mut self.callbacks);
+        let invokes = std::mem::take(&mut self.invoke_queue);
+        (callbacks, invokes)
     }
 }

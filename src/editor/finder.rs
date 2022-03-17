@@ -22,7 +22,7 @@ use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use crate::{
     actions::{execute_action_or_notify, ACTIONS},
     completion::build_fuzzy_matcher,
-    document::DocumentId,
+    document::{open_file, DocumentId},
     editor::Editor,
     ui::selector_view::{SelectorContent, SelectorItem, SelectorView},
 };
@@ -63,7 +63,7 @@ fn select_item(compositor: &mut Compositor<Editor>, editor: &mut Editor, item: F
             let path = Path::new(&path);
             match editor.documents.switch_by_path(path) {
                 Some(_) => {}
-                None => match editor.open_file(path, None) {
+                None => match open_file(compositor, editor, path, None) {
                     Ok(id) => {
                         editor.documents.switch_by_id(id);
                     }
@@ -77,7 +77,7 @@ fn select_item(compositor: &mut Compositor<Editor>, editor: &mut Editor, item: F
             let path = Path::new(&path);
             match editor.documents.switch_by_path(path) {
                 Some(_) => {}
-                None => match editor.open_file(path, Some(pos)) {
+                None => match open_file(compositor, editor, path, Some(pos)) {
                     Ok(id) => {
                         editor.documents.switch_by_id(id);
                     }

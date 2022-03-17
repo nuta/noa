@@ -6,35 +6,19 @@ extern crate test;
 #[macro_use]
 extern crate log;
 
-use std::{ops::ControlFlow, path::PathBuf, sync::Arc, time::Duration};
+use std::path::PathBuf;
 
 use clap::Parser;
 
-use editor::Editor;
-use finder::open_finder;
 use noa_common::{logger::install_logger, time_report::TimeReport};
-use noa_compositor::{terminal::Event, Compositor};
-use theme::parse_default_theme;
-use tokio::sync::{
-    mpsc::{self, unbounded_channel, UnboundedSender},
-    Notify,
-};
-use ui::{
-    buffer_view::BufferView,
-    bump_view::BumpView,
-    completion_view::CompletionView,
-    meta_line_view::MetaLineView,
-    prompt_view::{prompt, PromptMode, PromptView},
-    selector_view::SelectorView,
-    too_small_view::TooSmallView,
-};
 
-use crate::job::CompletedJob;
+use theme::parse_default_theme;
 
 #[macro_use]
 mod notification;
 
 mod actions;
+mod application;
 mod clipboard;
 mod completion;
 mod document;
@@ -45,11 +29,11 @@ mod finder;
 mod flash;
 mod git;
 mod hook;
-mod hooks;
 mod job;
 mod keybindings;
 mod linemap;
 mod movement;
+mod plugins;
 mod theme;
 mod ui;
 mod view;
@@ -62,7 +46,7 @@ struct Args {
 
 #[tokio::main]
 async fn main() {
-    let boot_time = TimeReport::new("boot time");
+    let _boot_time = TimeReport::new("boot time");
 
     // Parse the default theme here to print panics in stderr.
     parse_default_theme();
@@ -70,187 +54,36 @@ async fn main() {
     install_logger("main");
     let args = Args::parse();
 
-    let workspace_dir = args
+    let _workspace_dir = args
         .files
         .iter()
         .find(|path| path.is_dir())
         .cloned()
         .unwrap_or_else(|| PathBuf::from("."));
 
-    let render_request = Arc::new(Notify::new());
-    let (notification_tx, mut notification_rx) = mpsc::unbounded_channel();
-    let mut editor = editor::Editor::new(&workspace_dir, render_request.clone(), notification_tx);
-    let mut compositor = Compositor::new();
+    // let mut no_files_opened = true;
+    // for path in args.files {
+    //     if !path.is_dir() {
+    //         match open_file(&mut compositor, &mut editor, &path, None) {
+    //             Ok(id) => {
+    //                 editor.documents.switch_by_id(id);
+    //             }
+    //             Err(err) => {
+    //                 notify_anyhow_error!(err);
+    //             }
+    //         }
 
-    let mut no_files_opened = true;
-    for path in args.files {
-        if !path.is_dir() {
-            match editor.open_file(&path, None) {
-                Ok(id) => {
-                    editor.documents.switch_by_id(id);
-                }
-                Err(err) => {
-                    notify_anyhow_error!(err);
-                }
-            }
+    //         no_files_opened = false;
+    //     }
+    // }
 
-            no_files_opened = false;
-        }
-    }
+    // if no_files_opened {
+    //     open_finder(&mut compositor, &mut editor);
+    // }
 
-    let (quit_tx, mut quit_rx) = unbounded_channel();
-    let (force_quit_tx, mut force_quit_rx) = unbounded_channel();
-    compositor.add_frontmost_layer(Box::new(TooSmallView::new("too small!")));
-    compositor.add_frontmost_layer(Box::new(BufferView::new(quit_tx, render_request.clone())));
-    compositor.add_frontmost_layer(Box::new(BumpView::new()));
-    compositor.add_frontmost_layer(Box::new(MetaLineView::new()));
-    compositor.add_frontmost_layer(Box::new(SelectorView::new()));
-    compositor.add_frontmost_layer(Box::new(PromptView::new()));
-    compositor.add_frontmost_layer(Box::new(CompletionView::new()));
-
-    if no_files_opened {
-        open_finder(&mut compositor, &mut editor);
-    }
-
-    compositor.render_to_terminal(&mut editor);
-    drop(boot_time);
-
-    let mut idle_timer = tokio::time::interval(Duration::from_millis(1200));
-    loop {
-        let mut skip_rendering = false;
-        tokio::select! {
-            biased;
-
-            _ = force_quit_rx.recv() => {
-                break;
-           }
-
-            Some(()) =  quit_rx.recv() => {
-                check_if_dirty(&mut compositor, &mut editor, force_quit_tx.clone());
-            }
-
-            Some(ev) = compositor.recv_terminal_event() => {
-                let _event_tick_time = Some(TimeReport::new("I/O event handling"));
-                match ev {
-                    Event::Input(input) => {
-                        compositor.handle_input(&mut editor, input);
-                    }
-                    Event::Resize { height, width } => {
-                        compositor.resize_screen(height, width);
-                    }
-                }
-            }
-
-            Some(noti) = notification_rx.recv() => {
-                trace!("proxy notification: {:?}", noti);
-                match noti {
-                    noa_proxy::protocol::Notification::Diagnostics { diags, path } => {
-                        if path != editor.documents.current().path() {
-                            return;
-                        }
-
-                        if let Some(diag) = diags.first() {
-                            notify_warn!("{}: {:?}", diag.range.start.line + 1, diag.message);
-                        }
-                    }
-                }
-            }
-
-            Some(completed) = editor.jobs.get_completed() => {
-                match completed {
-                    CompletedJob::Completed(callback) => {
-                        callback(&mut editor, &mut compositor);
-                    }
-                    CompletedJob::Notified { id, mut callback } => {
-                        callback(&mut editor, &mut compositor);
-                        editor.jobs.insert_back_notified(id, callback);
-                    }
-                }
-            }
-
-            _ = render_request.notified() => {
-            }
-
-            _ = idle_timer.tick()  => {
-                editor.documents.current_mut().idle_job();
-                skip_rendering = true;
-            }
-        }
-
-        if !skip_rendering {
-            compositor.render_to_terminal(&mut editor);
-        }
-        idle_timer.reset();
-    }
+    // compositor.render_to_terminal(&mut editor);
+    // drop(boot_time);
 
     // Drop compoisitor first to restore the terminal.
-    drop(compositor);
-    notification::set_stdout_mode(true);
-}
-
-fn check_if_dirty(
-    compositor: &mut Compositor<Editor>,
-    editor: &mut Editor,
-    force_quit_tx: UnboundedSender<()>,
-) {
-    let mut dirty_doc = None;
-    let mut num_dirty_docs = 0;
-    for doc in editor.documents.documents().values() {
-        if doc.is_dirty() && !doc.is_virtual_file() {
-            dirty_doc = Some(doc);
-            num_dirty_docs += 1;
-        }
-    }
-
-    if num_dirty_docs == 0 {
-        let _ = force_quit_tx.send(());
-        return;
-    }
-
-    let title = if num_dirty_docs == 1 {
-        format!("save {}? [yn]", dirty_doc.unwrap().name())
-    } else {
-        format!("save {} dirty buffers? [yn]", num_dirty_docs)
-    };
-
-    if compositor.contains_surface_with_name(&title) {
-        // Ctrl-Q is pressed twice. Save all dirty documents and quit.
-        editor.documents.save_all_on_drop(true);
-        return;
-    }
-
-    prompt(
-        compositor,
-        editor,
-        PromptMode::SingleChar,
-        title,
-        move |compositor, editor, answer| {
-            match answer {
-                Some(answer) if answer == "y" => {
-                    info!("saving dirty buffers...");
-                    editor.documents.save_all_on_drop(true);
-                    let _ = force_quit_tx.send(());
-                }
-                Some(answer) if answer == "n" => {
-                    // Quit without saving dirty files.
-                    info!("quitting without saving dirty buffers...");
-                    editor.documents.save_all_on_drop(false);
-                    let _ = force_quit_tx.send(());
-                }
-                None => {
-                    // Abort.
-                }
-                _ => {
-                    let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
-                    prompt_view.clear();
-
-                    notify_error!("invalid answer");
-                    return ControlFlow::Continue(());
-                }
-            }
-
-            ControlFlow::Break(())
-        },
-        |_, _| None,
-    );
+    // notification::set_stdout_mode(true);
 }

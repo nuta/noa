@@ -29,9 +29,7 @@ pub fn init_hooks(editor: &mut Editor) {
 
                 let path = path.clone();
                 while let Ok(OnChangeData {
-                    version,
-                    changes,
-                    ..
+                    version, changes, ..
                 }) = rx.recv().await
                 {
                     let edits = changes
