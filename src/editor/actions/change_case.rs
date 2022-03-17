@@ -1,7 +1,7 @@
 use anyhow::Result;
 use noa_compositor::Compositor;
 
-use crate::editor::Editor;
+use crate::{editor::Editor, ui::UIContext};
 
 use super::Action;
 
@@ -12,7 +12,7 @@ impl Action for ToUpperCase {
         "to_upper_case"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
         editor
             .documents
             .current_mut()
@@ -30,7 +30,7 @@ impl Action for ToLowerCase {
         "to_lower_case"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
         editor
             .documents
             .current_mut()

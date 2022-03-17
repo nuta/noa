@@ -20,23 +20,13 @@ use crate::{
         prompt_view::{prompt, PromptMode, PromptView},
         selector_view::SelectorView,
         too_small_view::TooSmallView,
+        UIContext,
     },
 };
 
-pub struct CompositorContext<'a> {
-    pub editor: &'a mut Editor,
-    pub compositor: &'a mut Compositor<CompositorContext<'a>>,
-    pub hooks: &'a mut HookManager,
-}
-
-pub struct HookContext<'a> {
-    pub editor: &'a mut Editor,
-    pub compositor: &'a mut Compositor<CompositorContext<'a>>,
-}
-
-pub struct Application {
+pub struct Application<'a> {
     editor: Editor,
-    compositor: Compositor<Editor>,
+    compositor: Compositor<UIContext<'a>>,
     hooks: HookManager,
     force_quit_rx: UnboundedReceiver<()>,
     force_quit_tx: UnboundedSender<()>,
@@ -45,8 +35,8 @@ pub struct Application {
     render_request: Arc<Notify>,
 }
 
-impl Application {
-    pub fn new(workspace_dir: &Path) -> Application {
+impl<'a> Application<'a> {
+    pub fn new(workspace_dir: &Path) -> Application<'a> {
         let render_request = Arc::new(Notify::new());
         let (notification_tx, notification_rx) = mpsc::unbounded_channel();
         let editor = Editor::new(workspace_dir, render_request.clone(), notification_tx);
@@ -93,7 +83,11 @@ impl Application {
                     let _event_tick_time = Some(TimeReport::new("I/O event handling"));
                     match ev {
                         Event::Input(input) => {
-                            self.compositor.handle_input(&mut self.editor, input);
+                            let ctx =  UIContext {
+                                editor: &mut self.editor,
+                                hooks: &mut self.hooks,
+                            };
+                            self.compositor.handle_input(&mut ctx, input);
                         }
                         Event::Resize { height, width } => {
                             self.compositor.resize_screen(height, width);
@@ -119,10 +113,12 @@ impl Application {
                 Some(completed) = self.editor.jobs.get_completed() => {
                     match completed {
                         CompletedJob::Completed(callback) => {
-                            callback(&mut self.editor, &mut self.compositor);
+                            // TODO:
+                            // callback(&mut self.editor, &mut self.compositor);
                         }
                         CompletedJob::Notified { id, mut callback } => {
-                            callback(&mut self.editor, &mut self.compositor);
+                            // TODO:
+                            // callback(&mut self.editor, &mut self.compositor);
                             self.editor.jobs.insert_back_notified(id, callback);
                         }
                     }
@@ -138,7 +134,11 @@ impl Application {
             }
 
             if !skip_rendering {
-                self.compositor.render_to_terminal(&mut self.editor);
+                let ctx = UIContext {
+                    editor: &mut self.editor,
+                    hooks: &mut self.hooks,
+                };
+                self.compositor.render_to_terminal(&mut ctx);
             }
             idle_timer.reset();
         }

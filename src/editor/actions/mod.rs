@@ -5,7 +5,7 @@ use anyhow::{anyhow, Result};
 use noa_compositor::Compositor;
 use once_cell::sync::Lazy;
 
-use crate::editor::Editor;
+use crate::{editor::Editor, ui::UIContext};
 
 mod basic_editing;
 mod change_case;
@@ -50,7 +50,7 @@ pub const ACTIONS: &[&dyn Action] = &[
 
 pub trait Action: Any + Send + Sync {
     fn name(&self) -> &'static str;
-    fn run(&self, editor: &mut Editor, compositor: &mut Compositor<Editor>) -> Result<()>;
+    fn run(&self, editor: &mut Editor, compositor: &mut Compositor<UIContext>) -> Result<()>;
 }
 
 static ACTION_MAP: Lazy<HashMap<&'static str, &'static dyn Action>> = Lazy::new(|| {
@@ -63,7 +63,7 @@ static ACTION_MAP: Lazy<HashMap<&'static str, &'static dyn Action>> = Lazy::new(
 
 pub fn execute_action(
     editor: &mut Editor,
-    compositor: &mut Compositor<Editor>,
+    compositor: &mut Compositor<UIContext>,
     action: &str,
 ) -> Result<()> {
     match ACTION_MAP.get(action) {
@@ -74,7 +74,7 @@ pub fn execute_action(
 
 pub fn execute_action_or_notify(
     editor: &mut Editor,
-    compositor: &mut Compositor<Editor>,
+    compositor: &mut Compositor<UIContext>,
     action: &str,
 ) {
     if let Err(err) = execute_action(editor, compositor, action) {

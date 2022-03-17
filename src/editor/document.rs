@@ -424,7 +424,26 @@ impl DocumentManager {
         manager
     }
 
-    pub fn add(&mut self, doc: Document) {
+    pub fn open_file(&mut self, path: &Path, cursor_pos: Option<Position>) -> Result<DocumentId> {
+        let mut doc = Document::new(path)?;
+
+        // First run of tree sitter parsering, etc.
+        doc.post_update_job();
+
+        // Needs switch?
+        // editor.hooks.invoke(Hook::AfterOpen { id: doc.id() });
+
+        if let Some(pos) = cursor_pos {
+            doc.buffer_mut().move_main_cursor_to_pos(pos);
+            doc.flashes_mut().flash(Range::from_positions(pos, pos));
+        }
+
+        let id = doc.id();
+        self.add(doc);
+        Ok(id)
+    }
+
+    fn add(&mut self, doc: Document) {
         let doc_id = doc.id;
         debug_assert!(!self.documents.contains_key(&doc_id));
         self.documents.insert(doc_id, doc);
@@ -499,30 +518,6 @@ impl Drop for DocumentManager {
             }
         }
     }
-}
-
-pub fn open_file(
-    _compositor: &mut Compositor<Editor>,
-    editor: &mut Editor,
-    path: &Path,
-    cursor_pos: Option<Position>,
-) -> Result<DocumentId> {
-    let mut doc = Document::new(path)?;
-
-    // First run of tree sitter parsering, etc.
-    doc.post_update_job();
-
-    // Needs switch?
-    // editor.hooks.invoke(Hook::AfterOpen { id: doc.id() });
-
-    if let Some(pos) = cursor_pos {
-        doc.buffer_mut().move_main_cursor_to_pos(pos);
-        doc.flashes_mut().flash(Range::from_positions(pos, pos));
-    }
-
-    let id = doc.id();
-    editor.documents.add(doc);
-    Ok(id)
 }
 
 pub struct Words(Vec<RawBuffer>);

@@ -22,9 +22,12 @@ use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use crate::{
     actions::{execute_action_or_notify, ACTIONS},
     completion::build_fuzzy_matcher,
-    document::{open_file, DocumentId},
+    document::DocumentId,
     editor::Editor,
-    ui::selector_view::{SelectorContent, SelectorItem, SelectorView},
+    ui::{
+        selector_view::{SelectorContent, SelectorItem, SelectorView},
+        UIContext,
+    },
 };
 
 #[derive(Clone, Debug)]
@@ -47,13 +50,13 @@ enum FinderItem {
     },
 }
 
-pub fn open_finder(compositor: &mut Compositor<Editor>, editor: &mut Editor) {
+pub fn open_finder(compositor: &mut Compositor<UIContext>, editor: &mut Editor) {
     let selector: &mut SelectorView = compositor.get_mut_surface_by_name("selector");
     selector.open("finder", true, Some(Box::new(update_items)));
     update_items(editor, "");
 }
 
-fn select_item(compositor: &mut Compositor<Editor>, editor: &mut Editor, item: FinderItem) {
+fn select_item(compositor: &mut Compositor<UIContext>, editor: &mut Editor, item: FinderItem) {
     info!("selected item: {:?}", item);
     match item {
         FinderItem::Buffer { id, .. } => {
@@ -63,7 +66,7 @@ fn select_item(compositor: &mut Compositor<Editor>, editor: &mut Editor, item: F
             let path = Path::new(&path);
             match editor.documents.switch_by_path(path) {
                 Some(_) => {}
-                None => match open_file(compositor, editor, path, None) {
+                None => match editor.documents.open_file(path, None) {
                     Ok(id) => {
                         editor.documents.switch_by_id(id);
                     }
@@ -77,7 +80,7 @@ fn select_item(compositor: &mut Compositor<Editor>, editor: &mut Editor, item: F
             let path = Path::new(&path);
             match editor.documents.switch_by_path(path) {
                 Some(_) => {}
-                None => match open_file(compositor, editor, path, Some(pos)) {
+                None => match editor.documents.open_file(path, Some(pos)) {
                     Ok(id) => {
                         editor.documents.switch_by_id(id);
                     }

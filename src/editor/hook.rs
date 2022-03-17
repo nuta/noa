@@ -4,62 +4,21 @@ use anyhow::Result;
 
 use noa_compositor::Compositor;
 
-use crate::editor::Editor;
+use crate::{document::DocumentId, editor::Editor, ui::UIContext};
 
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub enum Hook {
-    AfterOpen,
-    BeforeSave,
+pub struct HookContext<'a> {
+    pub editor: &'a mut Editor,
+    pub compositor: &'a mut Compositor<UIContext<'a>>,
 }
 
-struct Entry {
-    name: &'static str,
-    callback: Box<dyn FnMut(&mut Editor, &mut Compositor<Editor>) -> Result<()> + Send>,
-}
+pub type HookCallback<T> = dyn FnMut(&mut HookContext<'_>, &T);
 
-pub struct HookManager {
-    callbacks: HashMap<Hook, Vec<Entry>>,
-}
-
-impl HookManager {
-    pub fn new() -> Self {
-        Self {
-            callbacks: HashMap::new(),
-        }
-    }
-
-    pub fn register<F>(&mut self, hook: Hook, name: &'static str, callback: F)
-    where
-        F: FnMut(&mut Editor, &mut Compositor<Editor>) -> Result<()> + Send + 'static,
-    {
-        self.callbacks
-            .entry(hook)
-            .or_insert_with(Vec::new)
-            .push(Entry {
-                name,
-                callback: Box::new(callback),
-            });
-    }
-
-    pub fn invoke(&mut self, editor: &mut Editor, compositor: &mut Compositor<Editor>, hook: Hook) {
-        if let Some(entries) = self.callbacks.get_mut(&hook) {
-            for entry in entries {
-                if let Err(err) = (entry.callback)(editor, compositor) {
-                    warn!("hook {} ({:?}) failed: {}", entry.name, hook, err);
-                }
-            }
-        }
-    }
-}
-
-pub type HookCallback<T> = dyn FnMut(&mut Editor, &mut Compositor<Editor>, &T) -> Result<()>;
-
-pub struct Hook2<T> {
+pub struct Hook<T> {
     callbacks: Vec<Box<HookCallback<T>>>,
     invoke_queue: Vec<T>,
 }
 
-impl<T> Hook2<T> {
+impl<T> Hook<T> {
     pub fn new() -> Self {
         Self {
             callbacks: Vec::new(),
@@ -67,9 +26,9 @@ impl<T> Hook2<T> {
         }
     }
 
-    pub fn register<F>(&mut self, _hook: Hook, _name: &'static str, callback: F)
+    pub fn register<F>(&mut self, callback: F)
     where
-        F: FnMut(&mut Editor, &mut Compositor<Editor>, &T) -> Result<()> + 'static,
+        F: FnMut(&mut HookContext<'_>, &T) + 'static,
     {
         self.callbacks.push(Box::new(callback));
     }
@@ -86,5 +45,29 @@ impl<T> Hook2<T> {
         let callbacks = std::mem::take(&mut self.callbacks);
         let invokes = std::mem::take(&mut self.invoke_queue);
         (callbacks, invokes)
+    }
+}
+
+impl<T> Default for Hook<T> {
+    fn default() -> Hook<T> {
+        Hook::new()
+    }
+}
+
+pub struct HookManager {
+    pub after_save: Hook<DocumentId>,
+}
+
+impl HookManager {
+    pub fn new() -> HookManager {
+        HookManager {
+            ..Default::default()
+        }
+    }
+}
+
+impl Default for HookManager {
+    fn default() -> Self {
+        HookManager::new()
     }
 }

@@ -1,3 +1,4 @@
+#![allow(unused)]
 #![feature(test)]
 #![feature(vec_retain_mut)]
 
@@ -33,6 +34,7 @@ mod job;
 mod keybindings;
 mod linemap;
 mod movement;
+mod plugin;
 mod plugins;
 mod theme;
 mod ui;

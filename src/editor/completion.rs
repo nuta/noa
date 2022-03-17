@@ -11,7 +11,7 @@ use tokio::sync::oneshot;
 use crate::{
     document::{Document, Words},
     editor::Editor,
-    ui::completion_view::CompletionView,
+    ui::{completion_view::CompletionView, UIContext},
 };
 
 pub fn build_fuzzy_matcher() -> SkimMatcherV2 {
@@ -153,7 +153,7 @@ pub async fn complete(
     Some(unique_items)
 }
 
-pub fn clear_completion(doc: &mut Document, compositor: &mut Compositor<Editor>) {
+pub fn clear_completion(doc: &mut Document, compositor: &mut Compositor<UIContext>) {
     compositor
         .get_mut_surface_by_name::<CompletionView>("completion")
         .set_active(false);

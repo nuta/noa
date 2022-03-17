@@ -10,10 +10,10 @@ use noa_compositor::Compositor;
 
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
-use crate::{editor::Editor, event_listener::EventListener};
+use crate::{editor::Editor, event_listener::EventListener, ui::UIContext};
 
-type CompletedCallback = dyn FnOnce(&mut Editor, &mut Compositor<Editor>) + Send + 'static;
-type NotifyCallback = dyn FnMut(&mut Editor, &mut Compositor<Editor>) + Send + 'static;
+type CompletedCallback = dyn FnOnce(&mut Editor, &mut Compositor<UIContext>) + Send + 'static;
+type NotifyCallback = dyn FnMut(&mut Editor, &mut Compositor<UIContext>) + Send + 'static;
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
 pub struct CallbackId(NonZeroUsize);
@@ -55,7 +55,7 @@ impl JobManager {
 
     pub fn listen_in_mainloop<Callback>(&mut self, mut listener: EventListener, callback: Callback)
     where
-        Callback: FnMut(&mut Editor, &mut Compositor<Editor>) + Send + 'static,
+        Callback: FnMut(&mut Editor, &mut Compositor<UIContext>) + Send + 'static,
     {
         let id = CallbackId::alloc();
         self.mut_callbacks.insert(id, Box::new(callback));
@@ -72,7 +72,7 @@ impl JobManager {
     where
         Fut: Future<Output = Result<Ret>> + Send + 'static,
         Ret: Send + 'static,
-        Then: FnOnce(&mut Editor, &mut Compositor<Editor>, Ret) + Send + 'static,
+        Then: FnOnce(&mut Editor, &mut Compositor<UIContext>, Ret) + Send + 'static,
     {
         self.futures.push(
             async move {
@@ -80,7 +80,7 @@ impl JobManager {
 
                 // Curring the callback.
                 let boxed_callback: Box<
-                    dyn FnOnce(&mut Editor, &mut Compositor<Editor>) + Send + 'static,
+                    dyn FnOnce(&mut Editor, &mut Compositor<UIContext>) + Send + 'static,
                 > = Box::new(move |editor, compositor| then(editor, compositor, result));
 
                 Ok(boxed_callback)
