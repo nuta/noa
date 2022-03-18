@@ -5,8 +5,8 @@ use noa_buffer::{buffer::TextEdit, cursor::Cursor, raw_buffer::RawBuffer};
 
 use noa_compositor::Compositor;
 use noa_languages::language::Language;
-use noa_proxy::{client::Client as ProxyClient, lsp_types::CompletionTextEdit};
-use tokio::sync::oneshot;
+use noa_proxy::{client::Client as ProxyClient};
+
 
 use crate::{
     document::{Document, Words},
@@ -59,7 +59,7 @@ pub async fn complete(
         lang,
         proxy.clone(),
         path.to_owned(),
-        pos.into(),
+        pos,
         current_word_range,
     ));
 

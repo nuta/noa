@@ -3,7 +3,6 @@ use std::{path::Path, time::Duration};
 use anyhow::{Context, Result};
 use notify::{DebouncedEvent, Watcher};
 
-
 use crate::{
     document::Document,
     event_listener::{self, EventListener},

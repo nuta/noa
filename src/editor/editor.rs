@@ -5,15 +5,14 @@ use std::{
 
 use anyhow::Result;
 
-
 use noa_buffer::{
     buffer::Buffer,
     cursor::{Position, Range},
 };
 
-use noa_compositor::{line_edit::LineEdit};
+use noa_compositor::line_edit::LineEdit;
 
-use noa_proxy::{protocol::Notification};
+use noa_proxy::protocol::Notification;
 use tokio::sync::{mpsc::UnboundedSender, Notify};
 
 use crate::{
@@ -75,10 +74,8 @@ impl Editor {
         let mut doc = Document::new(path)?;
 
         // First run of tree sitter parsering, etc.
-        doc.post_update_job();
+        doc.post_update_job(&self.proxy, self.repo.as_ref(), &self.render_request);
 
-        lsp::after_open_hook(&self.proxy, &doc);
-        git::after_open_hook(self.repo.as_ref(), &doc, &self.render_request);
         file_watch::after_open_hook(&mut self.jobs, &doc);
 
         if let Some(pos) = cursor_pos {

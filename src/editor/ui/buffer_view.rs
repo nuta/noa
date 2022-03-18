@@ -58,7 +58,7 @@ impl BufferView {
 
     pub fn post_update_job(&mut self, editor: &mut Editor) {
         let doc = editor.documents.current_mut();
-        doc.post_update_job();
+        doc.post_update_job(&editor.proxy, editor.repo.as_ref(), &editor.render_request);
     }
 
     pub fn show_completion(&mut self, editor: &mut Editor) {

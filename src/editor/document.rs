@@ -29,24 +29,22 @@ use noa_proxy::client::Client as ProxyClient;
 
 use noa_editorconfig::EditorConfig;
 use noa_languages::language::guess_language;
-use tokio::{sync::broadcast, time::timeout};
+use tokio::{
+    sync::{broadcast, Notify},
+    time::timeout,
+};
 
 use crate::{
     completion::{build_fuzzy_matcher, CompletionItem},
     event_listener::EventListener,
     file_watch::{watch_file, FileWatcher},
     flash::FlashManager,
+    git::{self, Repo},
     linemap::LineMap,
+    lsp,
     movement::{Movement, MovementState},
     view::View,
 };
-
-#[derive(Clone, Debug)]
-pub struct OnChangeData {
-    pub version: usize,
-    pub raw_buffer: RawBuffer,
-    pub changes: Vec<Change>,
-}
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct DocumentId(NonZeroUsize);
@@ -67,8 +65,6 @@ pub struct Document {
     completion_items: Vec<CompletionItem>,
     flashes: FlashManager,
     linemap: Arc<ArcSwap<LineMap>>,
-    onchange_broadcast_tx: broadcast::Sender<OnChangeData>,
-    _onchange_broadcast_rx: broadcast::Receiver<OnChangeData>,
     _watcher: Option<FileWatcher>,
     modified_listener: Option<EventListener>,
 }
@@ -132,7 +128,6 @@ impl Document {
             }
         };
 
-        let (onchange_broadcast_tx, onchange_broadcast_rx) = broadcast::channel(8);
         Ok(Document {
             id,
             version: 1,
@@ -149,8 +144,6 @@ impl Document {
             completion_items: Vec::new(),
             flashes: FlashManager::new(),
             linemap: Arc::new(ArcSwap::from_pointee(LineMap::new())),
-            onchange_broadcast_tx,
-            _onchange_broadcast_rx: onchange_broadcast_rx,
             _watcher: watcher,
             modified_listener,
         })
@@ -221,6 +214,10 @@ impl Document {
         self.id
     }
 
+    pub fn version(&self) -> usize {
+        self.version
+    }
+
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -278,10 +275,6 @@ impl Document {
 
     pub fn view_mut(&mut self) -> &mut View {
         &mut self.view
-    }
-
-    pub fn subscribe_onchange(&self) -> broadcast::Receiver<OnChangeData> {
-        self.onchange_broadcast_tx.subscribe()
     }
 
     pub fn modified_listener(&self) -> Option<&EventListener> {
@@ -370,16 +363,18 @@ impl Document {
     }
 
     /// Called when the buffer is modified.
-    pub fn post_update_job(&mut self) {
+    pub fn post_update_job(
+        &mut self,
+        proxy: &Arc<ProxyClient>,
+        repo: Option<&Arc<Repo>>,
+        render_request: &Arc<Notify>,
+    ) {
         self.version += 1;
         let changes = self.buffer.post_update_hook();
         self.completion_items.clear();
 
-        let _ = self.onchange_broadcast_tx.send(OnChangeData {
-            version: self.version,
-            raw_buffer: self.buffer.raw_buffer().clone(),
-            changes,
-        });
+        lsp::modified_hook(proxy, self, changes);
+        git::modified_hook(repo, self, render_request);
     }
 
     pub fn idle_job(&mut self) {
