@@ -15,6 +15,7 @@ use fuzzy_matcher::FuzzyMatcher;
 use grep::searcher::SinkError;
 use noa_buffer::cursor::Position;
 use noa_common::{oops::OopsExt, prioritized_vec::PrioritizedVec};
+use noa_compositor::Compositor;
 
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
@@ -23,10 +24,7 @@ use crate::{
     completion::build_fuzzy_matcher,
     document::DocumentId,
     editor::Editor,
-    ui::{
-        compositor::Compositor,
-        views::selector_view::{SelectorContent, SelectorItem, SelectorView},
-    },
+    ui::selector_view::{SelectorContent, SelectorItem, SelectorView},
 };
 
 #[derive(Clone, Debug)]
@@ -49,13 +47,13 @@ enum FinderItem {
     },
 }
 
-pub fn open_finder(compositor: &mut Compositor, editor: &mut Editor) {
+pub fn open_finder(compositor: &mut Compositor<Editor>, editor: &mut Editor) {
     let selector: &mut SelectorView = compositor.get_mut_surface_by_name("selector");
     selector.open("finder", true, Some(Box::new(update_items)));
     update_items(editor, "");
 }
 
-fn select_item(compositor: &mut Compositor, editor: &mut Editor, item: FinderItem) {
+fn select_item(compositor: &mut Compositor<Editor>, editor: &mut Editor, item: FinderItem) {
     info!("selected item: {:?}", item);
     match item {
         FinderItem::Buffer { id, .. } => {
@@ -65,7 +63,7 @@ fn select_item(compositor: &mut Compositor, editor: &mut Editor, item: FinderIte
             let path = Path::new(&path);
             match editor.documents.switch_by_path(path) {
                 Some(_) => {}
-                None => match editor.documents.open_file(path, None) {
+                None => match editor.open_file(path, None) {
                     Ok(id) => {
                         editor.documents.switch_by_id(id);
                     }
@@ -79,7 +77,7 @@ fn select_item(compositor: &mut Compositor, editor: &mut Editor, item: FinderIte
             let path = Path::new(&path);
             match editor.documents.switch_by_path(path) {
                 Some(_) => {}
-                None => match editor.documents.open_file(path, Some(pos)) {
+                None => match editor.open_file(path, Some(pos)) {
                     Ok(id) => {
                         editor.documents.switch_by_id(id);
                     }
@@ -150,21 +148,21 @@ fn update_items(editor: &mut Editor, query: &str) {
         }
     });
 
-    editor.jobs.await_in_mainloop(
+    editor.await_in_mainloop(
         async move {
             while let Some((priority, item)) = items_rx.recv().await {
                 items.insert(priority, item);
             }
             Ok(items.into_sorted_vec())
         },
-        |_editor, compositor, items| {
+        |_editor, compositor, mut items| {
             let selector: &mut SelectorView = compositor.get_mut_surface_by_name("selector");
             if selector.opened_by() != "finder" {
                 return;
             }
 
             let selector_items = items
-                .into_iter()
+                .drain(..)
                 .map(|item| {
                     let content = match &item {
                         FinderItem::File(path) => SelectorContent::Normal {

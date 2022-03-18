@@ -2,25 +2,21 @@ use std::cmp::min;
 
 use noa_buffer::{cursor::Position, display_width::DisplayWidth};
 
-use noa_terminal::{
+use noa_compositor::{
     canvas::{CanvasViewMut, Color, Style},
+    line_edit::LineEdit,
+    surface::{HandledEvent, Layout, RectSize, Surface},
     terminal::{KeyCode, KeyEvent, KeyModifiers},
+    Compositor,
 };
 
-use crate::{
-    editor::Editor,
-    theme::theme_for,
-    ui::{
-        compositor::Compositor,
-        helpers::truncate_to_width,
-        line_edit::LineEdit,
-        surface::{HandledEvent, Layout, RectSize, Surface, UIContext},
-    },
-};
+use crate::{editor::Editor, theme::theme_for};
+
+use super::helpers::truncate_to_width;
 
 const HEIGHT_MAX: usize = 16;
 
-pub type SelectedCallback = dyn FnOnce(&mut Compositor, &mut Editor) + Send;
+pub type SelectedCallback = dyn FnOnce(&mut Compositor<Editor>, &mut Editor) + Send;
 pub type ChangedCallback = dyn FnMut(&mut Editor, &str) + Send;
 
 pub enum SelectorContent {
@@ -116,6 +112,8 @@ impl SelectorView {
 }
 
 impl Surface for SelectorView {
+    type Context = Editor;
+
     fn name(&self) -> &str {
         "selector"
     }
@@ -124,11 +122,11 @@ impl Surface for SelectorView {
         self
     }
 
-    fn is_active(&self, _ctx: &mut UIContext) -> bool {
+    fn is_active(&self, _editor: &mut Editor) -> bool {
         self.active
     }
 
-    fn layout(&mut self, _ctx: &mut UIContext, screen_size: RectSize) -> (Layout, RectSize) {
+    fn layout(&mut self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
         let height = min(
             self.items.len() + if self.input.is_some() { 1 } else { 0 },
             min(HEIGHT_MAX, screen_size.height),
@@ -151,7 +149,7 @@ impl Surface for SelectorView {
         )
     }
 
-    fn cursor_position(&self, _ctx: &mut UIContext) -> Option<(usize, usize)> {
+    fn cursor_position(&self, _editor: &mut Editor) -> Option<(usize, usize)> {
         if self.active {
             Some(self.cursor_pos)
         } else {
@@ -159,7 +157,7 @@ impl Surface for SelectorView {
         }
     }
 
-    fn render(&mut self, _ctx: &mut UIContext, canvas: &mut CanvasViewMut<'_>) {
+    fn render(&mut self, _editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
         canvas.clear();
 
         self.items_height =
@@ -234,8 +232,8 @@ impl Surface for SelectorView {
 
     fn handle_key_event(
         &mut self,
-        UIContext { editor }: &mut UIContext,
-        compositor: &mut Compositor,
+        compositor: &mut Compositor<Self::Context>,
+        editor: &mut Editor,
         key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
@@ -285,8 +283,8 @@ impl Surface for SelectorView {
 
     fn handle_key_batch_event(
         &mut self,
-        _ctx: &mut UIContext,
-        _compositor: &mut Compositor,
+        _compositor: &mut Compositor<Editor>,
+        _editor: &mut Editor,
         text: &str,
     ) -> HandledEvent {
         if let Some(input) = self.input.as_mut() {
@@ -298,10 +296,10 @@ impl Surface for SelectorView {
 
     fn handle_mouse_event(
         &mut self,
-        _ctx: &mut UIContext,
-        _compositor: &mut Compositor,
-        _kind: noa_terminal::terminal::MouseEventKind,
-        _modifiers: noa_terminal::terminal::KeyModifiers,
+        _compositor: &mut Compositor<Self::Context>,
+        _ctx: &mut Self::Context,
+        _kind: noa_compositor::terminal::MouseEventKind,
+        _modifiers: noa_compositor::terminal::KeyModifiers,
         _surface_y: usize,
         _surface_x: usize,
     ) -> HandledEvent {

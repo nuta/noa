@@ -58,7 +58,7 @@ impl<P: Ord, T> PrioritizedVec<P, T> {
     pub fn into_sorted_vec(self) -> Vec<T> {
         self.heap
             .into_sorted_vec()
-            .into_iter()
+            .drain(..)
             .map(|entry| entry.value)
             .collect()
     }

@@ -1,5 +1,5 @@
 use noa_buffer::display_width::DisplayWidth;
-use noa_terminal::{
+use noa_compositor::{
     canvas::CanvasViewMut,
     surface::{HandledEvent, KeyEvent, Layout, RectSize, Surface},
     terminal::{KeyCode, KeyModifiers},
@@ -12,7 +12,7 @@ use crate::{
     theme::theme_for,
 };
 
-use super::{helpers::truncate_to_width_suffix, UIContext};
+use super::helpers::truncate_to_width_suffix;
 
 pub enum MetaLineMode {
     Normal,
@@ -34,6 +34,8 @@ impl MetaLineView {
 }
 
 impl Surface for MetaLineView {
+    type Context = Editor;
+
     fn name(&self) -> &str {
         "meta_line"
     }
@@ -42,11 +44,11 @@ impl Surface for MetaLineView {
         self
     }
 
-    fn is_active(&self, _ctx: &mut UIContext) -> bool {
+    fn is_active(&self, _editor: &mut Editor) -> bool {
         true
     }
 
-    fn layout(&mut self, _ctx: &mut UIContext, screen_size: RectSize) -> (Layout, RectSize) {
+    fn layout(&mut self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
         let height = 1;
         (
             Layout::Fixed {
@@ -60,11 +62,11 @@ impl Surface for MetaLineView {
         )
     }
 
-    fn cursor_position(&self, _ctx: &mut UIContext) -> Option<(usize, usize)> {
+    fn cursor_position(&self, _editor: &mut Editor) -> Option<(usize, usize)> {
         None
     }
 
-    fn render(&mut self, UIContext { editor, .. }: &mut UIContext, canvas: &mut CanvasViewMut<'_>) {
+    fn render(&mut self, editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
         canvas.clear();
 
         let search_query = editor.find_query.text();
@@ -144,8 +146,8 @@ impl Surface for MetaLineView {
 
     fn handle_key_event(
         &mut self,
-        UIContext { editor, .. }: &mut UIContext,
-        _compositor: &mut Compositor,
+        _compositor: &mut Compositor<Self::Context>,
+        editor: &mut Editor,
         key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
@@ -193,8 +195,8 @@ impl Surface for MetaLineView {
 
     fn handle_key_batch_event(
         &mut self,
-        UIContext { editor, .. }: &mut UIContext,
-        _compositor: &mut Compositor,
+        _compositor: &mut Compositor<Editor>,
+        editor: &mut Editor,
         s: &str,
     ) -> HandledEvent {
         match self.mode {

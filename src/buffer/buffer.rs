@@ -251,7 +251,9 @@ impl Buffer {
         });
     }
 
-    pub fn save_to_file_without_formatting(&mut self, path: &Path) -> std::io::Result<()> {
+    pub fn save_to_file(&mut self, path: &Path) -> std::io::Result<()> {
+        self.ensure_insert_final_newline();
+
         // Write into a temporary file and then (hopefully atomically) move it
         // to `path`.
         let mut f = tempfile::NamedTempFile::new()?;
@@ -259,11 +261,6 @@ impl Buffer {
         f.persist(path)?;
 
         Ok(())
-    }
-
-    pub fn save_to_file(&mut self, path: &Path) -> std::io::Result<()> {
-        self.ensure_insert_final_newline();
-        self.save_to_file_without_formatting(path)
     }
 
     pub fn save_to_file_with_sudo(&mut self, path: &Path) -> std::io::Result<()> {

@@ -18,10 +18,7 @@ use arc_swap::ArcSwap;
 use futures::executor::block_on;
 use fuzzy_matcher::FuzzyMatcher;
 use noa_buffer::{
-    buffer::Buffer,
-    cursor::{Position, Range},
-    raw_buffer::RawBuffer,
-    undoable_raw_buffer::Change,
+    buffer::Buffer, cursor::Position, raw_buffer::RawBuffer, undoable_raw_buffer::Change,
 };
 use noa_common::{
     dirs::{backup_dir, noa_dir},
@@ -32,12 +29,10 @@ use noa_proxy::client::Client as ProxyClient;
 
 use noa_editorconfig::EditorConfig;
 use noa_languages::language::guess_language;
-use noa_terminal::terminal::is_raw_mode_enabled;
 use tokio::{sync::broadcast, time::timeout};
 
 use crate::{
     completion::{build_fuzzy_matcher, CompletionItem},
-    editor::Editor,
     event_listener::EventListener,
     file_watch::{watch_file, FileWatcher},
     flash::FlashManager,
@@ -173,9 +168,9 @@ impl Document {
                 let format_future =
                     proxy.format(lsp, &self.path, (*self.buffer.editorconfig()).into());
                 match block_on(timeout(Duration::from_secs(3), format_future)) {
-                    Ok(Ok(edits)) => {
+                    Ok(Ok(mut edits)) => {
                         self.buffer
-                            .apply_text_edits(edits.into_iter().map(Into::into).collect());
+                            .apply_text_edits(edits.drain(..).map(Into::into).collect());
                     }
                     Ok(Err(err)) => {
                         notify_warn!("LSP formatting failed");
@@ -396,9 +391,7 @@ impl Document {
                 if let Some(parent_dir) = backup_path.parent() {
                     create_dir_all(parent_dir).oops();
                 }
-                self.buffer
-                    .save_to_file_without_formatting(backup_path)
-                    .oops();
+                self.buffer.save_to_file(backup_path).oops();
             }
         }
     }
@@ -426,26 +419,7 @@ impl DocumentManager {
         manager
     }
 
-    pub fn open_file(&mut self, path: &Path, cursor_pos: Option<Position>) -> Result<DocumentId> {
-        let mut doc = Document::new(path)?;
-
-        // First run of tree sitter parsering, etc.
-        doc.post_update_job();
-
-        // Needs switch?
-        // editor.hooks.invoke(Hook::AfterOpen { id: doc.id() });
-
-        if let Some(pos) = cursor_pos {
-            doc.buffer_mut().move_main_cursor_to_pos(pos);
-            doc.flashes_mut().flash(Range::from_positions(pos, pos));
-        }
-
-        let id = doc.id();
-        self.add(doc);
-        Ok(id)
-    }
-
-    fn add(&mut self, doc: Document) {
+    pub fn add(&mut self, doc: Document) {
         let doc_id = doc.id;
         debug_assert!(!self.documents.contains_key(&doc_id));
         self.documents.insert(doc_id, doc);
@@ -503,16 +477,12 @@ impl DocumentManager {
 
 impl Drop for DocumentManager {
     fn drop(&mut self) {
-        // Check if it's safe to use eprintln!() here. It should be safe because
-        // Terminal is already droppped to restore the terminal state.
-        debug_assert_eq!(is_raw_mode_enabled().unwrap(), false);
-
         if self.save_all_on_drop {
             let mut failed_any = false;
             let mut num_saved_files = 0;
             for doc in self.documents.values_mut() {
                 if let Err(err) = doc.save_to_file(None) {
-                    eprintln!("failed to save {}: {}", doc.path().display(), err);
+                    notify_warn!("failed to save {}: {}", doc.path().display(), err);
                     failed_any = true;
                 } else {
                     num_saved_files += 1;
@@ -520,7 +490,7 @@ impl Drop for DocumentManager {
             }
 
             if !failed_any {
-                eprintln!("successfully saved {} files", num_saved_files);
+                notify_info!("successfully saved {} files", num_saved_files);
             }
         }
     }

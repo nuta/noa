@@ -1,118 +1,57 @@
-#![feature(test)]
-#![feature(vec_retain_mut)]
-
-extern crate test;
-
-#[macro_use]
-extern crate log;
-
 use std::{ops::ControlFlow, path::PathBuf, sync::Arc, time::Duration};
 
-use clap::Parser;
-
-use editor::Editor;
-use finder::open_finder;
-use noa_common::{logger::install_logger, time_report::TimeReport};
+use noa_common::time_report::TimeReport;
 use noa_compositor::{terminal::Event, Compositor};
-use theme::parse_default_theme;
 use tokio::sync::{
-    mpsc::{self, unbounded_channel, UnboundedSender},
+    mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
     Notify,
 };
-use ui::{
-    buffer_view::BufferView,
-    bump_view::BumpView,
-    completion_view::CompletionView,
-    meta_line_view::MetaLineView,
-    prompt_view::{prompt, PromptMode, PromptView},
-    selector_view::SelectorView,
-    too_small_view::TooSmallView,
+
+use crate::{
+    editor::Editor,
+    job::JobManager,
+    notification::set_stdout_mode,
+    ui::{
+        buffer_view::BufferView,
+        completion_view::CompletionView,
+        finder_view::FinderView,
+        meta_line_view::MetaLineView,
+        prompt::prompt,
+        prompt_view::{PromptMode, PromptView},
+        too_small_view::TooSmallView,
+    },
 };
 
-use crate::job::CompletedJob;
-
-#[macro_use]
-mod notification;
-
-mod actions;
-mod clipboard;
-mod completion;
-mod document;
-mod editor;
-mod event_listener;
-mod file_watch;
-mod finder;
-mod flash;
-mod git;
-mod job;
-mod keybindings;
-mod linemap;
-mod movement;
-mod theme;
-mod ui;
-mod view;
-
-#[derive(Parser, Debug)]
-struct Args {
-    #[clap(name = "FILE", parse(from_os_str))]
-    files: Vec<PathBuf>,
-}
-
-#[tokio::main]
-async fn main() {
-    let boot_time = TimeReport::new("boot time");
-
-    // Parse the default theme here to print panics in stderr.
-    parse_default_theme();
-
-    install_logger("main");
-    let args = Args::parse();
-
-    let workspace_dir = args
-        .files
-        .iter()
-        .find(|path| path.is_dir())
-        .cloned()
-        .unwrap_or_else(|| PathBuf::from("."));
-
-    let render_request = Arc::new(Notify::new());
-    let (notification_tx, mut notification_rx) = mpsc::unbounded_channel();
-    let mut editor = editor::Editor::new(&workspace_dir, render_request.clone(), notification_tx);
-    let mut compositor = Compositor::new();
-
-    let mut no_files_opened = true;
-    for path in args.files {
-        if !path.is_dir() {
-            match editor.open_file(&path, None) {
-                Ok(id) => {
-                    editor.documents.switch_by_id(id);
-                }
-                Err(err) => {
-                    notify_anyhow_error!(err);
-                }
-            }
-
-            no_files_opened = false;
-        }
-    }
-
+pub async fn mainloop(
+    mut editor: Editor,
+    mut compositor: Compositor<Editor>,
+    workspace_dir: PathBuf,
+    open_finder: bool,
+    render_request: Arc<Notify>,
+    mut notification_rx: UnboundedReceiver<noa_proxy::protocol::Notification>,
+) {
     let (quit_tx, mut quit_rx) = unbounded_channel();
     let (force_quit_tx, mut force_quit_rx) = unbounded_channel();
     compositor.add_frontmost_layer(Box::new(TooSmallView::new("too small!")));
     compositor.add_frontmost_layer(Box::new(BufferView::new(quit_tx, render_request.clone())));
-    compositor.add_frontmost_layer(Box::new(BumpView::new()));
     compositor.add_frontmost_layer(Box::new(MetaLineView::new()));
-    compositor.add_frontmost_layer(Box::new(SelectorView::new()));
+    compositor.add_frontmost_layer(Box::new(FinderView::new(
+        &editor,
+        render_request.clone(),
+        &workspace_dir,
+    )));
     compositor.add_frontmost_layer(Box::new(PromptView::new()));
     compositor.add_frontmost_layer(Box::new(CompletionView::new()));
 
-    if no_files_opened {
-        open_finder(&mut compositor, &mut editor);
+    if open_finder {
+        compositor
+            .get_mut_surface_by_name::<FinderView>("finder")
+            .set_active(true);
     }
 
     compositor.render_to_terminal(&mut editor);
-    drop(boot_time);
 
+    let mut job_manager = JobManager::new();
     let mut idle_timer = tokio::time::interval(Duration::from_millis(1200));
     loop {
         let mut skip_rendering = false;
@@ -144,16 +83,8 @@ async fn main() {
                 editor.handle_notification(noti);
             }
 
-            Some(completed) = editor.jobs.get_completed() => {
-                match completed {
-                    CompletedJob::Completed(callback) => {
-                        callback(&mut editor, &mut compositor);
-                    }
-                    CompletedJob::Notified { id, mut callback } => {
-                        callback(&mut editor, &mut compositor);
-                        editor.jobs.insert_back_notified(id, callback);
-                    }
-                }
+            Some(callback) = job_manager.get_completed_job() => {
+                callback(&mut editor, &mut compositor);
             }
 
             _ = render_request.notified() => {
@@ -165,6 +96,8 @@ async fn main() {
             }
         }
 
+        editor.run_pending_callbacks(&mut compositor);
+
         if !skip_rendering {
             compositor.render_to_terminal(&mut editor);
         }
@@ -173,7 +106,7 @@ async fn main() {
 
     // Drop compoisitor first to restore the terminal.
     drop(compositor);
-    notification::set_stdout_mode(true);
+    set_stdout_mode(true);
 }
 
 fn check_if_dirty(
@@ -191,7 +124,7 @@ fn check_if_dirty(
     }
 
     if num_dirty_docs == 0 {
-        let _ = force_quit_tx.send(());
+        force_quit_tx.send(());
         return;
     }
 
@@ -217,13 +150,12 @@ fn check_if_dirty(
                 Some(answer) if answer == "y" => {
                     info!("saving dirty buffers...");
                     editor.documents.save_all_on_drop(true);
-                    let _ = force_quit_tx.send(());
+                    force_quit_tx.send(());
                 }
                 Some(answer) if answer == "n" => {
                     // Quit without saving dirty files.
-                    info!("quitting without saving dirty buffers...");
                     editor.documents.save_all_on_drop(false);
-                    let _ = force_quit_tx.send(());
+                    force_quit_tx.send(());
                 }
                 None => {
                     // Abort.

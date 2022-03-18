@@ -1,23 +1,15 @@
 use std::cmp::{max, min};
 
-use noa_terminal::{
+use noa_compositor::{
     canvas::CanvasViewMut,
+    surface::{HandledEvent, Layout, RectSize, Surface},
     terminal::{KeyCode, KeyEvent, KeyModifiers, MouseEventKind},
+    Compositor,
 };
 
-use crate::{
-    editor::Editor,
-    event_listener::{event_pair, EventListener, EventPair},
-    notification::{notification_manager, Notification},
-    theme::theme_for,
-    ui::{
-        compositor::Compositor,
-        helpers::truncate_to_width,
-        line_edit::LineEdit,
-        markdown::Markdown,
-        surface::{HandledEvent, Layout, RectSize, Surface, UIContext},
-    },
-};
+use crate::editor::Editor;
+
+use super::markdown::Markdown;
 
 pub struct BumpView {
     active: bool,
@@ -64,6 +56,8 @@ impl BumpView {
 }
 
 impl Surface for BumpView {
+    type Context = Editor;
+
     fn name(&self) -> &str {
         "bump"
     }
@@ -72,11 +66,11 @@ impl Surface for BumpView {
         self
     }
 
-    fn is_active(&self, _ctx: &mut UIContext) -> bool {
+    fn is_active(&self, _editor: &mut Editor) -> bool {
         self.active
     }
 
-    fn layout(&mut self, _ctx: &mut UIContext, screen_size: RectSize) -> (Layout, RectSize) {
+    fn layout(&mut self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
         let height = max(8, screen_size.height / 3);
         (
             Layout::Fixed {
@@ -90,11 +84,11 @@ impl Surface for BumpView {
         )
     }
 
-    fn cursor_position(&self, _ctx: &mut UIContext) -> Option<(usize, usize)> {
+    fn cursor_position(&self, _editor: &mut Editor) -> Option<(usize, usize)> {
         None
     }
 
-    fn render(&mut self, _ctx: &mut UIContext, canvas: &mut CanvasViewMut<'_>) {
+    fn render(&mut self, _editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
         canvas.clear();
 
         self.height = canvas.height();
@@ -118,8 +112,8 @@ impl Surface for BumpView {
 
     fn handle_key_event(
         &mut self,
-        _ctx: &mut UIContext,
-        _compositor: &mut Compositor,
+        _compositor: &mut Compositor<Self::Context>,
+        _editor: &mut Editor,
         key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
@@ -144,8 +138,8 @@ impl Surface for BumpView {
 
     fn handle_key_batch_event(
         &mut self,
-        _ctx: &mut UIContext,
-        _compositor: &mut Compositor,
+        _compositor: &mut Compositor<Editor>,
+        _ctx: &mut Self::Context,
         _input: &str,
     ) -> HandledEvent {
         HandledEvent::Ignored
@@ -153,8 +147,8 @@ impl Surface for BumpView {
 
     fn handle_mouse_event(
         &mut self,
-        _ctx: &mut UIContext,
-        _compositor: &mut Compositor,
+        _compositor: &mut Compositor<Self::Context>,
+        _ctx: &mut Self::Context,
         _kind: MouseEventKind,
         _modifiers: KeyModifiers,
         _surface_y: usize,

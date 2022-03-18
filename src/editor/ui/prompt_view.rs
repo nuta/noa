@@ -2,22 +2,21 @@ use std::ops::ControlFlow;
 
 use noa_buffer::display_width::DisplayWidth;
 
-use noa_terminal::{
+use noa_compositor::{
     canvas::CanvasViewMut,
+    line_edit::LineEdit,
+    surface::{HandledEvent, Layout, RectSize, Surface},
     terminal::{KeyCode, KeyEvent, KeyModifiers},
+    Compositor,
 };
 
 use crate::{
     editor::Editor,
     event_listener::{event_pair, EventListener, EventPair},
     theme::theme_for,
-    ui::{
-        compositor::Compositor,
-        helpers::truncate_to_width,
-        line_edit::LineEdit,
-        surface::{HandledEvent, Layout, RectSize, Surface, UIContext},
-    },
 };
+
+use super::helpers::truncate_to_width;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PromptMode {
@@ -80,6 +79,8 @@ impl PromptView {
 }
 
 impl Surface for PromptView {
+    type Context = Editor;
+
     fn name(&self) -> &str {
         "prompt"
     }
@@ -88,15 +89,11 @@ impl Surface for PromptView {
         self
     }
 
-    fn is_active(&self, UIContext { editor, .. }: &mut UIContext) -> bool {
+    fn is_active(&self, _editor: &mut Editor) -> bool {
         self.active
     }
 
-    fn layout(
-        &mut self,
-        UIContext { editor, .. }: &mut UIContext,
-        screen_size: RectSize,
-    ) -> (Layout, RectSize) {
+    fn layout(&mut self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
         let height = 1;
         (
             Layout::Fixed {
@@ -110,11 +107,11 @@ impl Surface for PromptView {
         )
     }
 
-    fn cursor_position(&self, UIContext { editor, .. }: &mut UIContext) -> Option<(usize, usize)> {
+    fn cursor_position(&self, _editor: &mut Editor) -> Option<(usize, usize)> {
         Some((0, 1 + self.title_width + self.input.cursor_position()))
     }
 
-    fn render(&mut self, UIContext { editor, .. }: &mut UIContext, canvas: &mut CanvasViewMut<'_>) {
+    fn render(&mut self, _editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
         canvas.clear();
 
         self.input.relocate_scroll(canvas.width());
@@ -132,8 +129,8 @@ impl Surface for PromptView {
 
     fn handle_key_event(
         &mut self,
-        UIContext { editor, .. }: &mut UIContext,
-        _compositor: &mut Compositor,
+        _compositor: &mut Compositor<Self::Context>,
+        _editor: &mut Editor,
         key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
@@ -163,8 +160,8 @@ impl Surface for PromptView {
 
     fn handle_key_batch_event(
         &mut self,
-        UIContext { editor, .. }: &mut UIContext,
-        _compositor: &mut Compositor,
+        _compositor: &mut Compositor<Editor>,
+        _editor: &mut Editor,
         input: &str,
     ) -> HandledEvent {
         self.input.insert(&input.replace('\n', " "));
@@ -173,10 +170,10 @@ impl Surface for PromptView {
 
     fn handle_mouse_event(
         &mut self,
-        _ctx: &mut UIContext,
-        _compositor: &mut Compositor,
-        _kind: noa_terminal::terminal::MouseEventKind,
-        _modifiers: noa_terminal::terminal::KeyModifiers,
+        _compositor: &mut Compositor<Self::Context>,
+        _ctx: &mut Self::Context,
+        _kind: noa_compositor::terminal::MouseEventKind,
+        _modifiers: noa_compositor::terminal::KeyModifiers,
         _surface_y: usize,
         _surface_x: usize,
     ) -> HandledEvent {
@@ -185,7 +182,7 @@ impl Surface for PromptView {
 }
 
 pub fn prompt<S, F, C>(
-    compositor: &mut Compositor,
+    compositor: &mut Compositor<Editor>,
     editor: &mut Editor,
     _mode: PromptMode,
     title: S,
@@ -193,14 +190,16 @@ pub fn prompt<S, F, C>(
     _completion_callback: C,
 ) where
     S: Into<String>,
-    F: FnMut(&mut Compositor, &mut Editor, Option<String>) -> ControlFlow<()> + Send + 'static,
+    F: FnMut(&mut Compositor<Editor>, &mut Editor, Option<String>) -> ControlFlow<()>
+        + Send
+        + 'static,
     C: FnMut(&mut Editor, &LineEdit) -> Option<Vec<String>> + 'static,
 {
     let title = title.into();
 
     let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
 
-    editor.jobs.listen_in_mainloop(
+    editor.listen_in_mainloop(
         prompt_view.entered_event_listener().clone(),
         move |editor, compositor| {
             info!("Enter pressed in prompt");

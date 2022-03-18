@@ -3,13 +3,15 @@ use std::{path::PathBuf, sync::Arc};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use noa_buffer::{buffer::TextEdit, cursor::Cursor, raw_buffer::RawBuffer};
 
+use noa_compositor::Compositor;
 use noa_languages::language::Language;
 use noa_proxy::{client::Client as ProxyClient, lsp_types::CompletionTextEdit};
 use tokio::sync::oneshot;
 
 use crate::{
     document::{Document, Words},
-    editor::Editor, ui::{views::completion_view::CompletionView, compositor::Compositor},
+    editor::Editor,
+    ui::completion_view::CompletionView,
 };
 
 pub fn build_fuzzy_matcher() -> SkimMatcherV2 {
@@ -69,7 +71,7 @@ pub async fn complete(
             words
                 .search(&current_word, NUM_ITEMS_MAX)
                 .into_sorted_vec()
-                .into_iter()
+                .drain(..)
                 .filter(|word| word != &current_word)
                 .map(|word| CompletionItem {
                     kind: CompletionKind::AnyWord,
@@ -83,13 +85,13 @@ pub async fn complete(
     }
 
     // Wait for the response from the LSP server.
-    if let Ok(lsp_items) = lsp_items_rx.await {
-        for lsp_item in lsp_items.into_iter() {
+    if let Ok(mut lsp_items) = lsp_items_rx.await {
+        for lsp_item in lsp_items.drain(..) {
             let mut text_edits: Vec<TextEdit> = lsp_item
                 .additional_text_edits
                 .clone()
                 .unwrap_or_default()
-                .into_iter()
+                .drain(..)
                 .map(Into::into)
                 .collect();
 
@@ -151,7 +153,7 @@ pub async fn complete(
     Some(unique_items)
 }
 
-pub fn clear_completion(doc: &mut Document, compositor: &mut Compositor) {
+pub fn clear_completion(doc: &mut Document, compositor: &mut Compositor<Editor>) {
     compositor
         .get_mut_surface_by_name::<CompletionView>("completion")
         .set_active(false);

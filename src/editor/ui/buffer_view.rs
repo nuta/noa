@@ -9,11 +9,13 @@ use noa_buffer::{
     display_width::DisplayWidth,
 };
 use noa_common::oops::OopsExt;
-use noa_proxy::lsp_types::HoverContents;
-use noa_terminal::{
+use noa_compositor::{
     canvas::CanvasViewMut,
-    terminal::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEventKind},
+    surface::{HandledEvent, KeyEvent, Layout, RectSize, Surface},
+    terminal::{KeyCode, KeyModifiers, MouseButton, MouseEventKind},
+    Compositor,
 };
+use noa_proxy::lsp_types::HoverContents;
 use tokio::sync::{mpsc::UnboundedSender, Notify};
 
 use crate::{
@@ -23,14 +25,7 @@ use crate::{
     keybindings::get_keybinding_for,
     linemap::LineStatus,
     theme::theme_for,
-    ui::{
-        compositor::Compositor,
-        helpers::truncate_to_width,
-        line_edit::LineEdit,
-        markdown::Markdown,
-        surface::{HandledEvent, Layout, RectSize, Surface, UIContext},
-        views::bump_view::BumpView,
-    },
+    ui::{bump_view::BumpView, markdown::Markdown},
 };
 
 use super::completion_view::CompletionView;
@@ -79,7 +74,7 @@ impl BufferView {
         let path = doc.path().to_owned();
         let main_cursor = doc.buffer().main_cursor().clone();
         let words = editor.documents.words();
-        editor.jobs.await_in_mainloop(
+        editor.await_in_mainloop(
             async move {
                 let items = complete(proxy, buffer, lang, path, main_cursor, words).await;
                 Ok(items)
@@ -102,6 +97,8 @@ impl BufferView {
 }
 
 impl Surface for BufferView {
+    type Context = Editor;
+
     fn name(&self) -> &str {
         "buffer"
     }
@@ -110,11 +107,11 @@ impl Surface for BufferView {
         self
     }
 
-    fn is_active(&self, _ctx: &mut UIContext) -> bool {
+    fn is_active(&self, _editor: &mut Editor) -> bool {
         true
     }
 
-    fn layout(&mut self, _ctx: &mut UIContext, screen_size: RectSize) -> (Layout, RectSize) {
+    fn layout(&mut self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
         (
             Layout::Fixed { y: 0, x: 0 },
             RectSize {
@@ -124,11 +121,11 @@ impl Surface for BufferView {
         )
     }
 
-    fn cursor_position(&self, _ctx: &mut UIContext) -> Option<(usize, usize)> {
+    fn cursor_position(&self, _editor: &mut Editor) -> Option<(usize, usize)> {
         Some(self.cursor_position)
     }
 
-    fn render(&mut self, UIContext { editor, .. }: &mut UIContext, canvas: &mut CanvasViewMut<'_>) {
+    fn render(&mut self, editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
         canvas.clear();
 
         let lineno_x;
@@ -278,8 +275,8 @@ impl Surface for BufferView {
 
     fn handle_key_event(
         &mut self,
-        UIContext { editor, .. }: &mut UIContext,
-        compositor: &mut Compositor,
+        compositor: &mut Compositor<Self::Context>,
+        editor: &mut Editor,
         key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
@@ -371,8 +368,8 @@ impl Surface for BufferView {
 
     fn handle_key_batch_event(
         &mut self,
-        UIContext { editor, .. }: &mut UIContext,
-        compositor: &mut Compositor,
+        compositor: &mut Compositor<Editor>,
+        editor: &mut Editor,
         s: &str,
     ) -> HandledEvent {
         let doc = editor.documents.current_mut();
@@ -384,8 +381,8 @@ impl Surface for BufferView {
 
     fn handle_mouse_event(
         &mut self,
-        UIContext { editor, .. }: &mut UIContext,
-        compositor: &mut Compositor,
+        compositor: &mut Compositor<Self::Context>,
+        editor: &mut Editor,
         kind: MouseEventKind,
         modifiers: KeyModifiers,
         surface_y: usize,
@@ -433,7 +430,7 @@ impl Surface for BufferView {
                         let path = doc.path().to_owned();
                         let pos = doc.buffer().main_cursor().moving_position().into();
                         if let Some(lsp) = doc.buffer().language().lsp.as_ref() {
-                            editor.jobs.await_in_mainloop(
+                            editor.await_in_mainloop(
                                 async move {
                                     let result = match proxy.hover(lsp, &path, pos).await {
                                         Ok(Some(hover)) => match hover {

@@ -59,7 +59,7 @@ pub enum SystemClipboardData {
     Others(String),
 }
 
-pub trait ClipboardProvider: Send {
+pub trait ClipboardProvider {
     fn copy_from_clipboard(&self) -> Result<SystemClipboardData>;
     fn copy_into_clipboard(&self, data: ClipboardData) -> Result<()>;
 }

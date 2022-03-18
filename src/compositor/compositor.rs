@@ -1,38 +1,38 @@
 use std::slice;
 
 use noa_common::time_report::TimeReport;
-use noa_terminal::{
-    canvas::Canvas,
-    terminal::{self, InputEvent, Terminal},
-};
 use tokio::sync::mpsc;
 
-use crate::ui::surface::HandledEvent;
+use crate::{surface::HandledEvent, terminal::InputEvent};
 
-use super::surface::{Layout, RectSize, Surface, UIContext};
+use super::{
+    canvas::Canvas,
+    surface::{Layout, RectSize, Surface},
+    terminal::{self, Terminal},
+};
 
-pub struct Layer {
-    pub surface: Box<dyn Surface + Send>,
+pub struct Layer<C> {
+    pub surface: Box<dyn Surface<Context = C> + Send>,
     pub canvas: Canvas,
     pub screen_y: usize,
     pub screen_x: usize,
 }
 
-pub struct Compositor {
+pub struct Compositor<C> {
     terminal: Terminal,
     term_rx: mpsc::UnboundedReceiver<terminal::Event>,
     screens: [Canvas; 2],
     screen_size: RectSize,
     active_screen_index: usize,
     /// The last element comes foreground.
-    layers: Vec<Layer>,
+    layers: Vec<Layer<C>>,
     /// A temporary vec to avoid mutual borrowing of self.
-    past_layers: Vec<Layer>,
+    past_layers: Vec<Layer<C>>,
 }
 
 #[allow(clippy::new_without_default)]
-impl Compositor {
-    pub fn new() -> Compositor {
+impl<C: 'static> Compositor<C> {
+    pub fn new() -> Compositor<C> {
         let (term_tx, term_rx) = mpsc::unbounded_channel();
         let terminal = Terminal::new(move |ev| {
             term_tx.send(ev).ok();
@@ -65,7 +65,7 @@ impl Compositor {
         self.term_rx.recv().await
     }
 
-    pub fn add_frontmost_layer(&mut self, surface: Box<dyn Surface + Send>) {
+    pub fn add_frontmost_layer(&mut self, surface: Box<dyn Surface<Context = C> + Send>) {
         debug_assert!(self
             .layers
             .iter()
@@ -85,7 +85,7 @@ impl Compositor {
 
     pub fn get_mut_surface_by_name<S>(&mut self, name: &str) -> &mut S
     where
-        S: Surface,
+        S: Surface<Context = C>,
     {
         for layer in self.layers.iter_mut() {
             if layer.surface.name() == name {
@@ -116,7 +116,7 @@ impl Compositor {
         self.terminal.clear();
     }
 
-    pub fn render_to_terminal(&mut self, ctx: &mut UIContext) {
+    pub fn render_to_terminal(&mut self, ctx: &mut C) {
         let _rendering_time = TimeReport::new("rendering time");
 
         // Re-layout layers.
@@ -174,14 +174,14 @@ impl Compositor {
         drawer.flush();
     }
 
-    pub fn handle_input(&mut self, ctx: &mut UIContext, input: InputEvent) {
+    pub fn handle_input(&mut self, ctx: &mut C, input: InputEvent) {
         trace!("input: {:?}", input);
         match input {
             InputEvent::Key(key) => {
                 self.past_layers = Vec::new();
                 while let Some(mut layer) = self.layers.pop() {
                     let result = if layer.surface.is_active(ctx) {
-                        layer.surface.handle_key_event(ctx, self, key)
+                        layer.surface.handle_key_event(self, ctx, key)
                     } else {
                         HandledEvent::Ignored
                     };
@@ -204,8 +204,8 @@ impl Compositor {
 
                     let result = if layer.surface.is_active(ctx) && in_bounds {
                         layer.surface.handle_mouse_event(
-                            ctx,
                             self,
+                            ctx,
                             ev.kind,
                             ev.modifiers,
                             screen_y - layer.screen_y,
@@ -226,7 +226,7 @@ impl Compositor {
                 self.past_layers = Vec::new();
                 while let Some(mut layer) = self.layers.pop() {
                     let result = if layer.surface.is_active(ctx) {
-                        layer.surface.handle_key_batch_event(ctx, self, &input)
+                        layer.surface.handle_key_batch_event(self, ctx, &input)
                     } else {
                         HandledEvent::Ignored
                     };
@@ -243,7 +243,11 @@ impl Compositor {
 }
 
 /// Renders each surfaces and copy the compose into the screen canvas.
-fn compose_layers(ctx: &mut UIContext, screen: &mut Canvas, layers: slice::IterMut<'_, Layer>) {
+fn compose_layers<C: 'static>(
+    ctx: &mut C,
+    screen: &mut Canvas,
+    layers: slice::IterMut<'_, Layer<C>>,
+) {
     screen.view_mut().clear();
 
     for layer in layers {
@@ -265,9 +269,9 @@ fn compose_layers(ctx: &mut UIContext, screen: &mut Canvas, layers: slice::IterM
     }
 }
 
-fn relayout_layer(
-    ctx: &mut UIContext,
-    surface: &mut (impl Surface + ?Sized),
+fn relayout_layer<C>(
+    ctx: &mut C,
+    surface: &mut (impl Surface<Context = C> + ?Sized),
     screen_size: RectSize,
     prev_cursor_pos: Option<(usize, usize)>,
 ) -> ((usize, usize), RectSize) {

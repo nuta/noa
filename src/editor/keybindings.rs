@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use noa_terminal::terminal::{KeyCode, KeyModifiers};
+
+use noa_compositor::{
+    terminal::{KeyCode, KeyModifiers},
+};
 
 use once_cell::sync::Lazy;
 
