@@ -396,7 +396,9 @@ impl Document {
                 if let Some(parent_dir) = backup_path.parent() {
                     create_dir_all(parent_dir).oops();
                 }
-                self.buffer.save_to_file(backup_path).oops();
+                self.buffer
+                    .save_to_file_without_formatting(backup_path)
+                    .oops();
             }
         }
     }

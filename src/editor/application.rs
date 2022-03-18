@@ -50,8 +50,19 @@ impl Application {
     pub fn new(workspace_dir: &Path, files: &[PathBuf]) -> Application {
         let render_request = Arc::new(Notify::new());
         let (notification_tx, notification_rx) = mpsc::unbounded_channel();
+
         let mut editor = Editor::new(workspace_dir, render_request.clone(), notification_tx);
+
         let mut compositor = Compositor::new();
+        let (quit_tx, quit_rx) = unbounded_channel();
+        let (force_quit_tx, force_quit_rx) = unbounded_channel();
+        compositor.add_frontmost_layer(Box::new(TooSmallView::new("too small!")));
+        compositor.add_frontmost_layer(Box::new(BufferView::new(quit_tx, render_request.clone())));
+        compositor.add_frontmost_layer(Box::new(BumpView::new()));
+        compositor.add_frontmost_layer(Box::new(MetaLineView::new()));
+        compositor.add_frontmost_layer(Box::new(SelectorView::new()));
+        compositor.add_frontmost_layer(Box::new(PromptView::new()));
+        compositor.add_frontmost_layer(Box::new(CompletionView::new()));
 
         let mut no_files_opened = true;
         for path in files {
@@ -72,16 +83,6 @@ impl Application {
         if no_files_opened {
             open_finder(&mut compositor, &mut editor);
         }
-
-        let (quit_tx, quit_rx) = unbounded_channel();
-        let (force_quit_tx, force_quit_rx) = unbounded_channel();
-        compositor.add_frontmost_layer(Box::new(TooSmallView::new("too small!")));
-        compositor.add_frontmost_layer(Box::new(BufferView::new(quit_tx, render_request.clone())));
-        compositor.add_frontmost_layer(Box::new(BumpView::new()));
-        compositor.add_frontmost_layer(Box::new(MetaLineView::new()));
-        compositor.add_frontmost_layer(Box::new(SelectorView::new()));
-        compositor.add_frontmost_layer(Box::new(PromptView::new()));
-        compositor.add_frontmost_layer(Box::new(CompletionView::new()));
 
         Application {
             compositor,
@@ -155,12 +156,10 @@ impl Application {
             Some(completed) = self.editor.jobs.get_completed() => {
                 match completed {
                     CompletedJob::Completed(callback) => {
-                        // TODO:
-                        // callback(&mut self.editor, &mut self.compositor);
+                        callback(&mut self.editor, &mut self.compositor);
                     }
                     CompletedJob::Notified { id, mut callback } => {
-                        // TODO:
-                        // callback(&mut self.editor, &mut self.compositor);
+                        callback(&mut self.editor, &mut self.compositor);
                         self.editor.jobs.insert_back_notified(id, callback);
                     }
                 }
