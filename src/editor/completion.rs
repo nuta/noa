@@ -5,8 +5,8 @@ use noa_buffer::{buffer::TextEdit, cursor::Cursor, raw_buffer::RawBuffer};
 
 use noa_compositor::Compositor;
 use noa_languages::language::Language;
-use noa_proxy::{client::Client as ProxyClient};
-
+use noa_proxy::{client::Client as ProxyClient, lsp_types::CompletionTextEdit};
+use tokio::sync::oneshot;
 
 use crate::{
     document::{Document, Words},
@@ -55,17 +55,13 @@ pub async fn complete(
     };
 
     // Send the LSP request in background becuase it would take a time.
-    let lsp_items = if let Some(lsp) = lang.lsp.as_ref() {
-        tokio::spawn(lsp::completion_hook(
-            lsp,
-            proxy.clone(),
-            path.to_owned(),
-            pos,
-            current_word_range,
-        ))
-    } else {
-        tokio::spawn(async move { Ok(vec![]) })
-    };
+    let lsp_items = tokio::spawn(lsp::completion_hook(
+        lang,
+        proxy.clone(),
+        path.to_owned(),
+        pos.into(),
+        current_word_range,
+    ));
 
     // Any word comopletion.
     let mut items = Vec::new();

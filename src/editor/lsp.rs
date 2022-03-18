@@ -1,4 +1,7 @@
-use std::{path::{PathBuf}, sync::Arc};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use anyhow::Result;
 
@@ -7,7 +10,7 @@ use noa_buffer::{
     cursor::{Position, Range},
 };
 use noa_common::oops::OopsExt;
-use noa_languages::language::Lsp;
+use noa_languages::language::{Language, Lsp};
 use noa_proxy::{
     client::Client,
     lsp_types::{self, CompletionTextEdit},
@@ -57,12 +60,17 @@ pub fn after_open_hook(client: &Arc<Client>, doc: &Document) {
 }
 
 pub async fn completion_hook(
-    lsp: &Lsp,
+    lang: &'static Language,
     client: Arc<Client>,
     path: PathBuf,
     pos: Position,
     current_word_range: Range,
 ) -> Result<Vec<CompletionItem>> {
+    let lsp = match lang.lsp.as_ref() {
+        Some(lsp) => lsp,
+        None => return Ok(vec![]),
+    };
+
     let lsp_items = client.completion(lsp, &path, pos.into()).await?;
     let mut items = Vec::new();
     for lsp_item in lsp_items.into_iter() {
