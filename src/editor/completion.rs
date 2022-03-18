@@ -5,12 +5,13 @@ use noa_buffer::{buffer::TextEdit, cursor::Cursor, raw_buffer::RawBuffer};
 
 use noa_compositor::Compositor;
 use noa_languages::language::Language;
-use noa_proxy::{client::Client as ProxyClient, lsp_types::CompletionTextEdit};
-use tokio::sync::oneshot;
+use noa_proxy::{client::Client as ProxyClient};
+
 
 use crate::{
     document::{Document, Words},
     editor::Editor,
+    lsp,
     ui::completion_view::CompletionView,
 };
 
@@ -54,14 +55,17 @@ pub async fn complete(
     };
 
     // Send the LSP request in background becuase it would take a time.
-    let (lsp_items_tx, lsp_items_rx) = oneshot::channel();
-    if let Some(lsp) = lang.lsp.as_ref() {
-        tokio::spawn(async move {
-            if let Ok(lsp_items) = proxy.completion(lsp, &path, pos.into()).await {
-                lsp_items_tx.send(lsp_items).unwrap();
-            }
-        });
-    }
+    let lsp_items = if let Some(lsp) = lang.lsp.as_ref() {
+        tokio::spawn(lsp::completion_hook(
+            lsp,
+            proxy.clone(),
+            path.to_owned(),
+            pos,
+            current_word_range,
+        ))
+    } else {
+        tokio::spawn(async move { Ok(vec![]) })
+    };
 
     // Any word comopletion.
     let mut items = Vec::new();
@@ -85,62 +89,17 @@ pub async fn complete(
     }
 
     // Wait for the response from the LSP server.
-    if let Ok(lsp_items) = lsp_items_rx.await {
-        for lsp_item in lsp_items.into_iter() {
-            let mut text_edits: Vec<TextEdit> = lsp_item
-                .additional_text_edits
-                .clone()
-                .unwrap_or_default()
-                .into_iter()
-                .map(Into::into)
-                .collect();
-
-            let item = match (&lsp_item.insert_text, &lsp_item.text_edit) {
-                (Some(insert_text), None) => {
-                    text_edits.push(TextEdit {
-                        range: current_word_range,
-                        new_text: insert_text.to_owned(),
-                    });
-
-                    CompletionItem {
-                        kind: CompletionKind::LspItem,
-                        label: lsp_item.label,
-                        text_edits,
-                    }
-                }
-                (None, Some(CompletionTextEdit::Edit(edit))) => {
-                    text_edits.push(TextEdit {
-                        range: edit.range.into(),
-                        new_text: edit.new_text.to_owned(),
-                    });
-
-                    CompletionItem {
-                        kind: CompletionKind::LspItem,
-                        label: lsp_item.label,
-                        text_edits,
-                    }
-                }
-                (None, Some(CompletionTextEdit::InsertAndReplace(edit))) => {
-                    text_edits.push(TextEdit {
-                        range: edit.insert.into(),
-                        new_text: edit.new_text.to_owned(),
-                    });
-
-                    CompletionItem {
-                        kind: CompletionKind::LspItem,
-                        label: lsp_item.label,
-                        text_edits,
-                    }
-                }
-                _ => {
-                    warn!("unsupported LSP completion item: {:?}", lsp_item);
-                    continue;
-                }
-            };
-
-            items.push(item);
+    match lsp_items.await {
+        Ok(Ok(lsp_items)) => {
+            items.extend(lsp_items);
         }
-    }
+        Ok(Err(err)) => {
+            warn!("failed to get LSP completion: {}", err);
+        }
+        Err(err) => {
+            warn!("failed to join LSP completion task: {:?}", err);
+        }
+    };
 
     // Make items unique.
     let mut unique_items: Vec<CompletionItem> = Vec::with_capacity(items.len());

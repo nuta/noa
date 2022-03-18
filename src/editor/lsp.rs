@@ -1,9 +1,22 @@
-use std::sync::Arc;
+use std::{path::{PathBuf}, sync::Arc};
 
+use anyhow::Result;
+
+use noa_buffer::{
+    buffer::TextEdit,
+    cursor::{Position, Range},
+};
 use noa_common::oops::OopsExt;
-use noa_proxy::{client::Client, lsp_types};
+use noa_languages::language::Lsp;
+use noa_proxy::{
+    client::Client,
+    lsp_types::{self, CompletionTextEdit},
+};
 
-use crate::document::{Document, OnChangeData};
+use crate::{
+    completion::{CompletionItem, CompletionKind},
+    document::{Document, OnChangeData},
+};
 
 pub fn after_open_hook(client: &Arc<Client>, doc: &Document) {
     let lsp = match doc.buffer().language().lsp.as_ref() {
@@ -41,4 +54,71 @@ pub fn after_open_hook(client: &Arc<Client>, doc: &Document) {
                 .oops();
         }
     });
+}
+
+pub async fn completion_hook(
+    lsp: &Lsp,
+    client: Arc<Client>,
+    path: PathBuf,
+    pos: Position,
+    current_word_range: Range,
+) -> Result<Vec<CompletionItem>> {
+    let lsp_items = client.completion(lsp, &path, pos.into()).await?;
+    let mut items = Vec::new();
+    for lsp_item in lsp_items.into_iter() {
+        let mut text_edits: Vec<TextEdit> = lsp_item
+            .additional_text_edits
+            .clone()
+            .unwrap_or_default()
+            .into_iter()
+            .map(Into::into)
+            .collect();
+
+        let item = match (&lsp_item.insert_text, &lsp_item.text_edit) {
+            (Some(insert_text), None) => {
+                text_edits.push(TextEdit {
+                    range: current_word_range,
+                    new_text: insert_text.to_owned(),
+                });
+
+                CompletionItem {
+                    kind: CompletionKind::LspItem,
+                    label: lsp_item.label,
+                    text_edits,
+                }
+            }
+            (None, Some(CompletionTextEdit::Edit(edit))) => {
+                text_edits.push(TextEdit {
+                    range: edit.range.into(),
+                    new_text: edit.new_text.to_owned(),
+                });
+
+                CompletionItem {
+                    kind: CompletionKind::LspItem,
+                    label: lsp_item.label,
+                    text_edits,
+                }
+            }
+            (None, Some(CompletionTextEdit::InsertAndReplace(edit))) => {
+                text_edits.push(TextEdit {
+                    range: edit.insert.into(),
+                    new_text: edit.new_text.to_owned(),
+                });
+
+                CompletionItem {
+                    kind: CompletionKind::LspItem,
+                    label: lsp_item.label,
+                    text_edits,
+                }
+            }
+            _ => {
+                warn!("unsupported LSP completion item: {:?}", lsp_item);
+                continue;
+            }
+        };
+
+        items.push(item);
+    }
+
+    Ok(items)
 }

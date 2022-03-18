@@ -124,8 +124,6 @@ impl Document {
             buffer.set_language(lang);
         }
 
-        // I occationally see failure on watching a file. I'm still not sure
-        // why it may happen though.
         let (watcher, modified_listener) = match watch_file(&path) {
             Ok((watcher, listener)) => (Some(watcher), Some(listener)),
             Err(err) => {
