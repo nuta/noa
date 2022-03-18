@@ -5,7 +5,7 @@ use libgit2_sys::{
     git_libgit2_init, git_object_peel, git_repository_open, git_revparse_single, GIT_OBJECT_BLOB,
     GIT_OK,
 };
-use noa_buffer::raw_buffer::RawBuffer;
+
 use tokio::sync::Notify;
 
 use std::{

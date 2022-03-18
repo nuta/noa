@@ -18,7 +18,7 @@ use arc_swap::ArcSwap;
 use futures::executor::block_on;
 use fuzzy_matcher::FuzzyMatcher;
 use noa_buffer::{
-    buffer::Buffer, cursor::Position, raw_buffer::RawBuffer, undoable_raw_buffer::Change,
+    buffer::Buffer, cursor::Position, raw_buffer::RawBuffer,
 };
 use noa_common::{
     dirs::{backup_dir, noa_dir},
@@ -30,14 +30,12 @@ use noa_proxy::client::Client as ProxyClient;
 use noa_editorconfig::EditorConfig;
 use noa_languages::language::guess_language;
 use tokio::{
-    sync::{broadcast, mpsc, Notify},
+    sync::{Notify},
     time::timeout,
 };
 
 use crate::{
     completion::{build_fuzzy_matcher, CompletionItem},
-    event_listener::EventListener,
-    file_watch::FileWatcher,
     flash::FlashManager,
     git::{self, Repo},
     linemap::LineMap,

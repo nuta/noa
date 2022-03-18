@@ -9,10 +9,6 @@ use crate::{
     editor::Editor,
 };
 
-pub struct FileWatcher {
-    _watcher: notify::RecommendedWatcher,
-}
-
 pub enum WatchEventKind {
     Modified,
 }
@@ -57,6 +53,10 @@ pub fn after_open_hook(watch_tx: mpsc::UnboundedSender<WatchEvent>, doc: &Docume
 
 /// Reloads a buffer from the disk if changed.
 pub fn watch_event_hook(editor: &mut Editor, ev: &WatchEvent) {
+    if !matches!(ev.kind, WatchEventKind::Modified) {
+        return;
+    }
+
     let current_id = editor.documents.current().id();
     let doc = match editor.documents.get_mut_document_by_id(ev.doc_id) {
         Some(doc) => doc,

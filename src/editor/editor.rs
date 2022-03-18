@@ -10,6 +10,7 @@ use noa_buffer::{
     cursor::{Position, Range},
 };
 
+use noa_common::oops::OopsExt;
 use noa_compositor::line_edit::LineEdit;
 
 use noa_proxy::protocol::Notification;
@@ -22,9 +23,8 @@ use crate::{
     clipboard::{self, ClipboardProvider},
     document::{Document, DocumentId, DocumentManager},
     file_watch::{self, WatchEvent},
-    git::{self, Repo},
+    git::Repo,
     job::JobManager,
-    lsp,
 };
 
 pub struct Editor {
@@ -82,7 +82,7 @@ impl Editor {
         // First run of tree sitter parsering, etc.
         doc.post_update_job(&self.proxy, self.repo.as_ref(), &self.render_request);
 
-        file_watch::after_open_hook(self.watch_tx.clone(), &doc);
+        file_watch::after_open_hook(self.watch_tx.clone(), &doc).oops();
 
         if let Some(pos) = cursor_pos {
             doc.buffer_mut().move_main_cursor_to_pos(pos);
