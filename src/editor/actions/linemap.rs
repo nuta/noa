@@ -1,7 +1,7 @@
+use crate::ui::compositor::Compositor;
 use anyhow::Result;
-use noa_compositor::Compositor;
 
-use crate::{editor::Editor, ui::UIContext};
+use crate::{editor::Editor, ui::surface::UIContext};
 
 use super::Action;
 
@@ -12,7 +12,7 @@ impl Action for MoveToNextDiff {
         "move_to_next_diff"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         let doc = editor.documents.current_mut();
         let linemap = doc.linemap().load();
         match linemap.next_diff_line(doc.buffer().main_cursor().moving_position().y) {
@@ -34,7 +34,7 @@ impl Action for MoveToPrevDiff {
         "move_to_prev_diff"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         let doc = editor.documents.current_mut();
         let linemap = doc.linemap().load();
         match linemap.prev_diff_line(doc.buffer().main_cursor().moving_position().y) {

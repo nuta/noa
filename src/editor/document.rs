@@ -28,11 +28,11 @@ use noa_common::{
     oops::OopsExt,
     prioritized_vec::PrioritizedVec,
 };
-use noa_compositor::Compositor;
 use noa_proxy::client::Client as ProxyClient;
 
 use noa_editorconfig::EditorConfig;
 use noa_languages::language::guess_language;
+use noa_terminal::terminal::is_raw_mode_enabled;
 use tokio::{sync::broadcast, time::timeout};
 
 use crate::{
@@ -501,12 +501,16 @@ impl DocumentManager {
 
 impl Drop for DocumentManager {
     fn drop(&mut self) {
+        // Check if it's safe to use eprintln!() here. It should be safe because
+        // Terminal is already droppped to restore the terminal state.
+        debug_assert_eq!(is_raw_mode_enabled().unwrap(), true);
+
         if self.save_all_on_drop {
             let mut failed_any = false;
             let mut num_saved_files = 0;
             for doc in self.documents.values_mut() {
                 if let Err(err) = doc.save_to_file(None) {
-                    notify_warn!("failed to save {}: {}", doc.path().display(), err);
+                    eprintln!("failed to save {}: {}", doc.path().display(), err);
                     failed_any = true;
                 } else {
                     num_saved_files += 1;
@@ -514,7 +518,7 @@ impl Drop for DocumentManager {
             }
 
             if !failed_any {
-                notify_info!("successfully saved {} files", num_saved_files);
+                eprintln!("successfully saved {} files", num_saved_files);
             }
         }
     }

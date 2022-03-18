@@ -9,13 +9,11 @@ use noa_buffer::{
     display_width::DisplayWidth,
 };
 use noa_common::oops::OopsExt;
-use noa_compositor::{
-    canvas::CanvasViewMut,
-    surface::{HandledEvent, KeyEvent, Layout, RectSize, Surface},
-    terminal::{KeyCode, KeyModifiers, MouseButton, MouseEventKind},
-    Compositor,
-};
 use noa_proxy::lsp_types::HoverContents;
+use noa_terminal::{
+    canvas::CanvasViewMut,
+    terminal::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEventKind},
+};
 use tokio::sync::{mpsc::UnboundedSender, Notify};
 
 use crate::{
@@ -25,7 +23,14 @@ use crate::{
     keybindings::get_keybinding_for,
     linemap::LineStatus,
     theme::theme_for,
-    ui::{bump_view::BumpView, markdown::Markdown},
+    ui::{
+        compositor::Compositor,
+        helpers::truncate_to_width,
+        line_edit::LineEdit,
+        markdown::Markdown,
+        surface::{HandledEvent, Layout, RectSize, Surface, UIContext},
+        views::bump_view::BumpView,
+    },
 };
 
 use super::completion_view::CompletionView;
@@ -97,8 +102,6 @@ impl BufferView {
 }
 
 impl Surface for BufferView {
-    type Context = Editor;
-
     fn name(&self) -> &str {
         "buffer"
     }
@@ -107,11 +110,11 @@ impl Surface for BufferView {
         self
     }
 
-    fn is_active(&self, _editor: &mut Editor) -> bool {
+    fn is_active(&self, _ctx: &mut UIContext) -> bool {
         true
     }
 
-    fn layout(&mut self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
+    fn layout(&mut self, _ctx: &mut UIContext, screen_size: RectSize) -> (Layout, RectSize) {
         (
             Layout::Fixed { y: 0, x: 0 },
             RectSize {
@@ -121,11 +124,11 @@ impl Surface for BufferView {
         )
     }
 
-    fn cursor_position(&self, _editor: &mut Editor) -> Option<(usize, usize)> {
+    fn cursor_position(&self, _ctx: &mut UIContext) -> Option<(usize, usize)> {
         Some(self.cursor_position)
     }
 
-    fn render(&mut self, editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
+    fn render(&mut self, UIContext { editor, .. }: &mut UIContext, canvas: &mut CanvasViewMut<'_>) {
         canvas.clear();
 
         let lineno_x;
@@ -275,8 +278,8 @@ impl Surface for BufferView {
 
     fn handle_key_event(
         &mut self,
-        editor: &mut Editor,
-        compositor: &mut Compositor<Self::Context>,
+        UIContext { editor, .. }: &mut UIContext,
+        compositor: &mut Compositor,
         key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
@@ -368,8 +371,8 @@ impl Surface for BufferView {
 
     fn handle_key_batch_event(
         &mut self,
-        editor: &mut Editor,
-        compositor: &mut Compositor<Editor>,
+        UIContext { editor, .. }: &mut UIContext,
+        compositor: &mut Compositor,
         s: &str,
     ) -> HandledEvent {
         let doc = editor.documents.current_mut();
@@ -381,8 +384,8 @@ impl Surface for BufferView {
 
     fn handle_mouse_event(
         &mut self,
-        editor: &mut Editor,
-        compositor: &mut Compositor<Self::Context>,
+        UIContext { editor, .. }: &mut UIContext,
+        compositor: &mut Compositor,
         kind: MouseEventKind,
         modifiers: KeyModifiers,
         surface_y: usize,

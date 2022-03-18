@@ -43,5 +43,5 @@ noa_common = { path = "../common" }
 noa_buffer = { path = "../buffer" }
 noa_languages = { path = "../languages" }
 noa_editorconfig = { path = "../editorconfig" }
-noa_compositor = { path = "../compositor" }
+noa_terminal = { path = "../terminal" }
 noa_proxy = { path = "../proxy" }

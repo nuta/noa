@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::{Context, Result};
-use noa_compositor::canvas::{Color, Style};
+use noa_terminal::canvas::{Color, Style};
 
 use once_cell::sync::Lazy;
 

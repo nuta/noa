@@ -3,8 +3,6 @@ use std::{
     sync::Arc,
 };
 
-use noa_compositor::line_edit::LineEdit;
-
 use noa_proxy::protocol::Notification;
 use tokio::sync::{mpsc::UnboundedSender, Notify};
 
@@ -14,6 +12,7 @@ use crate::{
     git::Repo,
     hook::HookManager,
     job::JobManager,
+    ui::line_edit::LineEdit,
 };
 
 pub struct Editor {

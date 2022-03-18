@@ -1,7 +1,7 @@
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use noa_buffer::buffer::Buffer;
+use noa_terminal::terminal::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::surface::HandledEvent;
+use super::surface::HandledEvent;
 
 pub struct LineEdit {
     buffer: Buffer,

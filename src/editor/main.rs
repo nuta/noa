@@ -9,8 +9,10 @@ extern crate log;
 
 use std::path::PathBuf;
 
+use application::Application;
 use clap::Parser;
 
+use finder::open_finder;
 use noa_common::{logger::install_logger, time_report::TimeReport};
 
 use theme::parse_default_theme;
@@ -56,36 +58,13 @@ async fn main() {
     install_logger("main");
     let args = Args::parse();
 
-    let _workspace_dir = args
+    let workspace_dir = args
         .files
         .iter()
         .find(|path| path.is_dir())
         .cloned()
         .unwrap_or_else(|| PathBuf::from("."));
 
-    // let mut no_files_opened = true;
-    // for path in args.files {
-    //     if !path.is_dir() {
-    //         match open_file(&mut compositor, &mut editor, &path, None) {
-    //             Ok(id) => {
-    //                 editor.documents.switch_by_id(id);
-    //             }
-    //             Err(err) => {
-    //                 notify_anyhow_error!(err);
-    //             }
-    //         }
-
-    //         no_files_opened = false;
-    //     }
-    // }
-
-    // if no_files_opened {
-    //     open_finder(&mut compositor, &mut editor);
-    // }
-
-    // compositor.render_to_terminal(&mut editor);
-    // drop(boot_time);
-
-    // Drop compoisitor first to restore the terminal.
-    // notification::set_stdout_mode(true);
+    let mut app = Application::new(&workspace_dir, &args.files);
+    app.run().await;
 }

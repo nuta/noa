@@ -1,38 +1,38 @@
 use std::slice;
 
 use noa_common::time_report::TimeReport;
+use noa_terminal::{
+    canvas::Canvas,
+    terminal::{self, InputEvent, Terminal},
+};
 use tokio::sync::mpsc;
 
-use crate::{surface::HandledEvent, terminal::InputEvent};
+use crate::ui::surface::HandledEvent;
 
-use super::{
-    canvas::Canvas,
-    surface::{Layout, RectSize, Surface},
-    terminal::{self, Terminal},
-};
+use super::surface::{Layout, RectSize, Surface, UIContext};
 
-pub struct Layer<C> {
-    pub surface: Box<dyn Surface<Context = C> + Send>,
+pub struct Layer {
+    pub surface: Box<dyn Surface + Send>,
     pub canvas: Canvas,
     pub screen_y: usize,
     pub screen_x: usize,
 }
 
-pub struct Compositor<C> {
+pub struct Compositor {
     terminal: Terminal,
     term_rx: mpsc::UnboundedReceiver<terminal::Event>,
     screens: [Canvas; 2],
     screen_size: RectSize,
     active_screen_index: usize,
     /// The last element comes foreground.
-    layers: Vec<Layer<C>>,
+    layers: Vec<Layer>,
     /// A temporary vec to avoid mutual borrowing of self.
-    past_layers: Vec<Layer<C>>,
+    past_layers: Vec<Layer>,
 }
 
 #[allow(clippy::new_without_default)]
-impl<C: 'static> Compositor<C> {
-    pub fn new() -> Compositor<C> {
+impl Compositor {
+    pub fn new() -> Compositor {
         let (term_tx, term_rx) = mpsc::unbounded_channel();
         let terminal = Terminal::new(move |ev| {
             term_tx.send(ev).ok();
@@ -65,7 +65,7 @@ impl<C: 'static> Compositor<C> {
         self.term_rx.recv().await
     }
 
-    pub fn add_frontmost_layer(&mut self, surface: Box<dyn Surface<Context = C> + Send>) {
+    pub fn add_frontmost_layer(&mut self, surface: Box<dyn Surface + Send>) {
         debug_assert!(self
             .layers
             .iter()
@@ -85,7 +85,7 @@ impl<C: 'static> Compositor<C> {
 
     pub fn get_mut_surface_by_name<S>(&mut self, name: &str) -> &mut S
     where
-        S: Surface<Context = C>,
+        S: Surface,
     {
         for layer in self.layers.iter_mut() {
             if layer.surface.name() == name {
@@ -116,7 +116,7 @@ impl<C: 'static> Compositor<C> {
         self.terminal.clear();
     }
 
-    pub fn render_to_terminal(&mut self, ctx: &mut C) {
+    pub fn render_to_terminal(&mut self, ctx: &mut UIContext) {
         let _rendering_time = TimeReport::new("rendering time");
 
         // Re-layout layers.
@@ -174,7 +174,7 @@ impl<C: 'static> Compositor<C> {
         drawer.flush();
     }
 
-    pub fn handle_input(&mut self, ctx: &mut C, input: InputEvent) {
+    pub fn handle_input(&mut self, ctx: &mut UIContext, input: InputEvent) {
         trace!("input: {:?}", input);
         match input {
             InputEvent::Key(key) => {
@@ -243,11 +243,7 @@ impl<C: 'static> Compositor<C> {
 }
 
 /// Renders each surfaces and copy the compose into the screen canvas.
-fn compose_layers<C: 'static>(
-    ctx: &mut C,
-    screen: &mut Canvas,
-    layers: slice::IterMut<'_, Layer<C>>,
-) {
+fn compose_layers(ctx: &mut UIContext, screen: &mut Canvas, layers: slice::IterMut<'_, Layer>) {
     screen.view_mut().clear();
 
     for layer in layers {
@@ -269,9 +265,9 @@ fn compose_layers<C: 'static>(
     }
 }
 
-fn relayout_layer<C>(
-    ctx: &mut C,
-    surface: &mut (impl Surface<Context = C> + ?Sized),
+fn relayout_layer(
+    ctx: &mut UIContext,
+    surface: &mut (impl Surface + ?Sized),
     screen_size: RectSize,
     prev_cursor_pos: Option<(usize, usize)>,
 ) -> ((usize, usize), RectSize) {

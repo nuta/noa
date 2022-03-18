@@ -1,8 +1,13 @@
-use std::{ops::ControlFlow, path::Path, sync::Arc, time::Duration};
+use std::{
+    ops::ControlFlow,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 use noa_common::time_report::TimeReport;
-use noa_compositor::{terminal::Event, Compositor};
 use noa_proxy::protocol::Notification;
+use noa_terminal::terminal::Event;
 use tokio::sync::{
     mpsc::{self, unbounded_channel, UnboundedReceiver, UnboundedSender},
     Notify,
@@ -10,23 +15,29 @@ use tokio::sync::{
 
 use crate::{
     editor::Editor,
+    finder::open_finder,
     hook::HookManager,
     job::CompletedJob,
     ui::{
-        buffer_view::BufferView,
-        bump_view::BumpView,
-        completion_view::CompletionView,
-        meta_line_view::MetaLineView,
-        prompt_view::{prompt, PromptMode, PromptView},
-        selector_view::SelectorView,
-        too_small_view::TooSmallView,
-        UIContext,
+        compositor::Compositor,
+        surface::UIContext,
+        views::{
+            buffer_view::BufferView,
+            bump_view::BumpView,
+            completion_view::CompletionView,
+            meta_line_view::MetaLineView,
+            prompt_view::{prompt, PromptMode, PromptView},
+            selector_view::SelectorView,
+            too_small_view::TooSmallView,
+        },
     },
 };
 
-pub struct Application<'a> {
+pub struct Application {
+    // `compositor` should come first to restore the terminal before dropping
+    // DocumentManager since it use eprintln!.
+    compositor: Compositor,
     editor: Editor,
-    compositor: Compositor<UIContext<'a>>,
     hooks: HookManager,
     force_quit_rx: UnboundedReceiver<()>,
     force_quit_tx: UnboundedSender<()>,
@@ -35,12 +46,32 @@ pub struct Application<'a> {
     render_request: Arc<Notify>,
 }
 
-impl<'a> Application<'a> {
-    pub fn new(workspace_dir: &Path) -> Application<'a> {
+impl Application {
+    pub fn new(workspace_dir: &Path, files: &[PathBuf]) -> Application {
         let render_request = Arc::new(Notify::new());
         let (notification_tx, notification_rx) = mpsc::unbounded_channel();
-        let editor = Editor::new(workspace_dir, render_request.clone(), notification_tx);
+        let mut editor = Editor::new(workspace_dir, render_request.clone(), notification_tx);
         let mut compositor = Compositor::new();
+
+        let mut no_files_opened = true;
+        for path in files {
+            if !path.is_dir() {
+                match editor.documents.open_file(path, None) {
+                    Ok(id) => {
+                        editor.documents.switch_by_id(id);
+                    }
+                    Err(err) => {
+                        notify_anyhow_error!(err);
+                    }
+                }
+
+                no_files_opened = false;
+            }
+        }
+
+        if no_files_opened {
+            open_finder(&mut compositor, &mut editor);
+        }
 
         let (quit_tx, quit_rx) = unbounded_channel();
         let (force_quit_tx, force_quit_rx) = unbounded_channel();
@@ -53,8 +84,8 @@ impl<'a> Application<'a> {
         compositor.add_frontmost_layer(Box::new(CompletionView::new()));
 
         Application {
-            editor,
             compositor,
+            editor,
             hooks: HookManager::new(),
             force_quit_rx,
             force_quit_tx,
@@ -65,83 +96,95 @@ impl<'a> Application<'a> {
     }
 
     pub async fn run(&mut self) {
-        let mut idle_timer = tokio::time::interval(Duration::from_millis(1200));
+        let mut ctx = UIContext {
+            editor: &mut self.editor,
+            // hooks: &mut self.hooks,
+        };
+        self.compositor.render_to_terminal(&mut ctx);
+
         loop {
-            let mut skip_rendering = false;
-            tokio::select! {
-                biased;
+            if self.process_event().await == ControlFlow::Break(()) {
+                break;
+            }
+        }
+    }
 
-                _ = self.force_quit_rx.recv() => {
-                    break;
-               }
+    async fn process_event(&mut self) -> ControlFlow<()> {
+        let mut idle_timer = tokio::time::interval(Duration::from_millis(1200));
+        let mut skip_rendering = false;
+        tokio::select! {
+            biased;
 
-                Some(()) =  self.quit_rx.recv() => {
-                    self.check_if_dirty();
-                }
+            _ = self.force_quit_rx.recv() => {
+                return ControlFlow::Break(());
+           }
 
-                Some(ev) = self.compositor.recv_terminal_event() => {
-                    let _event_tick_time = Some(TimeReport::new("I/O event handling"));
-                    match ev {
-                        Event::Input(input) => {
-                            let ctx =  UIContext {
-                                editor: &mut self.editor,
-                                hooks: &mut self.hooks,
-                            };
-                            self.compositor.handle_input(&mut ctx, input);
-                        }
-                        Event::Resize { height, width } => {
-                            self.compositor.resize_screen(height, width);
-                        }
+            Some(()) =  self.quit_rx.recv() => {
+                self.check_if_dirty();
+            }
+
+            Some(ev) = self.compositor.recv_terminal_event() => {
+                let _event_tick_time = Some(TimeReport::new("I/O event handling"));
+                match ev {
+                    Event::Input(input) => {
+                        let mut ctx =  UIContext {
+                            editor: &mut self.editor,
+                            // hooks: &mut self.hooks,
+                        };
+                        self.compositor.handle_input(&mut ctx, input);
+                    }
+                    Event::Resize { height, width } => {
+                        self.compositor.resize_screen(height, width);
                     }
                 }
+            }
 
-                Some(noti) = self.notification_rx.recv() => {
-                    trace!("proxy notification: {:?}", noti);
-                    match noti {
-                        noa_proxy::protocol::Notification::Diagnostics { diags, path } => {
-                            if path != self.editor.documents.current().path() {
-                                return;
-                            }
-
+            Some(noti) = self.notification_rx.recv() => {
+                trace!("proxy notification: {:?}", noti);
+                match noti {
+                    noa_proxy::protocol::Notification::Diagnostics { diags, path } => {
+                        if path == self.editor.documents.current().path() {
                             if let Some(diag) = diags.first() {
                                 notify_warn!("{}: {:?}", diag.range.start.line + 1, diag.message);
                             }
                         }
                     }
                 }
+            }
 
-                Some(completed) = self.editor.jobs.get_completed() => {
-                    match completed {
-                        CompletedJob::Completed(callback) => {
-                            // TODO:
-                            // callback(&mut self.editor, &mut self.compositor);
-                        }
-                        CompletedJob::Notified { id, mut callback } => {
-                            // TODO:
-                            // callback(&mut self.editor, &mut self.compositor);
-                            self.editor.jobs.insert_back_notified(id, callback);
-                        }
+            Some(completed) = self.editor.jobs.get_completed() => {
+                match completed {
+                    CompletedJob::Completed(callback) => {
+                        // TODO:
+                        // callback(&mut self.editor, &mut self.compositor);
+                    }
+                    CompletedJob::Notified { id, mut callback } => {
+                        // TODO:
+                        // callback(&mut self.editor, &mut self.compositor);
+                        self.editor.jobs.insert_back_notified(id, callback);
                     }
                 }
-
-                _ = self.render_request.notified() => {
-                }
-
-                _ = idle_timer.tick()  => {
-                    self.editor.documents.current_mut().idle_job();
-                    skip_rendering = true;
-                }
             }
 
-            if !skip_rendering {
-                let ctx = UIContext {
-                    editor: &mut self.editor,
-                    hooks: &mut self.hooks,
-                };
-                self.compositor.render_to_terminal(&mut ctx);
+            _ = self.render_request.notified() => {
             }
-            idle_timer.reset();
+
+            _ = idle_timer.tick()  => {
+                self.editor.documents.current_mut().idle_job();
+                skip_rendering = true;
+            }
         }
+
+        if !skip_rendering {
+            let mut ctx = UIContext {
+                editor: &mut self.editor,
+                // hooks: &mut self.hooks,
+            };
+            self.compositor.render_to_terminal(&mut ctx);
+        }
+        idle_timer.reset();
+
+        ControlFlow::Continue(())
     }
 
     fn check_if_dirty(&mut self) {

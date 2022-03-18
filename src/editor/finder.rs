@@ -15,7 +15,6 @@ use fuzzy_matcher::FuzzyMatcher;
 use grep::searcher::SinkError;
 use noa_buffer::cursor::Position;
 use noa_common::{oops::OopsExt, prioritized_vec::PrioritizedVec};
-use noa_compositor::Compositor;
 
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
@@ -25,8 +24,8 @@ use crate::{
     document::DocumentId,
     editor::Editor,
     ui::{
-        selector_view::{SelectorContent, SelectorItem, SelectorView},
-        UIContext,
+        compositor::Compositor,
+        views::selector_view::{SelectorContent, SelectorItem, SelectorView},
     },
 };
 
@@ -50,13 +49,13 @@ enum FinderItem {
     },
 }
 
-pub fn open_finder(compositor: &mut Compositor<UIContext>, editor: &mut Editor) {
+pub fn open_finder(compositor: &mut Compositor, editor: &mut Editor) {
     let selector: &mut SelectorView = compositor.get_mut_surface_by_name("selector");
     selector.open("finder", true, Some(Box::new(update_items)));
     update_items(editor, "");
 }
 
-fn select_item(compositor: &mut Compositor<UIContext>, editor: &mut Editor, item: FinderItem) {
+fn select_item(compositor: &mut Compositor, editor: &mut Editor, item: FinderItem) {
     info!("selected item: {:?}", item);
     match item {
         FinderItem::Buffer { id, .. } => {

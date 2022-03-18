@@ -1,10 +1,8 @@
-use noa_compositor::Compositor;
-
-use crate::{editor::Editor, hook::HookManager, ui::UIContext};
+use crate::{editor::Editor, hook::HookManager, ui::compositor::Compositor};
 
 pub struct PluginContext<'a> {
     pub editor: &'a mut Editor,
-    pub compositor: &'a mut Compositor<UIContext<'a>>,
+    pub compositor: &'a mut Compositor,
     pub hooks: &'a mut HookManager,
 }
 

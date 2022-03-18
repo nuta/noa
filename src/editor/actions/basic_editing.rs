@@ -1,12 +1,12 @@
+use crate::ui::compositor::Compositor;
 use anyhow::{Context, Result};
 use noa_buffer::cursor::{Position, Range};
-use noa_compositor::Compositor;
 
 use crate::{
     clipboard::{ClipboardData, SystemClipboardData},
     editor::Editor,
     finder::open_finder,
-    ui::UIContext,
+    ui::surface::UIContext,
 };
 
 use super::Action;
@@ -18,7 +18,7 @@ impl Action for Save {
         "save"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         editor
             .documents
             .current_mut()
@@ -34,7 +34,7 @@ impl Action for OpenFilder {
         "open_finder"
     }
 
-    fn run(&self, editor: &mut Editor, compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, compositor: &mut Compositor) -> Result<()> {
         open_finder(compositor, editor);
         Ok(())
     }
@@ -47,7 +47,7 @@ impl Action for BackspaceWord {
         "backspace_word"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         editor.documents.current_mut().buffer_mut().backspace_word();
         Ok(())
     }
@@ -60,7 +60,7 @@ impl Action for Truncate {
         "truncate"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         editor.documents.current_mut().buffer_mut().truncate();
         Ok(())
     }
@@ -73,7 +73,7 @@ impl Action for Delete {
         "delete"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         editor.documents.current_mut().buffer_mut().delete();
         Ok(())
     }
@@ -86,7 +86,7 @@ impl Action for MoveToBeginningOfLine {
         "move_to_beginning_of_line"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         editor
             .documents
             .current_mut()
@@ -103,7 +103,7 @@ impl Action for MoveToEndOfLine {
         "move_to_end_of_line"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         editor
             .documents
             .current_mut()
@@ -120,7 +120,7 @@ impl Action for MoveToNextWord {
         "move_to_next_word"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         editor
             .documents
             .current_mut()
@@ -137,7 +137,7 @@ impl Action for MoveToPrevWord {
         "move_to_prev_word"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         editor
             .documents
             .current_mut()
@@ -154,7 +154,7 @@ impl Action for FindCurrentWord {
         "find_current_word"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         let doc = editor.documents.current_mut();
         let buffer = doc.buffer_mut();
         buffer.clear_secondary_cursors();
@@ -180,7 +180,7 @@ impl Action for SelectAllCurrentWord {
         "select_all_current_word"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         let doc = editor.documents.current_mut();
         let buffer = doc.buffer_mut();
 
@@ -210,7 +210,7 @@ impl Action for SelectPrevWord {
         "select_prev_word"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         editor
             .documents
             .current_mut()
@@ -227,7 +227,7 @@ impl Action for SelectNextWord {
         "select_next_word"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         editor
             .documents
             .current_mut()
@@ -244,7 +244,7 @@ impl Action for MoveLineUp {
         "move_lines_up"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         editor.documents.current_mut().buffer_mut().move_lines_up();
         Ok(())
     }
@@ -257,7 +257,7 @@ impl Action for MoveLinesDown {
         "move_lines_down"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         editor
             .documents
             .current_mut()
@@ -274,7 +274,7 @@ impl Action for AddCursorsUp {
         "add_cursors_up"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         editor.documents.current_mut().movement().add_cursors_up();
         Ok(())
     }
@@ -287,7 +287,7 @@ impl Action for AddCursorsDown {
         "add_cursors_down"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         editor.documents.current_mut().movement().add_cursors_down();
         Ok(())
     }
@@ -300,7 +300,7 @@ impl Action for DuplicateLinesUp {
         "duplicate_lines_up"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         editor
             .documents
             .current_mut()
@@ -317,7 +317,7 @@ impl Action for DuplicateLinesDown {
         "duplicate_lines_down"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         editor
             .documents
             .current_mut()
@@ -334,7 +334,7 @@ impl Action for SelectUntilBeginningOfLine {
         "select_until_beginning_of_line"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         editor
             .documents
             .current_mut()
@@ -351,7 +351,7 @@ impl Action for SelectUntilEndOfLine {
         "select_until_end_of_line"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         editor
             .documents
             .current_mut()
@@ -368,7 +368,7 @@ impl Action for Cut {
         "cut"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         let doc = editor.documents.current();
         editor
             .clipboard
@@ -386,7 +386,7 @@ impl Action for Copy {
         "copy"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         let doc = editor.documents.current_mut();
         let buffer = doc.buffer_mut();
         match editor
@@ -414,7 +414,7 @@ impl Action for Paste {
         "paste"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         editor.documents.current_mut().buffer_mut().truncate();
         Ok(())
     }
@@ -427,7 +427,7 @@ impl Action for Undo {
         "undo"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         editor.documents.current_mut().buffer_mut().undo();
         Ok(())
     }
@@ -440,7 +440,7 @@ impl Action for Redo {
         "redo"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         editor.documents.current_mut().buffer_mut().redo();
         Ok(())
     }

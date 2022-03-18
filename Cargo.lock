@@ -1076,10 +1076,10 @@ dependencies = [
  "log",
  "noa_buffer",
  "noa_common",
- "noa_compositor",
  "noa_editorconfig",
  "noa_languages",
  "noa_proxy",
+ "noa_terminal",
  "notify",
  "once_cell",
  "parking_lot",
@@ -1126,20 +1126,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "noa_compositor"
-version = "0.0.0"
-dependencies = [
- "arrayvec",
- "crossterm",
- "futures",
- "log",
- "noa_buffer",
- "noa_common",
- "parking_lot",
- "tokio",
-]
-
-[[package]]
 name = "noa_editorconfig"
 version = "0.0.0"
 dependencies = [
@@ -1183,6 +1169,20 @@ dependencies = [
  "pretty_assertions 0.7.2",
  "serde",
  "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "noa_terminal"
+version = "0.0.0"
+dependencies = [
+ "arrayvec",
+ "crossterm",
+ "futures",
+ "log",
+ "noa_buffer",
+ "noa_common",
+ "parking_lot",
  "tokio",
 ]
 

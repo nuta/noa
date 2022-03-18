@@ -4,16 +4,16 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
+use crate::ui::compositor::Compositor;
 use anyhow::Result;
 use futures::{future::BoxFuture, stream::FuturesUnordered, Future, FutureExt, StreamExt};
-use noa_compositor::Compositor;
 
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
-use crate::{editor::Editor, event_listener::EventListener, ui::UIContext};
+use crate::{editor::Editor, event_listener::EventListener};
 
-type CompletedCallback = dyn FnOnce(&mut Editor, &mut Compositor<UIContext>) + Send + 'static;
-type NotifyCallback = dyn FnMut(&mut Editor, &mut Compositor<UIContext>) + Send + 'static;
+type CompletedCallback = dyn FnOnce(&mut Editor, &mut Compositor) + Send + 'static;
+type NotifyCallback = dyn FnMut(&mut Editor, &mut Compositor) + Send + 'static;
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
 pub struct CallbackId(NonZeroUsize);
@@ -55,7 +55,7 @@ impl JobManager {
 
     pub fn listen_in_mainloop<Callback>(&mut self, mut listener: EventListener, callback: Callback)
     where
-        Callback: FnMut(&mut Editor, &mut Compositor<UIContext>) + Send + 'static,
+        Callback: FnMut(&mut Editor, &mut Compositor) + Send + 'static,
     {
         let id = CallbackId::alloc();
         self.mut_callbacks.insert(id, Box::new(callback));
@@ -72,16 +72,15 @@ impl JobManager {
     where
         Fut: Future<Output = Result<Ret>> + Send + 'static,
         Ret: Send + 'static,
-        Then: FnOnce(&mut Editor, &mut Compositor<UIContext>, Ret) + Send + 'static,
+        Then: FnOnce(&mut Editor, &mut Compositor, Ret) + Send + 'static,
     {
         self.futures.push(
             async move {
                 let result = future.await?;
 
                 // Curring the callback.
-                let boxed_callback: Box<
-                    dyn FnOnce(&mut Editor, &mut Compositor<UIContext>) + Send + 'static,
-                > = Box::new(move |editor, compositor| then(editor, compositor, result));
+                let boxed_callback: Box<dyn FnOnce(&mut Editor, &mut Compositor) + Send + 'static> =
+                    Box::new(move |editor, compositor| then(editor, compositor, result));
 
                 Ok(boxed_callback)
             }

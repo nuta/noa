@@ -17,8 +17,9 @@ use crate::terminal_exts::SetCursorShape;
 use super::canvas::DrawOp;
 use super::terminal_exts::SynchronizedOutput;
 
-pub use crossterm::event::{
-    KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+pub use crossterm::{
+    event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind},
+    terminal::is_raw_mode_enabled,
 };
 
 #[derive(Clone, PartialEq, Debug)]

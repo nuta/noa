@@ -3,15 +3,13 @@ use std::{path::PathBuf, sync::Arc};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use noa_buffer::{buffer::TextEdit, cursor::Cursor, raw_buffer::RawBuffer};
 
-use noa_compositor::Compositor;
 use noa_languages::language::Language;
 use noa_proxy::{client::Client as ProxyClient, lsp_types::CompletionTextEdit};
 use tokio::sync::oneshot;
 
 use crate::{
     document::{Document, Words},
-    editor::Editor,
-    ui::{completion_view::CompletionView, UIContext},
+    editor::Editor, ui::{views::completion_view::CompletionView, compositor::Compositor},
 };
 
 pub fn build_fuzzy_matcher() -> SkimMatcherV2 {
@@ -153,7 +151,7 @@ pub async fn complete(
     Some(unique_items)
 }
 
-pub fn clear_completion(doc: &mut Document, compositor: &mut Compositor<UIContext>) {
+pub fn clear_completion(doc: &mut Document, compositor: &mut Compositor) {
     compositor
         .get_mut_surface_by_name::<CompletionView>("completion")
         .set_active(false);

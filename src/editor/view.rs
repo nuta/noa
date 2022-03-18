@@ -6,7 +6,7 @@ use noa_buffer::{
     cursor::{Position, Range},
     display_width::DisplayWidth,
 };
-use noa_compositor::canvas::{Grapheme, Style};
+use noa_terminal::canvas::{Grapheme, Style};
 
 use crate::theme::theme_for;
 
@@ -346,7 +346,7 @@ impl View {
 
 #[cfg(test)]
 mod tests {
-    use noa_compositor::canvas::{Color, Grapheme, Style};
+    use noa_terminal::canvas::{Color, Grapheme, Style};
     use noa_editorconfig::EditorConfig;
 
     use super::*;

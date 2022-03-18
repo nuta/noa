@@ -1,13 +1,16 @@
-use noa_compositor::{
+use noa_terminal::{
     canvas::CanvasViewMut,
-    surface::{HandledEvent, Layout, RectSize, Surface},
     terminal::{KeyEvent, KeyModifiers, MouseEventKind},
-    Compositor,
 };
 
-use crate::editor::Editor;
-
-use super::helpers::truncate_to_width;
+use crate::{
+    editor::Editor,
+    ui::{
+        compositor::Compositor,
+        helpers::truncate_to_width,
+        surface::{HandledEvent, Layout, RectSize, Surface, UIContext},
+    },
+};
 
 pub struct TooSmallView {
     text: String,
@@ -22,8 +25,6 @@ impl TooSmallView {
 }
 
 impl Surface for TooSmallView {
-    type Context = Editor;
-
     fn name(&self) -> &str {
         "too_small"
     }
@@ -32,27 +33,27 @@ impl Surface for TooSmallView {
         self
     }
 
-    fn is_active(&self, _editor: &mut Editor) -> bool {
+    fn is_active(&self, _ctx: &mut UIContext) -> bool {
         true
     }
 
-    fn layout(&mut self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
+    fn layout(&mut self, _ctx: &mut UIContext, screen_size: RectSize) -> (Layout, RectSize) {
         (Layout::Fixed { x: 0, y: 0 }, screen_size)
     }
 
-    fn cursor_position(&self, _editor: &mut Editor) -> Option<(usize, usize)> {
+    fn cursor_position(&self, _ctx: &mut UIContext) -> Option<(usize, usize)> {
         None
     }
 
-    fn render(&mut self, _editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
+    fn render(&mut self, _ctx: &mut UIContext, canvas: &mut CanvasViewMut<'_>) {
         canvas.clear();
         canvas.write_str(0, 0, truncate_to_width(&self.text, canvas.width()));
     }
 
     fn handle_key_event(
         &mut self,
-        _editor: &mut Editor,
-        _compositor: &mut Compositor<Self::Context>,
+        _ctx: &mut UIContext,
+        _compositor: &mut Compositor,
         _key: KeyEvent,
     ) -> HandledEvent {
         HandledEvent::Consumed
@@ -60,8 +61,8 @@ impl Surface for TooSmallView {
 
     fn handle_key_batch_event(
         &mut self,
-        _ctx: &mut Self::Context,
-        _compositor: &mut Compositor<Editor>,
+        _ctx: &mut UIContext,
+        _compositor: &mut Compositor,
         _input: &str,
     ) -> HandledEvent {
         HandledEvent::Consumed
@@ -69,8 +70,8 @@ impl Surface for TooSmallView {
 
     fn handle_mouse_event(
         &mut self,
-        _ctx: &mut Self::Context,
-        _compositor: &mut Compositor<Self::Context>,
+        _ctx: &mut UIContext,
+        _compositor: &mut Compositor,
         _kind: MouseEventKind,
         _modifiers: KeyModifiers,
         _surface_y: usize,

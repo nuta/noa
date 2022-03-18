@@ -1,8 +1,8 @@
 use anyhow::Result;
 
-use noa_compositor::Compositor;
+use crate::ui::compositor::Compositor;
 
-use crate::{editor::Editor, ui::UIContext};
+use crate::{editor::Editor, ui::surface::UIContext};
 
 use super::Action;
 
@@ -13,7 +13,7 @@ impl Action for PageUp {
         "page_up"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         editor.documents.current_mut().movement().scroll_up();
         Ok(())
     }
@@ -26,7 +26,7 @@ impl Action for PageDown {
         "page_down"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor) -> Result<()> {
         editor.documents.current_mut().movement().scroll_down();
         Ok(())
     }
@@ -39,7 +39,7 @@ impl Action for Centering {
         "centering"
     }
 
-    fn run(&self, editor: &mut Editor, compositor: &mut Compositor<UIContext>) -> Result<()> {
+    fn run(&self, editor: &mut Editor, compositor: &mut Compositor) -> Result<()> {
         let pos = editor
             .documents
             .current()

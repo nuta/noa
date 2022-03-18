@@ -1,15 +1,22 @@
 use std::cmp::min;
 
-use noa_compositor::{
+use noa_terminal::{
     canvas::CanvasViewMut,
-    surface::{HandledEvent, Layout, RectSize, Surface},
     terminal::{KeyCode, KeyEvent, KeyModifiers, MouseEventKind},
-    Compositor,
 };
 
-use crate::{editor::Editor, theme::theme_for};
-
-use super::helpers::truncate_to_width;
+use crate::{
+    editor::Editor,
+    event_listener::{event_pair, EventListener, EventPair},
+    notification::{notification_manager, Notification},
+    theme::theme_for,
+    ui::{
+        compositor::Compositor,
+        helpers::truncate_to_width,
+        line_edit::LineEdit,
+        surface::{HandledEvent, Layout, RectSize, Surface, UIContext},
+    },
+};
 
 pub struct CompletionView {
     active: bool,
@@ -33,8 +40,6 @@ impl CompletionView {
 }
 
 impl Surface for CompletionView {
-    type Context = Editor;
-
     fn name(&self) -> &str {
         "completion"
     }
@@ -43,11 +48,15 @@ impl Surface for CompletionView {
         self
     }
 
-    fn is_active(&self, _editor: &mut Editor) -> bool {
+    fn is_active(&self, _ctx: &mut UIContext) -> bool {
         self.active
     }
 
-    fn layout(&mut self, editor: &mut Editor, _screen_size: RectSize) -> (Layout, RectSize) {
+    fn layout(
+        &mut self,
+        UIContext { editor, .. }: &mut UIContext,
+        _screen_size: RectSize,
+    ) -> (Layout, RectSize) {
         let doc = editor.documents.current();
         let items = doc.completion_items();
         let longest_entry_len = items.iter().map(|e| e.label.len()).max().unwrap_or(0);
@@ -57,11 +66,11 @@ impl Surface for CompletionView {
         (Layout::AroundCursor, RectSize { height, width })
     }
 
-    fn cursor_position(&self, _editor: &mut Editor) -> Option<(usize, usize)> {
+    fn cursor_position(&self, _ctx: &mut UIContext) -> Option<(usize, usize)> {
         None
     }
 
-    fn render(&mut self, editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
+    fn render(&mut self, UIContext { editor, .. }: &mut UIContext, canvas: &mut CanvasViewMut<'_>) {
         canvas.clear();
 
         let doc = editor.documents.current();
@@ -78,8 +87,8 @@ impl Surface for CompletionView {
 
     fn handle_key_event(
         &mut self,
-        editor: &mut Editor,
-        _compositor: &mut Compositor<Self::Context>,
+        UIContext { editor, .. }: &mut UIContext,
+        _compositor: &mut Compositor,
         key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
@@ -132,8 +141,8 @@ impl Surface for CompletionView {
 
     fn handle_key_batch_event(
         &mut self,
-        _ctx: &mut Self::Context,
-        _compositor: &mut Compositor<Editor>,
+        _ctx: &mut UIContext,
+        _compositor: &mut Compositor,
         _input: &str,
     ) -> HandledEvent {
         HandledEvent::Ignored
@@ -141,8 +150,8 @@ impl Surface for CompletionView {
 
     fn handle_mouse_event(
         &mut self,
-        _ctx: &mut Self::Context,
-        _compositor: &mut Compositor<Self::Context>,
+        _ctx: &mut UIContext,
+        _compositor: &mut Compositor,
         _kind: MouseEventKind,
         _modifiers: KeyModifiers,
         _surface_y: usize,

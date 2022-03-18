@@ -1,5 +1,5 @@
 [package]
-name = "noa_compositor"
+name = "noa_terminal"
 version = "0.0.0"
 authors = ["Seiya Nuta <nuta@seiya.me>"]
 edition = "2021"

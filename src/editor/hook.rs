@@ -2,13 +2,13 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 
-use noa_compositor::Compositor;
+use crate::ui::compositor::Compositor;
 
-use crate::{document::DocumentId, editor::Editor, ui::UIContext};
+use crate::{document::DocumentId, editor::Editor};
 
 pub struct HookContext<'a> {
     pub editor: &'a mut Editor,
-    pub compositor: &'a mut Compositor<UIContext<'a>>,
+    pub compositor: &'a mut Compositor,
 }
 
 pub type HookCallback<T> = dyn FnMut(&mut HookContext<'_>, &T);
@@ -61,7 +61,7 @@ pub struct HookManager {
 impl HookManager {
     pub fn new() -> HookManager {
         HookManager {
-            ..Default::default()
+            after_save: Hook::new(),
         }
     }
 }

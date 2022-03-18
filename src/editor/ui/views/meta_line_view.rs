@@ -1,18 +1,21 @@
 use noa_buffer::display_width::DisplayWidth;
 use noa_terminal::{
     canvas::CanvasViewMut,
-    surface::{HandledEvent, KeyEvent, Layout, RectSize, Surface},
-    terminal::{KeyCode, KeyModifiers},
-    Compositor,
+    terminal::{KeyCode, KeyEvent, KeyModifiers},
 };
 
 use crate::{
     editor::Editor,
+    event_listener::{event_pair, EventListener, EventPair},
     notification::{notification_manager, Notification},
     theme::theme_for,
+    ui::{
+        compositor::Compositor,
+        helpers::{truncate_to_width, truncate_to_width_suffix},
+        line_edit::LineEdit,
+        surface::{HandledEvent, Layout, RectSize, Surface, UIContext},
+    },
 };
-
-use super::{helpers::truncate_to_width_suffix, UIContext};
 
 pub enum MetaLineMode {
     Normal,
