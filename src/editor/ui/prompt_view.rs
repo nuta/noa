@@ -199,7 +199,7 @@ pub fn prompt<S, F, C>(
 
     let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
 
-    editor.listen_in_mainloop(
+    editor.jobs.listen_in_mainloop(
         prompt_view.entered_event_listener().clone(),
         move |editor, compositor| {
             info!("Enter pressed in prompt");

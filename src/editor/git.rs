@@ -5,6 +5,7 @@ use libgit2_sys::{
     git_libgit2_init, git_object_peel, git_repository_open, git_revparse_single, GIT_OBJECT_BLOB,
     GIT_OK,
 };
+use tokio::sync::Notify;
 
 use std::{
     ffi::{c_void, CString},
@@ -12,6 +13,12 @@ use std::{
     os::raw::{c_char, c_int},
     path::{Path, PathBuf},
     ptr,
+    sync::Arc,
+};
+
+use crate::{
+    document::{Document, OnChangeData},
+    linemap::LineMap,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -159,4 +166,25 @@ impl Repo {
 
         Ok(ctx.diffs)
     }
+}
+
+pub fn after_open_hook(repo: Option<&Arc<Repo>>, doc: &Document, render_request: &Arc<Notify>) {
+    let repo = match repo {
+        Some(repo) => repo.clone(),
+        None => return,
+    };
+
+    let mut rx = doc.subscribe_onchange();
+    let linemap = doc.linemap().clone();
+    let path = doc.path().to_owned();
+    let render_request = render_request.clone();
+    tokio::spawn(async move {
+        while let Ok(OnChangeData { raw_buffer, .. }) = rx.recv().await {
+            let buffer_text = raw_buffer.text();
+            let mut new_linemap = LineMap::new();
+            new_linemap.update_git_line_statuses(&repo, &path, &buffer_text);
+            linemap.store(Arc::new(new_linemap));
+            render_request.notify_one();
+        }
+    });
 }

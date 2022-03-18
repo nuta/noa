@@ -74,7 +74,7 @@ impl BufferView {
         let path = doc.path().to_owned();
         let main_cursor = doc.buffer().main_cursor().clone();
         let words = editor.documents.words();
-        editor.await_in_mainloop(
+        editor.jobs.await_in_mainloop(
             async move {
                 let items = complete(proxy, buffer, lang, path, main_cursor, words).await;
                 Ok(items)
@@ -430,7 +430,7 @@ impl Surface for BufferView {
                         let path = doc.path().to_owned();
                         let pos = doc.buffer().main_cursor().moving_position().into();
                         if let Some(lsp) = doc.buffer().language().lsp.as_ref() {
-                            editor.await_in_mainloop(
+                            editor.jobs.await_in_mainloop(
                                 async move {
                                     let result = match proxy.hover(lsp, &path, pos).await {
                                         Ok(Some(hover)) => match hover {

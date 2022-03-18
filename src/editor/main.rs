@@ -47,6 +47,7 @@ mod git;
 mod job;
 mod keybindings;
 mod linemap;
+mod lsp;
 mod movement;
 mod theme;
 mod ui;

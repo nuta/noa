@@ -84,7 +84,7 @@ impl JobManager {
         self.mut_callbacks.insert(id, callback);
     }
 
-    pub fn push_event_listener<Callback>(&mut self, mut listener: EventListener, callback: Callback)
+    pub fn listen_in_mainloop<Callback>(&mut self, mut listener: EventListener, callback: Callback)
     where
         Callback: FnMut(&mut Editor, &mut Compositor<Editor>) + Send + 'static,
     {
@@ -99,7 +99,7 @@ impl JobManager {
         });
     }
 
-    pub fn push_future<Fut, Ret, Callback>(&mut self, future: Fut, callback: Callback)
+    pub fn await_in_mainloop<Fut, Ret, Callback>(&mut self, future: Fut, callback: Callback)
     where
         Fut: Future<Output = Result<Ret>> + Send + 'static,
         Ret: Send + 'static,
