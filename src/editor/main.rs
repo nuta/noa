@@ -78,7 +78,13 @@ async fn main() {
 
     let render_request = Arc::new(Notify::new());
     let (notification_tx, mut notification_rx) = mpsc::unbounded_channel();
-    let mut editor = editor::Editor::new(&workspace_dir, render_request.clone(), notification_tx);
+    let (watch_tx, mut watch_rx) = mpsc::unbounded_channel();
+    let mut editor = editor::Editor::new(
+        &workspace_dir,
+        render_request.clone(),
+        notification_tx,
+        watch_tx,
+    );
     let mut compositor = Compositor::new();
 
     let mut no_files_opened = true;
@@ -143,6 +149,10 @@ async fn main() {
             Some(noti) = notification_rx.recv() => {
                 trace!("proxy notification: {:?}", noti);
                 editor.handle_notification(noti);
+            }
+
+            Some(ev) = watch_rx.recv() => {
+                file_watch::watch_event_hook(&mut editor, &ev);
             }
 
             Some(completed) = editor.jobs.get_completed() => {

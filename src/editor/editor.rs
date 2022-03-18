@@ -13,12 +13,15 @@ use noa_buffer::{
 use noa_compositor::line_edit::LineEdit;
 
 use noa_proxy::protocol::Notification;
-use tokio::sync::{mpsc::UnboundedSender, Notify};
+use tokio::sync::{
+    mpsc::{self, UnboundedSender},
+    Notify,
+};
 
 use crate::{
     clipboard::{self, ClipboardProvider},
     document::{Document, DocumentId, DocumentManager},
-    file_watch,
+    file_watch::{self, WatchEvent},
     git::{self, Repo},
     job::JobManager,
     lsp,
@@ -33,6 +36,7 @@ pub struct Editor {
     pub repo: Option<Arc<Repo>>,
     pub proxy: Arc<noa_proxy::client::Client>,
     pub render_request: Arc<Notify>,
+    pub watch_tx: mpsc::UnboundedSender<WatchEvent>,
 }
 
 impl Editor {
@@ -40,6 +44,7 @@ impl Editor {
         workspace_dir: &Path,
         render_request: Arc<Notify>,
         notification_tx: UnboundedSender<Notification>,
+        watch_tx: mpsc::UnboundedSender<WatchEvent>,
     ) -> Editor {
         let repo = match Repo::open(workspace_dir) {
             Ok(repo) => Some(Arc::new(repo)),
@@ -63,6 +68,7 @@ impl Editor {
             repo,
             proxy,
             render_request,
+            watch_tx,
         }
     }
 
@@ -76,7 +82,7 @@ impl Editor {
         // First run of tree sitter parsering, etc.
         doc.post_update_job(&self.proxy, self.repo.as_ref(), &self.render_request);
 
-        file_watch::after_open_hook(&mut self.jobs, &doc);
+        file_watch::after_open_hook(self.watch_tx.clone(), &doc);
 
         if let Some(pos) = cursor_pos {
             doc.buffer_mut().move_main_cursor_to_pos(pos);

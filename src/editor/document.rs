@@ -30,14 +30,14 @@ use noa_proxy::client::Client as ProxyClient;
 use noa_editorconfig::EditorConfig;
 use noa_languages::language::guess_language;
 use tokio::{
-    sync::{broadcast, Notify},
+    sync::{broadcast, mpsc, Notify},
     time::timeout,
 };
 
 use crate::{
     completion::{build_fuzzy_matcher, CompletionItem},
     event_listener::EventListener,
-    file_watch::{watch_file, FileWatcher},
+    file_watch::FileWatcher,
     flash::FlashManager,
     git::{self, Repo},
     linemap::LineMap,
@@ -65,8 +65,6 @@ pub struct Document {
     completion_items: Vec<CompletionItem>,
     flashes: FlashManager,
     linemap: Arc<ArcSwap<LineMap>>,
-    _watcher: Option<FileWatcher>,
-    modified_listener: Option<EventListener>,
 }
 
 static NEXT_DOCUMENT_ID: AtomicUsize = AtomicUsize::new(1);
@@ -120,14 +118,6 @@ impl Document {
             buffer.set_language(lang);
         }
 
-        let (watcher, modified_listener) = match watch_file(&path) {
-            Ok((watcher, listener)) => (Some(watcher), Some(listener)),
-            Err(err) => {
-                warn!("failed to watch file {}: {}", path.display(), err);
-                (None, None)
-            }
-        };
-
         Ok(Document {
             id,
             version: 1,
@@ -144,8 +134,6 @@ impl Document {
             completion_items: Vec::new(),
             flashes: FlashManager::new(),
             linemap: Arc::new(ArcSwap::from_pointee(LineMap::new())),
-            _watcher: watcher,
-            modified_listener,
         })
     }
 
@@ -275,10 +263,6 @@ impl Document {
 
     pub fn view_mut(&mut self) -> &mut View {
         &mut self.view
-    }
-
-    pub fn modified_listener(&self) -> Option<&EventListener> {
-        self.modified_listener.as_ref()
     }
 
     pub fn flashes(&self) -> &FlashManager {
