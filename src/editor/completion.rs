@@ -85,7 +85,7 @@ pub async fn complete(
     }
 
     // Wait for the response from the LSP server.
-    if let Ok(mut lsp_items) = lsp_items_rx.await {
+    if let Ok(lsp_items) = lsp_items_rx.await {
         for lsp_item in lsp_items.into_iter() {
             let mut text_edits: Vec<TextEdit> = lsp_item
                 .additional_text_edits

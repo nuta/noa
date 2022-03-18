@@ -440,7 +440,7 @@ impl Server for LspServer {
             }
             LspRequest::IncrementalUpdateFile {
                 path,
-                mut edits,
+                edits,
                 version,
             } => {
                 trace!(

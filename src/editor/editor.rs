@@ -179,9 +179,7 @@ async fn lsp_file_sync_task(
 
     let path = path.clone();
     while let Ok(OnChangeData {
-        version,
-        mut changes,
-        ..
+        version, changes, ..
     }) = rx.recv().await
     {
         let edits = changes

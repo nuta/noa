@@ -155,7 +155,7 @@ fn update_items(editor: &mut Editor, query: &str) {
             }
             Ok(items.into_sorted_vec())
         },
-        |_editor, compositor, mut items| {
+        |_editor, compositor, items| {
             let selector: &mut SelectorView = compositor.get_mut_surface_by_name("selector");
             if selector.opened_by() != "finder" {
                 return;
