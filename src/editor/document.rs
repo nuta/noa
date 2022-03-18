@@ -503,7 +503,7 @@ impl Drop for DocumentManager {
     fn drop(&mut self) {
         // Check if it's safe to use eprintln!() here. It should be safe because
         // Terminal is already droppped to restore the terminal state.
-        debug_assert_eq!(is_raw_mode_enabled().unwrap(), true);
+        debug_assert_eq!(is_raw_mode_enabled().unwrap(), false);
 
         if self.save_all_on_drop {
             let mut failed_any = false;
