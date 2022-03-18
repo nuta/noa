@@ -162,7 +162,7 @@ fn update_items(editor: &mut Editor, query: &str) {
             }
 
             let selector_items = items
-                .drain(..)
+                .into_iter()
                 .map(|item| {
                     let content = match &item {
                         FinderItem::File(path) => SelectorContent::Normal {

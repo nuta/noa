@@ -449,7 +449,7 @@ impl Server for LspServer {
                     edits.len()
                 );
                 let content_changes = edits
-                    .drain(..)
+                    .into_iter()
                     .map(|edit| TextDocumentContentChangeEvent {
                         range: Some(edit.range),
                         range_length: None,

@@ -185,7 +185,7 @@ async fn lsp_file_sync_task(
     }) = rx.recv().await
     {
         let edits = changes
-            .drain(..)
+            .into_iter()
             .map(|change| TextEdit {
                 range: change.range.into(),
                 new_text: change.insert_text,
