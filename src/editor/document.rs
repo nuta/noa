@@ -17,9 +17,7 @@ use anyhow::Result;
 use arc_swap::ArcSwap;
 use futures::executor::block_on;
 use fuzzy_matcher::FuzzyMatcher;
-use noa_buffer::{
-    buffer::Buffer, cursor::Position, raw_buffer::RawBuffer,
-};
+use noa_buffer::{buffer::Buffer, cursor::Position, raw_buffer::RawBuffer};
 use noa_common::{
     dirs::{backup_dir, noa_dir},
     oops::OopsExt,
@@ -29,10 +27,7 @@ use noa_proxy::client::Client as ProxyClient;
 
 use noa_editorconfig::EditorConfig;
 use noa_languages::language::guess_language;
-use tokio::{
-    sync::{Notify},
-    time::timeout,
-};
+use tokio::{sync::Notify, time::timeout};
 
 use crate::{
     completion::{build_fuzzy_matcher, CompletionItem},
@@ -458,6 +453,10 @@ impl Drop for DocumentManager {
             let mut failed_any = false;
             let mut num_saved_files = 0;
             for doc in self.documents.values_mut() {
+                if doc.is_virtual_file() {
+                    continue;
+                }
+
                 if let Err(err) = doc.save_to_file(None) {
                     notify_warn!("failed to save {}: {}", doc.path().display(), err);
                     failed_any = true;

@@ -1,28 +1,10 @@
-use std::{
-    collections::HashMap,
-    num::NonZeroUsize,
-    sync::atomic::{AtomicUsize, Ordering},
-};
-
 use anyhow::Result;
 use futures::{future::BoxFuture, stream::FuturesUnordered, Future, FutureExt, StreamExt};
 use noa_compositor::Compositor;
 
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
-
 use crate::editor::Editor;
 
 type CompletedCallback = dyn FnOnce(&mut Editor, &mut Compositor<Editor>) + Send + 'static;
-
-#[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
-pub struct CallbackId(NonZeroUsize);
-
-impl CallbackId {
-    fn alloc() -> CallbackId {
-        static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
-        CallbackId(unsafe { NonZeroUsize::new_unchecked(NEXT_ID.fetch_add(1, Ordering::SeqCst)) })
-    }
-}
 
 pub struct JobManager {
     futures: FuturesUnordered<BoxFuture<'static, Result<Box<CompletedCallback>>>>,
