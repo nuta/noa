@@ -134,7 +134,7 @@ async fn main() {
                 }
 
                 Some(ev) = compositor.recv_terminal_event() => {
-                    let _event_tick_time = Some(TimeReport::new("I/O event handling"));
+                    let _event_tick_time = Some(TimeReport::new("compositor event handling"));
                     match ev {
                         Event::Input(input) => {
                             compositor.handle_input(&mut editor, input);

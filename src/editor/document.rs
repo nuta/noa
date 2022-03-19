@@ -520,6 +520,18 @@ impl Drop for DocumentManager {
             if !failed_any {
                 notify_info!("successfully saved {} files", num_saved_files);
             }
+        } else {
+            let dirty_files: Vec<&Path> = self
+                .documents
+                .values()
+                .filter(|doc| doc.is_dirty() && !doc.is_virtual_file())
+                .map(|doc| doc.path())
+                .collect();
+
+            notify_info!("Following {} files are left dirty:", dirty_files.len());
+            for path in dirty_files {
+                notify_info!("{}", path.display());
+            }
         }
     }
 }
