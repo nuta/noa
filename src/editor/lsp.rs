@@ -13,7 +13,7 @@ use noa_buffer::{
     mutable_raw_buffer::Change,
 };
 use noa_common::oops::OopsExt;
-use noa_languages::language::Language;
+use noa_languages::Language;
 use noa_proxy::{
     client::Client,
     lsp_types::{self, CompletionTextEdit, HoverContents},

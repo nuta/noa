@@ -26,7 +26,7 @@ use noa_common::{
 use noa_proxy::client::Client as ProxyClient;
 
 use noa_editorconfig::EditorConfig;
-use noa_languages::language::guess_language;
+use noa_languages::guess_language;
 use tokio::sync::Notify;
 
 use crate::{
@@ -501,7 +501,7 @@ impl Words {
 
 #[cfg(test)]
 mod tests {
-    use noa_languages::language::get_language_by_name;
+    use noa_languages::get_language_by_name;
     use tempfile::NamedTempFile;
 
     use super::*;

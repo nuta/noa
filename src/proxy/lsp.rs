@@ -21,7 +21,7 @@ use lsp_types::{
     VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 
-use noa_languages::language::Lsp;
+use noa_languages::Lsp;
 use tokio::{
     io::BufReader,
     process::{Child, ChildStdin, ChildStdout, Command},
@@ -266,7 +266,8 @@ impl LspServer {
     ) -> Result<LspServer> {
         trace!("spawning lsp server {} ({})", name, workspace_dir.display());
         let argv = &lsp_config.argv;
-        let envp = &lsp_config.envp;
+        let envp: Vec<(&str, &str)> = lsp_config.envp.iter().map(|(k, v)| (*k, *v)).collect();
+
         let mut lsp_server = Command::new(&argv[0])
             .args(&argv[1..])
             .current_dir(workspace_dir)

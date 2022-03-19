@@ -37,7 +37,7 @@ mod tests {
     use crate::cursor::Cursor;
 
     use super::*;
-    use noa_languages::language::get_language_by_name;
+    use noa_languages::get_language_by_name;
     use pretty_assertions::assert_eq;
 
     fn selected_str(buf: &Buffer) -> Cow<'_, str> {

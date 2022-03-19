@@ -4,7 +4,7 @@ use fuzzy_matcher::skim::SkimMatcherV2;
 use noa_buffer::{buffer::TextEdit, cursor::Cursor, raw_buffer::RawBuffer};
 
 use noa_compositor::Compositor;
-use noa_languages::language::Language;
+use noa_languages::Language;
 use noa_proxy::client::Client as ProxyClient;
 
 use crate::{

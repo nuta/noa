@@ -16,7 +16,7 @@ use anyhow::Context;
 use clap::Parser;
 use daemonize::Daemonize;
 use lsp::LspServer;
-use noa_languages::language::get_language_by_name;
+use noa_languages::get_language_by_name;
 
 #[derive(Parser, Debug)]
 struct Args {

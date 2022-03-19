@@ -7,11 +7,11 @@ use crate::{
 };
 
 use noa_languages::{
-    language::Language,
     tree_sitter::{
         self, get_highlights_query, get_indents_query, get_tree_sitter_parser, InputEdit, Node,
         QueryCursor, TextProvider,
     },
+    Language,
 };
 
 struct RopeByteChunks<'a>(ropey::iter::Chunks<'a>);

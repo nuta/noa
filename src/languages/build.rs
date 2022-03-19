@@ -1,40 +1,8 @@
-use bincode::Encode;
-use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, path::Path, process::Command};
+use std::{path::Path, process::Command};
 
-#[derive(Deserialize, Serialize, Encode)]
-struct TreeSitter {
-    #[serde(default)]
-    dir: String,
-    url: String,
-    sources: Vec<String>,
-}
-
-#[derive(Deserialize, Serialize, Encode)]
-pub struct Lsp {
-    identifier: String,
-    argv: Vec<String>,
-    #[serde(default)]
-    envp: HashMap<String, String>,
-}
-
-#[derive(Deserialize, Serialize, Encode)]
-struct Language {
-    name: String,
-    #[serde(default)]
-    filenames: Vec<String>,
-    #[serde(default)]
-    extensions: Vec<String>,
-    #[serde(default)]
-    tree_sitter: Option<TreeSitter>,
-    #[serde(default)]
-    lsp: Option<Lsp>,
-}
-
-#[derive(Deserialize, Serialize, Encode)]
-struct Languages {
-    languages: Vec<Language>,
-}
+#[path = "languages.rs"]
+mod languages;
+use languages::{TreeSitter, LANGUAGES};
 
 const NVIM_TREESITTER_REPO: &str = "https://github.com/nvim-treesitter/nvim-treesitter";
 
@@ -82,16 +50,13 @@ fn get_query_path(lang_name: &str, scm_name: &str) -> String {
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=languages.yaml");
+    println!("cargo:rerun-if-changed=languages.rs");
 
     let nvim_treesitter_dir = Path::new("tree_sitter/nvim_treesitter");
     git_clone_and_pull(NVIM_TREESITTER_REPO, nvim_treesitter_dir);
 
-    let yaml: Languages = serde_yaml::from_str(include_str!("languages.yaml"))
-        .expect("failed to parse languages.yaml");
-
     let grammars_dir = Path::new("tree_sitter/grammars");
-    for lang in &yaml.languages {
+    for lang in LANGUAGES {
         println!("Downloading {}", lang.name);
         let repo_dir = grammars_dir.join(&lang.name);
 
@@ -99,8 +64,8 @@ fn main() {
             git_clone_and_pull(url, &repo_dir);
 
             let mut src_files = Vec::new();
-            for file in sources {
-                let path = repo_dir.join(dir).join(file);
+            for file in *sources {
+                let path = repo_dir.join(dir.unwrap_or(".")).join(file);
                 src_files.push(path);
             }
 
@@ -116,7 +81,7 @@ fn main() {
                 }
             }
 
-            let include_dir = repo_dir.join(dir).join("src");
+            let include_dir = repo_dir.join(dir.unwrap_or(".")).join("src");
             if !c_files.is_empty() {
                 cc::Build::new()
                     .include(&include_dir)
@@ -145,7 +110,7 @@ fn main() {
     mod_rs.push_str("#![allow(clippy::all)]\n");
     mod_rs.push_str("pub use tree_sitter::*;\n");
     mod_rs.push_str("extern \"C\" {\n");
-    for lang in &yaml.languages {
+    for lang in LANGUAGES {
         if lang.tree_sitter.is_some() {
             mod_rs.push_str(&format!(
                 "    fn tree_sitter_{}() -> Language;\n",
@@ -156,7 +121,7 @@ fn main() {
     mod_rs.push_str("}\n\n");
     mod_rs.push_str("pub fn get_tree_sitter_parser(name: &str) -> Option<Language> {\n");
     mod_rs.push_str("   match name {\n");
-    for lang in &yaml.languages {
+    for lang in LANGUAGES {
         if lang.tree_sitter.is_some() {
             mod_rs.push_str(&format!(
                 "        \"{}\" => Some(unsafe {{ tree_sitter_{}() }}),\n",
@@ -174,7 +139,7 @@ fn main() {
             scm_name
         ));
         mod_rs.push_str("   match name {\n");
-        for lang in &yaml.languages {
+        for lang in LANGUAGES {
             let scm = get_query_path(&lang.name, scm_name);
             let scm_path = Path::new(&scm);
             if scm_path.exists() {
@@ -200,8 +165,4 @@ fn main() {
     }
 
     std::fs::write("tree_sitter/mod.rs", mod_rs).unwrap();
-
-    println!("Generating languages.bincode");
-    let mut file = std::fs::File::create("languages.bincode").unwrap();
-    bincode::encode_into_std_write(yaml, &mut file, bincode::config::standard()).unwrap();
 }
