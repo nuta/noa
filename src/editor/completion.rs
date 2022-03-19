@@ -5,8 +5,7 @@ use noa_buffer::{buffer::TextEdit, cursor::Cursor, raw_buffer::RawBuffer};
 
 use noa_compositor::Compositor;
 use noa_languages::language::Language;
-use noa_proxy::{client::Client as ProxyClient};
-
+use noa_proxy::client::Client as ProxyClient;
 
 use crate::{
     document::{Document, Words},
@@ -54,7 +53,7 @@ pub async fn complete(
         None => return None,
     };
 
-    // Send the LSP request in background becuase it would take a time.
+    // Start sending a LSP request in background.
     let lsp_items = tokio::spawn(lsp::completion_hook(
         lang,
         proxy.clone(),
@@ -108,7 +107,7 @@ pub async fn complete(
     Some(unique_items)
 }
 
-pub fn clear_completion(doc: &mut Document, compositor: &mut Compositor<Editor>) {
+pub fn clear_completion(compositor: &mut Compositor<Editor>, doc: &mut Document) {
     compositor
         .get_mut_surface_by_name::<CompletionView>("completion")
         .set_active(false);

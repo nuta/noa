@@ -6,7 +6,7 @@ extern crate test;
 #[macro_use]
 extern crate log;
 
-use std::{ops::ControlFlow, path::PathBuf, sync::Arc, time::Duration};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use clap::Parser;
 
@@ -20,16 +20,10 @@ use tokio::sync::{
     Notify,
 };
 use ui::{
-    buffer_view::BufferView,
-    bump_view::BumpView,
-    completion_view::CompletionView,
-    meta_line_view::MetaLineView,
-    prompt_view::{prompt, PromptMode, PromptView},
-    selector_view::SelectorView,
+    buffer_view::BufferView, bump_view::BumpView, completion_view::CompletionView,
+    meta_line_view::MetaLineView, prompt_view::PromptView, selector_view::SelectorView,
     too_small_view::TooSmallView,
 };
-
-use crate::job::CompletedJob;
 
 #[macro_use]
 mod notification;
@@ -39,7 +33,6 @@ mod clipboard;
 mod completion;
 mod document;
 mod editor;
-mod event_listener;
 mod file_watch;
 mod finder;
 mod flash;
@@ -155,22 +148,14 @@ async fn main() {
                 file_watch::watch_event_hook(&mut editor, &ev);
             }
 
-            Some(completed) = editor.jobs.get_completed() => {
-                match completed {
-                    CompletedJob::Completed(callback) => {
-                        callback(&mut editor, &mut compositor);
-                    }
-                    CompletedJob::Notified { id, mut callback } => {
-                        callback(&mut editor, &mut compositor);
-                        editor.jobs.insert_back_notified(id, callback);
-                    }
-                }
+            Some(callback) = editor.jobs.get_completed() => {
+                callback(&mut editor, &mut compositor);
             }
 
             _ = render_request.notified() => {
             }
 
-            _ = idle_timer.tick()  => {
+            _ = idle_timer.tick() => {
                 editor.documents.current_mut().idle_job();
                 skip_rendering = true;
             }
@@ -218,38 +203,30 @@ fn check_if_dirty(
         return;
     }
 
-    prompt(
-        compositor,
-        editor,
-        PromptMode::SingleChar,
+    let prompt = compositor.get_mut_surface_by_name::<PromptView>("prompt");
+    prompt.open(
         title,
-        move |compositor, editor, answer| {
-            match answer {
-                Some(answer) if answer == "y" => {
+        Box::new(move |editor, _, prompt, _| {
+            let input = prompt.text();
+            match input.as_str() {
+                "y" => {
                     info!("saving dirty buffers...");
                     editor.documents.save_all_on_drop(true);
                     let _ = force_quit_tx.send(());
+                    prompt.close();
                 }
-                Some(answer) if answer == "n" => {
+                "n" => {
                     // Quit without saving dirty files.
                     info!("quitting without saving dirty buffers...");
                     editor.documents.save_all_on_drop(false);
                     let _ = force_quit_tx.send(());
-                }
-                None => {
-                    // Abort.
+                    prompt.close();
                 }
                 _ => {
-                    let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
-                    prompt_view.clear();
-
-                    notify_error!("invalid answer");
-                    return ControlFlow::Continue(());
+                    notify_error!("should be y or n");
+                    prompt.clear();
                 }
             }
-
-            ControlFlow::Break(())
-        },
-        |_, _| None,
+        }),
     );
 }

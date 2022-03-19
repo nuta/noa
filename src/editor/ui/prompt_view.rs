@@ -1,4 +1,4 @@
-use std::ops::ControlFlow;
+use anyhow::Result;
 
 use noa_buffer::display_width::DisplayWidth;
 
@@ -10,67 +10,46 @@ use noa_compositor::{
     Compositor,
 };
 
-use crate::{
-    editor::Editor,
-    event_listener::{event_pair, EventListener, EventPair},
-    theme::theme_for,
-};
+use crate::{editor::Editor, theme::theme_for};
 
 use super::helpers::truncate_to_width;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PromptMode {
-    String,
-    SingleChar,
-}
+pub type UpdatedCallback =
+    dyn Fn(&mut Editor, &mut Compositor<Editor>, &mut PromptView, bool /* entered */) + Send;
 
 pub struct PromptView {
     active: bool,
-    canceled: bool,
-    mode: PromptMode,
     title: String,
     title_width: usize,
     input: LineEdit,
-    entered_event: EventPair,
+    updated_callback: Option<Box<UpdatedCallback>>,
 }
 
 impl PromptView {
     pub fn new() -> PromptView {
         PromptView {
             active: false,
-            canceled: false,
-            mode: PromptMode::String,
             title: "".to_string(),
             title_width: 0,
             input: LineEdit::new(),
-            entered_event: event_pair(),
+            updated_callback: None,
         }
     }
 
-    pub fn input(&self) -> &LineEdit {
-        &self.input
-    }
-
-    pub fn is_canceled(&self) -> bool {
-        self.canceled
-    }
-
-    pub fn entered_event_listener(&self) -> &EventListener {
-        &self.entered_event.listener
-    }
-
-    pub fn activate<S: Into<String>>(&mut self, mode: PromptMode, title: S) {
+    pub fn open<S: Into<String>>(&mut self, title: S, updated: Box<UpdatedCallback>) {
         self.active = true;
-        self.canceled = false;
-        self.mode = mode;
         self.title = title.into();
         self.title_width = self.title.display_width();
         self.input.clear();
+        self.updated_callback = Some(updated);
     }
 
-    pub fn deactivate(&mut self) {
+    pub fn close(&mut self) {
         self.active = false;
-        self.input.clear();
+    }
+
+    pub fn text(&self) -> String {
+        self.input.text()
     }
 
     pub fn clear(&mut self) {
@@ -129,8 +108,8 @@ impl Surface for PromptView {
 
     fn handle_key_event(
         &mut self,
-        _compositor: &mut Compositor<Self::Context>,
-        _editor: &mut Editor,
+        compositor: &mut Compositor<Self::Context>,
+        editor: &mut Editor,
         key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
@@ -140,17 +119,20 @@ impl Surface for PromptView {
 
         trace!("prompt: {:?}", key);
         match (key.code, key.modifiers) {
-            (KeyCode::Enter, NONE) => {
-                self.entered_event.producer.notify_all();
-            }
             (KeyCode::Esc, _) | (KeyCode::Char('q'), CTRL) => {
-                self.canceled = true;
-                self.entered_event.producer.notify_all();
+                self.close();
+            }
+            (KeyCode::Enter, NONE) => {
+                if let Some(updated) = self.updated_callback.take() {
+                    updated(editor, compositor, self, true);
+                    self.updated_callback = Some(updated);
+                }
             }
             _ => {
                 self.input.consume_key_event(key);
-                if self.mode == PromptMode::SingleChar && !self.input.is_empty() {
-                    self.entered_event.producer.notify_all();
+                if let Some(updated) = self.updated_callback.take() {
+                    updated(editor, compositor, self, false);
+                    self.updated_callback = Some(updated);
                 }
             }
         }
@@ -179,58 +161,4 @@ impl Surface for PromptView {
     ) -> HandledEvent {
         HandledEvent::Consumed
     }
-}
-
-pub fn prompt<S, F, C>(
-    compositor: &mut Compositor<Editor>,
-    editor: &mut Editor,
-    _mode: PromptMode,
-    title: S,
-    mut enter_callback: F,
-    _completion_callback: C,
-) where
-    S: Into<String>,
-    F: FnMut(&mut Compositor<Editor>, &mut Editor, Option<String>) -> ControlFlow<()>
-        + Send
-        + 'static,
-    C: FnMut(&mut Editor, &LineEdit) -> Option<Vec<String>> + 'static,
-{
-    let title = title.into();
-
-    let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
-
-    editor.jobs.listen_in_mainloop(
-        prompt_view.entered_event_listener().clone(),
-        move |editor, compositor| {
-            info!("Enter pressed in prompt");
-            let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
-
-            let result = if prompt_view.is_canceled() {
-                None
-            } else {
-                Some(prompt_view.input().text())
-            };
-
-            match enter_callback(compositor, editor, result) {
-                ControlFlow::Continue(()) => {}
-                ControlFlow::Break(()) => {
-                    let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
-                    prompt_view.deactivate();
-                }
-            }
-        },
-    );
-
-    // let completion_cb = {
-    //     let title = title.clone();
-    //     editor.register_callback(move |compositor, editor| {
-    //         let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
-    //         if let Some(items) = completion_callback(editor, prompt_view.input()) {
-    //             // prompt_view.set_completion_items(items);
-    //         }
-    //     })
-    // };
-
-    let prompt_view: &mut PromptView = compositor.get_mut_surface_by_name("prompt");
-    prompt_view.activate(PromptMode::SingleChar, title);
 }

@@ -286,7 +286,7 @@ impl Surface for BufferView {
         let doc = editor.documents.current_mut();
         let prev_rope = doc.raw_buffer().rope().clone();
 
-        clear_completion(doc, compositor);
+        clear_completion(compositor, doc);
 
         let mut show_completion = false;
         match (key.code, key.modifiers) {
@@ -373,7 +373,7 @@ impl Surface for BufferView {
         s: &str,
     ) -> HandledEvent {
         let doc = editor.documents.current_mut();
-        clear_completion(doc, compositor);
+        clear_completion(compositor, doc);
         doc.buffer_mut().insert(s);
         self.post_update_job(editor);
         HandledEvent::Consumed
@@ -395,7 +395,7 @@ impl Surface for BufferView {
 
         let doc = editor.documents.current_mut();
 
-        clear_completion(doc, compositor);
+        clear_completion(compositor, doc);
 
         if kind == MouseEventKind::ScrollDown {
             doc.movement().scroll_down();

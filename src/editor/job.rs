@@ -10,10 +10,9 @@ use noa_compositor::Compositor;
 
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
-use crate::{editor::Editor, event_listener::EventListener};
+use crate::editor::Editor;
 
 type CompletedCallback = dyn FnOnce(&mut Editor, &mut Compositor<Editor>) + Send + 'static;
-type NotifyCallback = dyn FnMut(&mut Editor, &mut Compositor<Editor>) + Send + 'static;
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
 pub struct CallbackId(NonZeroUsize);
@@ -25,39 +24,22 @@ impl CallbackId {
     }
 }
 
-pub enum CompletedJob {
-    Completed(Box<CompletedCallback>),
-    /// Note: Once you used the callback, you must reeturn it into the job manager
-    ///       again through `JobManager::insert_back_notified`.
-    Notified {
-        id: CallbackId,
-        callback: Box<NotifyCallback>,
-    },
-}
-
 pub struct JobManager {
     futures: FuturesUnordered<BoxFuture<'static, Result<Box<CompletedCallback>>>>,
-    notified_tx: UnboundedSender<CallbackId>,
-    notified_rx: UnboundedReceiver<CallbackId>,
-    mut_callbacks: HashMap<CallbackId, Box<NotifyCallback>>,
 }
 
 impl JobManager {
     pub fn new() -> JobManager {
-        let (notified_tx, notified_rx) = unbounded_channel();
         JobManager {
             futures: FuturesUnordered::new(),
-            notified_tx,
-            notified_rx,
-            mut_callbacks: HashMap::new(),
         }
     }
 
-    pub async fn get_completed(&mut self) -> Option<CompletedJob> {
+    pub async fn get_completed(&mut self) -> Option<Box<CompletedCallback>> {
         tokio::select! {
             Some(callback) = self.futures.next() => {
                 match callback {
-                    Ok(callback) => Some(CompletedJob::Completed(callback)),
+                    Ok(callback) => Some(callback),
                     Err(err) => {
                         warn!("job returned error: {}", err);
                         None
@@ -65,38 +47,10 @@ impl JobManager {
                 }
             }
 
-            Some(id) = self.notified_rx.recv() => {
-                // Remove the callback temporarily so that the caller don't
-                // need self's mutable reference to use the callback.
-                let callback = self.mut_callbacks.remove(&id).unwrap();
-                Some(CompletedJob::Notified{ id, callback })
-            }
-
             else => {
                 None
             }
         }
-    }
-
-    /// XXX: This is a hack to get around the ownership rule by taking the callback
-    ///      out of `Editor` temporarily.
-    pub fn insert_back_notified(&mut self, id: CallbackId, callback: Box<NotifyCallback>) {
-        self.mut_callbacks.insert(id, callback);
-    }
-
-    pub fn listen_in_mainloop<Callback>(&mut self, mut listener: EventListener, callback: Callback)
-    where
-        Callback: FnMut(&mut Editor, &mut Compositor<Editor>) + Send + 'static,
-    {
-        let id = CallbackId::alloc();
-        self.mut_callbacks.insert(id, Box::new(callback));
-        let notified_tx = self.notified_tx.clone();
-
-        tokio::spawn(async move {
-            while let Ok(()) = listener.notified().await {
-                let _ = notified_tx.send(id);
-            }
-        });
     }
 
     pub fn await_in_mainloop<Fut, Ret, Callback>(&mut self, future: Fut, callback: Callback)
