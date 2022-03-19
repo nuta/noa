@@ -150,6 +150,7 @@ impl Document {
         })
     }
 
+    #[allow(unused)]
     pub fn change_language(&mut self, lang: &'static Language) {
         self.buffer.set_language(lang);
         self.parser_tx = spawn_parser_task(
@@ -396,18 +397,19 @@ fn spawn_parser_task(
 ) -> UnboundedSender<(RawBuffer, Vec<Change>)> {
     let (parser_tx, mut parser_rx) = mpsc::unbounded_channel::<(RawBuffer, Vec<Change>)>();
 
+    // Use spawn_blocking since parsing is CPU-bound.
     tokio::task::spawn_blocking(move || {
         let mut syntax = match Syntax::new(lang) {
             Some(syntax) => syntax,
             None => return,
         };
 
-        trace!("parsing as lang: {}, {}", lang.name, initial_buffer.text());
+        // First, parse the whole buffer.
         syntax.update(&initial_buffer, None);
         let _ = updated_syntax_tx.send((doc_id, syntax.tree().clone()));
 
+        // After that, parse the buffer incrementally...
         while let Some((raw_buffer, changes)) = parser_rx.blocking_recv() {
-            trace!("parse: {:?}, {:?}", doc_id, changes);
             syntax.update(&raw_buffer, Some(&changes));
             let _ = updated_syntax_tx.send((doc_id, syntax.tree().clone()));
         }
