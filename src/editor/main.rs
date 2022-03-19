@@ -116,64 +116,70 @@ async fn main() {
     drop(boot_time);
 
     let mut idle_timer = tokio::time::interval(Duration::from_millis(1200));
-    loop {
-        let mut skip_rendering = false;
-        tokio::select! {
-            biased;
-
-            _ = force_quit_rx.recv() => {
-                break;
-           }
-
-            Some(()) =  quit_rx.recv() => {
-                check_if_dirty(&mut editor, &mut compositor, force_quit_tx.clone());
-            }
-
-            Some(ev) = compositor.recv_terminal_event() => {
-                let _event_tick_time = Some(TimeReport::new("I/O event handling"));
-                match ev {
-                    Event::Input(input) => {
-                        compositor.handle_input(&mut editor, input);
-                    }
-                    Event::Resize { height, width } => {
-                        compositor.resize_screen(height, width);
-                    }
-                }
-            }
-
-            Some(noti) = notification_rx.recv() => {
-                trace!("proxy notification: {:?}", noti);
-                editor.handle_notification(noti);
-            }
-
-            Some(ev) = watch_rx.recv() => {
-                file_watch::watch_event_hook(&mut editor, &ev);
-            }
-
-            Some((doc_id, new_tree)) = updated_syntax_rx.recv() => {
-                trace!("updating syntax tree for {:?}", doc_id);
-                if let Some(doc) = editor.documents.get_mut_document_by_id(doc_id) {
-                    doc.buffer_mut().set_syntax_tree(new_tree);
-                }
-            }
-
-            Some(callback) = editor.jobs.get_completed() => {
-                callback(&mut editor, &mut compositor);
-            }
-
-            _ = render_request.notified() => {
-            }
-
-            _ = idle_timer.tick() => {
-                editor.documents.current_mut().idle_job();
-                skip_rendering = true;
-            }
-        }
-
-        if !skip_rendering {
-            compositor.render_to_terminal(&mut editor);
-        }
+    'outer: loop {
         idle_timer.reset();
+
+        // Consume pending (ready) events.
+        'inner: for i in 0.. {
+            tokio::select! {
+                biased;
+
+                _ = force_quit_rx.recv() => {
+                    break 'outer;
+               }
+
+                Some(()) =  quit_rx.recv() => {
+                    check_if_dirty(&mut editor, &mut compositor, force_quit_tx.clone());
+                }
+
+                Some(ev) = compositor.recv_terminal_event() => {
+                    let _event_tick_time = Some(TimeReport::new("I/O event handling"));
+                    match ev {
+                        Event::Input(input) => {
+                            compositor.handle_input(&mut editor, input);
+                        }
+                        Event::Resize { height, width } => {
+                            compositor.resize_screen(height, width);
+                        }
+                    }
+                }
+
+                Some(noti) = notification_rx.recv() => {
+                    trace!("proxy notification: {:?}", noti);
+                    editor.handle_notification(noti);
+                }
+
+                Some(ev) = watch_rx.recv() => {
+                    file_watch::watch_event_hook(&mut editor, &ev);
+                }
+
+                Some((doc_id, new_tree)) = updated_syntax_rx.recv() => {
+                    if let Some(doc) = editor.documents.get_mut_document_by_id(doc_id) {
+                        doc.buffer_mut().set_syntax_tree(new_tree);
+                    }
+                }
+
+                Some(callback) = editor.jobs.get_completed() => {
+                    callback(&mut editor, &mut compositor);
+                }
+
+                _ = render_request.notified() => {
+                }
+
+                _ = idle_timer.tick() => {
+                    editor.documents.current_mut().idle_job();
+                }
+
+                _ = futures::future::ready(()), if i > 0 => {
+                    // Since we've already handled the first event, if there're no
+                    // pending events, we should break the loop to update the
+                    // terminal.
+                    break 'inner;
+                }
+            }
+        }
+
+        compositor.render_to_terminal(&mut editor);
     }
 
     // Drop compoisitor first to restore the terminal.

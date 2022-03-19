@@ -358,10 +358,7 @@ impl Document {
         repo: Option<&Arc<Repo>>,
         render_request: &Arc<Notify>,
     ) {
-        self.version += 1;
-        self.completion_items.clear();
         let changes = self.buffer.clear_recorded_changes();
-        self.buffer.clear_undo_and_redo_stacks();
 
         // Parse the buffer using tree-sitter in the background.
         {
@@ -369,6 +366,10 @@ impl Document {
             let raw_buffer = self.buffer.raw_buffer().clone();
             let _ = self.parser_tx.send((raw_buffer, changes));
         }
+
+        self.version += 1;
+        self.completion_items.clear();
+        self.buffer.clear_undo_and_redo_stacks();
 
         lsp::modified_hook(proxy, self, changes);
         git::modified_hook(repo, self, render_request);
