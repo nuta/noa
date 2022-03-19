@@ -11,9 +11,9 @@ use noa_languages::language::{get_language_by_name, Language};
 use crate::{
     cursor::{Cursor, CursorId, CursorSet, Position, Range},
     extras::indent::compute_desired_indent_len,
+    mutable_raw_buffer::{Change, MutableRawBuffer},
     raw_buffer::RawBuffer,
     syntax::Syntax,
-    undoable_raw_buffer::{Change, UndoableRawBuffer},
 };
 
 #[derive(Clone, PartialEq, Debug)]
@@ -39,7 +39,7 @@ struct UndoState {
 pub struct Buffer {
     lang: &'static Language,
     syntax: Option<Syntax>,
-    pub(crate) buf: UndoableRawBuffer,
+    pub(crate) buf: MutableRawBuffer,
     pub(crate) cursors: CursorSet,
     pub(crate) config: EditorConfig,
     undo_stack: Vec<UndoState>,
@@ -51,7 +51,7 @@ impl Buffer {
         Buffer {
             lang: get_language_by_name("plain").unwrap(),
             syntax: None,
-            buf: UndoableRawBuffer::new(),
+            buf: MutableRawBuffer::new(),
             cursors: CursorSet::new(),
             config: EditorConfig::default(),
             undo_stack: Vec::new(),
@@ -65,14 +65,14 @@ impl Buffer {
 
     pub fn from_text(text: &str) -> Buffer {
         Buffer {
-            buf: UndoableRawBuffer::from_text(text),
+            buf: MutableRawBuffer::from_text(text),
             ..Default::default()
         }
     }
 
     pub fn from_reader<T: std::io::Read>(reader: T) -> std::io::Result<Buffer> {
         Ok(Buffer {
-            buf: UndoableRawBuffer::from_reader(reader)?,
+            buf: MutableRawBuffer::from_reader(reader)?,
             ..Default::default()
         })
     }
@@ -80,7 +80,7 @@ impl Buffer {
     pub fn set_raw_buffer(&mut self, raw_buffer: RawBuffer) {
         self.select_whole_buffer();
         self.delete();
-        self.buf = UndoableRawBuffer::from_raw_buffer(raw_buffer);
+        self.buf = MutableRawBuffer::from_raw_buffer(raw_buffer);
 
         // Reparse the whole buffer.
         if let Some(syntax) = self.syntax.as_mut() {
@@ -195,7 +195,7 @@ impl Buffer {
 
     pub fn set_main_cursor_with<F>(&mut self, mut f: F)
     where
-        F: FnMut(&mut Cursor, &UndoableRawBuffer),
+        F: FnMut(&mut Cursor, &MutableRawBuffer),
     {
         self.cursors.foreach(|c, _past_cursors| {
             if c.is_main_cursor() {
@@ -218,7 +218,7 @@ impl Buffer {
 
     pub fn foreach_cursors<F>(&mut self, mut f: F)
     where
-        F: FnMut(&mut UndoableRawBuffer, &mut Cursor, &mut [Cursor]),
+        F: FnMut(&mut MutableRawBuffer, &mut Cursor, &mut [Cursor]),
     {
         self.cursors.foreach(|c, past_cursors| {
             f(&mut self.buf, c, past_cursors);
@@ -320,7 +320,7 @@ impl Buffer {
     }
 
     pub fn clear(&mut self) {
-        self.buf = UndoableRawBuffer::new();
+        self.buf = MutableRawBuffer::new();
         self.cursors = CursorSet::new();
     }
 
@@ -525,9 +525,9 @@ impl Default for Buffer {
 }
 
 impl Deref for Buffer {
-    type Target = UndoableRawBuffer;
+    type Target = MutableRawBuffer;
 
-    fn deref(&self) -> &UndoableRawBuffer {
+    fn deref(&self) -> &MutableRawBuffer {
         &self.buf
     }
 }

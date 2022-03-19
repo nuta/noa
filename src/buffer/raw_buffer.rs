@@ -8,8 +8,7 @@ use crate::{
     word_iter::{is_word_char, WordIter},
 };
 
-/// An internal buffer implementation supporting primitive operations required
-/// by the editor.
+/// An internal immutable buffer, being used as a snapshot.
 ///
 /// This object offers a cheap `clone`-ing thanks to the underlying data sturcture
 /// called *rope*. It makes significantly easy to implement undo/redo operations.
@@ -179,29 +178,6 @@ impl RawBuffer {
         FindIter::new(self.char_iter(pos), query)
     }
 
-    /// Replaces the text at the `range` with `new_text`.
-    ///
-    /// This is the only method that modifies the buffer.
-    ///
-    /// # Complexity
-    ///
-    /// According to the ropey's documentation:
-    //
-    /// Runs in O(M + log N) time, where N is the length of the Rope and M
-    /// is the length of the range being removed/inserted.
-    pub fn edit(&mut self, range: Range, new_text: &str) {
-        let start = self.pos_to_char_index(range.front());
-        let end = self.pos_to_char_index(range.back());
-
-        if !(start..end).is_empty() {
-            self.rope.remove(start..end);
-        }
-
-        if !new_text.is_empty() {
-            self.rope.insert(start, new_text);
-        }
-    }
-
     pub(crate) fn rope_slice(&self, range: Range) -> ropey::RopeSlice<'_> {
         let start = self.pos_to_char_index(range.front());
         let end = self.pos_to_char_index(range.back());
@@ -251,29 +227,15 @@ impl fmt::Debug for RawBuffer {
     }
 }
 
+impl From<ropey::Rope> for RawBuffer {
+    fn from(rope: ropey::Rope) -> RawBuffer {
+        RawBuffer { rope }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_insertion() {
-        let mut buffer = RawBuffer::new();
-        buffer.edit(Range::new(0, 0, 0, 0), "ABG");
-        assert_eq!(buffer.text(), "ABG");
-
-        buffer.edit(Range::new(0, 2, 0, 2), "CDEF");
-        assert_eq!(buffer.text(), "ABCDEFG");
-    }
-
-    #[test]
-    fn test_deletion() {
-        let mut buffer = RawBuffer::from_text("ABCDEFG");
-        buffer.edit(Range::new(0, 1, 0, 1), "");
-        assert_eq!(buffer.text(), "ABCDEFG");
-
-        buffer.edit(Range::new(0, 1, 0, 3), "");
-        assert_eq!(buffer.text(), "ADEFG");
-    }
 
     #[test]
     fn test_substr() {

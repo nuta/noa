@@ -2,10 +2,9 @@ use std::{collections::HashMap, ops::ControlFlow};
 
 use crate::{
     cursor::{Position, Range},
+    mutable_raw_buffer::Change,
     raw_buffer::RawBuffer,
-    undoable_raw_buffer::Change,
 };
-
 
 use noa_languages::{
     language::Language,

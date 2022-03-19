@@ -13,35 +13,37 @@ pub struct Change {
     pub insert_text: String,
 }
 
-pub struct UndoableRawBuffer {
+/// An internal mutable buffer implementation supporting primitive operations
+/// required by the editor.
+pub struct MutableRawBuffer {
     raw: RawBuffer,
     changes: Vec<Change>,
 }
 
-impl UndoableRawBuffer {
-    pub fn new() -> UndoableRawBuffer {
-        UndoableRawBuffer {
+impl MutableRawBuffer {
+    pub fn new() -> MutableRawBuffer {
+        MutableRawBuffer {
             raw: RawBuffer::new(),
             changes: Vec::new(),
         }
     }
 
-    pub fn from_raw_buffer(raw_buffer: RawBuffer) -> UndoableRawBuffer {
-        UndoableRawBuffer {
+    pub fn from_raw_buffer(raw_buffer: RawBuffer) -> MutableRawBuffer {
+        MutableRawBuffer {
             raw: raw_buffer,
             changes: Vec::new(),
         }
     }
 
-    pub fn from_text(text: &str) -> UndoableRawBuffer {
-        UndoableRawBuffer {
+    pub fn from_text(text: &str) -> MutableRawBuffer {
+        MutableRawBuffer {
             raw: RawBuffer::from_text(text),
             changes: Vec::new(),
         }
     }
 
-    pub fn from_reader<T: std::io::Read>(reader: T) -> std::io::Result<UndoableRawBuffer> {
-        Ok(UndoableRawBuffer {
+    pub fn from_reader<T: std::io::Read>(reader: T) -> std::io::Result<MutableRawBuffer> {
+        Ok(MutableRawBuffer {
             raw: RawBuffer::from_reader(reader)?,
             changes: Vec::new(),
         })
@@ -57,6 +59,32 @@ impl UndoableRawBuffer {
         changes
     }
 
+    /// Replaces the text at the `range` with `new_text`.
+    ///
+    /// This is the only method that modifies the buffer.
+    ///
+    /// # Complexity
+    ///
+    /// According to the ropey's documentation:
+    //
+    /// Runs in O(M + log N) time, where N is the length of the Rope and M
+    /// is the length of the range being removed/inserted.
+    fn edit_without_recording(&mut self, range: Range, new_text: &str) {
+        let start = self.pos_to_char_index(range.front());
+        let end = self.pos_to_char_index(range.back());
+
+        let mut rope = self.raw.rope().clone();
+        if !(start..end).is_empty() {
+            rope.remove(start..end);
+        }
+
+        if !new_text.is_empty() {
+            rope.insert(start, new_text);
+        }
+
+        self.raw = RawBuffer::from(rope);
+    }
+
     pub fn edit(&mut self, range: Range, new_text: &str) -> &Change {
         let new_pos = Position::position_after_edit(range, new_text);
         self.changes.push(Change {
@@ -67,7 +95,7 @@ impl UndoableRawBuffer {
                 ..self.raw.pos_to_byte_index(range.back()),
         });
 
-        self.raw.edit(range, new_text);
+        self.edit_without_recording(range, new_text);
         self.changes.last().unwrap()
     }
 
@@ -104,22 +132,47 @@ impl UndoableRawBuffer {
     }
 }
 
-impl Default for UndoableRawBuffer {
-    fn default() -> UndoableRawBuffer {
-        UndoableRawBuffer::new()
+impl Default for MutableRawBuffer {
+    fn default() -> MutableRawBuffer {
+        MutableRawBuffer::new()
     }
 }
 
-impl PartialEq for UndoableRawBuffer {
+impl PartialEq for MutableRawBuffer {
     fn eq(&self, other: &Self) -> bool {
         self.raw == other.raw
     }
 }
 
-impl Deref for UndoableRawBuffer {
+impl Deref for MutableRawBuffer {
     type Target = RawBuffer;
 
     fn deref(&self) -> &RawBuffer {
         &self.raw
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_insertion() {
+        let mut buffer = MutableRawBuffer::new();
+        buffer.edit(Range::new(0, 0, 0, 0), "ABG");
+        assert_eq!(buffer.text(), "ABG");
+
+        buffer.edit(Range::new(0, 2, 0, 2), "CDEF");
+        assert_eq!(buffer.text(), "ABCDEFG");
+    }
+
+    #[test]
+    fn test_deletion() {
+        let mut buffer = MutableRawBuffer::from_text("ABCDEFG");
+        buffer.edit(Range::new(0, 1, 0, 1), "");
+        assert_eq!(buffer.text(), "ABCDEFG");
+
+        buffer.edit(Range::new(0, 1, 0, 3), "");
+        assert_eq!(buffer.text(), "ADEFG");
     }
 }

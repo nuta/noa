@@ -10,7 +10,7 @@ use futures::executor::block_on;
 use noa_buffer::{
     buffer::TextEdit,
     cursor::{Position, Range},
-    undoable_raw_buffer::Change,
+    mutable_raw_buffer::Change,
 };
 use noa_common::oops::OopsExt;
 use noa_languages::language::Language;
