@@ -80,12 +80,7 @@ impl Buffer {
     pub fn set_raw_buffer(&mut self, raw_buffer: RawBuffer) {
         self.select_whole_buffer();
         self.delete();
-        self.buf = MutableRawBuffer::from_raw_buffer(raw_buffer);
-
-        // Reparse the whole buffer.
-        if let Some(syntax) = self.syntax.as_mut() {
-            syntax.update(&self.buf, None);
-        }
+        self.insert(&raw_buffer.text());
     }
 
     pub fn set_from_reader<T: std::io::Read>(&mut self, reader: T) -> std::io::Result<()> {
@@ -132,9 +127,6 @@ impl Buffer {
     pub fn set_language(&mut self, lang: &'static Language) {
         self.lang = lang;
         self.syntax = Syntax::new(lang);
-        if let Some(syntax) = self.syntax.as_mut() {
-            syntax.update(&self.buf, None);
-        }
     }
 
     pub fn cursors(&self) -> &[Cursor] {

@@ -105,8 +105,8 @@ impl Query {
 pub struct Syntax {
     tree: tree_sitter::Tree,
     parser: tree_sitter::Parser,
-    pub highlight_query: Query,
-    pub indents_query: Query,
+    highlight_query: Query,
+    indents_query: Query,
 }
 
 impl Syntax {

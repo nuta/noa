@@ -29,7 +29,7 @@ use noa_common::{
 use noa_proxy::client::Client as ProxyClient;
 
 use noa_editorconfig::EditorConfig;
-use noa_languages::{guess_language, tree_sitter};
+use noa_languages::{guess_language, tree_sitter, Language};
 use tokio::sync::{
     mpsc::{self, UnboundedSender},
     Notify,
@@ -64,11 +64,8 @@ pub struct Document {
     completion_items: Vec<CompletionItem>,
     flashes: FlashManager,
     linemap: Arc<ArcSwap<LineMap>>,
-    background_parsing_tx: UnboundedSender<(
-        RawBuffer,
-        tree_sitter::Tree, /* old_tree */
-        Vec<Change>,
-    )>,
+    parser_tx: UnboundedSender<(RawBuffer, Vec<Change>)>,
+    updated_syntax_tx: UnboundedSender<(DocumentId, tree_sitter::Tree)>,
 }
 
 static NEXT_DOCUMENT_ID: AtomicUsize = AtomicUsize::new(1);
@@ -125,23 +122,12 @@ impl Document {
             buffer.set_language(lang);
         }
 
-        let lang = buffer.language();
-        let updated_syntax_tx = updated_syntax_tx.clone();
-        let (background_parsing_tx, mut background_parsing_rx) =
-            mpsc::unbounded_channel::<(RawBuffer, tree_sitter::Tree, Vec<Change>)>();
-        tokio::task::spawn_blocking(move || {
-            let mut syntax = match Syntax::new(lang) {
-                Some(syntax) => syntax,
-                None => return,
-            };
-
-            while let Some((raw_buffer, old_tree, changes)) = background_parsing_rx.blocking_recv()
-            {
-                syntax.set_tree(old_tree);
-                syntax.update(&raw_buffer, Some(&changes));
-                let _ = updated_syntax_tx.send((id, syntax.tree().clone()));
-            }
-        });
+        let parser_tx = spawn_parser_task(
+            id,
+            buffer.language(),
+            buffer.raw_buffer().clone(),
+            updated_syntax_tx.clone(),
+        );
 
         Ok(Document {
             id,
@@ -159,8 +145,19 @@ impl Document {
             completion_items: Vec::new(),
             flashes: FlashManager::new(),
             linemap: Arc::new(ArcSwap::from_pointee(LineMap::new())),
-            background_parsing_tx,
+            parser_tx,
+            updated_syntax_tx: updated_syntax_tx.clone(),
         })
+    }
+
+    pub fn change_language(&mut self, lang: &'static Language) {
+        self.buffer.set_language(lang);
+        self.parser_tx = spawn_parser_task(
+            self.id,
+            lang,
+            self.buffer.raw_buffer().clone(),
+            self.updated_syntax_tx.clone(),
+        );
     }
 
     pub fn save_to_file(&mut self, proxy: Option<&Arc<ProxyClient>>) -> Result<()> {
@@ -326,7 +323,6 @@ impl Document {
         // Highlight a matching bracket.
         let main_pos = self.buffer.main_cursor().moving_position();
         if let Some(range) = self.buffer.matching_bracket(main_pos) {
-            trace!("matching bracket: {:?}", range);
             self.view.highlight(range, "buffer.matching_bracket");
         }
 
@@ -366,14 +362,11 @@ impl Document {
         let changes = self.buffer.clear_recorded_changes();
         self.buffer.clear_undo_and_redo_stacks();
 
+        // Parse the buffer using tree-sitter in the background.
         {
             let changes = changes.clone();
             let raw_buffer = self.buffer.raw_buffer().clone();
-            if let Some(syntax) = self.buffer.syntax() {
-                let _ =
-                    self.background_parsing_tx
-                        .send((raw_buffer, syntax.tree().clone(), changes));
-            }
+            let _ = self.parser_tx.send((raw_buffer, changes));
         }
 
         lsp::modified_hook(proxy, self, changes);
@@ -393,6 +386,34 @@ impl Document {
             }
         }
     }
+}
+
+fn spawn_parser_task(
+    doc_id: DocumentId,
+    lang: &'static Language,
+    initial_buffer: RawBuffer,
+    updated_syntax_tx: UnboundedSender<(DocumentId, tree_sitter::Tree)>,
+) -> UnboundedSender<(RawBuffer, Vec<Change>)> {
+    let (parser_tx, mut parser_rx) = mpsc::unbounded_channel::<(RawBuffer, Vec<Change>)>();
+
+    tokio::task::spawn_blocking(move || {
+        let mut syntax = match Syntax::new(lang) {
+            Some(syntax) => syntax,
+            None => return,
+        };
+
+        trace!("parsing as lang: {}, {}", lang.name, initial_buffer.text());
+        syntax.update(&initial_buffer, None);
+        let _ = updated_syntax_tx.send((doc_id, syntax.tree().clone()));
+
+        while let Some((raw_buffer, changes)) = parser_rx.blocking_recv() {
+            trace!("parse: {:?}, {:?}", doc_id, changes);
+            syntax.update(&raw_buffer, Some(&changes));
+            let _ = updated_syntax_tx.send((doc_id, syntax.tree().clone()));
+        }
+    });
+
+    parser_tx
 }
 
 pub struct DocumentManager {
@@ -558,11 +579,12 @@ mod tests {
     ) -> (DocumentManager, Vec<NamedTempFile>) {
         let text = &(format!("{}\n", "int helloworld; ".repeat(5))).repeat(num_lines);
 
-        let mut documents = DocumentManager::new();
+        let (tx, rx) = mpsc::unbounded_channel();
+        let mut documents = DocumentManager::new(&tx);
         let mut dummy_files = Vec::new();
         for _ in 0..num_files {
             let dummy_file = tempfile::NamedTempFile::new().unwrap();
-            let mut doc = Document::new(dummy_file.path()).unwrap();
+            let mut doc = Document::new(dummy_file.path(), &tx).unwrap();
             doc.buffer_mut().insert(text);
             doc.buffer_mut()
                 .set_language(get_language_by_name("c").unwrap());

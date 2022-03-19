@@ -151,6 +151,7 @@ async fn main() {
             }
 
             Some((doc_id, new_tree)) = updated_syntax_rx.recv() => {
+                trace!("updating syntax tree for {:?}", doc_id);
                 if let Some(doc) = editor.documents.get_mut_document_by_id(doc_id) {
                     doc.buffer_mut().set_syntax_tree(new_tree);
                 }
