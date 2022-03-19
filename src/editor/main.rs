@@ -120,7 +120,7 @@ async fn main() {
     'outer: loop {
         idle_timer.reset();
 
-        // Consume pending (ready) events.
+        // Consume pending (i.e. ready) events.
         'inner: for i in 0.. {
             tokio::select! {
                 biased;
@@ -181,7 +181,7 @@ async fn main() {
                 _ = futures::future::ready(()), if i > 0 => {
                     // Since we've already handled the first event, if there're no
                     // pending events, we should break the loop to update the
-                    // terminal.
+                    // terminal contents.
                     break 'inner;
                 }
             }
