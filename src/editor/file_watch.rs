@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use anyhow::{Context, Result};
+use noa_common::oops::OopsExt;
 use notify::{DebouncedEvent, Watcher};
 use tokio::sync::mpsc;
 
@@ -22,14 +23,21 @@ pub fn after_open_hook(watch_tx: mpsc::UnboundedSender<WatchEvent>, doc: &Docume
     let doc_id = doc.id();
     let path = doc.path().to_path_buf();
 
-    let (raw_tx, raw_rx) = std::sync::mpsc::channel();
-    let mut watcher = notify::watcher(raw_tx, Duration::from_secs(1))
-        .context("failed to create a file watcher")?;
-    watcher
-        .watch(&path, notify::RecursiveMode::NonRecursive)
-        .with_context(|| format!("failed to watch {}", path.display()))?;
-
     std::thread::spawn(move || {
+        let (raw_tx, raw_rx) = std::sync::mpsc::channel();
+        let mut watcher = match notify::watcher(raw_tx, Duration::from_secs(1)) {
+            Ok(watcher) => watcher,
+            Err(err) => {
+                notify_warn!("failed watch the file: {}", err);
+                return;
+            }
+        };
+
+        watcher
+            .watch(&path, notify::RecursiveMode::NonRecursive)
+            .with_context(|| format!("failed to watch {}", path.display()))
+            .oops();
+
         while let Ok(ev) = raw_rx.recv() {
             trace!("received a file event: {:?}", ev);
             match ev {
