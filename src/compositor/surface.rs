@@ -41,8 +41,8 @@ pub trait Surface: Any {
 
     fn handle_key_event(
         &mut self,
-        _compositor: &mut Compositor<Self::Context>,
         _ctx: &mut Self::Context,
+        _compositor: &mut Compositor<Self::Context>,
         _key: KeyEvent,
     ) -> HandledEvent {
         HandledEvent::Ignored
@@ -50,8 +50,8 @@ pub trait Surface: Any {
 
     fn handle_mouse_event(
         &mut self,
-        _compositor: &mut Compositor<Self::Context>,
         _ctx: &mut Self::Context,
+        _compositor: &mut Compositor<Self::Context>,
         _kind: MouseEventKind,
         _modifiers: KeyModifiers,
         _surface_y: usize,
@@ -61,8 +61,8 @@ pub trait Surface: Any {
     }
     fn handle_key_batch_event(
         &mut self,
-        _compositor: &mut Compositor<Self::Context>,
         _ctx: &mut Self::Context,
+        _compositor: &mut Compositor<Self::Context>,
         _input: &str,
     ) -> HandledEvent {
         HandledEvent::Ignored

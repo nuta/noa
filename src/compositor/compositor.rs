@@ -181,7 +181,7 @@ impl<C: 'static> Compositor<C> {
                 self.past_layers = Vec::new();
                 while let Some(mut layer) = self.layers.pop() {
                     let result = if layer.surface.is_active(ctx) {
-                        layer.surface.handle_key_event(self, ctx, key)
+                        layer.surface.handle_key_event(ctx, self, key)
                     } else {
                         HandledEvent::Ignored
                     };
@@ -204,8 +204,8 @@ impl<C: 'static> Compositor<C> {
 
                     let result = if layer.surface.is_active(ctx) && in_bounds {
                         layer.surface.handle_mouse_event(
-                            self,
                             ctx,
+                            self,
                             ev.kind,
                             ev.modifiers,
                             screen_y - layer.screen_y,
@@ -226,7 +226,7 @@ impl<C: 'static> Compositor<C> {
                 self.past_layers = Vec::new();
                 while let Some(mut layer) = self.layers.pop() {
                     let result = if layer.surface.is_active(ctx) {
-                        layer.surface.handle_key_batch_event(self, ctx, &input)
+                        layer.surface.handle_key_batch_event(ctx, self, &input)
                     } else {
                         HandledEvent::Ignored
                     };

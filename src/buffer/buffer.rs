@@ -507,7 +507,6 @@ impl Buffer {
         self.cursors.redo_cursor_movements();
     }
 
-    // FIXME:
     pub fn post_update_hook(&mut self) -> Vec<Change> {
         let changes = self.buf.clear_changes();
         if let Some(syntax) = self.syntax.as_mut() {

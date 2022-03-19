@@ -78,8 +78,8 @@ impl Surface for CompletionView {
 
     fn handle_key_event(
         &mut self,
-        _compositor: &mut Compositor<Self::Context>,
         editor: &mut Editor,
+        _compositor: &mut Compositor<Self::Context>,
         key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
@@ -133,8 +133,8 @@ impl Surface for CompletionView {
 
     fn handle_key_batch_event(
         &mut self,
-        _compositor: &mut Compositor<Editor>,
         _ctx: &mut Self::Context,
+        _compositor: &mut Compositor<Editor>,
         _input: &str,
     ) -> HandledEvent {
         HandledEvent::Ignored
@@ -142,8 +142,8 @@ impl Surface for CompletionView {
 
     fn handle_mouse_event(
         &mut self,
-        _compositor: &mut Compositor<Self::Context>,
         _ctx: &mut Self::Context,
+        _compositor: &mut Compositor<Self::Context>,
         _kind: MouseEventKind,
         _modifiers: KeyModifiers,
         _surface_y: usize,

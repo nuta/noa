@@ -1,4 +1,7 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use anyhow::Result;
 
@@ -11,12 +14,14 @@ use noa_common::oops::OopsExt;
 use noa_languages::language::Language;
 use noa_proxy::{
     client::Client,
-    lsp_types::{self, CompletionTextEdit},
+    lsp_types::{self, CompletionTextEdit, HoverContents},
 };
 
 use crate::{
     completion::{CompletionItem, CompletionKind},
     document::Document,
+    job::JobManager,
+    ui::{bump_view::BumpView, markdown::Markdown},
 };
 
 pub fn modified_hook(client: &Arc<Client>, doc: &Document, changes: Vec<Change>) {
@@ -123,4 +128,63 @@ pub async fn completion_hook(
     }
 
     Ok(items)
+}
+
+pub fn hover_hook(
+    client: &Arc<Client>,
+    jobs: &mut JobManager,
+    lang: &'static Language,
+    path: &Path,
+    pos: Position,
+) {
+    let lsp = match lang.lsp.as_ref() {
+        Some(lsp) => lsp,
+        None => return,
+    };
+
+    let client = client.clone();
+    let path = path.to_owned();
+    jobs.await_in_mainloop(
+        async move {
+            let result = match client.hover(lsp, &path, pos.into()).await {
+                Ok(Some(hover)) => match hover {
+                    HoverContents::Scalar(text) => {
+                        let markdown = Markdown::from(text);
+                        notify_info!("{}", markdown);
+                        Some(markdown)
+                    }
+                    HoverContents::Array(items) if !items.is_empty() => {
+                        let markdown = Markdown::from(items[0].clone());
+                        notify_info!("{}", markdown);
+                        Some(markdown)
+                    }
+                    HoverContents::Markup(markup) => {
+                        let markdown = Markdown::from(markup);
+                        notify_info!("{}", markdown);
+                        Some(markdown)
+                    }
+                    _ => {
+                        warn!("unsupported hover type: {:?}", hover);
+                        None
+                    }
+                },
+                Ok(None) => {
+                    notify_warn!("no hover info");
+                    None
+                }
+                Err(err) => {
+                    notify_error!("failed to get hover info: {}", err);
+                    None
+                }
+            };
+
+            Ok(result)
+        },
+        |_, compositor, markdown| {
+            if let Some(markdown) = markdown {
+                let bump_view: &mut BumpView = compositor.get_mut_surface_by_name("bump");
+                bump_view.open(markdown);
+            }
+        },
+    );
 }

@@ -51,8 +51,8 @@ impl Surface for TooSmallView {
 
     fn handle_key_event(
         &mut self,
-        _compositor: &mut Compositor<Self::Context>,
         _editor: &mut Editor,
+        _compositor: &mut Compositor<Self::Context>,
         _key: KeyEvent,
     ) -> HandledEvent {
         HandledEvent::Consumed
@@ -60,8 +60,8 @@ impl Surface for TooSmallView {
 
     fn handle_key_batch_event(
         &mut self,
-        _compositor: &mut Compositor<Editor>,
         _ctx: &mut Self::Context,
+        _compositor: &mut Compositor<Editor>,
         _input: &str,
     ) -> HandledEvent {
         HandledEvent::Consumed
@@ -69,8 +69,8 @@ impl Surface for TooSmallView {
 
     fn handle_mouse_event(
         &mut self,
-        _compositor: &mut Compositor<Self::Context>,
         _ctx: &mut Self::Context,
+        _compositor: &mut Compositor<Self::Context>,
         _kind: MouseEventKind,
         _modifiers: KeyModifiers,
         _surface_y: usize,

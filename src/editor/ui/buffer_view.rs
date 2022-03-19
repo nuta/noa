@@ -15,7 +15,7 @@ use noa_compositor::{
     terminal::{KeyCode, KeyModifiers, MouseButton, MouseEventKind},
     Compositor,
 };
-use noa_proxy::lsp_types::HoverContents;
+
 use tokio::sync::{mpsc::UnboundedSender, Notify};
 
 use crate::{
@@ -24,8 +24,8 @@ use crate::{
     editor::Editor,
     keybindings::get_keybinding_for,
     linemap::LineStatus,
+    lsp,
     theme::theme_for,
-    ui::{bump_view::BumpView, markdown::Markdown},
 };
 
 use super::completion_view::CompletionView;
@@ -275,8 +275,8 @@ impl Surface for BufferView {
 
     fn handle_key_event(
         &mut self,
-        compositor: &mut Compositor<Self::Context>,
         editor: &mut Editor,
+        compositor: &mut Compositor<Self::Context>,
         key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
@@ -368,8 +368,8 @@ impl Surface for BufferView {
 
     fn handle_key_batch_event(
         &mut self,
-        compositor: &mut Compositor<Editor>,
         editor: &mut Editor,
+        compositor: &mut Compositor<Editor>,
         s: &str,
     ) -> HandledEvent {
         let doc = editor.documents.current_mut();
@@ -381,8 +381,8 @@ impl Surface for BufferView {
 
     fn handle_mouse_event(
         &mut self,
-        compositor: &mut Compositor<Self::Context>,
         editor: &mut Editor,
+        compositor: &mut Compositor<Self::Context>,
         kind: MouseEventKind,
         modifiers: KeyModifiers,
         surface_y: usize,
@@ -423,56 +423,12 @@ impl Surface for BufferView {
                         // Move cursor.
                         if matches!(self.selection_start, Some(start) if start == clicked_pos) {
                             doc.buffer_mut().move_main_cursor_to_pos(clicked_pos);
-                        }
-
-                        // Hover.
-                        let proxy = editor.proxy.clone();
-                        let path = doc.path().to_owned();
-                        let pos = doc.buffer().main_cursor().moving_position().into();
-                        if let Some(lsp) = doc.buffer().language().lsp.as_ref() {
-                            editor.jobs.await_in_mainloop(
-                                async move {
-                                    let result = match proxy.hover(lsp, &path, pos).await {
-                                        Ok(Some(hover)) => match hover {
-                                            HoverContents::Scalar(text) => {
-                                                let markdown = Markdown::from(text);
-                                                notify_info!("{}", markdown);
-                                                Some(markdown)
-                                            }
-                                            HoverContents::Array(items) if !items.is_empty() => {
-                                                let markdown = Markdown::from(items[0].clone());
-                                                notify_info!("{}", markdown);
-                                                Some(markdown)
-                                            }
-                                            HoverContents::Markup(markup) => {
-                                                let markdown = Markdown::from(markup);
-                                                notify_info!("{}", markdown);
-                                                Some(markdown)
-                                            }
-                                            _ => {
-                                                warn!("unsupported hover type: {:?}", hover);
-                                                None
-                                            }
-                                        },
-                                        Ok(None) => {
-                                            notify_warn!("no hover info");
-                                            None
-                                        }
-                                        Err(err) => {
-                                            notify_error!("failed to get hover info: {}", err);
-                                            None
-                                        }
-                                    };
-
-                                    Ok(result)
-                                },
-                                |_editor, compositor, markdown| {
-                                    if let Some(markdown) = markdown {
-                                        let bump_view: &mut BumpView =
-                                            compositor.get_mut_surface_by_name("bump");
-                                        bump_view.open(markdown);
-                                    }
-                                },
+                            lsp::hover_hook(
+                                &editor.proxy,
+                                &mut editor.jobs,
+                                doc.buffer().language(),
+                                doc.path(),
+                                clicked_pos,
                             );
                         }
 
@@ -578,14 +534,6 @@ impl Surface for BufferView {
                         self.num_clicked = 1;
                         self.selection_start = None;
                     }
-                    // Dragging + Alt
-                    (MouseEventKind::Drag(MouseButton::Left), ALT) => match self.selection_start {
-                        Some(start) if start != clicked_pos => {
-                            doc.buffer_mut()
-                                .add_cursor(Range::from_positions(start, clicked_pos));
-                        }
-                        _ => {}
-                    },
                     _ => {
                         return HandledEvent::Ignored;
                     }
