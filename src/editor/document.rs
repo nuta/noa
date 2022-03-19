@@ -17,7 +17,10 @@ use anyhow::Result;
 use arc_swap::ArcSwap;
 
 use fuzzy_matcher::FuzzyMatcher;
-use noa_buffer::{buffer::Buffer, cursor::Position, raw_buffer::RawBuffer};
+use noa_buffer::{
+    buffer::Buffer, cursor::Position, mutable_raw_buffer::Change, raw_buffer::RawBuffer,
+    syntax::Syntax,
+};
 use noa_common::{
     dirs::{backup_dir, noa_dir},
     oops::OopsExt,
@@ -26,8 +29,11 @@ use noa_common::{
 use noa_proxy::client::Client as ProxyClient;
 
 use noa_editorconfig::EditorConfig;
-use noa_languages::guess_language;
-use tokio::sync::Notify;
+use noa_languages::{guess_language, tree_sitter};
+use tokio::sync::{
+    mpsc::{self, UnboundedSender},
+    Notify,
+};
 
 use crate::{
     completion::{build_fuzzy_matcher, CompletionItem},
@@ -58,12 +64,20 @@ pub struct Document {
     completion_items: Vec<CompletionItem>,
     flashes: FlashManager,
     linemap: Arc<ArcSwap<LineMap>>,
+    background_parsing_tx: UnboundedSender<(
+        RawBuffer,
+        tree_sitter::Tree, /* old_tree */
+        Vec<Change>,
+    )>,
 }
 
 static NEXT_DOCUMENT_ID: AtomicUsize = AtomicUsize::new(1);
 
 impl Document {
-    pub fn new(path: &Path) -> Result<Document> {
+    pub fn new(
+        path: &Path,
+        updated_syntax_tx: &UnboundedSender<(DocumentId, tree_sitter::Tree)>,
+    ) -> Result<Document> {
         // Allocate a document ID.
         let id =
             DocumentId(NonZeroUsize::new(NEXT_DOCUMENT_ID.fetch_add(1, Ordering::SeqCst)).unwrap());
@@ -111,6 +125,24 @@ impl Document {
             buffer.set_language(lang);
         }
 
+        let lang = buffer.language();
+        let updated_syntax_tx = updated_syntax_tx.clone();
+        let (background_parsing_tx, mut background_parsing_rx) =
+            mpsc::unbounded_channel::<(RawBuffer, tree_sitter::Tree, Vec<Change>)>();
+        tokio::task::spawn_blocking(move || {
+            let mut syntax = match Syntax::new(lang) {
+                Some(syntax) => syntax,
+                None => return,
+            };
+
+            while let Some((raw_buffer, old_tree, changes)) = background_parsing_rx.blocking_recv()
+            {
+                syntax.set_tree(old_tree);
+                syntax.update(&raw_buffer, Some(&changes));
+                let _ = updated_syntax_tx.send((id, syntax.tree().clone()));
+            }
+        });
+
         Ok(Document {
             id,
             version: 1,
@@ -127,6 +159,7 @@ impl Document {
             completion_items: Vec::new(),
             flashes: FlashManager::new(),
             linemap: Arc::new(ArcSwap::from_pointee(LineMap::new())),
+            background_parsing_tx,
         })
     }
 
@@ -329,8 +362,19 @@ impl Document {
         render_request: &Arc<Notify>,
     ) {
         self.version += 1;
-        let changes = self.buffer.post_update_hook();
         self.completion_items.clear();
+        let changes = self.buffer.clear_recorded_changes();
+        self.buffer.clear_undo_and_redo_stacks();
+
+        {
+            let changes = changes.clone();
+            let raw_buffer = self.buffer.raw_buffer().clone();
+            if let Some(syntax) = self.buffer.syntax() {
+                let _ =
+                    self.background_parsing_tx
+                        .send((raw_buffer, syntax.tree().clone(), changes));
+            }
+        }
 
         lsp::modified_hook(proxy, self, changes);
         git::modified_hook(repo, self, render_request);
@@ -358,9 +402,11 @@ pub struct DocumentManager {
 }
 
 impl DocumentManager {
-    pub fn new() -> DocumentManager {
-        let mut scratch_doc =
-            Document::new(&noa_dir().join("scratch.txt")).expect("failed to open scratch");
+    pub fn new(
+        updated_syntax_tx: &UnboundedSender<(DocumentId, tree_sitter::Tree)>,
+    ) -> DocumentManager {
+        let mut scratch_doc = Document::new(&noa_dir().join("scratch.txt"), updated_syntax_tx)
+            .expect("failed to open scratch");
         scratch_doc.set_name("**scratch**");
         scratch_doc.set_virtual_file(true);
 
@@ -461,7 +507,7 @@ impl Words {
         use rayon::prelude::*;
 
         const MIN_WORD_LEN: usize = 8;
-        const MAX_NUM_WORDS_PER_BUFFER: usize = 10000;
+        const MAX_NUM_WORDS_PER_BUFFER: usize = 5000;
         let fuzzy_matcher = build_fuzzy_matcher();
 
         // Scan all buffers to extract words in parallel.
@@ -534,20 +580,14 @@ mod tests {
     }
 
     #[bench]
-    fn bench_words_1000_lines(b: &mut test::Bencher) {
-        let (documents, _dummy_files) = create_documents(1, 1000);
+    fn bench_words_500_lines(b: &mut test::Bencher) {
+        let (documents, _dummy_files) = create_documents(1, 500);
         b.iter(|| documents.words());
     }
 
     #[bench]
     fn bench_words_4_files(b: &mut test::Bencher) {
-        let (documents, _dummy_files) = create_documents(4, 1000);
-        b.iter(|| documents.words());
-    }
-
-    #[bench]
-    fn bench_words_16_files(b: &mut test::Bencher) {
-        let (documents, _dummy_files) = create_documents(16, 1000);
+        let (documents, _dummy_files) = create_documents(4, 500);
         b.iter(|| documents.words());
     }
 }

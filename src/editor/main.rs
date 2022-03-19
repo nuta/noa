@@ -72,11 +72,13 @@ async fn main() {
     let render_request = Arc::new(Notify::new());
     let (notification_tx, mut notification_rx) = mpsc::unbounded_channel();
     let (watch_tx, mut watch_rx) = mpsc::unbounded_channel();
+    let (updated_syntax_tx, mut updated_syntax_rx) = mpsc::unbounded_channel();
     let mut editor = editor::Editor::new(
         &workspace_dir,
         render_request.clone(),
         notification_tx,
         watch_tx,
+        updated_syntax_tx,
     );
     let mut compositor = Compositor::new();
 
@@ -146,6 +148,12 @@ async fn main() {
 
             Some(ev) = watch_rx.recv() => {
                 file_watch::watch_event_hook(&mut editor, &ev);
+            }
+
+            Some((doc_id, new_tree)) = updated_syntax_rx.recv() => {
+                if let Some(doc) = editor.documents.get_mut_document_by_id(doc_id) {
+                    doc.buffer_mut().set_syntax_tree(new_tree);
+                }
             }
 
             Some(callback) = editor.jobs.get_completed() => {

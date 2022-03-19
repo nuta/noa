@@ -156,6 +156,10 @@ impl Syntax {
         &self.tree
     }
 
+    pub fn set_tree(&mut self, tree: tree_sitter::Tree) {
+        self.tree = tree;
+    }
+
     /// If `changes` is `None`, it will parse the full text (for the first run).
     pub fn update(&mut self, buffer: &RawBuffer, changes: Option<&[Change]>) {
         let rope = buffer.rope();

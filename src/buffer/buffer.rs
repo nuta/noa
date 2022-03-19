@@ -6,7 +6,7 @@ use std::{
 };
 
 use noa_editorconfig::{EditorConfig, IndentStyle};
-use noa_languages::{get_language_by_name, Language};
+use noa_languages::{get_language_by_name, tree_sitter, Language};
 
 use crate::{
     cursor::{Cursor, CursorId, CursorSet, Position, Range},
@@ -107,6 +107,12 @@ impl Buffer {
 
     pub fn syntax(&self) -> Option<&Syntax> {
         self.syntax.as_ref()
+    }
+
+    pub fn set_syntax_tree(&mut self, new_tree: tree_sitter::Tree) {
+        if let Some(syntax) = self.syntax.as_mut() {
+            syntax.set_tree(new_tree);
+        }
     }
 
     pub fn highlight<F>(&self, range: Range, mut callback: F)
@@ -507,13 +513,12 @@ impl Buffer {
         self.cursors.redo_cursor_movements();
     }
 
-    pub fn post_update_hook(&mut self) -> Vec<Change> {
-        let changes = self.buf.clear_changes();
-        if let Some(syntax) = self.syntax.as_mut() {
-            syntax.update(&self.buf, Some(&changes));
-        }
-
+    pub fn clear_undo_and_redo_stacks(&mut self) {
         self.cursors.clear_undo_and_redo_stacks();
+    }
+
+    pub fn clear_recorded_changes(&mut self) -> Vec<Change> {
+        let changes = self.buf.clear_changes();
         changes
     }
 }

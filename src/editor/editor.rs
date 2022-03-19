@@ -13,6 +13,7 @@ use noa_buffer::{
 use noa_common::oops::OopsExt;
 use noa_compositor::line_edit::LineEdit;
 
+use noa_languages::tree_sitter;
 use noa_proxy::protocol::Notification;
 use tokio::sync::{
     mpsc::{self, UnboundedSender},
@@ -37,6 +38,7 @@ pub struct Editor {
     pub proxy: Arc<noa_proxy::client::Client>,
     pub render_request: Arc<Notify>,
     pub watch_tx: mpsc::UnboundedSender<WatchEvent>,
+    pub updated_syntax_tx: UnboundedSender<(DocumentId, tree_sitter::Tree)>,
 }
 
 impl Editor {
@@ -45,6 +47,7 @@ impl Editor {
         render_request: Arc<Notify>,
         notification_tx: UnboundedSender<Notification>,
         watch_tx: mpsc::UnboundedSender<WatchEvent>,
+        updated_syntax_tx: UnboundedSender<(DocumentId, tree_sitter::Tree)>,
     ) -> Editor {
         let repo = match Repo::open(workspace_dir) {
             Ok(repo) => Some(Arc::new(repo)),
@@ -61,7 +64,7 @@ impl Editor {
 
         Editor {
             workspace_dir: workspace_dir.to_path_buf(),
-            documents: DocumentManager::new(),
+            documents: DocumentManager::new(&updated_syntax_tx),
             jobs: JobManager::new(),
             clipboard: clipboard::build_provider(),
             find_query: LineEdit::new(),
@@ -69,6 +72,7 @@ impl Editor {
             proxy,
             render_request,
             watch_tx,
+            updated_syntax_tx,
         }
     }
 
@@ -77,7 +81,7 @@ impl Editor {
     }
 
     pub fn open_file(&mut self, path: &Path, cursor_pos: Option<Position>) -> Result<DocumentId> {
-        let mut doc = Document::new(path)?;
+        let mut doc = Document::new(path, &self.updated_syntax_tx)?;
 
         // First run of tree sitter parsering, etc.
         doc.post_update_job(&self.proxy, self.repo.as_ref(), &self.render_request);
