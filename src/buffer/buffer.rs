@@ -329,7 +329,7 @@ impl Buffer {
     }
 
     pub fn insert_char_with_smart_dedent(&mut self, c: char) {
-        self.insert(&c.to_string());
+        self.insert_char(c);
 
         // Smart dedent.
         if c == '}' {
