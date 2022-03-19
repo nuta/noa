@@ -84,12 +84,6 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=languages.yaml");
 
-    if cfg!(target_os = "macos") {
-        println!("cargo:rustc-link-lib=dylib=c++");
-    } else {
-        println!("cargo:rustc-link-lib=dylib=stdc++");
-    }
-
     let nvim_treesitter_dir = Path::new("tree_sitter/nvim_treesitter");
     git_clone_and_pull(NVIM_TREESITTER_REPO, nvim_treesitter_dir);
 
@@ -111,11 +105,38 @@ fn main() {
             }
 
             println!("Compiling {}", lang.name);
-            cc::Build::new()
-                .include(repo_dir.join(dir).join("src"))
-                .files(src_files)
-                .warnings(false)
-                .compile(&format!("tree-sitter-{}", lang.name));
+            let mut c_files = Vec::new();
+            let mut cpp_files = Vec::new();
+
+            for file in src_files {
+                match file.extension().unwrap().to_str().unwrap() {
+                    "c" => c_files.push(file),
+                    "cpp" | "cxx" | "cc" => cpp_files.push(file),
+                    _ => panic!("unsupported source file: {}", file.display()),
+                }
+            }
+
+            let include_dir = repo_dir.join(dir).join("src");
+            if !c_files.is_empty() {
+                cc::Build::new()
+                    .include(&include_dir)
+                    .opt_level(3)
+                    .cargo_metadata(true)
+                    .warnings(false)
+                    .files(c_files)
+                    .compile(&format!("tree-sitter-{}-c", lang.name));
+            }
+
+            if !cpp_files.is_empty() {
+                cc::Build::new()
+                    .include(&include_dir)
+                    .opt_level(3)
+                    .cpp(true)
+                    .cargo_metadata(true)
+                    .warnings(false)
+                    .files(cpp_files)
+                    .compile(&format!("tree-sitter-{}-cpp", lang.name));
+            }
         }
     }
 
