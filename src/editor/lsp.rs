@@ -1,10 +1,12 @@
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
+    time::Duration,
 };
 
 use anyhow::Result;
 
+use futures::executor::block_on;
 use noa_buffer::{
     buffer::TextEdit,
     cursor::{Position, Range},
@@ -16,6 +18,7 @@ use noa_proxy::{
     client::Client,
     lsp_types::{self, CompletionTextEdit, HoverContents},
 };
+use tokio::time::timeout;
 
 use crate::{
     completion::{CompletionItem, CompletionKind},
@@ -56,6 +59,29 @@ pub fn modified_hook(client: &Arc<Client>, doc: &Document, changes: Vec<Change>)
             .await
             .oops();
     });
+}
+
+pub fn before_save_hook(client: &Arc<Client>, doc: &mut Document) {
+    let lsp = match doc.buffer().language().lsp.as_ref() {
+        Some(lsp) => lsp,
+        None => return,
+    };
+
+    trace!("format on save: {}", doc.path().display());
+    let format_future = client.format(lsp, doc.path(), (*doc.buffer().editorconfig()).into());
+    match block_on(timeout(Duration::from_secs(3), format_future)) {
+        Ok(Ok(edits)) => {
+            doc.buffer_mut()
+                .apply_text_edits(edits.into_iter().map(Into::into).collect());
+        }
+        Ok(Err(err)) => {
+            notify_warn!("LSP formatting failed");
+            warn!("LSP formatting failed: {}", err);
+        }
+        Err(_) => {
+            notify_warn!("LSP formatting timed out");
+        }
+    }
 }
 
 pub async fn completion_hook(

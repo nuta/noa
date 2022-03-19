@@ -107,7 +107,7 @@ async fn main() {
     compositor.add_frontmost_layer(Box::new(CompletionView::new()));
 
     if no_files_opened {
-        open_finder(&mut compositor, &mut editor);
+        open_finder(&mut editor, &mut compositor);
     }
 
     compositor.render_to_terminal(&mut editor);
@@ -124,7 +124,7 @@ async fn main() {
            }
 
             Some(()) =  quit_rx.recv() => {
-                check_if_dirty(&mut compositor, &mut editor, force_quit_tx.clone());
+                check_if_dirty(&mut editor, &mut compositor, force_quit_tx.clone());
             }
 
             Some(ev) = compositor.recv_terminal_event() => {
@@ -169,12 +169,13 @@ async fn main() {
 
     // Drop compoisitor first to restore the terminal.
     drop(compositor);
+
     notification::set_stdout_mode(true);
 }
 
 fn check_if_dirty(
-    compositor: &mut Compositor<Editor>,
     editor: &mut Editor,
+    compositor: &mut Compositor<Editor>,
     force_quit_tx: UnboundedSender<()>,
 ) {
     let mut dirty_doc = None;

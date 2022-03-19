@@ -172,6 +172,7 @@ pub fn modified_hook(repo: Option<&Arc<Repo>>, doc: &Document, render_request: &
         None => return,
     };
 
+    // Update line statuses.
     let linemap = doc.linemap().clone();
     let path = doc.path().to_owned();
     let raw_buffer = doc.raw_buffer().clone();

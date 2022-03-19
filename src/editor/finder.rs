@@ -47,13 +47,13 @@ enum FinderItem {
     },
 }
 
-pub fn open_finder(compositor: &mut Compositor<Editor>, editor: &mut Editor) {
+pub fn open_finder(editor: &mut Editor, compositor: &mut Compositor<Editor>) {
     let selector: &mut SelectorView = compositor.get_mut_surface_by_name("selector");
     selector.open("finder", true, Some(Box::new(update_items)));
     update_items(editor, "");
 }
 
-fn select_item(compositor: &mut Compositor<Editor>, editor: &mut Editor, item: FinderItem) {
+fn select_item(editor: &mut Editor, compositor: &mut Compositor<Editor>, item: FinderItem) {
     info!("selected item: {:?}", item);
     match item {
         FinderItem::Buffer { id, .. } => {
@@ -196,8 +196,8 @@ fn update_items(editor: &mut Editor, query: &str) {
 
                     SelectorItem {
                         content,
-                        selected: Box::new(move |compositor, editor| {
-                            select_item(compositor, editor, item);
+                        selected: Box::new(move |editor, compositor| {
+                            select_item(editor, compositor, item);
                         }),
                     }
                 })

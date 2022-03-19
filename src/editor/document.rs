@@ -9,13 +9,13 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
-    time::{Duration, SystemTime},
+    time::SystemTime,
 };
 
 use anyhow::Result;
 
 use arc_swap::ArcSwap;
-use futures::executor::block_on;
+
 use fuzzy_matcher::FuzzyMatcher;
 use noa_buffer::{buffer::Buffer, cursor::Position, raw_buffer::RawBuffer};
 use noa_common::{
@@ -27,7 +27,7 @@ use noa_proxy::client::Client as ProxyClient;
 
 use noa_editorconfig::EditorConfig;
 use noa_languages::language::guess_language;
-use tokio::{sync::Notify, time::timeout};
+use tokio::sync::Notify;
 
 use crate::{
     completion::{build_fuzzy_matcher, CompletionItem},
@@ -133,26 +133,8 @@ impl Document {
     pub fn save_to_file(&mut self, proxy: Option<&Arc<ProxyClient>>) -> Result<()> {
         self.buffer.save_undo();
 
-        // Format the document using LSP.
         if let Some(proxy) = proxy {
-            if let Some(lsp) = self.buffer.language().lsp.as_ref() {
-                trace!("format on save: {}", self.path.display());
-                let format_future =
-                    proxy.format(lsp, &self.path, (*self.buffer.editorconfig()).into());
-                match block_on(timeout(Duration::from_secs(3), format_future)) {
-                    Ok(Ok(edits)) => {
-                        self.buffer
-                            .apply_text_edits(edits.into_iter().map(Into::into).collect());
-                    }
-                    Ok(Err(err)) => {
-                        notify_warn!("LSP formatting failed");
-                        warn!("LSP formatting failed: {}", err);
-                    }
-                    Err(_) => {
-                        notify_warn!("LSP formatting timed out");
-                    }
-                }
-            }
+            lsp::before_save_hook(proxy, self);
         }
 
         trace!("saving into a file: {}", self.path.display());

@@ -56,7 +56,3 @@ impl JobManager {
         );
     }
 }
-
-impl Drop for JobManager {
-    fn drop(&mut self) {}
-}

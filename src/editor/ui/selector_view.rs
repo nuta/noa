@@ -16,7 +16,7 @@ use super::helpers::truncate_to_width;
 
 const HEIGHT_MAX: usize = 16;
 
-pub type SelectedCallback = dyn FnOnce(&mut Compositor<Editor>, &mut Editor) + Send;
+pub type SelectedCallback = dyn FnOnce(&mut Editor, &mut Compositor<Editor>) + Send;
 pub type ChangedCallback = dyn FnMut(&mut Editor, &str) + Send;
 
 pub enum SelectorContent {
@@ -249,7 +249,7 @@ impl Surface for SelectorView {
                 }
 
                 let item = self.items.remove(self.selected_index);
-                (item.selected)(compositor, editor);
+                (item.selected)(editor, compositor);
                 self.close();
             }
             (KeyCode::Down, NONE) => {

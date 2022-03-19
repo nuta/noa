@@ -34,7 +34,7 @@ impl Action for OpenFilder {
     }
 
     fn run(&self, editor: &mut Editor, compositor: &mut Compositor<Editor>) -> Result<()> {
-        open_finder(compositor, editor);
+        open_finder(editor, compositor);
         Ok(())
     }
 }
