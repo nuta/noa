@@ -14,6 +14,7 @@ use editor::Editor;
 use finder::open_finder;
 use noa_common::{logger::install_logger, time_report::TimeReport};
 use noa_compositor::{terminal::Event, Compositor};
+use noa_proxy::protocol;
 use theme::parse_default_theme;
 use tokio::sync::{
     mpsc::{self, unbounded_channel, UnboundedSender},
@@ -145,8 +146,15 @@ async fn main() {
                 }
 
                 Some(noti) = notification_rx.recv() => {
-                    trace!("proxy notification: {:?}", noti);
-                    editor.handle_notification(noti);
+                    match noti {
+                        protocol::Notification::Diagnostics { diags, path } => {
+                            if path == editor.documents.current().path() {
+                                if let Some(diag) = diags.first() {
+                                    notify_warn!("{}: {:?}", diag.range.start.line + 1, diag.message);
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Some(ev) = watch_rx.recv() => {

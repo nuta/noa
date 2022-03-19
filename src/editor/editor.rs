@@ -97,18 +97,4 @@ impl Editor {
         self.documents.add(doc);
         Ok(id)
     }
-
-    pub fn handle_notification(&mut self, notification: Notification) {
-        match notification {
-            Notification::Diagnostics { diags, path } => {
-                if path != self.documents.current().path() {
-                    return;
-                }
-
-                if let Some(diag) = diags.first() {
-                    notify_warn!("{}: {:?}", diag.range.start.line + 1, diag.message);
-                }
-            }
-        }
-    }
 }
