@@ -250,7 +250,7 @@ jobs:
           key: ${{ runner.os }}-v2-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-v2-cargo-build-target-      
 
-      - name: Run tests
+      - name: Run benchmarks
         uses: actions-rs/cargo@v1
         with:
-          command: test
+          command: bench
