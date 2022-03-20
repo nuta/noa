@@ -274,31 +274,3 @@ pub fn parse_config_files() {
     Lazy::force(&KEY_BINDINGS);
     Lazy::force(&THEME);
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use pretty_assertions::assert_eq;
-
-    #[test]
-    fn test_theme_parsing() {
-        assert_eq!(
-            parse_theme(
-                r##"
-                [theme]
-                "buffer.find_match" = { fg = "red" }
-
-                [colors]
-                red = "#ff0000"
-                "##,
-            )
-            .unwrap()
-            .get("buffer.find_match"),
-            Some(&Style {
-                fg: Color::Rgb { r: 255, g: 0, b: 0 },
-                bg: Color::Reset,
-                ..Default::default()
-            })
-        );
-    }
-}
