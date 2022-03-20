@@ -51,9 +51,31 @@ use crate::{
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct DocumentId(NonZeroUsize);
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub struct DocumentVersion(usize);
+
+impl DocumentVersion {
+    pub fn zero() -> DocumentVersion {
+        DocumentVersion(0)
+    }
+
+    pub fn one() -> DocumentVersion {
+        DocumentVersion(1)
+    }
+
+    pub fn value(self) -> usize {
+        self.0
+    }
+
+    pub fn increment(&mut self) {
+        self.0 = self.0.saturating_add(1);
+    }
+}
+
 pub struct Document {
     id: DocumentId,
-    version: usize,
+    version: DocumentVersion,
+    syntax_version: DocumentVersion,
     last_saved_at: Option<SystemTime>,
     path: PathBuf,
     path_in_str: String,
@@ -67,8 +89,8 @@ pub struct Document {
     completion_items: Vec<CompletionItem>,
     flashes: FlashManager,
     linemap: Arc<ArcSwap<LineMap>>,
-    parser_tx: UnboundedSender<(RawBuffer, Vec<Change>)>,
-    updated_syntax_tx: UnboundedSender<(DocumentId, tree_sitter::Tree)>,
+    parser_tx: UnboundedSender<(RawBuffer, DocumentVersion, Vec<Change>)>,
+    updated_syntax_tx: UnboundedSender<(DocumentId, DocumentVersion, tree_sitter::Tree)>,
 }
 
 static NEXT_DOCUMENT_ID: AtomicUsize = AtomicUsize::new(1);
@@ -76,7 +98,7 @@ static NEXT_DOCUMENT_ID: AtomicUsize = AtomicUsize::new(1);
 impl Document {
     pub fn new(
         path: &Path,
-        updated_syntax_tx: &UnboundedSender<(DocumentId, tree_sitter::Tree)>,
+        updated_syntax_tx: &UnboundedSender<(DocumentId, DocumentVersion, tree_sitter::Tree)>,
         disable_parser_for_test: bool,
     ) -> Result<Document> {
         // Allocate a document ID.
@@ -145,7 +167,8 @@ impl Document {
 
         Ok(Document {
             id,
-            version: 1,
+            version: DocumentVersion::one(),
+            syntax_version: DocumentVersion::zero(),
             last_saved_at: None,
             path: path.to_owned(),
             path_in_str: path.to_str().unwrap().to_owned(),
@@ -222,7 +245,7 @@ impl Document {
         self.id
     }
 
-    pub fn version(&self) -> usize {
+    pub fn version(&self) -> DocumentVersion {
         self.version
     }
 
@@ -248,6 +271,15 @@ impl Document {
 
     pub fn set_virtual_file(&mut self, virtual_file: bool) {
         self.virtual_file = virtual_file;
+    }
+
+    pub fn set_syntax_tree(&mut self, version: DocumentVersion, syntax: tree_sitter::Tree) {
+        self.buffer.set_syntax_tree(syntax);
+        self.syntax_version = version;
+    }
+
+    pub fn is_parsing_in_progress(&self) -> bool {
+        self.buffer.syntax().is_some() && self.syntax_version < self.version
     }
 
     pub fn is_dirty(&self) -> bool {
@@ -372,16 +404,16 @@ impl Document {
         repo: Option<&Arc<Repo>>,
         render_request: &Arc<Notify>,
     ) {
+        self.version.increment();
         let changes = self.buffer.clear_recorded_changes();
 
         // Parse the buffer using tree-sitter in the background.
         {
             let changes = changes.clone();
             let raw_buffer = self.buffer.raw_buffer().clone();
-            let _ = self.parser_tx.send((raw_buffer, changes));
+            let _ = self.parser_tx.send((raw_buffer, self.version, changes));
         }
 
-        self.version += 1;
         self.completion_items.clear();
         self.buffer.clear_undo_and_redo_stacks();
 
@@ -408,9 +440,10 @@ fn spawn_parser_task(
     doc_id: DocumentId,
     lang: &'static Language,
     initial_buffer: RawBuffer,
-    updated_syntax_tx: UnboundedSender<(DocumentId, tree_sitter::Tree)>,
-) -> UnboundedSender<(RawBuffer, Vec<Change>)> {
-    let (parser_tx, mut parser_rx) = mpsc::unbounded_channel::<(RawBuffer, Vec<Change>)>();
+    updated_syntax_tx: UnboundedSender<(DocumentId, DocumentVersion, tree_sitter::Tree)>,
+) -> UnboundedSender<(RawBuffer, DocumentVersion, Vec<Change>)> {
+    let (parser_tx, mut parser_rx) =
+        mpsc::unbounded_channel::<(RawBuffer, DocumentVersion, Vec<Change>)>();
 
     // Use spawn_blocking since parsing is CPU-bound.
     tokio::task::spawn_blocking(move || {
@@ -430,12 +463,12 @@ fn spawn_parser_task(
 
         // First, parse the whole buffer.
         parser.parse_fully(&initial_buffer);
-        let _ = updated_syntax_tx.send((doc_id, parser.tree().clone()));
+        let _ = updated_syntax_tx.send((doc_id, DocumentVersion::one(), parser.tree().clone()));
 
         // After that, parse the buffer incrementally...
-        while let Some((raw_buffer, changes)) = parser_rx.blocking_recv() {
+        while let Some((raw_buffer, doc_ver, changes)) = parser_rx.blocking_recv() {
             parser.parse_incrementally(&raw_buffer, &changes);
-            let _ = updated_syntax_tx.send((doc_id, parser.tree().clone()));
+            let _ = updated_syntax_tx.send((doc_id, doc_ver, parser.tree().clone()));
         }
     });
 
@@ -450,7 +483,7 @@ pub struct DocumentManager {
 
 impl DocumentManager {
     pub fn new(
-        updated_syntax_tx: &UnboundedSender<(DocumentId, tree_sitter::Tree)>,
+        updated_syntax_tx: &UnboundedSender<(DocumentId, DocumentVersion, tree_sitter::Tree)>,
         disable_parser_for_test: bool,
     ) -> DocumentManager {
         let mut scratch_doc = Document::new(

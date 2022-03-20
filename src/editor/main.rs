@@ -16,9 +16,12 @@ use noa_common::{logger::install_logger, time_report::TimeReport};
 use noa_compositor::{terminal::Event, Compositor};
 use noa_proxy::protocol;
 use theme::parse_default_theme;
-use tokio::sync::{
-    mpsc::{self, unbounded_channel, UnboundedSender},
-    Notify,
+use tokio::{
+    sync::{
+        mpsc::{self, unbounded_channel, UnboundedSender},
+        Notify,
+    },
+    time::timeout,
 };
 use ui::{
     buffer_view::BufferView, bump_view::BumpView, completion_view::CompletionView,
@@ -161,9 +164,9 @@ async fn main() {
                     file_watch::watch_event_hook(&mut editor, &ev);
                 }
 
-                Some((doc_id, new_tree)) = updated_syntax_rx.recv() => {
+                Some((doc_id, doc_ver, new_tree)) = updated_syntax_rx.recv() => {
                     if let Some(doc) = editor.documents.get_mut_document_by_id(doc_id) {
-                        doc.buffer_mut().set_syntax_tree(new_tree);
+                        doc.set_syntax_tree(doc_ver, new_tree);
                     }
                 }
 
@@ -183,6 +186,23 @@ async fn main() {
                     // pending events, we should break the loop to update the
                     // terminal contents.
                     break 'inner;
+                }
+            }
+        }
+
+        // Give the tree-sitter a chance to finish parsing the latest buffer.
+        //
+        // Interestingly, handling a compositor event and modifying a document
+        // is super fast (less than 100 us in total in my machine).
+        while editor.documents.current_mut().is_parsing_in_progress() {
+            match timeout(Duration::from_millis(5), updated_syntax_rx.recv()).await {
+                Ok(Some((doc_id, doc_ver, new_tree))) => {
+                    if let Some(doc) = editor.documents.get_mut_document_by_id(doc_id) {
+                        doc.set_syntax_tree(doc_ver, new_tree);
+                    }
+                }
+                _ => {
+                    break;
                 }
             }
         }

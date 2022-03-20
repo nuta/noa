@@ -55,7 +55,7 @@ pub fn modified_hook(client: &Arc<Client>, doc: &Document, changes: Vec<Change>)
             .collect();
 
         client
-            .incremental_update_file(lsp, &path, edits, version)
+            .incremental_update_file(lsp, &path, edits, version.value())
             .await
             .oops();
     });

@@ -22,7 +22,7 @@ use tokio::sync::{
 
 use crate::{
     clipboard::{self, ClipboardProvider},
-    document::{Document, DocumentId, DocumentManager},
+    document::{Document, DocumentId, DocumentManager, DocumentVersion},
     file_watch::{self, WatchEvent},
     git::Repo,
     job::JobManager,
@@ -38,7 +38,7 @@ pub struct Editor {
     pub proxy: Arc<noa_proxy::client::Client>,
     pub render_request: Arc<Notify>,
     pub watch_tx: mpsc::UnboundedSender<WatchEvent>,
-    pub updated_syntax_tx: UnboundedSender<(DocumentId, tree_sitter::Tree)>,
+    pub updated_syntax_tx: UnboundedSender<(DocumentId, DocumentVersion, tree_sitter::Tree)>,
 }
 
 impl Editor {
@@ -47,7 +47,7 @@ impl Editor {
         render_request: Arc<Notify>,
         notification_tx: UnboundedSender<Notification>,
         watch_tx: mpsc::UnboundedSender<WatchEvent>,
-        updated_syntax_tx: UnboundedSender<(DocumentId, tree_sitter::Tree)>,
+        updated_syntax_tx: UnboundedSender<(DocumentId, DocumentVersion, tree_sitter::Tree)>,
     ) -> Editor {
         let repo = match Repo::open(workspace_dir) {
             Ok(repo) => Some(Arc::new(repo)),

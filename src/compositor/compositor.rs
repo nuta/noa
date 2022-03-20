@@ -30,7 +30,6 @@ pub struct Compositor<C> {
     past_layers: Vec<Layer<C>>,
 }
 
-#[allow(clippy::new_without_default)]
 impl<C: 'static> Compositor<C> {
     pub fn new() -> Compositor<C> {
         let (term_tx, term_rx) = mpsc::unbounded_channel();
@@ -239,6 +238,12 @@ impl<C: 'static> Compositor<C> {
                 self.layers.extend(self.past_layers.drain(..).rev());
             }
         }
+    }
+}
+
+impl<C: 'static> Default for Compositor<C> {
+    fn default() -> Self {
+        Compositor::new()
     }
 }
 
