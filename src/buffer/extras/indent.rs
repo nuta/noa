@@ -217,14 +217,18 @@ mod tests {
     #[test]
     fn smart_indent() {
         let mut buffer = Buffer::from_text("if true {\n");
-        buffer.set_language(get_language_by_name("rust").unwrap());
+        buffer
+            .set_language(get_language_by_name("rust").unwrap())
+            .unwrap();
         assert_eq!(
             compute_desired_indent_len(buffer.raw_buffer(), buffer.editorconfig(), 1),
             4
         );
 
         let mut buffer = Buffer::from_text("    if true {\n\n");
-        buffer.set_language(get_language_by_name("rust").unwrap());
+        buffer
+            .set_language(get_language_by_name("rust").unwrap())
+            .unwrap();
         assert_eq!(
             compute_desired_indent_len(buffer.raw_buffer(), buffer.editorconfig(), 2),
             8
@@ -234,7 +238,9 @@ mod tests {
     #[test]
     fn smart_deindent() {
         let mut buffer = Buffer::from_text("    if true {\n}");
-        buffer.set_language(get_language_by_name("rust").unwrap());
+        buffer
+            .set_language(get_language_by_name("rust").unwrap())
+            .unwrap();
         assert_eq!(
             compute_desired_indent_len(buffer.raw_buffer(), buffer.editorconfig(), 1),
             4

@@ -204,3 +204,53 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
+
+  bench:
+    name: Benchmarks
+    strategy:
+      matrix:
+        os:
+          - macos-latest
+        rust:
+          - nightly
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v3
+
+      - name: Install nightly toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+      
+      - name: Install C++ standard library
+        run: sudo apt-get install -y g++
+        if: "matrix.os == 'ubuntu-latest'"
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v2.1.7
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-v2-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-v2-cargo-registry-
+
+      - name: Cache cargo index
+        uses: actions/cache@v2.1.7
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-v2-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-v2-cargo-index-
+
+      - name: Cache cargo target dir
+        uses: actions/cache@v2.1.7
+        with:
+          path: target
+          key: ${{ runner.os }}-v2-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-v2-cargo-build-target-      
+
+      - name: Run tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test

@@ -77,6 +77,7 @@ impl Document {
     pub fn new(
         path: &Path,
         updated_syntax_tx: &UnboundedSender<(DocumentId, tree_sitter::Tree)>,
+        disable_parser_for_test: bool,
     ) -> Result<Document> {
         // Allocate a document ID.
         let id =
@@ -131,12 +132,16 @@ impl Document {
             }
         }
 
-        let parser_tx = spawn_parser_task(
-            id,
-            buffer.language(),
-            buffer.raw_buffer().clone(),
-            updated_syntax_tx.clone(),
-        );
+        let parser_tx = if disable_parser_for_test {
+            mpsc::unbounded_channel().0
+        } else {
+            spawn_parser_task(
+                id,
+                buffer.language(),
+                buffer.raw_buffer().clone(),
+                updated_syntax_tx.clone(),
+            )
+        };
 
         Ok(Document {
             id,
@@ -446,9 +451,14 @@ pub struct DocumentManager {
 impl DocumentManager {
     pub fn new(
         updated_syntax_tx: &UnboundedSender<(DocumentId, tree_sitter::Tree)>,
+        disable_parser_for_test: bool,
     ) -> DocumentManager {
-        let mut scratch_doc = Document::new(&noa_dir().join("scratch.txt"), updated_syntax_tx)
-            .expect("failed to open scratch");
+        let mut scratch_doc = Document::new(
+            &noa_dir().join("scratch.txt"),
+            updated_syntax_tx,
+            disable_parser_for_test,
+        )
+        .expect("failed to open scratch");
         scratch_doc.set_name("**scratch**");
         scratch_doc.set_virtual_file(true);
 
@@ -612,15 +622,16 @@ mod tests {
     ) -> (DocumentManager, Vec<NamedTempFile>) {
         let text = &(format!("{}\n", "int helloworld; ".repeat(5))).repeat(num_lines);
 
-        let (tx, rx) = mpsc::unbounded_channel();
-        let mut documents = DocumentManager::new(&tx);
+        let (tx, _) = mpsc::unbounded_channel();
+        let mut documents = DocumentManager::new(&tx, true);
         let mut dummy_files = Vec::new();
         for _ in 0..num_files {
             let dummy_file = tempfile::NamedTempFile::new().unwrap();
-            let mut doc = Document::new(dummy_file.path(), &tx).unwrap();
+            let mut doc = Document::new(dummy_file.path(), &tx, true).unwrap();
             doc.buffer_mut().insert(text);
             doc.buffer_mut()
-                .set_language(get_language_by_name("c").unwrap());
+                .set_language(get_language_by_name("c").unwrap())
+                .unwrap();
             documents.add(doc);
             dummy_files.push(dummy_file);
         }

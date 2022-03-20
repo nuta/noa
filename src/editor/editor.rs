@@ -64,7 +64,7 @@ impl Editor {
 
         Editor {
             workspace_dir: workspace_dir.to_path_buf(),
-            documents: DocumentManager::new(&updated_syntax_tx),
+            documents: DocumentManager::new(&updated_syntax_tx, false),
             jobs: JobManager::new(),
             clipboard: clipboard::build_provider(),
             find_query: LineEdit::new(),
@@ -81,7 +81,7 @@ impl Editor {
     }
 
     pub fn open_file(&mut self, path: &Path, cursor_pos: Option<Position>) -> Result<DocumentId> {
-        let mut doc = Document::new(path, &self.updated_syntax_tx)?;
+        let mut doc = Document::new(path, &self.updated_syntax_tx, false)?;
 
         // First run of tree sitter parsering, etc.
         doc.post_update_job(&self.proxy, self.repo.as_ref(), &self.render_request);
