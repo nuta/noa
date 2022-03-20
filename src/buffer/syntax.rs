@@ -8,8 +8,8 @@ use crate::{
 
 use noa_languages::{
     tree_sitter::{
-        self, get_highlights_query, get_indents_query, get_tree_sitter_parser, InputEdit, Node,
-        QueryCursor, TextProvider,
+        self, get_highlights_query, get_tree_sitter_parser, InputEdit, Node, QueryCursor,
+        TextProvider,
     },
     Language,
 };
@@ -71,7 +71,10 @@ impl Query {
         for m in matches {
             for cap in m.captures {
                 if let Some(span) = self.indices.get(&m.pattern_index) {
+                    // trace!("span = '{}', cap {:?}", span, cap);
                     callback(cap.node.buffer_range(), span);
+                } else {
+                    warn!("no index for pattern {}", m.pattern_index);
                 }
             }
         }
@@ -181,7 +184,6 @@ impl SyntaxParser {
 pub struct Syntax {
     tree: tree_sitter::Tree,
     highlight_query: Query,
-    indents_query: Query,
 }
 
 impl Syntax {
@@ -192,13 +194,10 @@ impl Syntax {
             get_highlights_query(lang.name).unwrap_or(""),
         )
         .map_err(ParserError::QueryError)?;
-        let indents_query = Query::new(parser.ts_lang, get_indents_query(lang.name).unwrap_or(""))
-            .map_err(ParserError::QueryError)?;
 
         Ok(Syntax {
             tree: parser.tree,
             highlight_query,
-            indents_query,
         })
     }
 
@@ -216,14 +215,6 @@ impl Syntax {
     {
         self.highlight_query
             .query(self.tree(), buffer, Some(range), &mut callback);
-    }
-
-    pub fn query_indents<F>(&self, buffer: &RawBuffer, range: Range, mut callback: F)
-    where
-        F: FnMut(Range, &str),
-    {
-        self.indents_query
-            .captures(self.tree(), buffer, Some(range), &mut callback);
     }
 
     pub fn words<F>(&self, mut callback: F)

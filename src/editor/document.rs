@@ -589,9 +589,11 @@ impl Drop for DocumentManager {
                 .map(|doc| doc.path())
                 .collect();
 
-            notify_info!("Following {} files are left dirty:", dirty_files.len());
-            for path in dirty_files {
-                notify_info!("{}", path.display());
+            if !dirty_files.is_empty() {
+                notify_info!("Following {} files are left dirty:", dirty_files.len());
+                for path in dirty_files {
+                    notify_info!("{}", path.display());
+                }
             }
         }
     }
