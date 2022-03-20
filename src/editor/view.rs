@@ -148,7 +148,7 @@ impl View {
             }
             None => {
                 warn!("out of bounds centering: {:?}", pos);
-                return;
+                
             }
         };
     }
