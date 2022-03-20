@@ -207,10 +207,7 @@ impl View {
             };
 
             for x in xs {
-                // FIXME: y might be out of bounds.
-                if x < row.graphemes.len() {
-                    row.graphemes[x].style = style;
-                }
+                row.graphemes[x].style = style;
             }
         }
     }
