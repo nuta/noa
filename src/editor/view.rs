@@ -196,11 +196,6 @@ impl View {
             }
         };
 
-        trace!("rows: {:#?}", self.rows);
-        trace!("start_y: {}, start_x: {}", start_y, start_x);
-        trace!("end_y: {}, end_x: {}", end_y, end_x);
-        trace!("range: {:?}", range);
-
         for y in start_y..=end_y {
             let row = &mut self.rows[y];
             let x_max = row.len_chars();

@@ -432,6 +432,15 @@ impl Buffer {
     }
 
     fn do_apply_text_edit(&mut self, edit: &TextEdit) {
+        let out_of_bounds = edit.range.start.y >= self.num_lines()
+            || edit.range.end.y >= self.num_lines()
+            || edit.range.start.x > self.line_len(edit.range.start.y)
+            || edit.range.end.x > self.line_len(edit.range.end.y);
+        if out_of_bounds {
+            warn!("ignoring out-of-bounds text edit: {:?}", edit);
+            return;
+        }
+
         let id = self.cursors.add_cursor(edit.range);
         let mut applied = false;
         self.cursors.foreach(|c, past_cursors| {
