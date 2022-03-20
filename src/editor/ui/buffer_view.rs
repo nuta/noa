@@ -74,10 +74,7 @@ impl BufferView {
         let main_cursor = doc.buffer().main_cursor().clone();
         let words = editor.documents.words();
         editor.jobs.await_in_mainloop(
-            async move {
-                let items = complete(proxy, buffer, lang, path, main_cursor, words).await;
-                Ok(items)
-            },
+            complete(proxy, buffer, lang, path, main_cursor, words),
             move |editor, compositor, items| {
                 if let Some(items) = items {
                     editor

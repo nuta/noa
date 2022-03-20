@@ -37,13 +37,13 @@ impl JobManager {
 
     pub fn await_in_mainloop<Fut, Ret, Callback>(&mut self, future: Fut, callback: Callback)
     where
-        Fut: Future<Output = Result<Ret>> + Send + 'static,
+        Fut: Future<Output = Ret> + Send + 'static,
         Ret: Send + 'static,
         Callback: FnOnce(&mut Editor, &mut Compositor<Editor>, Ret) + Send + 'static,
     {
         self.futures.push(
             async move {
-                let result = future.await?;
+                let result = future.await;
 
                 // Curring the callback.
                 let boxed_callback: Box<

@@ -153,7 +153,7 @@ fn update_items(editor: &mut Editor, query: &str) {
             while let Some((priority, item)) = items_rx.recv().await {
                 items.insert(priority, item);
             }
-            Ok(items.into_sorted_vec())
+            items.into_sorted_vec()
         },
         |_editor, compositor, items| {
             let selector: &mut SelectorView = compositor.get_mut_surface_by_name("selector");

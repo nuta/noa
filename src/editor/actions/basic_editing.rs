@@ -21,7 +21,7 @@ impl Action for Save {
         editor
             .documents
             .current_mut()
-            .save_to_file(Some(&editor.proxy))?;
+            .save_to_file(Some((&mut editor.jobs, editor.proxy.clone())));
         Ok(())
     }
 }

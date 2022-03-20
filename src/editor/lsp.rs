@@ -4,9 +4,8 @@ use std::{
     time::Duration,
 };
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 
-use futures::executor::block_on;
 use noa_buffer::{
     buffer::TextEdit,
     cursor::{Position, Range},
@@ -61,25 +60,29 @@ pub fn modified_hook(client: &Arc<Client>, doc: &Document, changes: Vec<Change>)
     });
 }
 
-pub fn before_save_hook(client: &Arc<Client>, doc: &mut Document) {
-    let lsp = match doc.buffer().language().lsp.as_ref() {
+pub async fn format_on_save(
+    lang: &'static Language,
+    client: Arc<Client>,
+    path: PathBuf,
+    options: lsp_types::FormattingOptions,
+) -> Result<Vec<TextEdit>> {
+    let lsp = match lang.lsp.as_ref() {
         Some(lsp) => lsp,
-        None => return,
+        None => return Ok(vec![]),
     };
 
-    trace!("format on save: {}", doc.path().display());
-    let format_future = client.format(lsp, doc.path(), (*doc.buffer().editorconfig()).into());
-    match block_on(timeout(Duration::from_secs(3), format_future)) {
+    trace!("format on save: {}", path.display());
+    let format_future = client.format(lsp, &path, options);
+    match timeout(Duration::from_secs(3), format_future).await {
         Ok(Ok(edits)) => {
-            doc.buffer_mut()
-                .apply_text_edits(edits.into_iter().map(Into::into).collect());
+            return Ok(edits.into_iter().map(Into::into).collect());
         }
         Ok(Err(err)) => {
-            notify_warn!("LSP formatting failed");
             warn!("LSP formatting failed: {}", err);
+            bail!("LSP formatting failed");
         }
         Err(_) => {
-            notify_warn!("LSP formatting timed out");
+            bail!("LSP formatting timed out");
         }
     }
 }
@@ -204,7 +207,7 @@ pub fn hover_hook(
                 }
             };
 
-            Ok(result)
+            result
         },
         |_, compositor, markdown| {
             if let Some(markdown) = markdown {

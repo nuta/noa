@@ -42,6 +42,7 @@ use crate::{
     completion::{build_fuzzy_matcher, CompletionItem},
     flash::FlashManager,
     git::{self, Repo},
+    job::JobManager,
     linemap::LineMap,
     lsp,
     movement::{Movement, MovementState},
@@ -198,13 +199,7 @@ impl Document {
         );
     }
 
-    pub fn save_to_file(&mut self, proxy: Option<&Arc<ProxyClient>>) -> Result<()> {
-        self.buffer.save_undo();
-
-        if let Some(proxy) = proxy {
-            lsp::before_save_hook(proxy, self);
-        }
-
+    fn do_save_to_file(&mut self) {
         trace!("saving into a file: {}", self.path.display());
         let with_sudo = match self.buffer.save_to_file(&self.path) {
             Ok(()) => {
@@ -215,12 +210,23 @@ impl Document {
                 false
             }
             Err(err) if err.kind() == ErrorKind::PermissionDenied => {
-                trace!("saving {} with sudo", self.path.display());
-                self.buffer.save_to_file_with_sudo(&self.path)?;
-                true
+                match self.buffer.save_to_file_with_sudo(&self.path) {
+                    Ok(()) => {
+                        if let Some(backup_path) = &self.backup_path {
+                            let _ = std::fs::remove_file(backup_path);
+                        }
+
+                        true
+                    }
+                    Err(err) => {
+                        notify_warn!("failed to save: {}", err);
+                        return;
+                    }
+                }
             }
             Err(err) => {
-                return Err(anyhow::anyhow!("failed to save: {}", err));
+                notify_warn!("failed to save: {}", err);
+                return;
             }
         };
 
@@ -230,15 +236,50 @@ impl Document {
         // between saving the file and updating the last saved time here.
         //
         // For now, we just ignore that case.
-        self.last_saved_at = Some(std::fs::metadata(&self.path)?.modified()?);
+        match std::fs::metadata(&self.path).and_then(|meta| meta.modified()) {
+            Ok(modified) => {
+                self.last_saved_at = Some(modified);
+            }
+            Err(err) => {
+                notify_warn!("failed to get last saved time: {}", err);
+            }
+        }
 
         notify_info!(
             "written {} lines{}",
             self.buffer.num_lines(),
             if with_sudo { " w/ sudo" } else { "" }
         );
+    }
 
-        Ok(())
+    pub fn save_to_file(&mut self, jobs_and_proxy: Option<(&mut JobManager, Arc<ProxyClient>)>) {
+        self.buffer.save_undo();
+
+        if let Some((jobs, proxy)) = jobs_and_proxy {
+            let doc_id = self.id;
+            let lang = self.buffer.language();
+            let path = self.path.to_owned();
+            let options = self.buffer.editorconfig().clone().into();
+            trace!("LSP: formatting");
+            jobs.await_in_mainloop(
+                async move {
+                    match lsp::format_on_save(lang, proxy, path, options).await {
+                        Ok(edits) => edits,
+                        Err(err) => {
+                            notify_warn!("failed to format on save: {:?}", err);
+                            vec![]
+                        }
+                    }
+                },
+                move |editor, _, edits| {
+                    let doc = editor.documents.get_mut_document_by_id(doc_id).unwrap();
+                    doc.buffer.apply_text_edits(edits);
+                    doc.do_save_to_file();
+                },
+            );
+        } else {
+            self.do_save_to_file();
+        }
     }
 
     pub fn id(&self) -> DocumentId {
@@ -563,23 +604,13 @@ impl DocumentManager {
 impl Drop for DocumentManager {
     fn drop(&mut self) {
         if self.save_all_on_drop {
-            let mut failed_any = false;
-            let mut num_saved_files = 0;
             for doc in self.documents.values_mut() {
                 if doc.is_virtual_file() {
                     continue;
                 }
 
-                if let Err(err) = doc.save_to_file(None) {
-                    notify_warn!("failed to save {}: {}", doc.path().display(), err);
-                    failed_any = true;
-                } else {
-                    num_saved_files += 1;
-                }
-            }
-
-            if !failed_any {
-                notify_info!("successfully saved {} files", num_saved_files);
+                // FIXME: Support format on save here.
+                doc.do_save_to_file();
             }
         } else {
             let dirty_files: Vec<&Path> = self
