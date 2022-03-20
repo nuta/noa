@@ -348,7 +348,7 @@ impl Document {
         //        to avoid unnecessary memory copies.
         let mut highlights = Vec::new();
         self.buffer.highlight(visible_range, |range, span| {
-            highlights.push((range, span.to_owned()));
+            highlights.push((range, format!("syntax.{}", span.to_owned())));
         });
 
         for (range, span) in highlights {

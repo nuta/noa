@@ -9,14 +9,10 @@ key_bindings = [
 # Based on One Dark Pro theme
 # https://github.com/Binaryify/OneDark-Pro
 [theme]
-"keyword" = { fg = "magenta" }
-"variable" = { fg = "magenta" }
-"string" = { fg = "magenta" }
-
 "buffer.find_match" = { bg = "grey" }
 "buffer.current_line" = { bg = "grey" }
-"buffer.line_status" = { fg = "magenta" }
-"buffer.flash" = { fg = "magenta" }
+"buffer.line_status" = { fg = "grey" }
+"buffer.flash" = { fg = "grey" }
 "buffer.matching_bracket" = { bg = "grey", bold = true }
 
 "line_status.modified" = { bg = "grey" }
@@ -26,20 +22,50 @@ key_bindings = [
 "prompt.name" = { bg = "grey", bold = true }
 "meta_line.background" = { bg = "grey" }
 
-"selector.input" = { fg = "magenta" }
-"selector.selected" = { fg = "magenta" }
+"selector.input" = { fg = "grey" }
+"selector.selected" = { fg = "grey" }
 
-"notification.warn" = { fg = "magenta" }
-"notification.info" = { fg = "magenta" }
-"notification.error" = { fg = "magenta" }
+"notification.warn" = { fg = "grey" }
+"notification.info" = { fg = "grey" }
+"notification.error" = { fg = "grey" }
 
 "completion.item" = { bg = "grey" }
 "completion.selected" = { bg = "grey" }
 
-"property" = { fg = "magenta" }
-"value" = { fg = "magenta" }
-"boolean" = { fg = "magenta" }
-"number" = { fg = "magenta" }
-"float" = { fg = "magenta" }
+"syntax.boolean" = { fg = "grey" }
+"syntax.conditional" = { fg = "magenta" }
+"syntax.constant" = { fg = "grey" }
+"syntax.constant.builtin" = { fg = "grey" }
+"syntax.field" = { fg = "grey" }
+"syntax.float" = { fg = "grey" }
+"syntax.function" = { fg = "grey" }
+"syntax.include" = { fg = "grey" }
+"syntax.keyword.function" = { fg = "magenta" }
+"syntax.keyword.operator" = { fg = "magenta" }
+"syntax.keyword.return" = { fg = "magenta" }
+"syntax.label" = { fg = "grey" }
+"syntax._name" = { fg = "grey" }
+"syntax.namespace" = { fg = "grey" }
+"syntax.none" = { fg = "grey" }
+"syntax.number" = { fg = "grey" }
+"syntax.operator" = { fg = "grey" }
+"syntax.parameter" = { fg = "grey" }
+"syntax.property" = { fg = "grey" }
+"syntax.punctuation.bracket" = { fg = "grey" }
+"syntax.punctuation.delimiter" = { fg = "grey" }
+"syntax.punctuation.special" = { fg = "grey" }
+"syntax.repeat" = { fg = "grey" }
+"syntax.string" = { fg = "green" }
+"syntax.string.escape" = { fg = "grey" }
+"syntax.string.special" = { fg = "grey" }
+"syntax.text.emphasis" = { fg = "grey" }
+"syntax.text.literal" = { fg = "grey" }
+"syntax.text.strong" = { fg = "grey" }
+"syntax.text.title" = { fg = "grey" }
+"syntax.type" = { fg = "grey" }
+"syntax.type.builtin" = { fg = "grey" }
+"syntax.value" = { fg = "grey" }
+"syntax.variable" = { fg = "grey" }
+"syntax.variable.builtin" = { fg = "grey" }
 
 [colors]
