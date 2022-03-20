@@ -512,8 +512,8 @@ impl Buffer {
     }
 
     pub fn clear_recorded_changes(&mut self) -> Vec<Change> {
-        let changes = self.buf.clear_changes();
-        changes
+        
+        self.buf.clear_changes()
     }
 }
 

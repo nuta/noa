@@ -410,7 +410,7 @@ impl Surface for BufferView {
         if surface_x >= self.buffer_x {
             if let Some(clicked_pos) = doc
                 .view()
-                .get_position_from_yx(surface_y, surface_x - self.buffer_x)
+                .get_position_from_screen_yx(surface_y, surface_x - self.buffer_x)
             {
                 match (kind, modifiers) {
                     (MouseEventKind::Down(MouseButton::Left), _) => {

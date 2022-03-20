@@ -62,21 +62,21 @@ impl DisplayRow {
         Range::from_positions(self.first_position(), self.last_position())
     }
 
-    pub fn locate_column_by_position(&self, pos: Position) -> usize {
+    pub fn locate_column_by_position(&self, pos: Position) -> Option<usize> {
         if let Ok(pos) = self.positions.binary_search(&pos) {
-            return pos;
+            return Some(pos);
         }
 
         if self.positions.is_empty() {
-            return 0;
+            return Some(0);
         }
 
         let last_pos = self.last_position();
         if last_pos.y == pos.y && last_pos.x + 1 == pos.x {
-            return pos.x;
+            return Some(pos.x);
         }
 
-        unreachable!("position is out of bounds in the view: {:?}", pos);
+        None
     }
 }
 
@@ -142,8 +142,15 @@ impl View {
     }
 
     pub fn centering(&mut self, pos: Position, height: usize) {
-        let row_index = self.locate_row_by_position(pos).0;
-        self.scroll = row_index.saturating_sub(height);
+        match self.locate_row_by_position(pos) {
+            Some((row_index, _)) => {
+                self.scroll = row_index.saturating_sub(height);
+            }
+            None => {
+                warn!("out of bounds centering: {:?}", pos);
+                return;
+            }
+        };
     }
 
     /// Clears highlights in the given rows.
@@ -171,8 +178,20 @@ impl View {
 
     /// Update characters' styles in the given range.
     pub fn do_highlight(&mut self, range: Range, style: Style) {
-        let (start_y, start_x) = self.locate_row_by_position(range.front());
-        let (end_y, end_x) = self.locate_row_by_position(range.back());
+        let (start_y, start_x) = match self.locate_row_by_position(range.front()) {
+            Some(yx) => yx,
+            None => {
+                warn!("out of bounds highlight: {:?}", range);
+                return;
+            }
+        };
+        let (end_y, end_x) = match self.locate_row_by_position(range.back()) {
+            Some(yx) => yx,
+            None => {
+                warn!("out of bounds highlight: {:?}", range);
+                return;
+            }
+        };
         for y in start_y..=end_y {
             let row = &mut self.rows[y];
             let xs = if y == start_y && y == end_y && start_x == end_x {
@@ -327,17 +346,18 @@ impl View {
     }
 
     /// Returns the index of the display row and the index within the row.
-    pub fn locate_row_by_position(&self, pos: Position) -> (usize, usize) {
+    pub fn locate_row_by_position(&self, pos: Position) -> Option<(usize, usize)> {
         let i_y = self
             .rows
             .partition_point(|row| pos >= row.first_position() || row.range().contains(pos));
 
         debug_assert!(i_y > 0);
         let row = &self.rows[i_y - 1];
-        (i_y - 1, row.locate_column_by_position(pos))
+        let i_x = row.locate_column_by_position(pos)?;
+        Some((i_y - 1, i_x))
     }
 
-    pub fn get_position_from_yx(&self, y: usize, x: usize) -> Option<Position> {
+    pub fn get_position_from_screen_yx(&self, y: usize, x: usize) -> Option<Position> {
         self.rows.get(self.scroll + y).map(|row| {
             row.positions
                 .get(x)
@@ -512,14 +532,14 @@ mod tests {
         let mut view = View::new();
         view.layout(&buffer, 1, 5);
 
-        assert_eq!(view.locate_row_by_position(p(0, 0)), (0, 0));
+        assert_eq!(view.locate_row_by_position(p(0, 0)), Some((0, 0)));
 
         // ABC
         let buffer = Buffer::from_text("ABC");
         let mut view = View::new();
         view.layout(&buffer, 1, 5);
 
-        assert_eq!(view.locate_row_by_position(p(0, 0)), (0, 0));
+        assert_eq!(view.locate_row_by_position(p(0, 0)), Some((0, 0)));
 
         // ABC
         // 12
@@ -528,15 +548,17 @@ mod tests {
         let mut view = View::new();
         view.layout(&buffer, 3, 5);
 
-        assert_eq!(view.locate_row_by_position(p(0, 0)), (0, 0));
-        assert_eq!(view.locate_row_by_position(p(0, 1)), (0, 1));
-        assert_eq!(view.locate_row_by_position(p(0, 3)), (0, 3));
-        assert_eq!(view.locate_row_by_position(p(1, 0)), (1, 0));
-        assert_eq!(view.locate_row_by_position(p(1, 1)), (1, 1));
-        assert_eq!(view.locate_row_by_position(p(1, 2)), (1, 2));
-        assert_eq!(view.locate_row_by_position(p(2, 0)), (2, 0));
-        assert_eq!(view.locate_row_by_position(p(2, 1)), (2, 1));
-        assert_eq!(view.locate_row_by_position(p(2, 3)), (2, 3));
+        assert_eq!(view.locate_row_by_position(p(0, 0)), Some((0, 0)));
+        assert_eq!(view.locate_row_by_position(p(0, 1)), Some((0, 1)));
+        assert_eq!(view.locate_row_by_position(p(0, 3)), Some((0, 3)));
+        assert_eq!(view.locate_row_by_position(p(0, 4)), None);
+        assert_eq!(view.locate_row_by_position(p(1, 0)), Some((1, 0)));
+        assert_eq!(view.locate_row_by_position(p(1, 1)), Some((1, 1)));
+        assert_eq!(view.locate_row_by_position(p(1, 2)), Some((1, 2)));
+        assert_eq!(view.locate_row_by_position(p(2, 0)), Some((2, 0)));
+        assert_eq!(view.locate_row_by_position(p(2, 1)), Some((2, 1)));
+        assert_eq!(view.locate_row_by_position(p(2, 3)), Some((2, 3)));
+        assert_eq!(view.locate_row_by_position(p(3, 0)), None);
     }
 
     #[bench]

@@ -189,14 +189,14 @@ impl Syntax {
         let parser = SyntaxParser::new(lang)?;
         let highlight_query = Query::new(
             parser.ts_lang,
-            get_highlights_query(&lang.name).unwrap_or(""),
+            get_highlights_query(lang.name).unwrap_or(""),
         )
         .map_err(ParserError::QueryError)?;
-        let indents_query = Query::new(parser.ts_lang, get_indents_query(&lang.name).unwrap_or(""))
+        let indents_query = Query::new(parser.ts_lang, get_indents_query(lang.name).unwrap_or(""))
             .map_err(ParserError::QueryError)?;
 
         Ok(Syntax {
-            tree: parser.tree.clone(),
+            tree: parser.tree,
             highlight_query,
             indents_query,
         })

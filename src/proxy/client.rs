@@ -195,7 +195,7 @@ impl Client {
     async fn request(&self, lsp: &Lsp, request: LspRequest) -> Result<LspResponse> {
         match timeout(
             LSP_REQUEST_TIMEOUT,
-            self.do_request(&lsp.identifier, request),
+            self.do_request(lsp.identifier, request),
         )
         .await
         {

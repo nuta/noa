@@ -140,7 +140,7 @@ fn main() {
         ));
         mod_rs.push_str("   match name {\n");
         for lang in LANGUAGES {
-            let scm = get_query_path(&lang.name, scm_name);
+            let scm = get_query_path(lang.name, scm_name);
             let scm_path = Path::new(&scm);
             if scm_path.exists() {
                 mod_rs.push_str(&format!("        \"{}\" => Some(concat!(\n", lang.name));
