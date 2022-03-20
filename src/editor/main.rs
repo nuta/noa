@@ -190,7 +190,8 @@ async fn main() {
             }
         }
 
-        // Give the tree-sitter a chance to finish parsing the latest buffer.
+        // Give the tree-sitter a chance to finish parsing the latest buffer
+        // to prevent flickering.
         //
         // Interestingly, handling a compositor event and modifying a document
         // is super fast (less than 100 us in total in my machine).
