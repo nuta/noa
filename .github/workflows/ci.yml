@@ -40,6 +40,10 @@ jobs:
           key: ${{ runner.os }}-v2-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-v2-cargo-build-target-      
 
+      - name: Create src/languages/tree_sitter/mod.rs
+        run: mkdir src/languages/tree_sitter && touch src/languages/tree_sitter/mod.rs
+
+
       - name: make sure cargo fmt is already applied
         uses: actions-rs/cargo@v1
         with:
