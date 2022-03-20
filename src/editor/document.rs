@@ -122,7 +122,13 @@ impl Document {
         }
 
         if let Some(lang) = guess_language(&path) {
-            buffer.set_language(lang);
+            match buffer.set_language(lang) {
+                Ok(()) => {}
+                Err(ParserError::NotSupportedLanguage) => {}
+                Err(err) => {
+                    notify_warn!("failed to set language: {:?}", err);
+                }
+            }
         }
 
         let parser_tx = spawn_parser_task(

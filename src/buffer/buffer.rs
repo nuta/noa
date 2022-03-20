@@ -13,7 +13,7 @@ use crate::{
     extras::indent::compute_desired_indent_len,
     mutable_raw_buffer::{Change, MutableRawBuffer},
     raw_buffer::RawBuffer,
-    syntax::Syntax,
+    syntax::{ParserError, Syntax},
 };
 
 #[derive(Clone, PartialEq, Debug)]
@@ -124,9 +124,11 @@ impl Buffer {
         self.lang
     }
 
-    pub fn set_language(&mut self, lang: &'static Language) {
+    pub fn set_language(&mut self, lang: &'static Language) -> Result<(), ParserError> {
+        let syntax = Syntax::new(lang)?;
         self.lang = lang;
-        self.syntax = Syntax::new(lang);
+        self.syntax = Some(syntax);
+        Ok(())
     }
 
     pub fn cursors(&self) -> &[Cursor] {

@@ -106,11 +106,13 @@ impl Query {
 pub enum ParserError {
     NotSupportedLanguage,
     LanguageError(tree_sitter::LanguageError),
+    QueryError(tree_sitter::QueryError),
     ParseError,
 }
 
 pub struct SyntaxParser {
     parser: tree_sitter::Parser,
+    ts_lang: tree_sitter::Language,
     tree: tree_sitter::Tree,
 }
 
@@ -121,8 +123,10 @@ impl SyntaxParser {
         parser
             .set_language(ts_lang)
             .map_err(ParserError::LanguageError)?;
+
         Ok(SyntaxParser {
             tree: parser.parse("", None).ok_or(ParserError::ParseError)?,
+            ts_lang,
             parser,
         })
     }
@@ -181,44 +185,20 @@ pub struct Syntax {
 }
 
 impl Syntax {
-    pub fn new(lang: &'static Language) -> Option<Syntax> {
-        lang.tree_sitter.as_ref().and_then(|_def| {
-            let mut parser = tree_sitter::Parser::new();
-            let ts_lang = get_tree_sitter_parser(&lang.name).unwrap();
-            match parser.set_language(ts_lang) {
-                Ok(()) => {
-                    let highlight_query =
-                        match Query::new(ts_lang, get_highlights_query(&lang.name).unwrap_or("")) {
-                            Ok(query) => query,
-                            Err(err) => {
-                                warn!(
-                                    "failed to parse highlights query for {}: {}",
-                                    lang.name, err
-                                );
-                                return None;
-                            }
-                        };
+    pub fn new(lang: &'static Language) -> Result<Syntax, ParserError> {
+        let parser = SyntaxParser::new(lang)?;
+        let highlight_query = Query::new(
+            parser.ts_lang,
+            get_highlights_query(&lang.name).unwrap_or(""),
+        )
+        .map_err(ParserError::QueryError)?;
+        let indents_query = Query::new(parser.ts_lang, get_indents_query(&lang.name).unwrap_or(""))
+            .map_err(ParserError::QueryError)?;
 
-                    let indents_query =
-                        match Query::new(ts_lang, get_indents_query(&lang.name).unwrap_or("")) {
-                            Ok(query) => query,
-                            Err(err) => {
-                                warn!(
-                                    "failed to parse highlights query for {}: {}",
-                                    lang.name, err
-                                );
-                                return None;
-                            }
-                        };
-
-                    Some(Syntax {
-                        tree: parser.parse("", None).unwrap(),
-                        highlight_query,
-                        indents_query,
-                    })
-                }
-                Err(_) => None,
-            }
+        Ok(Syntax {
+            tree: parser.tree.clone(),
+            highlight_query,
+            indents_query,
         })
     }
 
