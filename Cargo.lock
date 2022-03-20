@@ -1075,7 +1075,6 @@ name = "noa_buffer"
 version = "0.0.0"
 dependencies = [
  "arrayvec",
- "log",
  "lsp-types",
  "noa_common",
  "noa_editorconfig",
@@ -1130,10 +1129,6 @@ version = "0.0.0"
 dependencies = [
  "cc",
  "log",
- "num_cpus",
- "once_cell",
- "serde",
- "toml",
  "tree-sitter",
 ]
 
