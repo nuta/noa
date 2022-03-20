@@ -195,20 +195,29 @@ impl View {
                 return;
             }
         };
+
+        trace!("rows: {:#?}", self.rows);
+        trace!("start_y: {}, start_x: {}", start_y, start_x);
+        trace!("end_y: {}, end_x: {}", end_y, end_x);
+        trace!("range: {:?}", range);
+
         for y in start_y..=end_y {
             let row = &mut self.rows[y];
-            let xs = if y == start_y && y == end_y && start_x == end_x {
+            let x_max = row.len_chars();
+            let mut xs = if y == start_y && y == end_y && start_x == end_x {
                 start_x..(end_x + 1)
             } else if y == start_y && y == end_y {
                 start_x..end_x
             } else if y == start_y {
-                start_x..row.len_chars()
+                start_x..x_max
             } else if y == end_y {
                 0..end_x
             } else {
-                0..row.len_chars()
+                0..x_max
             };
 
+            xs.start = min(xs.start, x_max);
+            xs.end = min(xs.end, x_max);
             for x in xs {
                 row.graphemes[x].style = style;
             }
