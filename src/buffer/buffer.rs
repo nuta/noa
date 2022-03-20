@@ -237,7 +237,7 @@ impl Buffer {
                 }
             }
 
-            if c.selection().is_empty() {
+            if !c.selection().is_empty() {
                 let text = buf.substr(c.selection());
                 let new_text = f(&text);
                 buf.edit_at_cursor(c, past_cursors, &new_text);
