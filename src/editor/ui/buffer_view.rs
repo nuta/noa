@@ -21,8 +21,8 @@ use tokio::sync::{mpsc::UnboundedSender, Notify};
 use crate::{
     actions::execute_action_or_notify,
     completion::{clear_completion, complete},
+    config::{get_keybinding_for, KeyBindingScope},
     editor::Editor,
-    keybindings::get_keybinding_for,
     linemap::LineStatus,
     lsp,
     theme::theme_for,
@@ -340,7 +340,9 @@ impl Surface for BufferView {
                 show_completion = true;
             }
             _ => {
-                if let Some(binding) = get_keybinding_for("buffer", key.code, key.modifiers) {
+                if let Some(binding) =
+                    get_keybinding_for(KeyBindingScope::Buffer, key.code, key.modifiers)
+                {
                     execute_action_or_notify(editor, compositor, &binding.action);
                 } else {
                     trace!("unhandled key = {:?}", key);

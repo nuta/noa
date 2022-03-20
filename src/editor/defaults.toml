@@ -1,0 +1,5 @@
+key_bindings = [
+    { scope = "buffer", key = "k", modifiers = ["ctrl"], action = "truncate" },
+    { scope = "buffer", key = "s", modifiers = ["ctrl"], action = "save" },
+    { scope = "buffer", key = "f", modifiers = ["ctrl"], action = "open_finder" },
+]

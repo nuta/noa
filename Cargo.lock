@@ -1043,6 +1043,7 @@ dependencies = [
  "bitflags",
  "clap",
  "crossbeam",
+ "dirs",
  "futures",
  "fuzzy-matcher",
  "git2",

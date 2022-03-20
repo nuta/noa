@@ -1,5 +1,0 @@
-buffer = [
-    { key = "k", modifiers = ["ctrl"], action = "truncate" },
-    { key = "s", modifiers = ["ctrl"], action = "save" },
-    { key = "f", modifiers = ["ctrl"], action = "open_finder" },
-]

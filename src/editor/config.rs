@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 
+use anyhow::Context;
 use noa_compositor::terminal::{KeyCode, KeyModifiers};
 
 use once_cell::sync::Lazy;
 
 use serde::Deserialize;
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Modifier {
     Shift,
@@ -14,23 +15,29 @@ pub enum Modifier {
     Alt,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum KeyBindingScope {
+    Buffer,
+}
+
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct KeyBinding {
+    pub scope: KeyBindingScope,
     pub modifiers: Vec<Modifier>,
     // "enter", "tab", "F1",  "up", "down", "right", "left", or "a".."z".
     pub key: String,
     pub action: String,
 }
 
-#[derive(Clone, Debug, Deserialize)]
-struct KeyBindings {
-    buffer: Vec<KeyBinding>,
+#[derive(Clone, Debug, Default, Deserialize)]
+struct ConfigFile {
+    key_bindings: Vec<KeyBinding>,
 }
 
 fn parse_keybindings(
-    scope: &'static str,
-    bindings: Vec<KeyBinding>,
-    map: &mut HashMap<(&'static str, KeyCode, KeyModifiers), KeyBinding>,
+    map: &mut HashMap<(KeyBindingScope, KeyCode, KeyModifiers), KeyBinding>,
+    bindings: &[KeyBinding],
 ) {
     for binding in bindings {
         let keycode = match binding.key.as_str() {
@@ -75,22 +82,43 @@ fn parse_keybindings(
             }
         }
 
-        map.insert((scope, keycode, modifiers), binding);
+        map.insert((binding.scope, keycode, modifiers), binding.clone());
     }
 }
 
-static KEY_BINDINGS: Lazy<HashMap<(&'static str, KeyCode, KeyModifiers), KeyBinding>> =
-    Lazy::new(|| {
-        let KeyBindings { buffer } = toml::from_str(include_str!("keybindings.toml"))
-            .expect("failed to parse builtin keybindings.toml");
+static DEFAULT_CONFIG_FILE: Lazy<ConfigFile> = Lazy::new(|| {
+    toml::from_str(include_str!("defaults.toml"))
+        .context("failed to parse defaults.toml")
+        .unwrap()
+});
 
+static USER_CONFIG_FILE: Lazy<ConfigFile> = Lazy::new(|| {
+    let paths = &[
+        dirs::home_dir().unwrap().join(".noa.toml"),
+        dirs::home_dir().unwrap().join(".config/noa/config.toml"),
+    ];
+
+    for path in paths {
+        if path.exists() {
+            return toml::from_str(&std::fs::read_to_string(path).unwrap())
+                .with_context(|| format!("failed to parse {}", path.display()))
+                .unwrap();
+        }
+    }
+
+    Default::default()
+});
+
+static KEY_BINDINGS: Lazy<HashMap<(KeyBindingScope, KeyCode, KeyModifiers), KeyBinding>> =
+    Lazy::new(|| {
         let mut map = HashMap::new();
-        parse_keybindings("buffer", buffer, &mut map);
+        parse_keybindings(&mut map, &DEFAULT_CONFIG_FILE.key_bindings);
+        parse_keybindings(&mut map, &USER_CONFIG_FILE.key_bindings);
         map
     });
 
 pub fn get_keybinding_for(
-    scope: &'static str,
+    scope: KeyBindingScope,
     keycode: KeyCode,
     modifiers: KeyModifiers,
 ) -> Option<KeyBinding> {
