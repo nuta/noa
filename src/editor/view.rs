@@ -178,6 +178,10 @@ impl View {
 
     /// Update characters' styles in the given range.
     pub fn do_highlight(&mut self, range: Range, style: Style) {
+        // We don't handle out of bounds ranges because if a buffer is rendered
+        // before the tree-sitter finishes parsing, tree-sitter may report a
+        // highlight ranges of the previous version, which may be out of
+        // bounds.
         let (start_y, start_x) = match self.locate_row_by_position(range.front()) {
             Some(yx) => yx,
             None => {
