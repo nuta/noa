@@ -259,7 +259,7 @@ impl Document {
             let doc_id = self.id;
             let lang = self.buffer.language();
             let path = self.path.to_owned();
-            let options = self.buffer.editorconfig().clone().into();
+            let options = (*self.buffer.editorconfig()).into();
             trace!("LSP: formatting");
             jobs.await_in_mainloop(
                 async move {
