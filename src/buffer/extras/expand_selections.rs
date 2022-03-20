@@ -34,7 +34,7 @@ fn walk_ts_node<'tree>(
 mod tests {
     use std::borrow::Cow;
 
-    use crate::cursor::Cursor;
+    use crate::{cursor::Cursor, syntax::SyntaxParser};
 
     use super::*;
     use noa_languages::get_language_by_name;
@@ -47,8 +47,11 @@ mod tests {
     #[test]
     fn expand_selections() {
         let mut b = Buffer::from_text("");
-        b.set_language(get_language_by_name("rust").unwrap());
-        b.post_update_hook();
+        let lang = get_language_by_name("rust").unwrap();
+        b.set_language(lang).unwrap();
+        let mut parser = SyntaxParser::new(lang).unwrap();
+        parser.parse_fully(b.raw_buffer());
+        b.set_syntax_tree(parser.tree().clone());
         b.set_cursors_for_test(&[Cursor::new(0, 0)]);
         b.expand_selections();
         assert_eq!(selected_str(&b), "");
@@ -77,8 +80,11 @@ mod tests {
             "    }\n",
             "}\n",
         ));
-        b.set_language(get_language_by_name("rust").unwrap());
-        b.post_update_hook();
+        let lang = get_language_by_name("rust").unwrap();
+        b.set_language(lang).unwrap();
+        let mut parser = SyntaxParser::new(lang).unwrap();
+        parser.parse_fully(b.raw_buffer());
+        b.set_syntax_tree(parser.tree().clone());
 
         // The cursor is located in "123".
         b.set_cursors_for_test(&[Cursor::new(2, 21)]);
