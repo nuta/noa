@@ -10,7 +10,7 @@ use noa_compositor::{
     Compositor,
 };
 
-use crate::{editor::Editor, theme::theme_for};
+use crate::{config::theme_for, editor::Editor};
 
 use super::helpers::truncate_to_width;
 

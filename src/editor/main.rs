@@ -10,12 +10,12 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use clap::Parser;
 
+use config::parse_config_files;
 use editor::Editor;
 use finder::open_finder;
 use noa_common::{logger::install_logger, time_report::TimeReport};
 use noa_compositor::{terminal::Event, Compositor};
 use noa_proxy::protocol;
-use theme::parse_default_theme;
 use tokio::{
     sync::{
         mpsc::{self, unbounded_channel, UnboundedSender},
@@ -46,7 +46,6 @@ mod job;
 mod linemap;
 mod lsp;
 mod movement;
-mod theme;
 mod ui;
 mod view;
 
@@ -61,7 +60,7 @@ async fn main() {
     let boot_time = TimeReport::new("boot time");
 
     // Parse the default theme here to print panics in stderr.
-    parse_default_theme();
+    parse_config_files();
 
     install_logger("main");
     let args = Args::parse();

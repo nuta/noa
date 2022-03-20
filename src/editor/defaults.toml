@@ -1,5 +1,45 @@
+# Default values. These can be overridden by the config file ~/.config/noa/noa.toml
+# or ~/.noa.toml.
 key_bindings = [
     { scope = "buffer", key = "k", modifiers = ["ctrl"], action = "truncate" },
     { scope = "buffer", key = "s", modifiers = ["ctrl"], action = "save" },
     { scope = "buffer", key = "f", modifiers = ["ctrl"], action = "open_finder" },
 ]
+
+# Based on One Dark Pro theme
+# https://github.com/Binaryify/OneDark-Pro
+[theme]
+"keyword" = { fg = "magenta" }
+"variable" = { fg = "magenta" }
+"string" = { fg = "magenta" }
+
+"buffer.find_match" = { bg = "grey" }
+"buffer.current_line" = { bg = "grey" }
+"buffer.line_status" = { fg = "magenta" }
+"buffer.flash" = { fg = "magenta" }
+"buffer.matching_bracket" = { bg = "grey", bold = true }
+
+"line_status.modified" = { bg = "grey" }
+"line_status.added" = { bg = "grey" }
+"line_status.deleted" = { bg = "grey" }
+
+"prompt.name" = { bg = "grey", bold = true }
+"meta_line.background" = { bg = "grey" }
+
+"selector.input" = { fg = "magenta" }
+"selector.selected" = { fg = "magenta" }
+
+"notification.warn" = { fg = "magenta" }
+"notification.info" = { fg = "magenta" }
+"notification.error" = { fg = "magenta" }
+
+"completion.item" = { bg = "grey" }
+"completion.selected" = { bg = "grey" }
+
+"property" = { fg = "magenta" }
+"value" = { fg = "magenta" }
+"boolean" = { fg = "magenta" }
+"number" = { fg = "magenta" }
+"float" = { fg = "magenta" }
+
+[colors]

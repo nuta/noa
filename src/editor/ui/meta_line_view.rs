@@ -7,9 +7,9 @@ use noa_compositor::{
 };
 
 use crate::{
+    config::theme_for,
     editor::Editor,
     notification::{notification_manager, Notification},
-    theme::theme_for,
 };
 
 use super::helpers::truncate_to_width_suffix;

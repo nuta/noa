@@ -8,7 +8,7 @@ use noa_buffer::{
 };
 use noa_compositor::canvas::{Grapheme, Style};
 
-use crate::theme::theme_for;
+use crate::config::theme_for;
 
 #[derive(Debug, PartialEq)]
 pub struct Span {
@@ -148,7 +148,6 @@ impl View {
             }
             None => {
                 warn!("out of bounds centering: {:?}", pos);
-                
             }
         };
     }

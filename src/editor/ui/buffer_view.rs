@@ -21,11 +21,10 @@ use tokio::sync::{mpsc::UnboundedSender, Notify};
 use crate::{
     actions::execute_action_or_notify,
     completion::{clear_completion, complete},
-    config::{get_keybinding_for, KeyBindingScope},
+    config::{get_keybinding_for, theme_for, KeyBindingScope},
     editor::Editor,
     linemap::LineStatus,
     lsp,
-    theme::theme_for,
 };
 
 use super::completion_view::CompletionView;
