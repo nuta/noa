@@ -102,9 +102,80 @@ impl Query {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum ParserError {
+    NotSupportedLanguage,
+    LanguageError(tree_sitter::LanguageError),
+    ParseError,
+}
+
+pub struct SyntaxParser {
+    parser: tree_sitter::Parser,
+    tree: tree_sitter::Tree,
+}
+
+impl SyntaxParser {
+    pub fn new(lang: &Language) -> Result<SyntaxParser, ParserError> {
+        let mut parser = tree_sitter::Parser::new();
+        let ts_lang = get_tree_sitter_parser(lang.name).ok_or(ParserError::NotSupportedLanguage)?;
+        parser
+            .set_language(ts_lang)
+            .map_err(ParserError::LanguageError)?;
+        Ok(SyntaxParser {
+            tree: parser.parse("", None).ok_or(ParserError::ParseError)?,
+            parser,
+        })
+    }
+
+    pub fn tree(&self) -> &tree_sitter::Tree {
+        &self.tree
+    }
+
+    pub fn parse_fully(&mut self, buffer: &RawBuffer) {
+        self.parse(buffer, None);
+    }
+
+    pub fn parse_incrementally(&mut self, buffer: &RawBuffer, changes: &[Change]) {
+        self.parse(buffer, Some(changes));
+    }
+
+    fn parse(&mut self, buffer: &RawBuffer, changes: Option<&[Change]>) {
+        let rope = buffer.rope();
+        let mut callback = |i, _| {
+            if i > rope.len_bytes() {
+                return &[] as &[u8];
+            }
+
+            let (chunk, start, _, _) = rope.chunk_at_byte(i);
+            chunk[i - start..].as_bytes()
+        };
+
+        let old_tree = if let Some(changes) = changes {
+            // Tell tree-sitter about the changes we made since the last parsing.
+            for change in changes {
+                self.tree.edit(&InputEdit {
+                    start_byte: change.byte_range.start,
+                    old_end_byte: change.byte_range.end,
+                    new_end_byte: change.byte_range.start + change.insert_text.len(),
+                    start_position: change.range.front().into(),
+                    old_end_position: change.range.back().into(),
+                    new_end_position: change.new_pos.into(),
+                });
+            }
+
+            Some(&self.tree)
+        } else {
+            None
+        };
+
+        if let Some(new_tree) = self.parser.parse_with(&mut callback, old_tree) {
+            self.tree = new_tree;
+        }
+    }
+}
+
 pub struct Syntax {
     tree: tree_sitter::Tree,
-    parser: tree_sitter::Parser,
     highlight_query: Query,
     indents_query: Query,
 }
@@ -142,7 +213,6 @@ impl Syntax {
 
                     Some(Syntax {
                         tree: parser.parse("", None).unwrap(),
-                        parser,
                         highlight_query,
                         indents_query,
                     })
@@ -158,41 +228,6 @@ impl Syntax {
 
     pub fn set_tree(&mut self, tree: tree_sitter::Tree) {
         self.tree = tree;
-    }
-
-    /// If `changes` is `None`, it will parse the full text (for the first run).
-    pub fn update(&mut self, buffer: &RawBuffer, changes: Option<&[Change]>) {
-        let rope = buffer.rope();
-        let mut callback = |i, _| {
-            if i > rope.len_bytes() {
-                return &[] as &[u8];
-            }
-
-            let (chunk, start, _, _) = rope.chunk_at_byte(i);
-            chunk[i - start..].as_bytes()
-        };
-
-        let old_tree = if let Some(changes) = changes {
-            // Tell tree-sitter about the changes we made since the last parsing.
-            for change in changes {
-                self.tree.edit(&InputEdit {
-                    start_byte: change.byte_range.start,
-                    old_end_byte: change.byte_range.end,
-                    new_end_byte: change.byte_range.start + change.insert_text.len(),
-                    start_position: change.range.front().into(),
-                    old_end_position: change.range.back().into(),
-                    new_end_position: change.new_pos.into(),
-                });
-            }
-
-            Some(&self.tree)
-        } else {
-            None
-        };
-
-        if let Some(new_tree) = self.parser.parse_with(&mut callback, old_tree) {
-            self.tree = new_tree;
-        }
     }
 
     pub fn query_highlight<F>(&self, buffer: &RawBuffer, range: Range, mut callback: F)

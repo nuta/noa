@@ -18,8 +18,11 @@ use arc_swap::ArcSwap;
 
 use fuzzy_matcher::FuzzyMatcher;
 use noa_buffer::{
-    buffer::Buffer, cursor::Position, mutable_raw_buffer::Change, raw_buffer::RawBuffer,
-    syntax::Syntax,
+    buffer::Buffer,
+    cursor::Position,
+    mutable_raw_buffer::Change,
+    raw_buffer::RawBuffer,
+    syntax::{ParserError, SyntaxParser},
 };
 use noa_common::{
     dirs::{backup_dir, noa_dir},
@@ -400,19 +403,28 @@ fn spawn_parser_task(
 
     // Use spawn_blocking since parsing is CPU-bound.
     tokio::task::spawn_blocking(move || {
-        let mut syntax = match Syntax::new(lang) {
-            Some(syntax) => syntax,
-            None => return,
+        let mut parser = match SyntaxParser::new(lang) {
+            Ok(parser) => parser,
+            Err(ParserError::NotSupportedLanguage) => {
+                return;
+            }
+            Err(err) => {
+                warn!(
+                    "failed to construct a syntax parser for {}: {:?}",
+                    lang.name, err
+                );
+                return;
+            }
         };
 
         // First, parse the whole buffer.
-        syntax.update(&initial_buffer, None);
-        let _ = updated_syntax_tx.send((doc_id, syntax.tree().clone()));
+        parser.parse_fully(&initial_buffer);
+        let _ = updated_syntax_tx.send((doc_id, parser.tree().clone()));
 
         // After that, parse the buffer incrementally...
         while let Some((raw_buffer, changes)) = parser_rx.blocking_recv() {
-            syntax.update(&raw_buffer, Some(&changes));
-            let _ = updated_syntax_tx.send((doc_id, syntax.tree().clone()));
+            parser.parse_incrementally(&raw_buffer, &changes);
+            let _ = updated_syntax_tx.send((doc_id, parser.tree().clone()));
         }
     });
 
