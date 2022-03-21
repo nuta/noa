@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::ControlFlow};
+use std::ops::ControlFlow;
 
 use crate::{
     cursor::{Position, Range},
@@ -36,7 +36,6 @@ impl<'a> TextProvider<'a> for RopeTextProvider<'a> {
 
 pub struct Query {
     raw_query: tree_sitter::Query,
-    indices: HashMap<usize, String>,
 }
 
 impl Query {
@@ -45,12 +44,8 @@ impl Query {
         query_str: &str,
     ) -> Result<Query, tree_sitter::QueryError> {
         let raw_query = tree_sitter::Query::new(ts_lang, query_str)?;
-        let mut indices = HashMap::new();
-        for (i, name) in raw_query.capture_names().iter().enumerate() {
-            indices.insert(i, name.to_owned());
-        }
 
-        Ok(Query { raw_query, indices })
+        Ok(Query { raw_query })
     }
 
     pub fn query<F>(
@@ -70,11 +65,8 @@ impl Query {
         let matches = cursor.matches(&self.raw_query, tree.root_node(), RopeTextProvider(buffer));
         for m in matches {
             for cap in m.captures {
-                if let Some(span) = self.indices.get(&m.pattern_index) {
-                    // trace!("span = '{}', cap {:?}", span, cap);
+                if let Some(span) = self.raw_query.capture_names().get(cap.index as usize) {
                     callback(cap.node.buffer_range(), span);
-                } else {
-                    warn!("no index for pattern {}", m.pattern_index);
                 }
             }
         }
@@ -97,7 +89,7 @@ impl Query {
         let captures = cursor.captures(&self.raw_query, tree.root_node(), RopeTextProvider(buffer));
         for (m, _) in captures {
             for cap in m.captures {
-                if let Some(span) = self.indices.get(&(cap.index as usize)) {
+                if let Some(span) = self.raw_query.capture_names().get(cap.index as usize) {
                     callback(cap.node.buffer_range(), span);
                 }
             }

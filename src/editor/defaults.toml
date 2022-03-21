@@ -10,7 +10,7 @@ key_bindings = [
 # https://github.com/Binaryify/OneDark-Pro
 [theme]
 "buffer.find_match" = { bg = "grey" }
-"buffer.current_line" = { bg = "grey" }
+"buffer.current_line" = { bg = "" }
 "buffer.line_status" = { fg = "grey" }
 "buffer.flash" = { fg = "grey" }
 "buffer.matching_bracket" = { bg = "grey", bold = true }
@@ -33,13 +33,14 @@ key_bindings = [
 "completion.selected" = { bg = "grey" }
 
 "syntax.boolean" = { fg = "grey" }
-"syntax.conditional" = { fg = "grey" }
+"syntax.conditional" = { fg = "red" }
 "syntax.constant" = { fg = "grey" }
 "syntax.constant.builtin" = { fg = "grey" }
 "syntax.field" = { fg = "grey" }
 "syntax.float" = { fg = "grey" }
 "syntax.function" = { fg = "green" }
 "syntax.include" = { fg = "grey" }
+"syntax.keyword" = { fg = "red" }
 "syntax.keyword.function" = { fg = "magenta" }
 "syntax.keyword.operator" = { fg = "magenta" }
 "syntax.keyword.return" = { fg = "magenta" }
