@@ -139,5 +139,11 @@ mod tests {
         buffer.toggle_line_comment_out();
         assert_eq!(buffer.text(), "    abc");
         assert_eq!(buffer.cursors(), &[Cursor::new(0, 7)]);
+
+        let mut buffer = Buffer::from_text("  // abc\n  // def");
+        buffer.set_language(lang).unwrap();
+        buffer.set_cursors_for_test(&[Cursor::new_selection(0, 0, 2, 0)]);
+        buffer.toggle_line_comment_out();
+        assert_eq!(buffer.text(), "  abc\n  def");
     }
 }
