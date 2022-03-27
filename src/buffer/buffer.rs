@@ -88,10 +88,6 @@ impl Buffer {
         Ok(())
     }
 
-    pub fn line_len(&self, y: usize) -> usize {
-        self.buf.line_len(y)
-    }
-
     pub fn editorconfig(&self) -> &EditorConfig {
         &self.config
     }
@@ -372,27 +368,26 @@ impl Buffer {
             '\'' => '\'',
             '`' => '`',
             '{' => '}',
-            '}' => '{',
             '(' => ')',
-            ')' => '(',
             '[' => ']',
-            ']' => '[',
             _ => return,
         };
+
+        // Imitate VSCode's default behavior.
+        // https://code.visualstudio.com/api/language-extensions/language-configuration-guide
+        const AUTO_CLOSE_BEFORE: &str = ";:.,=}])>` \n\t";
 
         self.cursors.foreach(|c, past_cursors| {
             if c.is_selection() {
                 return;
             }
 
-            let after_char = match self.buf.char_iter(c.moving_position()).next() {
-                Some(after_char) => after_char,
-                None => '\n',
-            };
+            let after_char = self
+                .buf
+                .char_iter(c.moving_position())
+                .next()
+                .unwrap_or('\n');
 
-            // Imitate VSCode's default behavior.
-            // https://code.visualstudio.com/api/language-extensions/language-configuration-guide
-            const AUTO_CLOSE_BEFORE: &str = ";:.,=}])>` \n\t";
             if AUTO_CLOSE_BEFORE.contains(after_char) {
                 self.buf
                     .edit_at_cursor(c, past_cursors, &closing_char.to_string());

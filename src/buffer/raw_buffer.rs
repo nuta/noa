@@ -121,6 +121,15 @@ impl RawBuffer {
         self.rope.slice(start..end).to_string()
     }
 
+    /// Returns the text in a line excluding newline character(s).
+    ///
+    /// # Complexity
+    ///
+    /// Runs in O(N) time, where N is the length of the line.
+    pub fn line_text(&self, y: usize) -> String {
+        self.substr(Range::new(y, 0, y, self.line_len(y)))
+    }
+
     /// Returns an iterator at the given position which allows traversing
     /// characters (not graphemes) in the buffer back and forth.
     pub fn char_iter(&self, pos: Position) -> CharIter<'_> {
