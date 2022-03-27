@@ -74,9 +74,7 @@ pub async fn format_on_save(
     trace!("format on save: {}", path.display());
     let format_future = client.format(lsp, &path, options);
     match timeout(Duration::from_secs(3), format_future).await {
-        Ok(Ok(edits)) => {
-            Ok(edits.into_iter().map(Into::into).collect())
-        }
+        Ok(Ok(edits)) => Ok(edits.into_iter().map(Into::into).collect()),
         Ok(Err(err)) => {
             warn!("LSP formatting failed: {}", err);
             bail!("LSP formatting failed");
