@@ -385,8 +385,8 @@ impl Document {
 
         let visible_range = self.view.visible_range();
 
-        // FIXME: Deal with the borrow checker and stop using this temporary vec
-        //        to avoid unnecessary memory copies.
+        // TODO: Deal with the borrow checker and stop using this temporary vec
+        //       to avoid unnecessary memory copies.
         let mut highlights = Vec::new();
         self.buffer.highlight(visible_range, |range, span| {
             highlights.push((range, format!("syntax.{}", span.to_owned())));
@@ -609,7 +609,7 @@ impl Drop for DocumentManager {
                     continue;
                 }
 
-                // FIXME: Support format on save here.
+                // TODO: Support format on save here.
                 doc.do_save_to_file();
             }
         } else {
