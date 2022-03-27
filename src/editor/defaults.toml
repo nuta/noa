@@ -12,7 +12,7 @@ key_bindings = [
 "buffer.find_match" = { bg = "grey" }
 "buffer.current_line" = { bg = "" }
 "buffer.line_status" = { fg = "grey" }
-"buffer.flash" = { fg = "grey" }
+"buffer.flash" = { bg = "yellow" }
 "buffer.matching_bracket" = { bg = "grey", bold = true }
 
 "line_status.modified" = { bg = "grey" }
