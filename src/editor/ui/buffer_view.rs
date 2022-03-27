@@ -332,7 +332,7 @@ impl Surface for BufferView {
                 doc.buffer_mut().deindent();
             }
             (KeyCode::Char(ch), NONE) | (KeyCode::Char(ch), SHIFT) => {
-                doc.buffer_mut().insert_char_with_smart_dedent(ch);
+                doc.buffer_mut().smart_insert_char(ch);
                 show_completion = true;
             }
             _ => {

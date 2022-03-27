@@ -328,7 +328,7 @@ impl Buffer {
         self.insert(&c.to_string());
     }
 
-    pub fn insert_char_with_smart_dedent(&mut self, c: char) {
+    pub fn smart_insert_char(&mut self, c: char) {
         self.insert_char(c);
 
         // Smart dedent.
@@ -365,6 +365,40 @@ impl Buffer {
                 self.buf.edit_at_cursor(c, past_cursors, "}");
             });
         }
+
+        // Auto close.
+        let closing_char = match c {
+            '"' => '\"',
+            '\'' => '\'',
+            '`' => '`',
+            '{' => '}',
+            '}' => '{',
+            '(' => ')',
+            ')' => '(',
+            '[' => ']',
+            ']' => '[',
+            _ => return,
+        };
+
+        self.cursors.foreach(|c, past_cursors| {
+            if c.is_selection() {
+                return;
+            }
+
+            let after_char = match self.buf.char_iter(c.moving_position()).next() {
+                Some(after_char) => after_char,
+                None => '\n',
+            };
+
+            // Imitate VSCode's default behavior.
+            // https://code.visualstudio.com/api/language-extensions/language-configuration-guide
+            const AUTO_CLOSE_BEFORE: &str = ";:.,=}])>` \n\t";
+            if AUTO_CLOSE_BEFORE.contains(after_char) {
+                self.buf
+                    .edit_at_cursor(c, past_cursors, &closing_char.to_string());
+                c.move_left(&self.buf);
+            }
+        });
     }
 
     pub fn insert_newline_and_indent(&mut self) {
@@ -987,7 +1021,7 @@ mod tests {
     fn test_insert_char_with_smart_dedent() {
         let mut b = Buffer::from_text("    if foo {\n        ");
         b.set_cursors_for_test(&[Cursor::new(1, 8)]);
-        b.insert_char_with_smart_dedent('}');
+        b.smart_insert_char('}');
         assert_eq!(b.text(), "    if foo {\n    }");
         assert_eq!(b.cursors(), &[Cursor::new(1, 5)]);
     }
