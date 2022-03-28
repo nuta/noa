@@ -1,14 +1,8 @@
-use std::{
-    cmp::min,
-    collections::{HashMap, HashSet},
-};
-
-use noa_editorconfig::EditorConfig;
+use std::{cmp::min, collections::HashMap};
 
 use crate::{
     buffer::Buffer,
     cursor::{Position, Range},
-    raw_buffer::RawBuffer,
 };
 
 impl Buffer {
@@ -33,6 +27,15 @@ impl Buffer {
             }
         }
 
+        let increment_comment = target_lines.iter().any(|y| {
+            !self
+                .buf
+                .line_text(*y)
+                .trim_start()
+                .starts_with(keyword_without_whitespace)
+        });
+
+        // Add/remove comment outs.
         let mut x_diffs = HashMap::new();
         for y in target_lines {
             let current_indent_len = self.buf.line_indent_len(y);
@@ -40,29 +43,31 @@ impl Buffer {
             let eol = Position::new(y, self.buf.line_len(y));
             let stripped_line_text = self.substr(Range::from_positions(pos_after_indent, eol));
 
-            if stripped_line_text.starts_with(&keyword_with_whitespace) {
-                let end = Position::new(y, current_indent_len + keyword_with_whitespace_len);
-                self.buf
-                    .edit(Range::from_positions(pos_after_indent, end), "");
-                x_diffs.insert(y, (false, keyword_with_whitespace_len));
-            } else if stripped_line_text.starts_with(keyword_without_whitespace) {
-                let end = Position::new(y, current_indent_len + keyword_without_whitespace_len);
-                self.buf
-                    .edit(Range::from_positions(pos_after_indent, end), "");
-                x_diffs.insert(y, (false, keyword_without_whitespace_len));
-            } else {
+            if increment_comment {
                 self.buf.edit(
                     Range::from_positions(pos_after_indent, pos_after_indent),
                     &keyword_with_whitespace,
                 );
-                x_diffs.insert(y, (true, keyword_without_whitespace_len));
+            } else {
+                if stripped_line_text.starts_with(&keyword_with_whitespace) {
+                    let end = Position::new(y, current_indent_len + keyword_with_whitespace_len);
+                    self.buf
+                        .edit(Range::from_positions(pos_after_indent, end), "");
+                    x_diffs.insert(y, keyword_with_whitespace_len);
+                } else if stripped_line_text.starts_with(keyword_without_whitespace) {
+                    let end = Position::new(y, current_indent_len + keyword_without_whitespace_len);
+                    self.buf
+                        .edit(Range::from_positions(pos_after_indent, end), "");
+                    x_diffs.insert(y, keyword_without_whitespace_len);
+                }
             }
         }
 
+        // Adjust cursors.
         self.cursors.foreach(|c, _| {
             let range = c.selection_mut();
-            let (add, x_diff) = x_diffs.get(&range.start.y).copied().unwrap_or((false, 0));
-            if add {
+            let x_diff = x_diffs.get(&range.start.y).copied().unwrap_or(0);
+            if increment_comment {
                 range.start.x = min(
                     range.start.x.saturating_sub(x_diff),
                     self.buf.line_len(range.start.y),
@@ -114,6 +119,12 @@ mod tests {
         buffer.set_cursors_for_test(&[Cursor::new_selection(0, 0, 2, 0)]);
         buffer.toggle_line_comment_out();
         assert_eq!(buffer.text(), "  // abc\n  // def");
+
+        let mut buffer = Buffer::from_text("  abc\n  // def");
+        buffer.set_language(lang).unwrap();
+        buffer.set_cursors_for_test(&[Cursor::new_selection(0, 0, 2, 0)]);
+        buffer.toggle_line_comment_out();
+        assert_eq!(buffer.text(), "  // abc\n  // // def");
     }
 
     #[test]

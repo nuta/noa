@@ -408,3 +408,16 @@ impl Action for Redo {
         Ok(())
     }
 }
+
+pub struct CommentOut;
+
+impl Action for CommentOut {
+    fn name(&self) -> &'static str {
+        "comment_out"
+    }
+
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+        editor.current_buffer_mut().toggle_line_comment_out();
+        Ok(())
+    }
+}
