@@ -73,32 +73,6 @@ impl Surface for MetaLineView {
         let doc = editor.documents.current();
         let view = doc.view();
         let buffer = doc.buffer();
-        let cursor_pos = buffer.main_cursor().moving_position();
-        let cursor_pos_str = if buffer.cursors().len() > 1 {
-            let num_invisible_cursors = buffer
-                .cursors()
-                .iter()
-                .filter(|c| {
-                    let pos = c.moving_position();
-
-                    // Handle the case when the cursor is at EOF.
-                    pos < view.first_visible_position() || pos > view.last_visible_position()
-                })
-                .count();
-            if num_invisible_cursors > 0 {
-                format!(
-                    "{} [{}+{}]",
-                    cursor_pos.x,
-                    buffer.cursors().len(),
-                    num_invisible_cursors
-                )
-            } else {
-                format!("{} [{}]", cursor_pos.x, buffer.cursors().len())
-            }
-        } else {
-            format!("{}", cursor_pos.x)
-        };
-        let cursor_pos_width = cursor_pos_str.display_width();
 
         // Apply the style.
         canvas.apply_style(0, 0, canvas.width(), theme_for("meta_line.background"));
@@ -106,22 +80,57 @@ impl Surface for MetaLineView {
         let leftside_width = match self.mode {
             MetaLineMode::Search => {
                 // Search query.
-                let max_width = canvas.width().saturating_sub(cursor_pos_width + 2);
-                let truncated_query = truncate_to_width_suffix(&search_query, max_width);
+                let truncated_query = truncate_to_width_suffix(&search_query, canvas.width());
                 canvas.write_str(0, 1, truncated_query);
                 truncated_query.display_width()
             }
             MetaLineMode::Normal => {
+                // Cursor position.
+                let cursor_pos = buffer.main_cursor().moving_position();
+                let cursor_text = if buffer.cursors().len() > 1 {
+                    let num_invisible_cursors = buffer
+                        .cursors()
+                        .iter()
+                        .filter(|c| {
+                            let pos = c.moving_position();
+
+                            // Handle the case when the cursor is at EOF.
+                            pos < view.first_visible_position()
+                                || pos > view.last_visible_position()
+                        })
+                        .count();
+                    if num_invisible_cursors > 0 {
+                        format!(
+                            "{} [{}+{}]",
+                            cursor_pos.x,
+                            buffer.cursors().len(),
+                            num_invisible_cursors
+                        )
+                    } else {
+                        format!("{} [{}]", cursor_pos.x, buffer.cursors().len())
+                    }
+                } else {
+                    format!("{}", cursor_pos.x)
+                };
+
+                // Is the buffer dirty?
+                let is_dirty = if doc.is_dirty() { " [dirty]" } else { "" };
+
+                // Are there any in-progress async jobs?
+                let is_busy = if editor.jobs.is_busy() { " [busy]" } else { "" };
+
+                let left_text = format!("{}{}{}", cursor_text, is_dirty, is_busy);
+
                 // File name.
                 let filename = truncate_to_width_suffix(
                     doc.name(),
-                    canvas.width().saturating_sub(cursor_pos_width + 2),
+                    canvas.width().saturating_sub(left_text.display_width() + 2),
                 );
                 let filename_width = filename.display_width();
                 canvas.write_str(0, 1, filename);
 
                 // Cursor position.
-                canvas.write_str(0, 1 + filename_width + 1, &cursor_pos_str);
+                canvas.write_str(0, 1 + filename_width + 1, &left_text);
 
                 1 + filename_width + 1
             }

@@ -17,6 +17,10 @@ impl JobManager {
         }
     }
 
+    pub fn is_busy(&self) -> bool {
+        !self.futures.is_empty()
+    }
+
     pub async fn get_completed(&mut self) -> Option<Box<CompletedCallback>> {
         tokio::select! {
             Some(callback) = self.futures.next() => {
