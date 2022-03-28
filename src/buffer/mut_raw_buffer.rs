@@ -15,35 +15,35 @@ pub struct Change {
 
 /// An internal mutable buffer implementation supporting primitive operations
 /// required by the editor.
-pub struct MutableRawBuffer {
+pub struct MutRawBuffer {
     raw: RawBuffer,
     changes: Vec<Change>,
 }
 
-impl MutableRawBuffer {
-    pub fn new() -> MutableRawBuffer {
-        MutableRawBuffer {
+impl MutRawBuffer {
+    pub fn new() -> MutRawBuffer {
+        MutRawBuffer {
             raw: RawBuffer::new(),
             changes: Vec::new(),
         }
     }
 
-    pub fn from_raw_buffer(raw_buffer: RawBuffer) -> MutableRawBuffer {
-        MutableRawBuffer {
+    pub fn from_raw_buffer(raw_buffer: RawBuffer) -> MutRawBuffer {
+        MutRawBuffer {
             raw: raw_buffer,
             changes: Vec::new(),
         }
     }
 
-    pub fn from_text(text: &str) -> MutableRawBuffer {
-        MutableRawBuffer {
+    pub fn from_text(text: &str) -> MutRawBuffer {
+        MutRawBuffer {
             raw: RawBuffer::from_text(text),
             changes: Vec::new(),
         }
     }
 
-    pub fn from_reader<T: std::io::Read>(reader: T) -> std::io::Result<MutableRawBuffer> {
-        Ok(MutableRawBuffer {
+    pub fn from_reader<T: std::io::Read>(reader: T) -> std::io::Result<MutRawBuffer> {
+        Ok(MutRawBuffer {
             raw: RawBuffer::from_reader(reader)?,
             changes: Vec::new(),
         })
@@ -132,19 +132,19 @@ impl MutableRawBuffer {
     }
 }
 
-impl Default for MutableRawBuffer {
-    fn default() -> MutableRawBuffer {
-        MutableRawBuffer::new()
+impl Default for MutRawBuffer {
+    fn default() -> MutRawBuffer {
+        MutRawBuffer::new()
     }
 }
 
-impl PartialEq for MutableRawBuffer {
+impl PartialEq for MutRawBuffer {
     fn eq(&self, other: &Self) -> bool {
         self.raw == other.raw
     }
 }
 
-impl Deref for MutableRawBuffer {
+impl Deref for MutRawBuffer {
     type Target = RawBuffer;
 
     fn deref(&self) -> &RawBuffer {
@@ -158,7 +158,7 @@ mod tests {
 
     #[test]
     fn test_insertion() {
-        let mut buffer = MutableRawBuffer::new();
+        let mut buffer = MutRawBuffer::new();
         buffer.edit(Range::new(0, 0, 0, 0), "ABG");
         assert_eq!(buffer.text(), "ABG");
 
@@ -168,7 +168,7 @@ mod tests {
 
     #[test]
     fn test_deletion() {
-        let mut buffer = MutableRawBuffer::from_text("ABCDEFG");
+        let mut buffer = MutRawBuffer::from_text("ABCDEFG");
         buffer.edit(Range::new(0, 1, 0, 1), "");
         assert_eq!(buffer.text(), "ABCDEFG");
 

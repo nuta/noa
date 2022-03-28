@@ -9,7 +9,7 @@ use anyhow::{bail, Result};
 use noa_buffer::{
     buffer::TextEdit,
     cursor::{Position, Range},
-    mutable_raw_buffer::Change,
+    mut_raw_buffer::Change,
 };
 use noa_common::oops::OopsExt;
 use noa_languages::Language;

@@ -2,7 +2,7 @@ use std::ops::ControlFlow;
 
 use crate::{
     cursor::{Position, Range},
-    mutable_raw_buffer::Change,
+    mut_raw_buffer::Change,
     raw_buffer::RawBuffer,
 };
 

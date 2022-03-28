@@ -20,7 +20,7 @@ use fuzzy_matcher::FuzzyMatcher;
 use noa_buffer::{
     buffer::Buffer,
     cursor::Position,
-    mutable_raw_buffer::Change,
+    mut_raw_buffer::Change,
     raw_buffer::RawBuffer,
     syntax::{ParserError, SyntaxParser},
 };
