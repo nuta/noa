@@ -1,4 +1,7 @@
-use std::{cmp::max, collections::HashMap};
+use std::{
+    cmp::{max, min},
+    collections::HashMap,
+};
 
 use noa_buffer::{
     buffer::Buffer,
@@ -100,7 +103,7 @@ impl<'a> Movement<'a> {
 
     pub fn add_cursors_vertically(&mut self, y_diff: isize) {
         let mut new_selections = Vec::new();
-        self.move_cursors_vertically(y_diff, |c, pos, new_visual_x| {
+        for c in self.buffer.cursors() {
             let s = c.selection();
             let n = if s.front().y == s.back().y {
                 s.back().x - s.front().x
@@ -108,9 +111,21 @@ impl<'a> Movement<'a> {
                 0
             };
 
-            let range = Range::new(pos.y, pos.x, pos.y, pos.x + n);
-            new_selections.push((range, new_visual_x));
-        });
+            let x = self
+                .state
+                .visual_xs
+                .get(&c.id())
+                .cloned()
+                .unwrap_or(s.front().x);
+            let y = if y_diff < 0 {
+                s.front().y.saturating_sub(y_diff.abs() as usize)
+            } else {
+                s.back().y + y_diff.abs() as usize
+            };
+
+            let range = self.buffer.clamp_range(Range::new(y, x, y, x + n));
+            new_selections.push((range, x));
+        }
 
         for (selection, visual_x) in new_selections {
             // Note: the newly added cursor could be deleted due to overlapping.
