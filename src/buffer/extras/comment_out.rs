@@ -48,18 +48,16 @@ impl Buffer {
                     Range::from_positions(pos_after_indent, pos_after_indent),
                     &keyword_with_whitespace,
                 );
-            } else {
-                if stripped_line_text.starts_with(&keyword_with_whitespace) {
-                    let end = Position::new(y, current_indent_len + keyword_with_whitespace_len);
-                    self.buf
-                        .edit(Range::from_positions(pos_after_indent, end), "");
-                    x_diffs.insert(y, keyword_with_whitespace_len);
-                } else if stripped_line_text.starts_with(keyword_without_whitespace) {
-                    let end = Position::new(y, current_indent_len + keyword_without_whitespace_len);
-                    self.buf
-                        .edit(Range::from_positions(pos_after_indent, end), "");
-                    x_diffs.insert(y, keyword_without_whitespace_len);
-                }
+            } else if stripped_line_text.starts_with(&keyword_with_whitespace) {
+                let end = Position::new(y, current_indent_len + keyword_with_whitespace_len);
+                self.buf
+                    .edit(Range::from_positions(pos_after_indent, end), "");
+                x_diffs.insert(y, keyword_with_whitespace_len);
+            } else if stripped_line_text.starts_with(keyword_without_whitespace) {
+                let end = Position::new(y, current_indent_len + keyword_without_whitespace_len);
+                self.buf
+                    .edit(Range::from_positions(pos_after_indent, end), "");
+                x_diffs.insert(y, keyword_without_whitespace_len);
             }
         }
 
