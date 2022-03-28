@@ -60,14 +60,15 @@ impl<'a> Movement<'a> {
         debug_assert!(self
             .view
             .visible_range()
-            .cotains_or_edge(self.buffer.main_cursor().moving_position()));
+            .contains_or_contacts_with(self.buffer.main_cursor().moving_position()));
 
         for _ in 0..5 {
             self.view.scroll_up();
         }
 
         let visible_range = self.view.visible_range();
-        while !visible_range.cotains_or_edge(self.buffer.main_cursor().moving_position()) {
+        while !visible_range.contains_or_contacts_with(self.buffer.main_cursor().moving_position())
+        {
             self.move_cursors_up();
         }
     }
@@ -76,14 +77,15 @@ impl<'a> Movement<'a> {
         debug_assert!(self
             .view
             .visible_range()
-            .cotains_or_edge(self.buffer.main_cursor().moving_position()));
+            .contains_or_contacts_with(self.buffer.main_cursor().moving_position()));
 
         for _ in 0..5 {
             self.view.scroll_down();
         }
 
         let visible_range = self.view.visible_range();
-        while !visible_range.cotains_or_edge(self.buffer.main_cursor().moving_position()) {
+        while !visible_range.contains_or_contacts_with(self.buffer.main_cursor().moving_position())
+        {
             self.move_cursors_down();
         }
     }

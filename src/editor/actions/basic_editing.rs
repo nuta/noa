@@ -182,6 +182,7 @@ impl Action for SelectAllCurrentWord {
                 buffer.add_cursor(selection);
             }
         }
+
         Ok(())
     }
 }

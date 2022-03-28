@@ -188,7 +188,7 @@ impl Range {
         self.front() <= pos && pos < self.back()
     }
 
-    pub fn cotains_or_edge(&self, pos: Position) -> bool {
+    pub fn contains_or_contacts_with(&self, pos: Position) -> bool {
         self.front() <= pos && pos <= self.back()
     }
 
@@ -219,6 +219,12 @@ impl Range {
                 || self.front().y > other.back().y
                 || (self.back().y == other.front().y && self.back().x <= other.front().x)
                 || (self.front().y == other.back().y && self.front().x >= other.back().x))
+    }
+
+    pub fn overlaps_or_contacts_with(&self, other: Range) -> bool {
+        self.overlaps_with(other)
+            || self.contains_or_contacts_with(other.start)
+            || self.contains_or_contacts_with(other.end)
     }
 }
 
@@ -553,7 +559,7 @@ impl CursorSet {
         while i < new_cursors.len() - 1 {
             let c = &new_cursors[i];
             let next_c = &new_cursors[i + 1];
-            if c.selection().overlaps_with(next_c.selection()) {
+            if c.selection().overlaps_or_contacts_with(next_c.selection()) {
                 let next_is_main_cursor = next_c.is_main_cursor();
 
                 if c.is_selection() || next_c.is_selection() {
@@ -648,6 +654,7 @@ impl<'a> IntoIterator for &'a CursorSet {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn range_overlaps_with() {
@@ -681,5 +688,13 @@ mod tests {
         let mut cursor = Cursor::new(0, 2);
         cursor.select_overlapped_lines();
         assert_eq!(cursor.selection(), Range::new(0, 0, 1, 0));
+    }
+
+    #[test]
+    fn test_cursor_uniqueness() {
+        let mut cursors = CursorSet::new();
+        cursors.set_cursors_for_test(&[Cursor::new(0, 2)]);
+        cursors.add_cursor(Range::new(0, 0, 0, 2));
+        assert_eq!(cursors.cursors, vec![Cursor::new_selection(0, 0, 0, 2)]);
     }
 }
