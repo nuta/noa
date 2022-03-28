@@ -82,7 +82,7 @@ impl DisplayRow {
 
 pub struct View {
     rows: Vec<DisplayRow>,
-    scroll: usize,
+    scroll_y: usize,
     height: usize,
     softwrap: bool,
 }
@@ -91,14 +91,14 @@ impl View {
     pub fn new() -> View {
         View {
             rows: Vec::new(),
-            scroll: 0,
+            scroll_y: 0,
             height: 0,
             softwrap: true,
         }
     }
 
     pub fn visible_rows(&self) -> &[DisplayRow] {
-        &self.rows[self.scroll..min(self.rows.len(), self.scroll + self.height)]
+        &self.rows[self.scroll_y..min(self.rows.len(), self.scroll_y + self.height)]
     }
 
     pub fn all_rows(&self) -> &[DisplayRow] {
@@ -118,7 +118,7 @@ impl View {
         }
 
         let last_visible_row_index =
-            min(self.rows.len(), self.scroll + self.height).saturating_sub(1);
+            min(self.rows.len(), self.scroll_y + self.height).saturating_sub(1);
         let row = &self.rows[last_visible_row_index];
         match self.rows.get(last_visible_row_index + 1) {
             Some(next_row) if next_row.lineno == row.lineno => row.last_position(),
@@ -140,17 +140,17 @@ impl View {
     }
 
     pub fn scroll_up(&mut self) {
-        self.scroll = self.scroll.saturating_sub(1);
+        self.scroll_y = self.scroll_y.saturating_sub(1);
     }
 
     pub fn scroll_down(&mut self) {
-        self.scroll = min(self.scroll + 1, self.rows.len().saturating_sub(1));
+        self.scroll_y = min(self.scroll_y + 1, self.rows.len().saturating_sub(1));
     }
 
     pub fn centering(&mut self, pos: Position, height: usize) {
         match self.locate_row_by_position(pos) {
             Some((row_index, _)) => {
-                self.scroll = row_index.saturating_sub(height);
+                self.scroll_y = row_index.saturating_sub(height);
             }
             None => {
                 warn!("out of bounds centering: {:?}", pos);
@@ -160,7 +160,7 @@ impl View {
 
     /// Clears highlights in the given rows.
     pub fn clear_highlights(&mut self, height: usize) {
-        for i in self.scroll..min(self.scroll + height, self.rows.len()) {
+        for i in self.scroll_y..min(self.scroll_y + height, self.rows.len()) {
             for grapheme in &mut self.rows[i].graphemes {
                 grapheme.style = Style::default();
             }
@@ -249,14 +249,14 @@ impl View {
 
         let main_pos = buffer.main_cursor().moving_position();
         while main_pos < self.first_visible_position() {
-            self.scroll -= 1;
+            self.scroll_y -= 1;
         }
 
         while main_pos > self.last_visible_position() {
-            self.scroll += 1;
+            self.scroll_y += 1;
         }
 
-        debug_assert!(self.scroll < self.rows.len());
+        debug_assert!(self.scroll_y < self.rows.len());
     }
 
     /// Layouts a single physical (separated by "\n") line.
@@ -373,7 +373,7 @@ impl View {
     }
 
     pub fn get_position_from_screen_yx(&self, y: usize, x: usize) -> Option<Position> {
-        self.rows.get(self.scroll + y).map(|row| {
+        self.rows.get(self.scroll_y + y).map(|row| {
             row.positions
                 .get(x)
                 .copied()
@@ -574,6 +574,21 @@ mod tests {
         assert_eq!(view.locate_row_by_position(p(2, 1)), Some((2, 1)));
         assert_eq!(view.locate_row_by_position(p(2, 3)), Some((2, 3)));
         assert_eq!(view.locate_row_by_position(p(3, 0)), None);
+    }
+
+    #[test]
+    fn locate_row_by_position_softwrapped() {
+        // ABC
+        // XY
+        //
+        let buffer = Buffer::from_text("ABCXY\n");
+        let mut view = View::new();
+        view.layout(&buffer, 3, 3);
+
+        assert_eq!(view.locate_row_by_position(p(0, 2)), Some((0, 2))); // |C
+        assert_eq!(view.locate_row_by_position(p(0, 3)), Some((1, 0))); // |X
+        assert_eq!(view.locate_row_by_position(p(0, 4)), Some((1, 1))); // |Y
+        assert_eq!(view.locate_row_by_position(p(1, 0)), Some((2, 0)));
     }
 
     #[bench]

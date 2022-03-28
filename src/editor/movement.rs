@@ -181,6 +181,7 @@ impl<'a> Movement<'a> {
                     return;
                 }
             };
+
             let dest_row = view.all_rows().get(if y_diff > 0 {
                 i_y.saturating_add(y_diff.abs() as usize)
             } else {
@@ -265,6 +266,31 @@ mod tests {
         assert_eq!(movement.buffer.cursors(), &[Cursor::new(2, 1)]);
         movement.move_cursors_down();
         assert_eq!(movement.buffer.cursors(), &[Cursor::new(2, 1)]);
+    }
+
+    #[test]
+    fn cursor_movement_softwrapped() {
+        // ABC
+        // XY
+        // Z
+        let mut buffer = Buffer::from_text("ABCXY\nZ");
+        let mut view = View::new();
+        view.layout(&buffer, 3, 3);
+        let mut movement_state = MovementState::new();
+        let mut movement = movement_state.movement(&mut buffer, &mut view);
+
+        movement.buffer.set_cursors_for_test(&[Cursor::new(1, 1)]);
+        movement.move_cursors_up();
+        assert_eq!(movement.buffer.cursors(), &[Cursor::new(0, 4)]);
+        movement.move_cursors_up();
+
+        // movement.buffer.set_cursors_for_test(&[Cursor::new(0, 1)]);
+        // movement.move_cursors_down();
+        // assert_eq!(movement.buffer.cursors(), &[Cursor::new(1, 1)]);
+        // movement.move_cursors_down();
+        // assert_eq!(movement.buffer.cursors(), &[Cursor::new(2, 1)]);
+        // movement.move_cursors_down();
+        // assert_eq!(movement.buffer.cursors(), &[Cursor::new(2, 1)]);
     }
 
     #[test]
