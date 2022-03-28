@@ -270,27 +270,32 @@ mod tests {
 
     #[test]
     fn cursor_movement_softwrapped() {
-        // ABC
+        // ABCDE
         // XY
-        // Z
-        let mut buffer = Buffer::from_text("ABCXY\nZ");
+        //
+        let mut buffer = Buffer::from_text("ABCDEXY\n");
         let mut view = View::new();
-        view.layout(&buffer, 3, 3);
+        view.layout(&buffer, 3, 5);
         let mut movement_state = MovementState::new();
         let mut movement = movement_state.movement(&mut buffer, &mut view);
 
-        movement.buffer.set_cursors_for_test(&[Cursor::new(1, 1)]);
+        movement.buffer.set_cursors_for_test(&[Cursor::new(0, 7)]);
         movement.move_cursors_up();
-        assert_eq!(movement.buffer.cursors(), &[Cursor::new(0, 4)]);
+        assert_eq!(movement.buffer.cursors(), &[Cursor::new(0, 2)]);
         movement.move_cursors_up();
+        assert_eq!(movement.buffer.cursors(), &[Cursor::new(0, 2)]);
 
-        // movement.buffer.set_cursors_for_test(&[Cursor::new(0, 1)]);
-        // movement.move_cursors_down();
-        // assert_eq!(movement.buffer.cursors(), &[Cursor::new(1, 1)]);
-        // movement.move_cursors_down();
-        // assert_eq!(movement.buffer.cursors(), &[Cursor::new(2, 1)]);
-        // movement.move_cursors_down();
-        // assert_eq!(movement.buffer.cursors(), &[Cursor::new(2, 1)]);
+        movement.buffer.set_cursors_for_test(&[Cursor::new(1, 0)]);
+        movement.move_cursors_up();
+        assert_eq!(movement.buffer.cursors(), &[Cursor::new(0, 7)]);
+        movement.move_cursors_up();
+        assert_eq!(movement.buffer.cursors(), &[Cursor::new(0, 2)]);
+
+        movement.buffer.set_cursors_for_test(&[Cursor::new(0, 4)]);
+        movement.move_cursors_down();
+        assert_eq!(movement.buffer.cursors(), &[Cursor::new(0, 7)]);
+        movement.move_cursors_down();
+        assert_eq!(movement.buffer.cursors(), &[Cursor::new(1, 0)]);
     }
 
     #[test]

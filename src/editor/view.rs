@@ -73,7 +73,7 @@ impl DisplayRow {
 
         let last_pos = self.last_position();
         if last_pos.y == pos.y && last_pos.x + 1 == pos.x {
-            return Some(pos.x);
+            return Some(pos.x - self.first_position().x);
         }
 
         None
@@ -386,6 +386,7 @@ impl View {
 mod tests {
     use noa_compositor::canvas::{Color, Grapheme, Style};
     use noa_editorconfig::EditorConfig;
+    use pretty_assertions::assert_eq;
 
     use super::*;
 
@@ -588,6 +589,7 @@ mod tests {
         assert_eq!(view.locate_row_by_position(p(0, 2)), Some((0, 2))); // |C
         assert_eq!(view.locate_row_by_position(p(0, 3)), Some((1, 0))); // |X
         assert_eq!(view.locate_row_by_position(p(0, 4)), Some((1, 1))); // |Y
+        assert_eq!(view.locate_row_by_position(p(0, 5)), Some((1, 2))); // Y|
         assert_eq!(view.locate_row_by_position(p(1, 0)), Some((2, 0)));
     }
 

@@ -254,8 +254,12 @@ impl Surface for BufferView {
             }
 
             // The main cursor is at the end of line.
-            if main_cursor_pos.y == row.lineno - 1 && main_cursor_pos.x == row.len_chars() {
+            if main_cursor_pos.y == row.lineno - 1 && main_cursor_pos.x == row.last_position().x + 1
+            {
                 self.cursor_position = (y, buffer_x + row.len_chars());
+            // The main cursor is at the end of empty line.
+            } else if main_cursor_pos.y == row.lineno - 1 && row.is_empty() {
+                self.cursor_position = (y, buffer_x);
             }
         }
 
