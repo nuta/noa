@@ -20,7 +20,7 @@ key_bindings = [
 "line_status.deleted" = { bg = "grey" }
 
 "prompt.name" = { bg = "grey", bold = true }
-"meta_line.background" = { bg = "grey" }
+"meta_line.background" = { invert = true }
 
 "selector.input" = { fg = "grey" }
 "selector.selected" = { fg = "grey" }
