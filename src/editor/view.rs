@@ -84,6 +84,7 @@ pub struct View {
     rows: Vec<DisplayRow>,
     scroll: usize,
     height: usize,
+    softwrap: bool,
 }
 
 impl View {
@@ -92,6 +93,7 @@ impl View {
             rows: Vec::new(),
             scroll: 0,
             height: 0,
+            softwrap: true,
         }
     }
 
@@ -131,6 +133,10 @@ impl View {
 
     pub fn visible_range(&self) -> Range {
         Range::from_positions(self.first_visible_position(), self.last_visible_position())
+    }
+
+    pub fn toggle_soft_wrap(&mut self) {
+        self.softwrap = !self.softwrap;
     }
 
     pub fn scroll_up(&mut self) {
@@ -220,10 +226,15 @@ impl View {
     }
 
     /// Computes the grapheme layout (text wrapping).
-    ///
-    /// If you want to disable soft wrapping. Set `width` to `std::max::MAX`.
     pub fn layout(&mut self, buffer: &Buffer, height: usize, width: usize) {
         use rayon::prelude::*;
+
+        let width = if self.softwrap {
+            width
+        } else {
+            // Disable soft wrapping.
+            std::usize::MAX
+        };
 
         self.height = height;
         self.rows = (0..buffer.num_lines())
@@ -256,8 +267,8 @@ impl View {
         let mut pos = Position::new(y, 0);
         let mut should_return = false;
         while !should_return {
-            let mut graphemes = Vec::with_capacity(width);
-            let mut positions = Vec::with_capacity(width);
+            let mut graphemes = Vec::with_capacity(128);
+            let mut positions = Vec::with_capacity(128);
             let mut len_chars = 0;
             let mut width_remaining = width;
 

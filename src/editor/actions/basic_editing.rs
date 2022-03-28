@@ -409,6 +409,19 @@ impl Action for Redo {
     }
 }
 
+pub struct SoftWrap;
+
+impl Action for SoftWrap {
+    fn name(&self) -> &'static str {
+        "softwrap"
+    }
+
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+        editor.documents.current_mut().view_mut().toggle_soft_wrap();
+        Ok(())
+    }
+}
+
 pub struct CommentOut;
 
 impl Action for CommentOut {

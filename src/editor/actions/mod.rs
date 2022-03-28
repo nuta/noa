@@ -39,6 +39,7 @@ pub const ACTIONS: &[&dyn Action] = &[
     &basic_editing::Paste,
     &basic_editing::Undo,
     &basic_editing::Redo,
+    &basic_editing::SoftWrap,
     &basic_editing::CommentOut,
     &change_case::ToUpperCase,
     &change_case::ToLowerCase,
