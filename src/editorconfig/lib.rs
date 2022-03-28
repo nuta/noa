@@ -282,7 +282,6 @@ fn resolve_config(source_file: &Path) -> Option<EditorConfig> {
 
             if matches_pattern(&rule.pattern, relative_path) {
                 trace!("applying {}/.editorconfig", dir.as_path().display());
-                trace!("rule: {:#?}", rule);
                 ret.indent_style = rule.indent_style.unwrap_or(ret.indent_style);
                 ret.indent_size = rule.indent_size.unwrap_or(ret.indent_size);
                 ret.tab_width = rule.tab_width.unwrap_or(ret.tab_width);

@@ -598,8 +598,6 @@ impl CursorSet {
     {
         let mut new_cursors = Vec::new();
         for mut cursor in self.cursors.drain(..).rev() {
-            // Remove duplicated cursors.
-            new_cursors.retain(|c: &Cursor| !c.selection().overlaps_with(cursor.selection()));
             f(&mut cursor, &mut new_cursors);
             new_cursors.push(cursor);
         }

@@ -268,7 +268,6 @@ fn search_globally(
                     return WalkState::Continue;
                 }
 
-                trace!("grep: {}", dirent.path().display());
                 let text = match std::fs::read_to_string(dirent.path()) {
                     Ok(text) => text,
                     Err(err) => {
@@ -284,18 +283,6 @@ fn search_globally(
                         Utf8Sink(|lineno, _range, line| {
                             matcher
                                 .find_iter(line.as_bytes(), |m| {
-                                    let before_text = &line[..m.start()];
-                                    let matched_text = &line[m.start()..m.end()];
-                                    let after_text = &line[m.end()..];
-                                    trace!(
-                                        "{}:{}: {}\x1b[1;31m{}\x1b[0m{}",
-                                        dirent.path().display(),
-                                        lineno,
-                                        before_text,
-                                        matched_text,
-                                        after_text
-                                    );
-
                                     let line_text = line.trim_end().to_owned();
                                     let mut x = 0;
                                     for (char_i, (byte_i, _)) in

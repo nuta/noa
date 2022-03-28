@@ -173,12 +173,12 @@ impl<'a> Movement<'a> {
         let visual_xs = self.state.visual_xs.clone();
         let mut new_visual_xs = HashMap::new();
         self.update_cursors_with(|_buffer, view, _state, c| {
-            let (i_y, i_x) = match view.locate_row_by_position(c.front()) {
+            let (i_y, i_x) = match view.locate_row_by_position(c.moving_position()) {
                 Some(yx) => yx,
                 None => {
                     warn!(
                         "move_cursors_vertically: locate_row_by_position failed: {:?}",
-                        c.front()
+                        c.moving_position()
                     );
                     return;
                 }

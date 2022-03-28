@@ -94,12 +94,6 @@ impl LineMap {
         };
 
         for diff in diffs {
-            trace!(
-                "git diff: range={:?}, type={:?}",
-                diff.range,
-                diff.diff_type
-            );
-
             let value = match diff.diff_type {
                 DiffType::Added => LineStatus::ADDED,
                 DiffType::Removed => LineStatus::REMOVED,
