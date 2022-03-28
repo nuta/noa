@@ -1,9 +1,37 @@
 # Default values. These can be overridden by the config file ~/.config/noa/noa.toml
 # or ~/.noa.toml.
 key_bindings = [
-    { scope = "buffer", key = "k", modifiers = ["ctrl"], action = "truncate" },
     { scope = "buffer", key = "s", modifiers = ["ctrl"], action = "save" },
     { scope = "buffer", key = "f", modifiers = ["ctrl"], action = "open_finder" },
+    { scope = "buffer", key = "w", modifiers = ["ctrl"], action = "backspace_word" },
+    { scope = "buffer", key = "k", modifiers = ["ctrl"], action = "truncate" },
+    { scope = "buffer", key = "d", modifiers = ["ctrl"], action = "delete" },
+    { scope = "buffer", key = "a", modifiers = ["ctrl"], action = "move_to_beginning_of_line" },
+    { scope = "buffer", key = "e", modifiers = ["ctrl"], action = "move_to_end_of_line" },
+    { scope = "buffer", key = "f", modifiers = ["alt"], action = "move_to_next_word" },
+    { scope = "buffer", key = "b", modifiers = ["alt"], action = "move_to_prev_word" },
+    { scope = "buffer", key = "h", modifiers = ["ctrl"], action = "find_current_word" },
+    { scope = "buffer", key = "h", modifiers = ["alt"], action = "select_all_current_word" },
+    { scope = "buffer", key = "left", modifiers = ["alt", "shift"], action = "select_prev_word" },
+    { scope = "buffer", key = "right", modifiers = ["alt", "shift"], action = "select_next_word" },
+    { scope = "buffer", key = "up", modifiers = ["ctrl", "alt"], action = "add_cursors_up" },
+    { scope = "buffer", key = "down", modifiers = ["ctrl", "alt"], action = "add_cursors_down" },
+    { scope = "buffer", key = "up", modifiers = ["alt", "shift"], action = "duplicate_lines_up" },
+    { scope = "buffer", key = "down", modifiers = ["alt", "shift"], action = "duplicate_lines_down" },
+    { scope = "buffer", key = "up", modifiers = ["alt"], action = "move_lines_up" },
+    { scope = "buffer", key = "down", modifiers = ["alt"], action = "move_lines_down" },
+    { scope = "buffer", key = "left", modifiers = ["ctrl", "shift"], action = "select_until_beginning_of_line" },
+    { scope = "buffer", key = "right", modifiers = ["ctrl", "shift"], action = "select_until_end_of_line" },
+    { scope = "buffer", key = "b", modifiers = ["ctrl"], action = "expand_selection" },
+    { scope = "buffer", key = "x", modifiers = ["ctrl"], action = "cut" },
+    { scope = "buffer", key = "c", modifiers = ["ctrl"], action = "copy" },
+    { scope = "buffer", key = "v", modifiers = ["ctrl"], action = "paste" },
+    { scope = "buffer", key = "u", modifiers = ["ctrl"], action = "undo" },
+    { scope = "buffer", key = "u", modifiers = ["alt"], action = "redo" },
+    { scope = "buffer", key = "y", modifiers = ["ctrl"], action = "undo_cursors" },
+    { scope = "buffer", key = "n", modifiers = ["ctrl"], action = "comment_out" },
+    # { scope = "buffer", key = "", modifiers = ["ctrl"], action = "softwrap" },
+
 ]
 
 # Based on One Dark Pro theme

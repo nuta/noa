@@ -396,6 +396,19 @@ impl Action for Undo {
     }
 }
 
+pub struct UndoCursors;
+
+impl Action for UndoCursors {
+    fn name(&self) -> &'static str {
+        "undo_cursors"
+    }
+
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+        editor.current_buffer_mut().undo_cursor_movements();
+        Ok(())
+    }
+}
+
 pub struct Redo;
 
 impl Action for Redo {
@@ -431,6 +444,19 @@ impl Action for CommentOut {
 
     fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
         editor.current_buffer_mut().toggle_line_comment_out();
+        Ok(())
+    }
+}
+
+pub struct ExpandSelection;
+
+impl Action for ExpandSelection {
+    fn name(&self) -> &'static str {
+        "expand_selection"
+    }
+
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+        editor.current_buffer_mut().expand_selections();
         Ok(())
     }
 }
