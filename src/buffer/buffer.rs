@@ -5,7 +5,7 @@ use std::{
     process::{Command, Stdio},
 };
 
-use noa_editorconfig::{EditorConfig};
+use noa_editorconfig::EditorConfig;
 use noa_languages::{get_language_by_name, tree_sitter, Language};
 
 use crate::{
@@ -164,6 +164,10 @@ impl Buffer {
         r.start.x = min(r.start.x, self.line_len(r.start.y));
         r.end.x = min(r.end.x, self.line_len(r.end.y));
         r
+    }
+
+    pub fn is_valid_range(&self, range: Range) -> bool {
+        self.clamp_range(range) == range
     }
 
     pub fn clear_secondary_cursors(&mut self) {

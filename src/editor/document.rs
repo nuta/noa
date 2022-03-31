@@ -12,7 +12,7 @@ use std::{
     time::SystemTime,
 };
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 
 use arc_swap::ArcSwap;
 
@@ -29,7 +29,7 @@ use noa_common::{
     oops::OopsExt,
     prioritized_vec::PrioritizedVec,
 };
-use noa_proxy::client::Client as ProxyClient;
+use noa_proxy::{client::Client as ProxyClient, lsp_types};
 
 use noa_editorconfig::EditorConfig;
 use noa_languages::{guess_language, tree_sitter, Language};
@@ -570,6 +570,10 @@ impl DocumentManager {
         self.documents.values().find(|doc| doc.path == path)
     }
 
+    pub fn get_mut_document_by_path(&mut self, path: &Path) -> Option<&mut Document> {
+        self.documents.values_mut().find(|doc| doc.path == path)
+    }
+
     pub fn get_mut_document_by_id(&mut self, doc_id: DocumentId) -> Option<&mut Document> {
         self.documents.get_mut(&doc_id)
     }
@@ -598,6 +602,36 @@ impl DocumentManager {
             .collect();
 
         Words(buffers)
+    }
+
+    pub fn apply_workspace_edit_in_only_current(
+        &mut self,
+        workspace_edit: &lsp_types::WorkspaceEdit,
+    ) -> Result<()> {
+        let doc = self.current_mut();
+
+        // Check if all edits in WorkspaceEdit are only for the current buffer.
+        let mut all_edits = Vec::new();
+        for change in &workspace_edit.changes {
+            for (url, edits) in change {
+                if url.scheme() != "file" {
+                    bail!("ignoring non-file URL in WorkspaceEdit: {}", url);
+                }
+
+                let path = Path::new(url.path());
+                if path != doc.path {
+                    bail!("non-file-local change required");
+                }
+
+                all_edits.push(edits.iter().cloned().map(Into::into).collect());
+            }
+        }
+
+        for edits in all_edits {
+            doc.buffer_mut().apply_text_edits(edits);
+        }
+
+        Ok(())
     }
 }
 

@@ -391,7 +391,7 @@ impl Surface for BufferView {
         surface_x: usize,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
-        const _CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        const CTRL: KeyModifiers = KeyModifiers::CONTROL;
         const ALT: KeyModifiers = KeyModifiers::ALT;
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
@@ -486,6 +486,27 @@ impl Surface for BufferView {
                             clicked_pos.x,
                         );
 
+                        self.time_last_clicked = Instant::now();
+                        self.num_clicked = 1;
+                        self.selection_start = None;
+                    }
+                    // Single click + Ctrl.
+                    (MouseEventKind::Up(MouseButton::Left), CTRL)
+                        if self.time_last_clicked.elapsed() > Duration::from_millis(400) =>
+                    {
+                        // Move cursor.
+                        if matches!(self.selection_start, Some(start) if start == clicked_pos) {
+                            doc.buffer_mut().move_main_cursor_to_pos(clicked_pos);
+                            lsp::goto_definition(
+                                &editor.proxy,
+                                &mut editor.jobs,
+                                doc.buffer().language(),
+                                doc.path(),
+                                clicked_pos,
+                            );
+                        }
+
+                        trace!("Single click + Ctrl");
                         self.time_last_clicked = Instant::now();
                         self.num_clicked = 1;
                         self.selection_start = None;

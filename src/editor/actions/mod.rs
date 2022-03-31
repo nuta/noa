@@ -51,7 +51,7 @@ pub const ACTIONS: &[&dyn Action] = &[
     &scrolling::PageUp,
     &scrolling::PageDown,
     &scrolling::Centering,
-    &lsp::CodeActions,
+    &lsp::GoToDefinition,
     &lsp::RenameSymbol,
 ];
 

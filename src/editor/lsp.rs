@@ -215,28 +215,52 @@ pub fn hover_hook(
     );
 }
 
-pub async fn list_code_actions(
+pub fn goto_definition(
+    client: &Arc<Client>,
+    jobs: &mut JobManager,
     lang: &'static Language,
-    client: Arc<Client>,
-    path: PathBuf,
-    range: Range,
-) -> Result<Vec<lsp_types::CodeActionOrCommand>> {
+    path: &Path,
+    pos: Position,
+) {
     let lsp = match lang.lsp.as_ref() {
         Some(lsp) => lsp,
-        None => return Ok(vec![]),
+        None => return,
     };
 
-    trace!("list_code_actions: {}", path.display());
-    let fut = client.list_code_actions(lsp, &path, range.into());
-    match timeout(Duration::from_secs(5), fut).await {
-        Ok(Ok(actions)) => Ok(actions),
-        Ok(Err(err)) => {
-            bail!("LSP code actions failed: {}", err);
-        }
-        Err(_) => {
-            bail!("LSP code actions timed out");
-        }
-    }
+    let client = client.clone();
+    let path = path.to_owned();
+    jobs.await_in_mainloop(
+        async move {
+            let result = match client.goto_definition(lsp, &path, pos.into()).await {
+                Ok(locations) => locations,
+                Err(err) => {
+                    notify_error!("failed to go to definition: {}", err);
+                    vec![]
+                }
+            };
+
+            result
+        },
+        |editor, _, locations| {
+            let loc = match locations.get(0) {
+                Some(loc) => loc,
+                None => {
+                    notify_warn!("no definition found");
+                    return;
+                }
+            };
+
+            match editor.open_file(&loc.path, Some(loc.position.into())) {
+                Ok(_) => {
+                    editor.documents.switch_by_path(&loc.path);
+                    notify_info!("here's the defnition");
+                }
+                Err(err) => {
+                    notify_error!("failed to open file: {}", err);
+                }
+            }
+        },
+    );
 }
 
 pub async fn prepare_rename_symbol(

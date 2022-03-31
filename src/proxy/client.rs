@@ -32,7 +32,7 @@ use tokio::{
 };
 
 use crate::protocol::{
-    LspRequest, LspResponse, Notification, RequestId, Response, ToClient, ToServer,
+    FileLocation, LspRequest, LspResponse, Notification, RequestId, Response, ToClient, ToServer,
 };
 
 const LSP_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
@@ -148,6 +148,28 @@ impl Client {
         }
     }
 
+    pub async fn goto_definition(
+        &self,
+        lsp: &Lsp,
+        path: &Path,
+        position: lsp_types::Position,
+    ) -> Result<Vec<FileLocation>> {
+        match self
+            .request(
+                lsp,
+                LspRequest::GoToDefinition {
+                    path: path.to_owned(),
+                    position,
+                },
+            )
+            .await
+        {
+            Ok(LspResponse::GoToDefinition(locations)) => Ok(locations),
+            Ok(other) => bail!("unexpected response: {:?}", other),
+            Err(err) => Err(err),
+        }
+    }
+
     pub async fn completion(
         &self,
         lsp: &Lsp,
@@ -187,28 +209,6 @@ impl Client {
             .await
         {
             Ok(LspResponse::Edits(edits)) => Ok(edits),
-            Ok(other) => bail!("unexpected response: {:?}", other),
-            Err(err) => Err(err),
-        }
-    }
-
-    pub async fn list_code_actions(
-        &self,
-        lsp: &Lsp,
-        path: &Path,
-        range: lsp_types::Range,
-    ) -> Result<Vec<lsp_types::CodeActionOrCommand>> {
-        match self
-            .request(
-                lsp,
-                LspRequest::CodeAction {
-                    path: path.to_owned(),
-                    range,
-                },
-            )
-            .await
-        {
-            Ok(LspResponse::CodeActions(actions)) => Ok(actions),
             Ok(other) => bail!("unexpected response: {:?}", other),
             Err(err) => Err(err),
         }

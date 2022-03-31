@@ -81,6 +81,16 @@ impl Editor {
     }
 
     pub fn open_file(&mut self, path: &Path, cursor_pos: Option<Position>) -> Result<DocumentId> {
+        if let Some(doc) = self.documents.get_mut_document_by_path(path) {
+            // Already opened. Just move the cursor and return.
+            if let Some(pos) = cursor_pos {
+                doc.buffer_mut().move_main_cursor_to_pos(pos);
+                doc.flashes_mut().flash(Range::from_positions(pos, pos));
+            }
+
+            return Ok(doc.id());
+        }
+
         let mut doc = Document::new(path, &self.updated_syntax_tx, false)?;
 
         // First run of tree sitter parsering, etc.

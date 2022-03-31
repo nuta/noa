@@ -14,15 +14,14 @@ use lsp_types::{
         Notification as LspNotificationTrait, PublishDiagnostics,
     },
     request::{
-        CodeActionRequest, Completion, ExecuteCommand, Formatting, GotoDefinition, HoverRequest,
+        Completion, Formatting, GotoDefinition, HoverRequest,
         Initialize, PrepareRenameRequest, Rename, Request,
-    },
-    CodeActionContext, CodeActionParams, CodeActionResponse, CompletionParams, CompletionResponse,
-    DidChangeTextDocumentParams, DidOpenTextDocumentParams, DocumentFormattingParams,
-    ExecuteCommandParams, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams,
+    }, CompletionParams, CompletionResponse,
+    DidChangeTextDocumentParams, DidOpenTextDocumentParams, DocumentFormattingParams, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams,
     InitializeParams, InitializedParams, PartialResultParams, PrepareRenameResponse,
     PublishDiagnosticsParams, RenameParams, TextDocumentContentChangeEvent, TextDocumentIdentifier,
     TextDocumentPositionParams, TextEdit, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
+    WorkspaceEdit,
 };
 
 use noa_languages::Lsp;
@@ -201,11 +200,6 @@ async fn receive_responses(
                             .collect();
                         LspResponse::GoToDefinition(items)
                     }
-                    CodeActionRequest::METHOD => {
-                        let resp: CodeActionResponse = serde_json::from_value(json.result).unwrap();
-                        LspResponse::CodeActions(resp)
-                    }
-                    ExecuteCommand::METHOD => LspResponse::NoContent,
                     PrepareRenameRequest::METHOD => {
                         let resp: PrepareRenameResponse =
                             serde_json::from_value(json.result).unwrap();
@@ -221,6 +215,10 @@ async fn receive_responses(
                                 LspResponse::NoContent
                             }
                         }
+                    }
+                    Rename::METHOD => {
+                        let resp: WorkspaceEdit = serde_json::from_value(json.result).unwrap();
+                        LspResponse::RenameSymbol(resp)
                     }
                     _ => {
                         warn!("ignored unsupported response: {}", body);
@@ -560,37 +558,6 @@ impl Server for LspServer {
                     partial_result_params: PartialResultParams {
                         partial_result_token: None,
                     },
-                    work_done_progress_params: WorkDoneProgressParams {
-                        work_done_token: None,
-                    },
-                })
-                .await
-            }
-            LspRequest::CodeAction { path, range } => {
-                trace!("CodeAction(path={}, range={:?})", path.display(), range);
-                self.call_method::<CodeActionRequest>(CodeActionParams {
-                    text_document: TextDocumentIdentifier {
-                        uri: parse_path_as_uri(&path),
-                    },
-                    context: CodeActionContext {
-                        diagnostics: vec![],
-                        only: None,
-                    },
-                    range,
-                    partial_result_params: PartialResultParams {
-                        partial_result_token: None,
-                    },
-                    work_done_progress_params: WorkDoneProgressParams {
-                        work_done_token: None,
-                    },
-                })
-                .await
-            }
-            LspRequest::ExecuteCommand { command } => {
-                trace!("Command(command={:?})", command.command);
-                self.call_method::<ExecuteCommand>(ExecuteCommandParams {
-                    command: command.command.clone(),
-                    arguments: command.arguments.unwrap_or_default(),
                     work_done_progress_params: WorkDoneProgressParams {
                         work_done_token: None,
                     },
