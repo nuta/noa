@@ -76,8 +76,7 @@ pub async fn format_on_save(
     match timeout(Duration::from_secs(3), format_future).await {
         Ok(Ok(edits)) => Ok(edits.into_iter().map(Into::into).collect()),
         Ok(Err(err)) => {
-            warn!("LSP formatting failed: {}", err);
-            bail!("LSP formatting failed");
+            bail!("LSP formatting failed: {}", err);
         }
         Err(_) => {
             bail!("LSP formatting timed out");
@@ -214,4 +213,77 @@ pub fn hover_hook(
             }
         },
     );
+}
+
+pub async fn list_code_actions(
+    lang: &'static Language,
+    client: Arc<Client>,
+    path: PathBuf,
+    range: Range,
+) -> Result<Vec<lsp_types::CodeActionOrCommand>> {
+    let lsp = match lang.lsp.as_ref() {
+        Some(lsp) => lsp,
+        None => return Ok(vec![]),
+    };
+
+    trace!("list_code_actions: {}", path.display());
+    let fut = client.list_code_actions(lsp, &path, range.into());
+    match timeout(Duration::from_secs(5), fut).await {
+        Ok(Ok(actions)) => Ok(actions),
+        Ok(Err(err)) => {
+            bail!("LSP code actions failed: {}", err);
+        }
+        Err(_) => {
+            bail!("LSP code actions timed out");
+        }
+    }
+}
+
+pub async fn prepare_rename_symbol(
+    lang: &'static Language,
+    client: Arc<Client>,
+    path: PathBuf,
+    pos: Position,
+) -> Result<Option<Range>> {
+    let lsp = match lang.lsp.as_ref() {
+        Some(lsp) => lsp,
+        None => return Ok(None),
+    };
+
+    trace!("prepare_rename_symbol: {}", path.display());
+    let fut = client.prepare_rename_symbol(lsp, &path, pos.into());
+    match timeout(Duration::from_secs(5), fut).await {
+        Ok(Ok(range)) => Ok(Some(range.into())),
+        Ok(Err(err)) => {
+            bail!("LSP prepare_rename_symbol failed: {}", err);
+        }
+        Err(_) => {
+            bail!("LSP prepare_rename_symbol timed out");
+        }
+    }
+}
+
+pub async fn rename_symbol(
+    lang: &'static Language,
+    client: Arc<Client>,
+    path: PathBuf,
+    pos: Position,
+    new_name: String,
+) -> Result<lsp_types::WorkspaceEdit> {
+    let lsp = match lang.lsp.as_ref() {
+        Some(lsp) => lsp,
+        None => bail!("rename symbol not supported"),
+    };
+
+    trace!("rename_symbol: {}", path.display());
+    let fut = client.rename_symbol(lsp, &path, pos.into(), new_name);
+    match timeout(Duration::from_secs(5), fut).await {
+        Ok(Ok(edit)) => Ok(edit),
+        Ok(Err(err)) => {
+            bail!("LSP rename symbol failed: {}", err);
+        }
+        Err(_) => {
+            bail!("LSP rename symbol timed out");
+        }
+    }
 }

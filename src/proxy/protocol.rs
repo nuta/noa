@@ -52,6 +52,22 @@ pub enum LspRequest {
         path: PathBuf,
         position: lsp_types::Position,
     },
+    CodeAction {
+        path: PathBuf,
+        range: lsp_types::Range,
+    },
+    ExecuteCommand {
+        command: lsp_types::Command,
+    },
+    PrepareRenameSymbol {
+        path: PathBuf,
+        position: lsp_types::Position,
+    },
+    RenameSymbol {
+        path: PathBuf,
+        position: lsp_types::Position,
+        new_name: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
@@ -87,4 +103,7 @@ pub enum LspResponse {
     Completion(Vec<CompletionItem>),
     Hover(Option<HoverContents>),
     GoToDefinition(Vec<FileLocation>),
+    CodeActions(Vec<lsp_types::CodeActionOrCommand>),
+    PrepareRenameSymbol(lsp_types::Range),
+    RenameSymbol(lsp_types::WorkspaceEdit),
 }

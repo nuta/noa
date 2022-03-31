@@ -10,6 +10,7 @@ use crate::editor::Editor;
 mod basic_editing;
 mod change_case;
 mod linemap;
+mod lsp;
 mod scrolling;
 
 pub const ACTIONS: &[&dyn Action] = &[
@@ -50,6 +51,8 @@ pub const ACTIONS: &[&dyn Action] = &[
     &scrolling::PageUp,
     &scrolling::PageDown,
     &scrolling::Centering,
+    &lsp::CodeActions,
+    &lsp::RenameSymbol,
 ];
 
 pub trait Action: Any + Send + Sync {

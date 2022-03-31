@@ -192,6 +192,74 @@ impl Client {
         }
     }
 
+    pub async fn list_code_actions(
+        &self,
+        lsp: &Lsp,
+        path: &Path,
+        range: lsp_types::Range,
+    ) -> Result<Vec<lsp_types::CodeActionOrCommand>> {
+        match self
+            .request(
+                lsp,
+                LspRequest::CodeAction {
+                    path: path.to_owned(),
+                    range,
+                },
+            )
+            .await
+        {
+            Ok(LspResponse::CodeActions(actions)) => Ok(actions),
+            Ok(other) => bail!("unexpected response: {:?}", other),
+            Err(err) => Err(err),
+        }
+    }
+
+    pub async fn prepare_rename_symbol(
+        &self,
+        lsp: &Lsp,
+        path: &Path,
+        position: lsp_types::Position,
+    ) -> Result<lsp_types::Range> {
+        match self
+            .request(
+                lsp,
+                LspRequest::PrepareRenameSymbol {
+                    path: path.to_owned(),
+                    position,
+                },
+            )
+            .await
+        {
+            Ok(LspResponse::PrepareRenameSymbol(range)) => Ok(range),
+            Ok(other) => bail!("unexpected response: {:?}", other),
+            Err(err) => Err(err),
+        }
+    }
+
+    pub async fn rename_symbol(
+        &self,
+        lsp: &Lsp,
+        path: &Path,
+        position: lsp_types::Position,
+        new_name: String,
+    ) -> Result<lsp_types::WorkspaceEdit> {
+        match self
+            .request(
+                lsp,
+                LspRequest::RenameSymbol {
+                    path: path.to_owned(),
+                    position,
+                    new_name,
+                },
+            )
+            .await
+        {
+            Ok(LspResponse::RenameSymbol(edit)) => Ok(edit),
+            Ok(other) => bail!("unexpected response: {:?}", other),
+            Err(err) => Err(err),
+        }
+    }
+
     async fn request(&self, lsp: &Lsp, request: LspRequest) -> Result<LspResponse> {
         match timeout(
             LSP_REQUEST_TIMEOUT,

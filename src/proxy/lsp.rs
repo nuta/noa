@@ -13,12 +13,16 @@ use lsp_types::{
         DidChangeTextDocument, DidOpenTextDocument, Initialized,
         Notification as LspNotificationTrait, PublishDiagnostics,
     },
-    request::{Completion, Formatting, GotoDefinition, HoverRequest, Initialize, Request},
-    CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidOpenTextDocumentParams,
-    DocumentFormattingParams, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams,
-    InitializeParams, InitializedParams, PartialResultParams, PublishDiagnosticsParams,
-    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams, TextEdit,
-    VersionedTextDocumentIdentifier, WorkDoneProgressParams,
+    request::{
+        CodeActionRequest, Completion, ExecuteCommand, Formatting, GotoDefinition, HoverRequest,
+        Initialize, PrepareRenameRequest, Rename, Request,
+    },
+    CodeActionContext, CodeActionParams, CodeActionResponse, CompletionParams, CompletionResponse,
+    DidChangeTextDocumentParams, DidOpenTextDocumentParams, DocumentFormattingParams,
+    ExecuteCommandParams, GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams,
+    InitializeParams, InitializedParams, PartialResultParams, PrepareRenameResponse,
+    PublishDiagnosticsParams, RenameParams, TextDocumentContentChangeEvent, TextDocumentIdentifier,
+    TextDocumentPositionParams, TextEdit, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
 };
 
 use noa_languages::Lsp;
@@ -196,6 +200,27 @@ async fn receive_responses(
                             })
                             .collect();
                         LspResponse::GoToDefinition(items)
+                    }
+                    CodeActionRequest::METHOD => {
+                        let resp: CodeActionResponse = serde_json::from_value(json.result).unwrap();
+                        LspResponse::CodeActions(resp)
+                    }
+                    ExecuteCommand::METHOD => LspResponse::NoContent,
+                    PrepareRenameRequest::METHOD => {
+                        let resp: PrepareRenameResponse =
+                            serde_json::from_value(json.result).unwrap();
+                        match resp {
+                            PrepareRenameResponse::Range(range) => {
+                                LspResponse::PrepareRenameSymbol(range)
+                            }
+                            PrepareRenameResponse::RangeWithPlaceholder { range, .. } => {
+                                LspResponse::PrepareRenameSymbol(range)
+                            }
+                            PrepareRenameResponse::DefaultBehavior { .. } => {
+                                warn!("PrepareRenameResponse::DefaultBehavior is not supported");
+                                LspResponse::NoContent
+                            }
+                        }
                     }
                     _ => {
                         warn!("ignored unsupported response: {}", body);
@@ -535,6 +560,76 @@ impl Server for LspServer {
                     partial_result_params: PartialResultParams {
                         partial_result_token: None,
                     },
+                    work_done_progress_params: WorkDoneProgressParams {
+                        work_done_token: None,
+                    },
+                })
+                .await
+            }
+            LspRequest::CodeAction { path, range } => {
+                trace!("CodeAction(path={}, range={:?})", path.display(), range);
+                self.call_method::<CodeActionRequest>(CodeActionParams {
+                    text_document: TextDocumentIdentifier {
+                        uri: parse_path_as_uri(&path),
+                    },
+                    context: CodeActionContext {
+                        diagnostics: vec![],
+                        only: None,
+                    },
+                    range,
+                    partial_result_params: PartialResultParams {
+                        partial_result_token: None,
+                    },
+                    work_done_progress_params: WorkDoneProgressParams {
+                        work_done_token: None,
+                    },
+                })
+                .await
+            }
+            LspRequest::ExecuteCommand { command } => {
+                trace!("Command(command={:?})", command.command);
+                self.call_method::<ExecuteCommand>(ExecuteCommandParams {
+                    command: command.command.clone(),
+                    arguments: command.arguments.unwrap_or_default(),
+                    work_done_progress_params: WorkDoneProgressParams {
+                        work_done_token: None,
+                    },
+                })
+                .await
+            }
+            LspRequest::PrepareRenameSymbol { path, position } => {
+                trace!(
+                    "PrepareRenameSymbol(path={:?}, position={:?})",
+                    path.display(),
+                    position
+                );
+                self.call_method::<PrepareRenameRequest>(TextDocumentPositionParams {
+                    position,
+                    text_document: TextDocumentIdentifier {
+                        uri: parse_path_as_uri(&path),
+                    },
+                })
+                .await
+            }
+            LspRequest::RenameSymbol {
+                path,
+                position,
+                new_name,
+            } => {
+                trace!(
+                    "RenameSymbol(path={:?}, position={:?}, new_name=\"{}\")",
+                    path.display(),
+                    position,
+                    new_name
+                );
+                self.call_method::<Rename>(RenameParams {
+                    text_document_position: TextDocumentPositionParams {
+                        position,
+                        text_document: TextDocumentIdentifier {
+                            uri: parse_path_as_uri(&path),
+                        },
+                    },
+                    new_name,
                     work_done_progress_params: WorkDoneProgressParams {
                         work_done_token: None,
                     },
