@@ -216,9 +216,9 @@ impl Buffer {
                 let line_text = self.buf.line_text(pos.y);
                 let before_text = line_text.chars().take(pos.x).collect::<String>();
                 let after_text = line_text.chars().skip(pos.x).collect::<String>();
-                if before_text.ends_with("{") && after_text.starts_with("}")
-                    || before_text.ends_with("(") && after_text.starts_with(")")
-                    || before_text.ends_with("[") && after_text.starts_with("]")
+                if before_text.ends_with('{') && after_text.starts_with('}')
+                    || before_text.ends_with('(') && after_text.starts_with(')')
+                    || before_text.ends_with('[') && after_text.starts_with(']')
                 {
                     self.buf.edit_at_cursor(c, past_cursors, "\n");
 
@@ -407,6 +407,12 @@ mod tests {
         b.insert_newline_and_indent();
         assert_eq!(b.text(), "{\n    \n}");
         assert_eq!(b.cursors(), &[Cursor::new(1, 4)]);
+
+        let mut b = Buffer::from_text("    {}");
+        b.set_cursors_for_test(&[Cursor::new(0, 5)]);
+        b.insert_newline_and_indent();
+        assert_eq!(b.text(), "    {\n        \n    }");
+        assert_eq!(b.cursors(), &[Cursor::new(1, 8)]);
     }
 
     #[test]

@@ -5,7 +5,7 @@ use std::{
     process::{Command, Stdio},
 };
 
-use noa_editorconfig::{EditorConfig, IndentStyle};
+use noa_editorconfig::{EditorConfig};
 use noa_languages::{get_language_by_name, tree_sitter, Language};
 
 use crate::{
