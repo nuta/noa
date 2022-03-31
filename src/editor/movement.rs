@@ -1,5 +1,5 @@
 use std::{
-    cmp::{max, min},
+    cmp::{max},
     collections::HashMap,
 };
 
