@@ -11,6 +11,7 @@ A modern [nano](https://www.nano-editor.org/)-like terminal-based text editor.
 ## Installation
 
 ```
+git clone https://github.com/nuta/noa && cd noa
 cargo install --path src/editor
 cargo install --path src/proxy
 ```
