@@ -11,6 +11,8 @@ A modern [nano](https://www.nano-editor.org/)-like terminal-based text editor.
 ## Installation
 
 ```
+cargo install --path src/editor
+cargo install --path src/proxy
 ```
 
 ### How to Use
