@@ -1,7 +1,4 @@
-use std::{
-    cmp::{max},
-    collections::HashMap,
-};
+use std::{cmp::max, collections::HashMap};
 
 use noa_buffer::{
     buffer::Buffer,

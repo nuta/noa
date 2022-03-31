@@ -10,7 +10,6 @@ use noa_languages::{get_language_by_name, tree_sitter, Language};
 
 use crate::{
     cursor::{Cursor, CursorId, CursorSet, Position, Range},
-    extras::indent::compute_desired_indent_len,
     mut_raw_buffer::{Change, MutRawBuffer},
     raw_buffer::RawBuffer,
     syntax::{ParserError, Syntax},
@@ -322,97 +321,6 @@ impl Buffer {
 
     pub fn insert_char(&mut self, c: char) {
         self.insert(&c.to_string());
-    }
-
-    pub fn smart_insert_char(&mut self, c: char) {
-        self.insert_char(c);
-
-        // Smart dedent.
-        if c == '}' {
-            self.cursors.foreach(|c, past_cursors| {
-                if c.is_selection() {
-                    return;
-                }
-
-                let pos = c.moving_position();
-                let current_indent_len = self.buf.line_indent_len(pos.y);
-                if pos.x - 1 /* len("}") */ > current_indent_len {
-                    return;
-                }
-
-                let desired_indent_size =
-                    compute_desired_indent_len(&self.buf, &self.config, c.front().y);
-                c.select(pos.y, 0, pos.y, 0);
-                self.buf.edit_at_cursor(
-                    c,
-                    past_cursors,
-                    &match self.config.indent_style {
-                        IndentStyle::Tab => "\t".repeat(desired_indent_size),
-                        IndentStyle::Space => " ".repeat(desired_indent_size),
-                    },
-                );
-
-                c.select(
-                    pos.y,
-                    desired_indent_size,
-                    pos.y,
-                    desired_indent_size + pos.x,
-                );
-                self.buf.edit_at_cursor(c, past_cursors, "}");
-            });
-        }
-
-        // Auto close.
-        let closing_char = match c {
-            '"' => '\"',
-            '\'' => '\'',
-            '`' => '`',
-            '{' => '}',
-            '(' => ')',
-            '[' => ']',
-            _ => return,
-        };
-
-        // Imitate VSCode's default behavior.
-        // https://code.visualstudio.com/api/language-extensions/language-configuration-guide
-        const AUTO_CLOSE_BEFORE: &str = ";:.,=}])>` \n\t";
-
-        self.cursors.foreach(|c, past_cursors| {
-            if c.is_selection() {
-                return;
-            }
-
-            let after_char = self
-                .buf
-                .char_iter(c.moving_position())
-                .next()
-                .unwrap_or('\n');
-
-            if AUTO_CLOSE_BEFORE.contains(after_char) {
-                self.buf
-                    .edit_at_cursor(c, past_cursors, &closing_char.to_string());
-                c.move_left(&self.buf);
-            }
-        });
-    }
-
-    pub fn insert_newline_and_indent(&mut self) {
-        // Insert a newline.
-        self.cursors
-            .foreach(|c, past_cursors| self.buf.edit_at_cursor(c, past_cursors, "\n"));
-
-        // Add indentation.
-        self.cursors.foreach(|c, past_cursors| {
-            let indent_size = compute_desired_indent_len(&self.buf, &self.config, c.front().y);
-            self.buf.edit_at_cursor(
-                c,
-                past_cursors,
-                &match self.config.indent_style {
-                    IndentStyle::Tab => "\t".repeat(indent_size),
-                    IndentStyle::Space => " ".repeat(indent_size),
-                },
-            );
-        });
     }
 
     pub fn insert(&mut self, s: &str) {
@@ -981,44 +889,6 @@ mod tests {
             b.cursors(),
             &[Cursor::new(0, 2), Cursor::new(0, 4), Cursor::new(0, 6),]
         );
-    }
-
-    #[test]
-    fn test_insert_newline_and_indent() {
-        let mut b = Buffer::from_text("");
-        b.set_cursors_for_test(&[Cursor::new(0, 0)]);
-        b.insert_newline_and_indent();
-        assert_eq!(b.editorconfig().indent_style, IndentStyle::Space);
-        assert_eq!(b.editorconfig().indent_size, 4);
-        assert_eq!(b.text(), "\n");
-        assert_eq!(b.cursors(), &[Cursor::new(1, 0)]);
-
-        let mut b = Buffer::from_text("        abXYZ");
-        b.set_cursors_for_test(&[Cursor::new(0, 10)]);
-        b.insert_newline_and_indent();
-        assert_eq!(b.text(), "        ab\n        XYZ");
-        assert_eq!(b.cursors(), &[Cursor::new(1, 8)]);
-
-        let mut b = Buffer::from_text("    if foo {");
-        b.set_cursors_for_test(&[Cursor::new(0, 12)]);
-        b.insert_newline_and_indent();
-        assert_eq!(b.text(), "    if foo {\n        ");
-        assert_eq!(b.cursors(), &[Cursor::new(1, 8)]);
-
-        let mut b = Buffer::from_text("    if foo {}");
-        b.set_cursors_for_test(&[Cursor::new(0, 12)]);
-        b.insert_newline_and_indent();
-        assert_eq!(b.text(), "    if foo {\n    }");
-        assert_eq!(b.cursors(), &[Cursor::new(1, 4)]);
-    }
-
-    #[test]
-    fn test_insert_char_with_smart_dedent() {
-        let mut b = Buffer::from_text("    if foo {\n        ");
-        b.set_cursors_for_test(&[Cursor::new(1, 8)]);
-        b.smart_insert_char('}');
-        assert_eq!(b.text(), "    if foo {\n    }");
-        assert_eq!(b.cursors(), &[Cursor::new(1, 5)]);
     }
 
     #[test]
