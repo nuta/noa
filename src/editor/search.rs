@@ -1,7 +1,7 @@
 use std::{
     cmp::{max, min},
     collections::HashSet,
-    io,
+    io::{self, Read},
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -16,9 +16,12 @@ use grep::searcher::SinkError;
 use noa_buffer::cursor::Position;
 use noa_common::oops::OopsExt;
 
+use once_cell::sync::{Lazy};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::completion::build_fuzzy_matcher;
+
+static NUM_WORKER_CPUS: Lazy<usize> = Lazy::new(|| max(2, num_cpus::get() / 2));
 
 pub struct Utf8Sink<F>(F)
 where
@@ -98,74 +101,77 @@ pub fn search_texts_globally(
         }
     };
 
-    WalkBuilder::new(workspace_dir).build_parallel().run(|| {
-        let matcher = matcher.clone();
-        let tx = tx.clone();
-        let cancel_flag = cancel_flag.clone();
-        Box::new(move |dirent| {
-            if cancel_flag.is_cancelled() {
-                return WalkState::Quit;
-            }
-
-            if let Ok(dirent) = dirent {
-                let meta = dirent.metadata().unwrap();
-                if !meta.is_file() {
-                    return WalkState::Continue;
+    WalkBuilder::new(workspace_dir)
+        .threads(*NUM_WORKER_CPUS)
+        .build_parallel()
+        .run(|| {
+            let matcher = matcher.clone();
+            let tx = tx.clone();
+            let cancel_flag = cancel_flag.clone();
+            Box::new(move |dirent| {
+                if cancel_flag.is_cancelled() {
+                    return WalkState::Quit;
                 }
 
-                let text = match std::fs::read_to_string(dirent.path()) {
-                    Ok(text) => text,
-                    Err(err) => {
-                        warn!("failed to read {}: {}", dirent.path().display(), err);
+                if let Ok(dirent) = dirent {
+                    let meta = dirent.metadata().unwrap();
+                    if !meta.is_file() {
                         return WalkState::Continue;
                     }
-                };
 
-                Searcher::new()
-                    .search_slice(
-                        &matcher,
-                        text.as_bytes(),
-                        Utf8Sink(|lineno, _range, line| {
-                            matcher
-                                .find_iter(line.as_bytes(), |m| {
-                                    let line_text = line.trim_end().to_owned();
-                                    let mut x = 0;
-                                    for (char_i, (byte_i, _)) in
-                                        line_text.char_indices().enumerate()
-                                    {
-                                        x = char_i;
-                                        if m.start() == byte_i {
-                                            break;
+                    let text = match std::fs::read_to_string(dirent.path()) {
+                        Ok(text) => text,
+                        Err(err) => {
+                            warn!("failed to read {}: {}", dirent.path().display(), err);
+                            return WalkState::Continue;
+                        }
+                    };
+
+                    Searcher::new()
+                        .search_slice(
+                            &matcher,
+                            text.as_bytes(),
+                            Utf8Sink(|lineno, _range, line| {
+                                matcher
+                                    .find_iter(line.as_bytes(), |m| {
+                                        let line_text = line.trim_end().to_owned();
+                                        let mut x = 0;
+                                        for (char_i, (byte_i, _)) in
+                                            line_text.char_indices().enumerate()
+                                        {
+                                            x = char_i;
+                                            if m.start() == byte_i {
+                                                break;
+                                            }
                                         }
-                                    }
 
-                                    let path_str = dirent.path().to_str().unwrap().to_owned();
-                                    let m_start = min(m.start(), line_text.len());
-                                    let m_end = min(m.end(), line_text.len());
-                                    let item = SearchMatch {
-                                        path: path_str,
-                                        pos: Position::new((lineno as usize) - 1, x),
-                                        line_text,
-                                        before: ..m_start,
-                                        matched: m_start..m_end,
-                                        after: m_end..,
-                                    };
+                                        let path_str = dirent.path().to_str().unwrap().to_owned();
+                                        let m_start = min(m.start(), line_text.len());
+                                        let m_end = min(m.end(), line_text.len());
+                                        let item = SearchMatch {
+                                            path: path_str,
+                                            pos: Position::new((lineno as usize) - 1, x),
+                                            line_text,
+                                            before: ..m_start,
+                                            matched: m_start..m_end,
+                                            after: m_end..,
+                                        };
 
-                                    let _ = tx.send((0, item));
+                                        let _ = tx.send((0, item));
 
-                                    true
-                                })
-                                .oops();
+                                        true
+                                    })
+                                    .oops();
 
-                            Ok(true)
-                        }),
-                    )
-                    .oops();
-            }
+                                Ok(true)
+                            }),
+                        )
+                        .oops();
+                }
 
-            WalkState::Continue
-        })
-    });
+                WalkState::Continue
+            })
+        });
 
     Ok(())
 }
@@ -243,4 +249,30 @@ pub fn search_paths_globally(
     });
 
     Ok(())
+}
+
+/// Reads all files to cache file contents in (kernel) memory.
+pub fn warm_up_search_cache(workspace_dir: &Path) {
+    use ignore::{WalkBuilder, WalkState};
+
+    WalkBuilder::new(workspace_dir)
+        .threads(*NUM_WORKER_CPUS)
+        .build_parallel()
+        .run(|| {
+            let mut buf = vec![0u8; 4096];
+            Box::new(move |dirent| {
+                if let Ok(dirent) = dirent {
+                    let meta = dirent.metadata().unwrap();
+                    if !meta.is_file() {
+                        return WalkState::Continue;
+                    }
+
+                    if let Ok(mut file) = std::fs::File::open(dirent.path()) {
+                        let _ = file.read(buf.as_mut_slice());
+                    }
+                }
+
+                WalkState::Continue
+            })
+        });
 }

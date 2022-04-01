@@ -37,6 +37,7 @@ textwrap = "0"
 tempfile = "3"
 dirs = "3"
 notify = "4"
+num_cpus = "1"
 
 noa_common = { path = "../common" }
 noa_buffer = { path = "../buffer" }

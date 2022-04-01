@@ -958,6 +958,7 @@ dependencies = [
  "noa_editorconfig",
  "noa_languages",
  "notify",
+ "num_cpus",
  "once_cell",
  "parking_lot",
  "pretty_assertions 0.7.2",

@@ -15,6 +15,7 @@ use editor::Editor;
 use finder::open_finder;
 use noa_common::{logger::install_logger, time_report::TimeReport};
 use noa_compositor::{terminal::Event, Compositor};
+use search::warm_up_search_cache;
 use tokio::{
     sync::{
         mpsc::{self, unbounded_channel, UnboundedSender},
@@ -70,6 +71,8 @@ async fn main() {
         .find(|path| path.is_dir())
         .cloned()
         .unwrap_or_else(|| PathBuf::from("."));
+
+    warm_up_search_cache(&workspace_dir);
 
     let render_request = Arc::new(Notify::new());
     let (watch_tx, mut watch_rx) = mpsc::unbounded_channel();
