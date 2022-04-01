@@ -1,6 +1,6 @@
 use std::{
     cmp::{max, min},
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     io::Read,
     path::{Path, PathBuf},
     sync::{
@@ -14,6 +14,7 @@ use anyhow::Result;
 use fuzzy_matcher::FuzzyMatcher;
 use noa_buffer::cursor::Position;
 
+use noa_languages::guess_language;
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::UnboundedSender};
@@ -122,12 +123,12 @@ pub fn search_texts_globally(
             cmd.arg("--smart-case");
         }
 
-        cmd.current_dir(workspace_dir);
-        cmd.arg(query);
+        cmd.arg(&query);
 
         cmd.stdin(Stdio::null());
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::null());
+        cmd.current_dir(workspace_dir);
         cmd.kill_on_drop(true);
 
         let mut child = match cmd.spawn() {
@@ -146,6 +147,7 @@ pub fn search_texts_globally(
         let mut stdout = child.stdout.take().unwrap();
         let mut reader = BufReader::new(&mut stdout);
         let mut line = String::with_capacity(256);
+        let mut preferred = HashMap::new();
         loop {
             line.clear();
 
@@ -164,23 +166,42 @@ pub fn search_texts_globally(
                 Err(_) => continue,
             };
 
+            let line_text = m.data.lines.text.trim_end().to_owned();
             let byte_range = m
                 .data
                 .submatches
                 .get(0)
-                .map(|m| m.start..m.end)
+                .map(|m| min(m.start, line_text.len())..min(m.end, line_text.len()))
                 .unwrap_or(0..0);
 
-            let score = 0;
+            // Prioritize matches that're likely to be definitions.
+            //
+            // For example, "(struct|type) \1" matches "struct Foo" and "type Foo" in Rust.
+            const HEURISTIC_SEARCH_REGEX_EXTRA_SCORE: i64 = 100;
+            let path = m.data.path.text;
+            let score = if let Some((lang, Some(pattern))) = guess_language(Path::new(&path))
+                .and_then(|lang| Some((lang, lang.heutristic_search_regex.as_ref())))
+            {
+                let replaced_pattern = pattern.replace(r"\1", &query);
+                preferred
+                    .entry(lang.name)
+                    .or_insert_with(|| regex::Regex::new(&replaced_pattern).unwrap())
+                    .find(&line)
+                    .map(|_| HEURISTIC_SEARCH_REGEX_EXTRA_SCORE)
+                    .unwrap_or(0)
+            } else {
+                0
+            };
+
             let _ = tx.send((
                 score,
                 SearchMatch {
-                    path: m.data.path.text,
+                    path,
                     pos: Position {
                         y: m.data.line_number.saturating_sub(1),
                         x: byte_range.start,
                     },
-                    line_text: m.data.lines.text.trim_end().to_owned(),
+                    line_text,
                     byte_range,
                 },
             ));
