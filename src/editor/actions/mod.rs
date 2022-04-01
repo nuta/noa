@@ -9,6 +9,7 @@ use crate::editor::Editor;
 
 mod basic_editing;
 mod change_case;
+mod goto;
 mod linemap;
 mod scrolling;
 
@@ -51,6 +52,7 @@ pub const ACTIONS: &[&dyn Action] = &[
     &scrolling::PageUp,
     &scrolling::PageDown,
     &scrolling::Centering,
+    &goto::GoToLine,
 ];
 
 pub trait Action: Any + Send + Sync {

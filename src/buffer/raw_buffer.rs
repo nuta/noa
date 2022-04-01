@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{cmp::min, fmt};
 
 use crate::{
     char_iter::CharIter,
@@ -99,6 +99,19 @@ impl RawBuffer {
         self.char_iter(Position::new(y, 0))
             .take_while(|c| *c == ' ' || *c == '\t')
             .count()
+    }
+
+    pub fn clamp_range(&self, range: Range) -> Range {
+        let mut r = range;
+        r.start.y = min(r.start.y, self.num_lines().saturating_sub(1));
+        r.end.y = min(r.start.y, self.num_lines().saturating_sub(1));
+        r.start.x = min(r.start.x, self.line_len(r.start.y));
+        r.end.x = min(r.end.x, self.line_len(r.end.y));
+        r
+    }
+
+    pub fn is_valid_range(&self, range: Range) -> bool {
+        self.clamp_range(range) == range
     }
 
     /// Turns the whole buffer into a string.

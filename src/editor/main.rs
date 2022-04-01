@@ -146,7 +146,7 @@ async fn main() {
                     }
 
                     // User input has been handled, so rearm the idle sleep.
-                    idle_sleep.as_mut().reset(Instant::now() + Duration::from_secs(1200));
+                    idle_sleep.as_mut().reset(Instant::now() + Duration::from_millis(1200));
                 }
 
                 Some(ev) = watch_rx.recv() => {
@@ -167,6 +167,7 @@ async fn main() {
                 }
 
                 _ = &mut idle_sleep => {
+                    trace!("idle state");
                     editor.documents.current_mut().idle_job();
                     idle_sleep.as_mut().reset(Instant::now() + Duration::from_secs(30 * 24 * 60 * 60 /* (almost) forever */));
                 }

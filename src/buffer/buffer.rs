@@ -157,19 +157,6 @@ impl Buffer {
         self.cursors.add_cursor(selection)
     }
 
-    pub fn clamp_range(&self, range: Range) -> Range {
-        let mut r = range;
-        r.start.y = min(r.start.y, self.num_lines().saturating_sub(1));
-        r.end.y = min(r.start.y, self.num_lines().saturating_sub(1));
-        r.start.x = min(r.start.x, self.line_len(r.start.y));
-        r.end.x = min(r.end.x, self.line_len(r.end.y));
-        r
-    }
-
-    pub fn is_valid_range(&self, range: Range) -> bool {
-        self.clamp_range(range) == range
-    }
-
     pub fn clear_secondary_cursors(&mut self) {
         self.cursors.clear_secondary_cursors();
     }
@@ -199,6 +186,7 @@ impl Buffer {
         self.cursors.foreach(|c, _past_cursors| {
             if c.is_main_cursor() {
                 f(c, &self.buf);
+                *c.selection_mut() = self.buf.clamp_range(c.selection());
             }
         });
     }

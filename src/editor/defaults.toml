@@ -32,6 +32,7 @@ key_bindings = [
     { scope = "buffer", key = "y", modifiers = ["ctrl"], action = "undo_cursors" },
     { scope = "buffer", key = "n", modifiers = ["ctrl"], action = "comment_out" },
     # { scope = "buffer", key = "", modifiers = ["ctrl"], action = "softwrap" },
+    # move diff
 
 ]
 
