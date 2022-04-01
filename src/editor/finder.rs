@@ -1,7 +1,4 @@
-use std::{
-    collections::HashSet,
-    path::{PathBuf},
-};
+use std::{collections::HashSet, path::PathBuf};
 
 use fuzzy_matcher::FuzzyMatcher;
 
