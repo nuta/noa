@@ -77,7 +77,7 @@ impl Surface for MetaLineView {
         // Apply the style.
         canvas.apply_style(0, 0, canvas.width(), theme_for("meta_line.background"));
 
-        let leftside_width = match self.mode {
+        let _leftside_width = match self.mode {
             MetaLineMode::Search => {
                 // Search query.
                 let truncated_query = truncate_to_width_suffix(&search_query, canvas.width());

@@ -1,6 +1,6 @@
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{PathBuf},
 };
 
 use fuzzy_matcher::FuzzyMatcher;
