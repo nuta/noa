@@ -181,8 +181,7 @@ pub fn search_texts_globally(
             // For example, "(struct|type) \1" matches "struct Foo" and "type Foo" in Rust.
             const HEURISTIC_SEARCH_REGEX_EXTRA_SCORE: i64 = 100;
             let path = m.data.path.text;
-            let score = if let Some((lang, Some(pattern))) = guess_language(Path::new(&path))
-                .and_then(|lang| Some((lang, lang.heutristic_search_regex.as_ref())))
+            let score = if let Some((lang, Some(pattern))) = guess_language(Path::new(&path)).map(|lang| (lang, lang.heutristic_search_regex.as_ref()))
             {
                 let replaced_pattern = pattern.replace(r"\1", &query);
                 preferred
