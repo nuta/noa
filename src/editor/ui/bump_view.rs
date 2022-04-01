@@ -30,7 +30,7 @@ impl BumpView {
         }
     }
 
-    pub fn open(&mut self, text: &str) {
+    pub fn _open(&mut self, text: &str) {
         self.active = true;
         self.lines = textwrap::wrap(text, self.width)
             .iter()

@@ -1,4 +1,4 @@
-use std::{path::PathBuf};
+use std::path::PathBuf;
 
 use fuzzy_matcher::skim::SkimMatcherV2;
 use noa_buffer::{buffer::TextEdit, cursor::Cursor, raw_buffer::RawBuffer};
@@ -19,7 +19,6 @@ pub fn build_fuzzy_matcher() -> SkimMatcherV2 {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum CompletionKind {
     AnyWord,
-    LspItem,
 }
 
 #[derive(Clone, Debug)]

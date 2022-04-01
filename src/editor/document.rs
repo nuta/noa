@@ -12,7 +12,7 @@ use std::{
     time::SystemTime,
 };
 
-use anyhow::{Result};
+use anyhow::Result;
 
 use arc_swap::ArcSwap;
 
@@ -59,10 +59,6 @@ impl DocumentVersion {
 
     pub fn one() -> DocumentVersion {
         DocumentVersion(1)
-    }
-
-    pub fn value(self) -> usize {
-        self.0
     }
 
     pub fn increment(&mut self) {
@@ -256,10 +252,6 @@ impl Document {
 
     pub fn id(&self) -> DocumentId {
         self.id
-    }
-
-    pub fn version(&self) -> DocumentVersion {
-        self.version
     }
 
     pub fn name(&self) -> &str {
