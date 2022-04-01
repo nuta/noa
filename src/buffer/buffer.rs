@@ -1,5 +1,4 @@
 use std::{
-    cmp::min,
     ops::Deref,
     path::Path,
     process::{Command, Stdio},
