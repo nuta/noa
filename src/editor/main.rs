@@ -21,7 +21,7 @@ use tokio::{
         mpsc::{self, unbounded_channel, UnboundedSender},
         Notify,
     },
-    time::timeout,
+    time::{timeout, Instant},
 };
 use ui::{
     buffer_view::BufferView, bump_view::BumpView, completion_view::CompletionView,
@@ -118,10 +118,9 @@ async fn main() {
     compositor.render_to_terminal(&mut editor);
     drop(boot_time);
 
-    let mut idle_timer = tokio::time::interval(Duration::from_millis(1200));
+    let idle_sleep = tokio::time::sleep(Duration::from_millis(1200));
+    tokio::pin!(idle_sleep);
     'outer: loop {
-        idle_timer.reset();
-
         // Consume pending (i.e. ready) events.
         'inner: for i in 0.. {
             tokio::select! {
@@ -145,6 +144,9 @@ async fn main() {
                             compositor.resize_screen(height, width);
                         }
                     }
+
+                    // User input has been handled, so rearm the idle sleep.
+                    idle_sleep.as_mut().reset(Instant::now() + Duration::from_secs(1200));
                 }
 
                 Some(ev) = watch_rx.recv() => {
@@ -164,8 +166,9 @@ async fn main() {
                 _ = render_request.notified() => {
                 }
 
-                _ = idle_timer.tick() => {
+                _ = &mut idle_sleep => {
                     editor.documents.current_mut().idle_job();
+                    idle_sleep.as_mut().reset(Instant::now() + Duration::from_secs(30 * 24 * 60 * 60 /* (almost) forever */));
                 }
 
                 _ = futures::future::ready(()), if i > 0 => {
@@ -176,7 +179,6 @@ async fn main() {
                 }
             }
         }
-
         // Give the tree-sitter a chance to finish parsing the latest buffer
         // to prevent flickering.
         //

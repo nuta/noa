@@ -16,11 +16,12 @@ use grep::searcher::SinkError;
 use noa_buffer::cursor::Position;
 use noa_common::oops::OopsExt;
 
-use once_cell::sync::{Lazy};
+use once_cell::sync::Lazy;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::completion::build_fuzzy_matcher;
 
+const FILE_SIZE_MAX: u64 = 8 * 1024 * 1024;
 static NUM_WORKER_CPUS: Lazy<usize> = Lazy::new(|| max(2, num_cpus::get() / 2));
 
 pub struct Utf8Sink<F>(F)
@@ -115,7 +116,7 @@ pub fn search_texts_globally(
 
                 if let Ok(dirent) = dirent {
                     let meta = dirent.metadata().unwrap();
-                    if !meta.is_file() {
+                    if !meta.is_file() || meta.len() > FILE_SIZE_MAX {
                         return WalkState::Continue;
                     }
 
