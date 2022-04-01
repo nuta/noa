@@ -1,16 +1,14 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf};
 
 use fuzzy_matcher::skim::SkimMatcherV2;
 use noa_buffer::{buffer::TextEdit, cursor::Cursor, raw_buffer::RawBuffer};
 
 use noa_compositor::Compositor;
 use noa_languages::Language;
-use noa_proxy::client::Client as ProxyClient;
 
 use crate::{
     document::{Document, Words},
     editor::Editor,
-    lsp,
     ui::completion_view::CompletionView,
 };
 
@@ -34,10 +32,9 @@ pub struct CompletionItem {
 /// This should be called after `Document::post_update_job` because the buffer
 /// needs to be synced with the LSP server before querying the completion.
 pub async fn complete(
-    proxy: Arc<ProxyClient>,
     buffer: RawBuffer,
-    lang: &'static Language,
-    path: PathBuf,
+    _lang: &'static Language,
+    _path: PathBuf,
     main_cursor: Cursor,
     words: Words,
 ) -> Option<Vec<CompletionItem>> {
@@ -52,15 +49,6 @@ pub async fn complete(
         Some(range) => range,
         None => return None,
     };
-
-    // Start sending a LSP request in background.
-    let lsp_items = tokio::spawn(lsp::completion_hook(
-        lang,
-        proxy.clone(),
-        path.to_owned(),
-        pos,
-        current_word_range,
-    ));
 
     // Any word comopletion.
     let mut items = Vec::new();
@@ -82,19 +70,6 @@ pub async fn complete(
                 }),
         );
     }
-
-    // Wait for the response from the LSP server.
-    match lsp_items.await {
-        Ok(Ok(lsp_items)) => {
-            items.extend(lsp_items);
-        }
-        Ok(Err(err)) => {
-            warn!("failed to get LSP completion: {}", err);
-        }
-        Err(err) => {
-            warn!("failed to join LSP completion task: {:?}", err);
-        }
-    };
 
     // Make items unique.
     let mut unique_items: Vec<CompletionItem> = Vec::with_capacity(items.len());

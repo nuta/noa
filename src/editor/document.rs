@@ -12,7 +12,7 @@ use std::{
     time::SystemTime,
 };
 
-use anyhow::{bail, Result};
+use anyhow::{Result};
 
 use arc_swap::ArcSwap;
 
@@ -29,7 +29,6 @@ use noa_common::{
     oops::OopsExt,
     prioritized_vec::PrioritizedVec,
 };
-use noa_proxy::{client::Client as ProxyClient, lsp_types};
 
 use noa_editorconfig::EditorConfig;
 use noa_languages::{guess_language, tree_sitter, Language};
@@ -42,9 +41,7 @@ use crate::{
     completion::{build_fuzzy_matcher, CompletionItem},
     flash::FlashManager,
     git::{self, Repo},
-    job::JobManager,
     linemap::LineMap,
-    lsp,
     movement::{Movement, MovementState},
     view::View,
 };
@@ -252,34 +249,9 @@ impl Document {
         );
     }
 
-    pub fn save_to_file(&mut self, jobs_and_proxy: Option<(&mut JobManager, Arc<ProxyClient>)>) {
+    pub fn save_to_file(&mut self) {
         self.buffer.save_undo();
-
-        if let Some((jobs, proxy)) = jobs_and_proxy {
-            let doc_id = self.id;
-            let lang = self.buffer.language();
-            let path = self.path.to_owned();
-            let options = (*self.buffer.editorconfig()).into();
-            trace!("LSP: formatting");
-            jobs.await_in_mainloop(
-                async move {
-                    match lsp::format_on_save(lang, proxy, path, options).await {
-                        Ok(edits) => edits,
-                        Err(err) => {
-                            notify_warn!("failed to format on save: {:?}", err);
-                            vec![]
-                        }
-                    }
-                },
-                move |editor, _, edits| {
-                    let doc = editor.documents.get_mut_document_by_id(doc_id).unwrap();
-                    doc.buffer.apply_text_edits(edits);
-                    doc.do_save_to_file();
-                },
-            );
-        } else {
-            self.do_save_to_file();
-        }
+        self.do_save_to_file();
     }
 
     pub fn id(&self) -> DocumentId {
@@ -439,18 +411,13 @@ impl Document {
     }
 
     /// Called when the buffer is modified.
-    pub fn post_update_job(
-        &mut self,
-        proxy: &Arc<ProxyClient>,
-        repo: Option<&Arc<Repo>>,
-        render_request: &Arc<Notify>,
-    ) {
+    pub fn post_update_job(&mut self, repo: Option<&Arc<Repo>>, render_request: &Arc<Notify>) {
         self.version.increment();
         let changes = self.buffer.clear_recorded_changes();
 
         // Parse the buffer using tree-sitter in the background.
         {
-            let changes = changes.clone();
+            let changes = changes;
             let raw_buffer = self.buffer.raw_buffer().clone();
             let _ = self.parser_tx.send((raw_buffer, self.version, changes));
         }
@@ -458,7 +425,6 @@ impl Document {
         self.completion_items.clear();
         self.buffer.clear_undo_and_redo_stacks();
 
-        lsp::modified_hook(proxy, self, changes);
         git::modified_hook(repo, self, render_request);
     }
 
@@ -602,36 +568,6 @@ impl DocumentManager {
             .collect();
 
         Words(buffers)
-    }
-
-    pub fn apply_workspace_edit_in_only_current(
-        &mut self,
-        workspace_edit: &lsp_types::WorkspaceEdit,
-    ) -> Result<()> {
-        let doc = self.current_mut();
-
-        // Check if all edits in WorkspaceEdit are only for the current buffer.
-        let mut all_edits = Vec::new();
-        for change in &workspace_edit.changes {
-            for (url, edits) in change {
-                if url.scheme() != "file" {
-                    bail!("ignoring non-file URL in WorkspaceEdit: {}", url);
-                }
-
-                let path = Path::new(url.path());
-                if path != doc.path {
-                    bail!("non-file-local change required");
-                }
-
-                all_edits.push(edits.iter().cloned().map(Into::into).collect());
-            }
-        }
-
-        for edits in all_edits {
-            doc.buffer_mut().apply_text_edits(edits);
-        }
-
-        Ok(())
     }
 }
 

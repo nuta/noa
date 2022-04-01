@@ -18,10 +18,7 @@ impl Action for Save {
     }
 
     fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
-        editor
-            .documents
-            .current_mut()
-            .save_to_file(Some((&mut editor.jobs, editor.proxy.clone())));
+        editor.documents.current_mut().save_to_file();
         Ok(())
     }
 }

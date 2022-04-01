@@ -9,11 +9,9 @@ use noa_compositor::{
 
 use crate::editor::Editor;
 
-use super::markdown::Markdown;
-
 pub struct BumpView {
     active: bool,
-    text: Markdown,
+    text: String,
     lines: Vec<String>,
     scroll: usize,
     height: usize,
@@ -24,7 +22,7 @@ impl BumpView {
     pub fn new() -> BumpView {
         BumpView {
             active: false,
-            text: Markdown::new("".to_string()),
+            text: String::new(),
             lines: Vec::new(),
             scroll: 0,
             height: 0,
@@ -32,10 +30,13 @@ impl BumpView {
         }
     }
 
-    pub fn open(&mut self, text: Markdown) {
+    pub fn open(&mut self, text: &str) {
         self.active = true;
-        self.lines = text.render(self.width);
-        self.text = text;
+        self.lines = textwrap::wrap(text, self.width)
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        self.text = text.to_owned();
         self.scroll = 0;
     }
 
@@ -95,7 +96,10 @@ impl Surface for BumpView {
         if self.width != canvas.width() {
             // The screen size has changed.
             self.width = canvas.width();
-            self.lines = self.text.render(self.width);
+            self.lines = textwrap::wrap(&self.text, self.width)
+                .iter()
+                .map(|s| s.to_string())
+                .collect();
             self.scroll = min(self.scroll, self.lines.len().saturating_sub(1));
         }
 

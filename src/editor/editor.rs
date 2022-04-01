@@ -14,7 +14,6 @@ use noa_common::oops::OopsExt;
 use noa_compositor::line_edit::LineEdit;
 
 use noa_languages::tree_sitter;
-use noa_proxy::protocol::Notification;
 use tokio::sync::{
     mpsc::{self, UnboundedSender},
     Notify,
@@ -35,7 +34,6 @@ pub struct Editor {
     pub clipboard: Box<dyn ClipboardProvider>,
     pub find_query: LineEdit,
     pub repo: Option<Arc<Repo>>,
-    pub proxy: Arc<noa_proxy::client::Client>,
     pub render_request: Arc<Notify>,
     pub watch_tx: mpsc::UnboundedSender<WatchEvent>,
     pub updated_syntax_tx: UnboundedSender<(DocumentId, DocumentVersion, tree_sitter::Tree)>,
@@ -45,7 +43,6 @@ impl Editor {
     pub fn new(
         workspace_dir: &Path,
         render_request: Arc<Notify>,
-        notification_tx: UnboundedSender<Notification>,
         watch_tx: mpsc::UnboundedSender<WatchEvent>,
         updated_syntax_tx: UnboundedSender<(DocumentId, DocumentVersion, tree_sitter::Tree)>,
     ) -> Editor {
@@ -57,11 +54,6 @@ impl Editor {
             }
         };
 
-        let proxy = Arc::new(noa_proxy::client::Client::new(
-            workspace_dir,
-            notification_tx,
-        ));
-
         Editor {
             workspace_dir: workspace_dir.to_path_buf(),
             documents: DocumentManager::new(&updated_syntax_tx, false),
@@ -69,7 +61,6 @@ impl Editor {
             clipboard: clipboard::build_provider(),
             find_query: LineEdit::new(),
             repo,
-            proxy,
             render_request,
             watch_tx,
             updated_syntax_tx,
@@ -94,7 +85,7 @@ impl Editor {
         let mut doc = Document::new(path, &self.updated_syntax_tx, false)?;
 
         // First run of tree sitter parsering, etc.
-        doc.post_update_job(&self.proxy, self.repo.as_ref(), &self.render_request);
+        doc.post_update_job(self.repo.as_ref(), &self.render_request);
 
         file_watch::after_open_hook(self.watch_tx.clone(), &doc).oops();
 

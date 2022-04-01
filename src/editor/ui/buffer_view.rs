@@ -24,7 +24,6 @@ use crate::{
     config::{get_keybinding_for, theme_for, KeyBindingScope},
     editor::Editor,
     linemap::LineStatus,
-    lsp,
 };
 
 use super::completion_view::CompletionView;
@@ -57,7 +56,7 @@ impl BufferView {
 
     pub fn post_update_job(&mut self, editor: &mut Editor) {
         let doc = editor.documents.current_mut();
-        doc.post_update_job(&editor.proxy, editor.repo.as_ref(), &editor.render_request);
+        doc.post_update_job(editor.repo.as_ref(), &editor.render_request);
     }
 
     pub fn show_completion(&mut self, editor: &mut Editor) {
@@ -67,14 +66,13 @@ impl BufferView {
         }
 
         let doc_id = doc.id();
-        let proxy = editor.proxy.clone();
         let buffer = doc.raw_buffer().clone();
         let lang = doc.buffer().language();
         let path = doc.path().to_owned();
         let main_cursor = doc.buffer().main_cursor().clone();
         let words = editor.documents.words();
         editor.jobs.await_in_mainloop(
-            complete(proxy, buffer, lang, path, main_cursor, words),
+            complete(buffer, lang, path, main_cursor, words),
             move |editor, compositor, items| {
                 if let Some(items) = items {
                     editor
@@ -425,13 +423,6 @@ impl Surface for BufferView {
                         // Move cursor.
                         if matches!(self.selection_start, Some(start) if start == clicked_pos) {
                             doc.buffer_mut().move_main_cursor_to_pos(clicked_pos);
-                            lsp::hover_hook(
-                                &editor.proxy,
-                                &mut editor.jobs,
-                                doc.buffer().language(),
-                                doc.path(),
-                                clicked_pos,
-                            );
                         }
 
                         trace!("Single click");
@@ -486,27 +477,6 @@ impl Surface for BufferView {
                             clicked_pos.x,
                         );
 
-                        self.time_last_clicked = Instant::now();
-                        self.num_clicked = 1;
-                        self.selection_start = None;
-                    }
-                    // Single click + Ctrl.
-                    (MouseEventKind::Up(MouseButton::Left), CTRL)
-                        if self.time_last_clicked.elapsed() > Duration::from_millis(400) =>
-                    {
-                        // Move cursor.
-                        if matches!(self.selection_start, Some(start) if start == clicked_pos) {
-                            doc.buffer_mut().move_main_cursor_to_pos(clicked_pos);
-                            lsp::goto_definition(
-                                &editor.proxy,
-                                &mut editor.jobs,
-                                doc.buffer().language(),
-                                doc.path(),
-                                clicked_pos,
-                            );
-                        }
-
-                        trace!("Single click + Ctrl");
                         self.time_last_clicked = Instant::now();
                         self.num_clicked = 1;
                         self.selection_start = None;

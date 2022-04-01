@@ -7,4 +7,3 @@ pub mod selector_view;
 pub mod too_small_view;
 
 pub mod helpers;
-pub mod markdown;
