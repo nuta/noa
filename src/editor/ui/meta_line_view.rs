@@ -14,6 +14,8 @@ use crate::{
 
 use super::helpers::truncate_to_width_suffix;
 
+pub const META_LINE_HEIGHT: usize = 2;
+
 pub enum MetaLineMode {
     Normal,
     Search,
@@ -49,14 +51,13 @@ impl Surface for MetaLineView {
     }
 
     fn layout(&mut self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
-        let height = 2;
         (
             Layout::Fixed {
-                y: screen_size.height.saturating_sub(height),
+                y: screen_size.height.saturating_sub(META_LINE_HEIGHT),
                 x: 0,
             },
             RectSize {
-                height,
+                height: META_LINE_HEIGHT,
                 width: screen_size.width,
             },
         )

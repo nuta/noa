@@ -105,8 +105,10 @@ pub fn search_texts_globally(
         let mut cmd = Command::new("rg");
         cmd.args(&[
             "--json",
-            "--no-config",
             "--hidden",
+            "--glob",
+            "!.git",
+            "--no-config",
             "--follow",
             "--max-filesize",
             "8M",

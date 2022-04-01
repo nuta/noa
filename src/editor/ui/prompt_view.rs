@@ -10,7 +10,7 @@ use noa_compositor::{
 
 use crate::{config::theme_for, editor::Editor};
 
-use super::helpers::truncate_to_width;
+use super::{helpers::truncate_to_width, meta_line_view::META_LINE_HEIGHT};
 
 pub type UpdatedCallback =
     dyn Fn(&mut Editor, &mut Compositor<Editor>, &mut PromptView, bool /* entered */) + Send;
@@ -74,7 +74,7 @@ impl Surface for PromptView {
         let height = 1;
         (
             Layout::Fixed {
-                y: screen_size.height.saturating_sub(1 + height),
+                y: screen_size.height.saturating_sub(META_LINE_HEIGHT + height),
                 x: 0,
             },
             RectSize {

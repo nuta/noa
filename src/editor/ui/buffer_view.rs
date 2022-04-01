@@ -26,7 +26,7 @@ use crate::{
     linemap::LineStatus,
 };
 
-use super::completion_view::CompletionView;
+use super::{completion_view::CompletionView, meta_line_view::META_LINE_HEIGHT};
 
 pub struct BufferView {
     quit_tx: UnboundedSender<()>,
@@ -110,7 +110,7 @@ impl Surface for BufferView {
             Layout::Fixed { y: 0, x: 0 },
             RectSize {
                 width: screen_size.width,
-                height: screen_size.height.saturating_sub(1),
+                height: screen_size.height.saturating_sub(META_LINE_HEIGHT),
             },
         )
     }
