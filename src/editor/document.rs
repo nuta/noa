@@ -552,6 +552,12 @@ impl DocumentManager {
         self.save_all_on_drop = enable;
     }
 
+    pub fn save_all(&mut self) {
+        for doc in self.documents.values_mut() {
+            doc.save_to_file();
+        }
+    }
+
     pub fn words(&self) -> Words {
         let buffers: Vec<RawBuffer> = self
             .documents

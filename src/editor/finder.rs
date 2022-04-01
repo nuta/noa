@@ -123,11 +123,6 @@ fn update_items(editor: &mut Editor, query: &str) {
         let query = query.to_owned();
         tokio::task::spawn_blocking(move || {
             if let Some(query) = query.strip_prefix('/') {
-                if query.len() < 4 {
-                    notify_warn!("too short query");
-                    return;
-                }
-
                 if let Err(err) =
                     search_texts_globally(&workspace_dir, query, text_items_tx, cancel_flag.clone())
                 {
