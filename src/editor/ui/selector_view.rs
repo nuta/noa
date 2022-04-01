@@ -28,9 +28,7 @@ pub enum SelectorContent {
         path: String,
         pos: Position,
         line_text: String,
-        before: std::ops::RangeTo<usize>,
-        matched: std::ops::Range<usize>,
-        after: std::ops::RangeFrom<usize>,
+        byte_range: std::ops::Range<usize>,
     },
 }
 
@@ -183,13 +181,11 @@ impl Surface for SelectorView {
                     path,
                     pos,
                     line_text,
-                    before,
-                    after,
-                    matched,
+                    byte_range: range,
                 } => {
-                    let before_text = &line_text[..before.end];
-                    let matched_text = &line_text[matched.start..matched.end];
-                    let after_text = &line_text[after.start..];
+                    let before_text = &line_text[..range.start];
+                    let matched_text = &line_text[range.start..range.end];
+                    let after_text = &line_text[range.start..];
                     let s = format!(
                         "{before_text}{matched_text}{after_text} ({path}:{lineno})",
                         lineno = pos.y + 1

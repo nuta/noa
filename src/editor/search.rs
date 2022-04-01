@@ -1,7 +1,7 @@
 use std::{
     cmp::{max, min},
     collections::HashSet,
-    io::{self, Read},
+    io::Read,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -9,49 +9,18 @@ use std::{
     },
 };
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 
 use fuzzy_matcher::FuzzyMatcher;
-use grep::searcher::SinkError;
 use noa_buffer::cursor::Position;
-use noa_common::oops::OopsExt;
 
 use once_cell::sync::Lazy;
-use tokio::sync::mpsc::UnboundedSender;
+use serde::Deserialize;
+use tokio::{io::AsyncBufReadExt, sync::mpsc::UnboundedSender};
 
 use crate::completion::build_fuzzy_matcher;
 
-const FILE_SIZE_MAX: u64 = 8 * 1024 * 1024;
 static NUM_WORKER_CPUS: Lazy<usize> = Lazy::new(|| max(2, num_cpus::get() / 2));
-
-pub struct Utf8Sink<F>(F)
-where
-    F: FnMut(u64, std::ops::Range<usize>, &str) -> Result<bool, io::Error>;
-
-impl<F> grep::searcher::Sink for Utf8Sink<F>
-where
-    F: FnMut(u64, std::ops::Range<usize>, &str) -> Result<bool, io::Error>,
-{
-    type Error = io::Error;
-
-    fn matched(
-        &mut self,
-        _searcher: &grep::searcher::Searcher,
-        mat: &grep::searcher::SinkMatch<'_>,
-    ) -> Result<bool, io::Error> {
-        let text = match std::str::from_utf8(mat.bytes()) {
-            Ok(text) => text,
-            Err(err) => {
-                return Err(io::Error::error_message(err));
-            }
-        };
-        (self.0)(
-            mat.line_number().unwrap(),
-            mat.bytes_range_in_buffer(),
-            text,
-        )
-    }
-}
 
 #[derive(Clone)]
 pub struct CancelFlag {
@@ -79,100 +48,144 @@ pub struct SearchMatch {
     pub path: String,
     pub pos: Position,
     pub line_text: String,
-    pub before: std::ops::RangeTo<usize>,
-    pub matched: std::ops::Range<usize>,
-    pub after: std::ops::RangeFrom<usize>,
+    pub byte_range: std::ops::Range<usize>,
+}
+
+#[derive(Deserialize)]
+#[allow(unused)]
+struct RgTextValue {
+    text: String,
+}
+
+#[derive(Deserialize)]
+#[allow(unused)]
+struct RgMatchSubmatch {
+    #[serde(rename = "match")]
+    match_: RgTextValue,
+    start: usize,
+    end: usize,
+}
+
+#[derive(Deserialize)]
+#[allow(unused)]
+struct RgMatchData {
+    path: RgTextValue,
+    lines: RgTextValue,
+    line_number: usize,
+    absolute_offset: usize,
+    submatches: Vec<RgMatchSubmatch>,
+}
+
+#[derive(Deserialize)]
+struct RgMatch {
+    #[serde(rename = "type")]
+    type_: String,
+    data: RgMatchData,
 }
 
 pub fn search_texts_globally(
     workspace_dir: &Path,
     query: &str,
     tx: UnboundedSender<(i64, SearchMatch)>,
+    regex: bool,
+    case_insentive: bool,
     cancel_flag: CancelFlag,
 ) -> Result<()> {
-    use grep::{matcher::Matcher, regex::RegexMatcherBuilder, searcher::Searcher};
-    use ignore::{WalkBuilder, WalkState};
+    if query.is_empty() {
+        return Ok(());
+    }
 
-    let query = regex::escape(query);
+    let workspace_dir = workspace_dir.to_owned();
+    let query = query.to_owned();
+    tokio::spawn(async move {
+        use std::{io::ErrorKind, process::Stdio};
+        use tokio::{io::BufReader, process::Command};
 
-    let matcher = match RegexMatcherBuilder::new().case_smart(true).build(&query) {
-        Ok(matcher) => matcher,
-        Err(err) => {
-            bail!("invalid regex: {}", err);
+        let mut cmd = Command::new("rg");
+        cmd.args(&[
+            "--json",
+            "--no-config",
+            "--hidden",
+            "--follow",
+            "--max-filesize",
+            "8M",
+            "--crlf",
+        ]);
+
+        if !regex {
+            cmd.arg("--fixed-strings");
         }
-    };
 
-    WalkBuilder::new(workspace_dir)
-        .threads(*NUM_WORKER_CPUS)
-        .build_parallel()
-        .run(|| {
-            let matcher = matcher.clone();
-            let tx = tx.clone();
-            let cancel_flag = cancel_flag.clone();
-            Box::new(move |dirent| {
-                if cancel_flag.is_cancelled() {
-                    return WalkState::Quit;
+        if case_insentive {
+            cmd.arg("--case-insensitive");
+        } else {
+            cmd.arg("--smart-case");
+        }
+
+        cmd.current_dir(workspace_dir);
+        cmd.arg(query);
+
+        cmd.stdin(Stdio::null());
+        cmd.stdout(Stdio::piped());
+        cmd.stderr(Stdio::null());
+        cmd.kill_on_drop(true);
+
+        let mut child = match cmd.spawn() {
+            Ok(child) => child,
+            Err(err) => {
+                if err.kind() == ErrorKind::NotFound {
+                    notify_warn!("ripgrep is not installed");
+                } else {
+                    notify_warn!("failed to spawn ripgrep: {}", err);
                 }
 
-                if let Ok(dirent) = dirent {
-                    let meta = dirent.metadata().unwrap();
-                    if !meta.is_file() || meta.len() > FILE_SIZE_MAX {
-                        return WalkState::Continue;
-                    }
+                return;
+            }
+        };
 
-                    let text = match std::fs::read_to_string(dirent.path()) {
-                        Ok(text) => text,
-                        Err(err) => {
-                            warn!("failed to read {}: {}", dirent.path().display(), err);
-                            return WalkState::Continue;
-                        }
-                    };
+        let mut stdout = child.stdout.take().unwrap();
+        let mut reader = BufReader::new(&mut stdout);
+        let mut line = String::with_capacity(256);
+        loop {
+            line.clear();
 
-                    Searcher::new()
-                        .search_slice(
-                            &matcher,
-                            text.as_bytes(),
-                            Utf8Sink(|lineno, _range, line| {
-                                matcher
-                                    .find_iter(line.as_bytes(), |m| {
-                                        let line_text = line.trim_end().to_owned();
-                                        let mut x = 0;
-                                        for (char_i, (byte_i, _)) in
-                                            line_text.char_indices().enumerate()
-                                        {
-                                            x = char_i;
-                                            if m.start() == byte_i {
-                                                break;
-                                            }
-                                        }
+            let len = match reader.read_line(&mut line).await {
+                Ok(len) => len,
+                Err(_) => break,
+            };
 
-                                        let path_str = dirent.path().to_str().unwrap().to_owned();
-                                        let m_start = min(m.start(), line_text.len());
-                                        let m_end = min(m.end(), line_text.len());
-                                        let item = SearchMatch {
-                                            path: path_str,
-                                            pos: Position::new((lineno as usize) - 1, x),
-                                            line_text,
-                                            before: ..m_start,
-                                            matched: m_start..m_end,
-                                            after: m_end..,
-                                        };
+            if len == 0 || cancel_flag.is_cancelled() {
+                break;
+            }
 
-                                        let _ = tx.send((0, item));
+            let m = match serde_json::from_str::<RgMatch>(&line) {
+                Ok(m) if m.type_ != "match" => continue,
+                Ok(m) => m,
+                Err(_) => continue,
+            };
 
-                                        true
-                                    })
-                                    .oops();
+            let byte_range = m
+                .data
+                .submatches
+                .get(0)
+                .map(|m| m.start..m.end)
+                .unwrap_or(0..0);
 
-                                Ok(true)
-                            }),
-                        )
-                        .oops();
-                }
-
-                WalkState::Continue
-            })
-        });
+            let score = 0;
+            let _ = tx.send((
+                score,
+                SearchMatch {
+                    path: m.data.path.text,
+                    pos: Position {
+                        y: m.data.line_number,
+                        x: byte_range.start,
+                    },
+                    line_text: m.data.lines.text,
+                    byte_range,
+                },
+            ));
+        }
+    });
 
     Ok(())
 }
@@ -264,7 +277,7 @@ pub fn warm_up_search_cache(workspace_dir: &Path) {
             Box::new(move |dirent| {
                 if let Ok(dirent) = dirent {
                     let meta = dirent.metadata().unwrap();
-                    if !meta.is_file() {
+                    if !meta.is_file() || meta.len() > 8 * 1024 * 1024 {
                         return WalkState::Continue;
                     }
 

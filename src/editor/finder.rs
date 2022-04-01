@@ -5,6 +5,8 @@ use fuzzy_matcher::FuzzyMatcher;
 use noa_common::prioritized_vec::PrioritizedVec;
 use noa_compositor::Compositor;
 
+use once_cell::sync::Lazy;
+use regex::Regex;
 use tokio::sync::mpsc::unbounded_channel;
 
 use crate::{
@@ -119,23 +121,54 @@ fn update_items(editor: &mut Editor, query: &str) {
     let (text_items_tx, mut text_items_rx) = unbounded_channel();
     let (path_items_tx, mut path_items_rx) = unbounded_channel();
     {
+        static QUERY_REGEX: Lazy<Regex> =
+            Lazy::new(|| Regex::new(r"\A([i]*)?(/{0,2})(.*)\z").unwrap());
+
         let cancel_flag = cancel_flag.clone();
         let query = query.to_owned();
         tokio::task::spawn_blocking(move || {
-            if let Some(query) = query.strip_prefix('/') {
-                if let Err(err) =
-                    search_texts_globally(&workspace_dir, query, text_items_tx, cancel_flag.clone())
-                {
-                    notify_warn!("failed to search: {}", err);
+            let captures = QUERY_REGEX.captures(&query).unwrap();
+            let flags = captures.get(1).unwrap().as_str();
+            let slashes = captures.get(2).unwrap().as_str();
+            let pattern = captures.get(3).unwrap().as_str();
+
+            let case_insentive = flags.contains('i');
+            match slashes {
+                "//" => {
+                    if let Err(err) = search_texts_globally(
+                        &workspace_dir,
+                        pattern,
+                        text_items_tx,
+                        true,
+                        case_insentive,
+                        cancel_flag.clone(),
+                    ) {
+                        notify_warn!("failed to search: {}", err);
+                    }
                 }
-            } else if let Err(err) = search_paths_globally(
-                &workspace_dir,
-                &query,
-                path_items_tx,
-                Some(&visited_paths),
-                cancel_flag.clone(),
-            ) {
-                notify_warn!("failed to search path: {}", err);
+                "/" => {
+                    if let Err(err) = search_texts_globally(
+                        &workspace_dir,
+                        pattern,
+                        text_items_tx,
+                        false,
+                        case_insentive,
+                        cancel_flag.clone(),
+                    ) {
+                        notify_warn!("failed to search: {}", err);
+                    }
+                }
+                _ => {
+                    if let Err(err) = search_paths_globally(
+                        &workspace_dir,
+                        &query,
+                        path_items_tx,
+                        Some(&visited_paths),
+                        cancel_flag.clone(),
+                    ) {
+                        notify_warn!("failed to search path: {}", err);
+                    }
+                }
             }
         });
     }
@@ -185,16 +218,12 @@ fn update_items(editor: &mut Editor, query: &str) {
                             path,
                             pos,
                             line_text,
-                            before,
-                            matched,
-                            after,
+                            byte_range,
                         }) => SelectorContent::SearchMatch {
                             path: path.to_owned(),
                             pos: pos.to_owned(),
                             line_text: line_text.to_owned(),
-                            before: before.to_owned(),
-                            matched: matched.to_owned(),
-                            after: after.to_owned(),
+                            byte_range: byte_range.to_owned(),
                         },
                         FinderItem::Action { name } => SelectorContent::Normal {
                             label: name.to_owned(),
