@@ -14,6 +14,7 @@ mod scrolling;
 
 pub const ACTIONS: &[&dyn Action] = &[
     &basic_editing::Save,
+    &basic_editing::OpenReplacer,
     &basic_editing::OpenFilder,
     &basic_editing::BackspaceWord,
     &basic_editing::Truncate,

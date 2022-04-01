@@ -24,8 +24,8 @@ use tokio::{
 };
 use ui::{
     buffer_view::BufferView, bump_view::BumpView, completion_view::CompletionView,
-    meta_line_view::MetaLineView, prompt_view::PromptView, selector_view::SelectorView,
-    too_small_view::TooSmallView,
+    meta_line_view::MetaLineView, prompt_view::PromptView, replacer_view::ReplacerView,
+    selector_view::SelectorView, too_small_view::TooSmallView,
 };
 
 #[macro_use]
@@ -44,6 +44,7 @@ mod git;
 mod job;
 mod linemap;
 mod movement;
+mod search;
 mod ui;
 mod view;
 
@@ -105,6 +106,7 @@ async fn main() {
     compositor.add_frontmost_layer(Box::new(MetaLineView::new()));
     compositor.add_frontmost_layer(Box::new(SelectorView::new()));
     compositor.add_frontmost_layer(Box::new(PromptView::new()));
+    compositor.add_frontmost_layer(Box::new(ReplacerView::new(workspace_dir.clone())));
     compositor.add_frontmost_layer(Box::new(CompletionView::new()));
 
     if no_files_opened {

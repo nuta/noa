@@ -6,6 +6,7 @@ use crate::{
     clipboard::{ClipboardData, SystemClipboardData},
     editor::Editor,
     finder::open_finder,
+    ui::replacer_view::ReplacerView,
 };
 
 use super::Action;
@@ -32,6 +33,20 @@ impl Action for OpenFilder {
 
     fn run(&self, editor: &mut Editor, compositor: &mut Compositor<Editor>) -> Result<()> {
         open_finder(editor, compositor);
+        Ok(())
+    }
+}
+
+pub struct OpenReplacer;
+
+impl Action for OpenReplacer {
+    fn name(&self) -> &'static str {
+        "open_replacer"
+    }
+
+    fn run(&self, _editor: &mut Editor, compositor: &mut Compositor<Editor>) -> Result<()> {
+        let replacer = compositor.get_mut_surface_by_name::<ReplacerView>("replacer");
+        replacer.open();
         Ok(())
     }
 }

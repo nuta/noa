@@ -25,6 +25,7 @@ use crate::{
     file_watch::{self, WatchEvent},
     git::Repo,
     job::JobManager,
+    search::CancelFlag,
 };
 
 pub struct Editor {
@@ -37,6 +38,7 @@ pub struct Editor {
     pub render_request: Arc<Notify>,
     pub watch_tx: mpsc::UnboundedSender<WatchEvent>,
     pub updated_syntax_tx: UnboundedSender<(DocumentId, DocumentVersion, tree_sitter::Tree)>,
+    pub finder_cancel_flag: Option<CancelFlag>,
 }
 
 impl Editor {
@@ -64,6 +66,7 @@ impl Editor {
             render_request,
             watch_tx,
             updated_syntax_tx,
+            finder_cancel_flag: None,
         }
     }
 

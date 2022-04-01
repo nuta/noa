@@ -3,6 +3,7 @@
 key_bindings = [
     { scope = "buffer", key = "s", modifiers = ["ctrl"], action = "save" },
     { scope = "buffer", key = "f", modifiers = ["ctrl"], action = "open_finder" },
+    { scope = "buffer", key = "r", modifiers = ["ctrl"], action = "open_replacer" },
     { scope = "buffer", key = "w", modifiers = ["ctrl"], action = "backspace_word" },
     { scope = "buffer", key = "k", modifiers = ["ctrl"], action = "truncate" },
     { scope = "buffer", key = "d", modifiers = ["ctrl"], action = "delete" },
@@ -31,7 +32,6 @@ key_bindings = [
     { scope = "buffer", key = "y", modifiers = ["ctrl"], action = "undo_cursors" },
     { scope = "buffer", key = "n", modifiers = ["ctrl"], action = "comment_out" },
     # { scope = "buffer", key = "", modifiers = ["ctrl"], action = "softwrap" },
-    { scope = "buffer", key = "g", modifiers = ["ctrl"], action = "lsp.goto_definition" },
 
 ]
 
@@ -48,6 +48,7 @@ key_bindings = [
 "line_status.added" = { bg = "grey" }
 "line_status.deleted" = { bg = "grey" }
 
+"label" = { bold = true, inverted = true }
 "prompt.name" = { bg = "grey", bold = true }
 "meta_line.background" = { invert = true }
 
