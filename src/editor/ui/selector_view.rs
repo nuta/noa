@@ -185,7 +185,7 @@ impl Surface for SelectorView {
                 } => {
                     let before_text = &line_text[..range.start];
                     let matched_text = &line_text[range.start..range.end];
-                    let after_text = &line_text[range.start..];
+                    let after_text = &line_text[range.end..];
                     let s = format!(
                         "{before_text}{matched_text}{after_text} ({path}:{lineno})",
                         lineno = pos.y + 1
@@ -195,8 +195,8 @@ impl Surface for SelectorView {
                     let x = before_text.display_width();
                     canvas.apply_style(
                         i,
-                        x,
-                        min(canvas.width(), x + matched_text.display_width()),
+                        1 + x,
+                        min(canvas.width(), 1 + x + matched_text.display_width()),
                         Style {
                             fg: Color::Red,
                             ..Default::default()

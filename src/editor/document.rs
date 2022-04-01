@@ -132,12 +132,6 @@ impl Document {
 
         buffer.set_editorconfig(EditorConfig::resolve_or_guess(&path));
 
-        // Check if a backup file exists.
-        let backup_path = backup_dir().join(path.strip_prefix("/")?);
-        if backup_path.exists() {
-            notify_warn!("A backup file exists in {}", backup_dir().display());
-        }
-
         if let Some(lang) = guess_language(&path) {
             match buffer.set_language(lang) {
                 Ok(()) => {}
@@ -159,6 +153,7 @@ impl Document {
             )
         };
 
+        let backup_path = backup_dir().join(path.strip_prefix("/")?);
         Ok(Document {
             id,
             version: DocumentVersion::one(),

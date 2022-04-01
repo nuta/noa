@@ -49,7 +49,7 @@ impl Surface for MetaLineView {
     }
 
     fn layout(&mut self, _editor: &mut Editor, screen_size: RectSize) -> (Layout, RectSize) {
-        let height = 1;
+        let height = 2;
         (
             Layout::Fixed {
                 y: screen_size.height.saturating_sub(height),
@@ -145,11 +145,8 @@ impl Surface for MetaLineView {
             };
 
             let message = text.lines().next().unwrap_or("");
-            let message_width = message.display_width();
-            let _max_width = canvas.width().saturating_sub(leftside_width + 2);
-            let x = canvas.width().saturating_sub(message_width + 1);
-            canvas.write_str(0, x, message);
-            canvas.apply_style(0, x, x + message_width, theme_for(theme_key));
+            canvas.write_str(1, 1, message);
+            canvas.apply_style(1, 1, canvas.width(), theme_for(theme_key));
         };
     }
 

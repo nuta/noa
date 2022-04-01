@@ -177,10 +177,10 @@ pub fn search_texts_globally(
                 SearchMatch {
                     path: m.data.path.text,
                     pos: Position {
-                        y: m.data.line_number,
+                        y: m.data.line_number.saturating_sub(1),
                         x: byte_range.start,
                     },
-                    line_text: m.data.lines.text,
+                    line_text: m.data.lines.text.trim_end().to_owned(),
                     byte_range,
                 },
             ));

@@ -1,4 +1,7 @@
-use std::{collections::HashSet, path::Path};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
 
 use fuzzy_matcher::FuzzyMatcher;
 
@@ -41,10 +44,15 @@ fn select_item(editor: &mut Editor, compositor: &mut Compositor<Editor>, item: F
             editor.documents.switch_by_id(id);
         }
         FinderItem::File(path) => {
-            let path = Path::new(&path);
-            match editor.documents.switch_by_path(path) {
+            let path = if path.starts_with('/') {
+                PathBuf::from(&path)
+            } else {
+                editor.workspace_dir.join(&path)
+            };
+
+            match editor.documents.switch_by_path(&path) {
                 Some(_) => {}
-                None => match editor.open_file(path, None) {
+                None => match editor.open_file(&path, None) {
                     Ok(id) => {
                         editor.documents.switch_by_id(id);
                     }
@@ -55,10 +63,15 @@ fn select_item(editor: &mut Editor, compositor: &mut Compositor<Editor>, item: F
             }
         }
         FinderItem::SearchMatch(SearchMatch { path, pos, .. }) => {
-            let path = Path::new(&path);
-            match editor.documents.switch_by_path(path) {
+            let path = if path.starts_with('/') {
+                PathBuf::from(&path)
+            } else {
+                editor.workspace_dir.join(&path)
+            };
+
+            match editor.documents.switch_by_path(&path) {
                 Some(_) => {}
-                None => match editor.open_file(path, Some(pos)) {
+                None => match editor.open_file(&path, Some(pos)) {
                     Ok(id) => {
                         editor.documents.switch_by_id(id);
                     }
