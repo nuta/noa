@@ -1,27 +1,35 @@
 use std::{
     cmp::{max, min},
-    collections::{HashMap, HashSet},
+    collections::{HashSet},
+    io::{self},
     path::{Path, PathBuf},
+    process::Stdio,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
 };
-use std::{io::ErrorKind, process::Stdio};
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 
 use fuzzy_matcher::FuzzyMatcher;
+use grep::{
+    regex::RegexMatcherBuilder,
+    searcher::{Searcher, SinkError},
+};
+use ignore::{WalkBuilder, WalkState};
 use noa_buffer::cursor::Position;
 
-use noa_languages::guess_language;
+use noa_common::oops::OopsExt;
+
 use once_cell::sync::Lazy;
-use serde::Deserialize;
-use tokio::{io::AsyncBufReadExt, sync::mpsc::UnboundedSender};
-use tokio::{io::BufReader, process::Command};
+
+use tokio::{sync::mpsc::UnboundedSender};
+use tokio::{process::Command};
 
 use crate::completion::build_fuzzy_matcher;
 
+const FILE_SIZE_MAX: u64 = 8 * 1024 * 1024;
 // Avoid using all CPUs: leave some cores to do other tasks.
 static NUM_WORKER_CPUS: Lazy<usize> = Lazy::new(|| max(2, num_cpus::get().saturating_sub(2)));
 
@@ -54,36 +62,38 @@ pub struct SearchMatch {
     pub byte_range: std::ops::Range<usize>,
 }
 
-#[derive(Deserialize)]
-#[allow(unused)]
-struct RgTextValue {
-    text: String,
+struct SearchMatchSink {
+    tx: UnboundedSender<(i64, SearchMatch)>,
+    path: String,
 }
 
-#[derive(Deserialize)]
-#[allow(unused)]
-struct RgMatchSubmatch {
-    #[serde(rename = "match")]
-    match_: RgTextValue,
-    start: usize,
-    end: usize,
-}
+impl grep::searcher::Sink for SearchMatchSink {
+    type Error = io::Error;
 
-#[derive(Deserialize)]
-#[allow(unused)]
-struct RgMatchData {
-    path: RgTextValue,
-    lines: RgTextValue,
-    line_number: usize,
-    absolute_offset: usize,
-    submatches: Vec<RgMatchSubmatch>,
-}
+    fn matched(
+        &mut self,
+        _searcher: &grep::searcher::Searcher,
+        mat: &grep::searcher::SinkMatch<'_>,
+    ) -> Result<bool, io::Error> {
+        let lineno = mat.line_number().unwrap() as usize;
+        let line_text = match std::str::from_utf8(mat.bytes()) {
+            Ok(text) => text,
+            Err(err) => {
+                return Err(io::Error::error_message(err));
+            }
+        };
 
-#[derive(Deserialize)]
-struct RgMatch {
-    #[serde(rename = "type")]
-    type_: String,
-    data: RgMatchData,
+        let x = 0;
+        let item = SearchMatch {
+            path: self.path.clone(),
+            pos: Position::new(lineno.saturating_sub(1), x),
+            line_text: line_text.to_owned(),
+            byte_range: mat.bytes_range_in_buffer(),
+        };
+
+        let _ = self.tx.send((0, item));
+        Ok(true)
+    }
 }
 
 pub fn search_texts_globally(
@@ -98,116 +108,59 @@ pub fn search_texts_globally(
         return Ok(());
     }
 
-    let workspace_dir = workspace_dir.to_owned();
-    let query = query.to_owned();
-    tokio::spawn(async move {
-        let mut cmd = Command::new("rg");
-        cmd.args(&[
-            "--json",
-            "--hidden",
-            "--glob",
-            "!.git",
-            "--no-config",
-            "--follow",
-            "--max-filesize",
-            "8M",
-            "--crlf",
-        ]);
+    let mut builder = RegexMatcherBuilder::new();
+    if case_insentive {
+        builder.case_insensitive(true);
+    } else {
+        builder.case_smart(true);
+    }
 
-        if !regex {
-            cmd.arg("--fixed-strings");
+    let matcher = match if regex {
+        builder.build(query)
+    } else {
+        builder.build(&regex::escape(query))
+    } {
+        Ok(matcher) => matcher,
+        Err(err) => {
+            bail!("invalid regex: {}", err);
         }
+    };
 
-        if case_insentive {
-            cmd.arg("--case-insensitive");
-        } else {
-            cmd.arg("--smart-case");
-        }
-
-        cmd.arg(&query);
-
-        cmd.stdin(Stdio::null());
-        cmd.stdout(Stdio::piped());
-        cmd.stderr(Stdio::null());
-        cmd.current_dir(workspace_dir);
-        cmd.kill_on_drop(true);
-
-        let mut child = match cmd.spawn() {
-            Ok(child) => child,
-            Err(err) => {
-                if err.kind() == ErrorKind::NotFound {
-                    notify_warn!("ripgrep is not installed");
-                } else {
-                    notify_warn!("failed to spawn ripgrep: {}", err);
+    WalkBuilder::new(workspace_dir)
+        .hidden(true)
+        .follow_links(true)
+        .max_filesize(Some(FILE_SIZE_MAX))
+        .threads(*NUM_WORKER_CPUS)
+        .build_parallel()
+        .run(|| {
+            let matcher = matcher.clone();
+            let tx = tx.clone();
+            let cancel_flag = cancel_flag.clone();
+            Box::new(move |dirent| {
+                if cancel_flag.is_cancelled() {
+                    return WalkState::Quit;
                 }
 
-                return;
-            }
-        };
+                let dirent = match dirent {
+                    Ok(dirent) => dirent,
+                    Err(_) => return WalkState::Continue,
+                };
 
-        let mut stdout = child.stdout.take().unwrap();
-        let mut reader = BufReader::new(&mut stdout);
-        let mut line = String::with_capacity(256);
-        let mut preferred = HashMap::new();
-        loop {
-            line.clear();
+                let path_str = dirent.path().to_str().unwrap().to_owned();
+                Searcher::new()
+                    .search_path(
+                        &matcher,
+                        &dirent.path(),
+                        SearchMatchSink {
+                            tx: tx.clone(),
+                            path: path_str,
+                        },
+                    )
+                    .oops();
 
-            let len = match reader.read_line(&mut line).await {
-                Ok(len) => len,
-                Err(_) => break,
-            };
-
-            if len == 0 || cancel_flag.is_cancelled() {
-                break;
-            }
-
-            let m = match serde_json::from_str::<RgMatch>(&line) {
-                Ok(m) if m.type_ != "match" => continue,
-                Ok(m) => m,
-                Err(_) => continue,
-            };
-
-            let line_text = m.data.lines.text.trim_end().to_owned();
-            let byte_range = m
-                .data
-                .submatches
-                .get(0)
-                .map(|m| min(m.start, line_text.len())..min(m.end, line_text.len()))
-                .unwrap_or(0..0);
-
-            // Prioritize matches that're likely to be definitions.
-            //
-            // For example, "(struct|type) \1" matches "struct Foo" and "type Foo" in Rust.
-            const HEURISTIC_SEARCH_REGEX_EXTRA_SCORE: i64 = 100;
-            let path = m.data.path.text;
-            let score = if let Some((lang, Some(pattern))) = guess_language(Path::new(&path))
-                .map(|lang| (lang, lang.heutristic_search_regex.as_ref()))
-            {
-                let replaced_pattern = pattern.replace(r"\1", &query);
-                preferred
-                    .entry(lang.name)
-                    .or_insert_with(|| regex::Regex::new(&replaced_pattern).unwrap())
-                    .find(&line)
-                    .map(|_| HEURISTIC_SEARCH_REGEX_EXTRA_SCORE)
-                    .unwrap_or(0)
-            } else {
-                0
-            };
-
-            let _ = tx.send((
-                score,
-                SearchMatch {
-                    path,
-                    pos: Position {
-                        y: m.data.line_number.saturating_sub(1),
-                        x: byte_range.start,
-                    },
-                    line_text,
-                    byte_range,
-                },
-            ));
-        }
-    });
+                WalkState::Continue
+            })
+        });
 
     Ok(())
 }
