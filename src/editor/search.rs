@@ -219,6 +219,7 @@ pub fn search_paths_globally(
     cancel_flag: CancelFlag,
 ) -> Result<()> {
     WalkBuilder::new(workspace_dir)
+        .hidden(true)
         .threads(*NUM_WORKER_CPUS)
         .build_parallel()
         .run(|| {

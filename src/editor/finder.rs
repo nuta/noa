@@ -1,4 +1,4 @@
-use std::{collections::HashSet, path::PathBuf};
+use std::{collections::HashSet, path::PathBuf, time::Duration};
 
 use fuzzy_matcher::FuzzyMatcher;
 
@@ -7,7 +7,7 @@ use noa_compositor::Compositor;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use tokio::sync::mpsc::unbounded_channel;
+use tokio::{sync::mpsc::unbounded_channel, time::Instant};
 
 use crate::{
     actions::{execute_action_or_notify, ACTIONS},
@@ -18,7 +18,7 @@ use crate::{
     ui::selector_view::{SelectorContent, SelectorItem, SelectorView},
 };
 
-const MAX_SEARCH_MATCHES: usize = 32;
+const SEARCH_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Clone, Debug)]
 enum FinderItem {
@@ -183,10 +183,12 @@ fn update_items(editor: &mut Editor, query: &str) {
         });
     }
 
+    let started_at = Instant::now();
     editor.jobs.await_in_mainloop(
         async move {
             for i in 0.. {
-                if i > MAX_SEARCH_MATCHES {
+                if i % 1000 == 0 && started_at.elapsed() > SEARCH_TIMEOUT {
+                    notify_warn!("search timeout");
                     cancel_flag.cancel();
                     break;
                 }
