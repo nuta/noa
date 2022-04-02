@@ -1,4 +1,5 @@
 use arrayvec::ArrayString;
+use noa_buffer::display_width::DisplayWidth;
 use noa_common::logger::{self, backtrace};
 
 pub use crossterm::style::Color;
@@ -7,6 +8,7 @@ pub use crossterm::style::Color;
 pub enum DrawOp {
     MoveTo { y: usize, x: usize },
     Grapheme(ArrayString<8>),
+    Whitespaces(usize),
     FgColor(Color),
     BgColor(Color),
     Bold,
@@ -146,6 +148,7 @@ impl Canvas {
 
         let mut y = 0;
         let mut x = 0;
+        let mut char_i = 0;
         let mut fg = Color::Reset;
         let mut bg = Color::Reset;
         let mut bold = false;
@@ -153,6 +156,8 @@ impl Canvas {
         let mut inverted = false;
         let mut needs_move = false;
         let mut ops = Vec::with_capacity(self.width() * self.height());
+        let mut old_total_width = 0;
+        let mut new_total_width = 0;
         for (new, old) in self.graphs.iter().zip(&other.graphs) {
             if old == new {
                 needs_move = true;
@@ -202,13 +207,28 @@ impl Canvas {
                 ops.push(DrawOp::Grapheme(new.chars));
             }
 
-            x += 1;
-            if x >= self.width {
+            let old_width = old.chars.display_width();
+            let new_width = new.chars.display_width();
+            old_total_width += old_width;
+            new_total_width += new_width;
+            x += new_width;
+
+            char_i += 1;
+            if char_i >= self.width {
                 y += 1;
                 x = 0;
+                char_i = 0;
+
+                if new_total_width < old_total_width {
+                    ops.push(DrawOp::Whitespaces(old_total_width - new_total_width));
+                }
+
+                new_total_width = 0;
+                old_total_width = 0;
             }
         }
 
+        trace!("ops = {:?}", ops);
         ops
     }
 
@@ -377,13 +397,19 @@ mod tests {
 
         let mut canvas1 = Canvas::new(2, 10);
         canvas1.view_mut().write_str(0, 0, "あ");
-        canvas1.view_mut().write_str(1, 0, "x");
+        canvas1.view_mut().write_str(1, 0, "い");
         let mut canvas2 = Canvas::new(2, 10);
-        canvas2.view_mut().write_str(0, 0, "a");
-        canvas2.view_mut().write_str(1, 0, "b");
-        // assert_eq!(
-        //     canvas2.compute_draw_updates(&canvas1),
-        //     vec![DrawOp::Grapheme(arraystring("a")), DrawOp::Whitespaces(1)]
-        // );
+        canvas2.view_mut().write_str(0, 0, "x");
+        canvas2.view_mut().write_str(1, 0, "y");
+        assert_eq!(
+            canvas2.compute_draw_updates(&canvas1),
+            vec![
+                DrawOp::Grapheme(arraystring("x")),
+                DrawOp::Whitespaces(1),
+                DrawOp::MoveTo { y: 1, x: 0 },
+                DrawOp::Grapheme(arraystring("y")),
+                DrawOp::Whitespaces(1)
+            ]
+        );
     }
 }

@@ -25,15 +25,19 @@ impl Position {
     /// after replacing `range` with `new_text`.
     pub fn position_after_edit(range: Range, new_text: &str) -> Position {
         let pos = range.front();
-        let string_count = new_text.chars().count();
         let num_newlines_added = new_text.matches('\n').count();
         let num_newlines_deleted = range.back().y - range.front().y;
 
         let y_diff = num_newlines_added.saturating_sub(num_newlines_deleted);
-        let x_diff = new_text
-            .rfind('\n')
-            .map(|x| string_count - x - 1)
-            .unwrap_or(string_count);
+
+        let mut x_diff = 0;
+        for c in new_text.chars() {
+            if c == '\n' {
+                x_diff = 0;
+            } else {
+                x_diff += 1;
+            }
+        }
 
         let new_y = pos.y + y_diff;
         let new_x = if new_text.contains('\n') {
