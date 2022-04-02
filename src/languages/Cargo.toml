@@ -9,6 +9,7 @@ path = "lib.rs"
 
 [dependencies]
 log = "0"
+once_cell = "1"
 tree-sitter = "0"
 
 [build-dependencies]
