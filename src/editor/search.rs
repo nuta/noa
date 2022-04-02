@@ -1,6 +1,6 @@
 use std::{
     cmp::{max, min},
-    collections::{HashSet},
+    collections::{HashMap, HashSet},
     io::{self},
     path::{Path, PathBuf},
     process::Stdio,
@@ -22,10 +22,12 @@ use noa_buffer::cursor::Position;
 
 use noa_common::oops::OopsExt;
 
+use noa_languages::guess_language;
 use once_cell::sync::Lazy;
 
-use tokio::{sync::mpsc::UnboundedSender};
-use tokio::{process::Command};
+use regex::Regex;
+use tokio::process::Command;
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::completion::build_fuzzy_matcher;
 
@@ -64,7 +66,58 @@ pub struct SearchMatch {
 
 struct SearchMatchSink {
     tx: UnboundedSender<(i64, SearchMatch)>,
+    heutristic_search_caches: HashMap<&'static str, Regex>,
     path: String,
+    query: String,
+}
+
+impl SearchMatchSink {
+    fn new(tx: UnboundedSender<(i64, SearchMatch)>, path: String, query: String) -> Self {
+        Self {
+            tx,
+            path,
+            heutristic_search_caches: HashMap::new(),
+            query,
+        }
+    }
+
+    fn send(
+        &mut self,
+        line_text: &str,
+        lineno: usize,
+        x: usize,
+        byte_range: std::ops::Range<usize>,
+    ) {
+        let score = self.compute_extra_score(&line_text);
+        let item = SearchMatch {
+            path: self.path.clone(),
+            pos: Position::new(lineno.saturating_sub(1), x),
+            line_text: line_text.to_owned(),
+            byte_range,
+        };
+
+        let _ = self.tx.send((score, item));
+    }
+
+    fn compute_extra_score(&mut self, line_text: &str) -> i64 {
+        // Prioritize matches that're likely to be definitions.
+        //
+        // For example, "(struct|type) \1" matches "struct Foo" and "type Foo" in Rust.
+        const HEURISTIC_SEARCH_REGEX_EXTRA_SCORE: i64 = 100;
+        if let Some((lang, Some(pattern))) = guess_language(Path::new(&self.path))
+            .map(|lang| (lang, lang.heutristic_search_regex.as_ref()))
+        {
+            let replaced_pattern = pattern.replace(r"\1", &self.query);
+            self.heutristic_search_caches
+                .entry(lang.name)
+                .or_insert_with(|| regex::Regex::new(&replaced_pattern).unwrap())
+                .find(&line_text)
+                .map(|_| HEURISTIC_SEARCH_REGEX_EXTRA_SCORE)
+                .unwrap_or(0)
+        } else {
+            0
+        }
+    }
 }
 
 impl grep::searcher::Sink for SearchMatchSink {
@@ -83,15 +136,11 @@ impl grep::searcher::Sink for SearchMatchSink {
             }
         };
 
+        // TODO:
         let x = 0;
-        let item = SearchMatch {
-            path: self.path.clone(),
-            pos: Position::new(lineno.saturating_sub(1), x),
-            line_text: line_text.to_owned(),
-            byte_range: mat.bytes_range_in_buffer(),
-        };
+        let range = 0..0;
 
-        let _ = self.tx.send((0, item));
+        self.send(line_text, lineno, x, range);
         Ok(true)
     }
 }
@@ -151,10 +200,7 @@ pub fn search_texts_globally(
                     .search_path(
                         &matcher,
                         &dirent.path(),
-                        SearchMatchSink {
-                            tx: tx.clone(),
-                            path: path_str,
-                        },
+                        SearchMatchSink::new(tx.clone(), path_str, query.to_owned()),
                     )
                     .oops();
 
@@ -172,8 +218,6 @@ pub fn search_paths_globally(
     exclude_paths: Option<&HashSet<PathBuf>>,
     cancel_flag: CancelFlag,
 ) -> Result<()> {
-    use ignore::{WalkBuilder, WalkState};
-
     WalkBuilder::new(workspace_dir)
         .threads(*NUM_WORKER_CPUS)
         .build_parallel()
