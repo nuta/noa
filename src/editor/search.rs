@@ -88,7 +88,7 @@ impl SearchMatchSink {
         x: usize,
         byte_range: std::ops::Range<usize>,
     ) {
-        let score = self.compute_extra_score(&line_text);
+        let score = self.compute_extra_score(line_text);
         let item = SearchMatch {
             path: self.path.clone(),
             pos: Position::new(lineno.saturating_sub(1), x),
@@ -111,7 +111,7 @@ impl SearchMatchSink {
             self.heutristic_search_caches
                 .entry(lang.name)
                 .or_insert_with(|| regex::Regex::new(&replaced_pattern).unwrap())
-                .find(&line_text)
+                .find(line_text)
                 .map(|_| HEURISTIC_SEARCH_REGEX_EXTRA_SCORE)
                 .unwrap_or(0)
         } else {
