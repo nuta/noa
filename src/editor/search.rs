@@ -138,18 +138,19 @@ impl<'a> grep::searcher::Sink for SearchMatchSink<'a> {
     ) -> Result<bool, io::Error> {
         let lineno = mat.line_number().unwrap() as usize;
         let line_text = match std::str::from_utf8(mat.bytes()) {
-            Ok(text) => text,
+            Ok(text) => text.trim_end(),
             Err(err) => {
                 return Err(io::Error::error_message(err));
             }
         };
 
+        let line_len = line_text.len();
         let mut start = 0;
         let mut end = 0;
         self.matcher
             .find_iter(mat.bytes(), |m| {
-                start = m.start();
-                end = m.end();
+                start = min(m.start(), line_len);
+                end = min(m.end(), line_len);
                 false
             })
             .unwrap();
