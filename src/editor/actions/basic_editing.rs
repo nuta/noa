@@ -5,7 +5,7 @@ use noa_compositor::Compositor;
 use crate::{
     clipboard::{ClipboardData, SystemClipboardData},
     editor::Editor,
-    finder::open_finder,
+    finder::{open_buffer_switcher, open_finder},
 };
 
 use super::Action;
@@ -45,6 +45,19 @@ impl Action for OpenFilder {
 
     fn run(&self, editor: &mut Editor, compositor: &mut Compositor<Editor>) -> Result<()> {
         open_finder(editor, compositor);
+        Ok(())
+    }
+}
+
+pub struct OpenBufferSwitcher;
+
+impl Action for OpenBufferSwitcher {
+    fn name(&self) -> &'static str {
+        "open_buffer_switcher"
+    }
+
+    fn run(&self, editor: &mut Editor, compositor: &mut Compositor<Editor>) -> Result<()> {
+        open_buffer_switcher(editor, compositor);
         Ok(())
     }
 }

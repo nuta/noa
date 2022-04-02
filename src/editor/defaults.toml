@@ -3,7 +3,7 @@
 key_bindings = [
     { scope = "buffer", key = "s", modifiers = ["ctrl"], action = "save" },
     { scope = "buffer", key = "f", modifiers = ["ctrl"], action = "open_finder" },
-    { scope = "buffer", key = "r", modifiers = ["ctrl"], action = "open_replacer" },
+    { scope = "buffer", key = "r", modifiers = ["ctrl"], action = "open_buffer_switcher" },
     { scope = "buffer", key = "w", modifiers = ["ctrl"], action = "backspace_word" },
     { scope = "buffer", key = "k", modifiers = ["ctrl"], action = "truncate" },
     { scope = "buffer", key = "d", modifiers = ["ctrl"], action = "delete" },

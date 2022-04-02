@@ -34,6 +34,12 @@ pub fn open_finder(editor: &mut Editor, compositor: &mut Compositor<Editor>) {
     update_items(editor, "");
 }
 
+pub fn open_buffer_switcher(editor: &mut Editor, compositor: &mut Compositor<Editor>) {
+    let selector: &mut SelectorView = compositor.get_mut_surface_by_name("selector");
+    selector.open("finder", true, Some(Box::new(update_buffer_items)));
+    update_buffer_items(editor, "");
+}
+
 fn select_item(editor: &mut Editor, compositor: &mut Compositor<Editor>, item: FinderItem) {
     info!("selected item: {:?}", item);
     match item {
@@ -241,6 +247,59 @@ fn update_items(editor: &mut Editor, query: &str) {
                             label: name.to_owned(),
                             sub_label: Some("(action)".to_owned()),
                         },
+                    };
+
+                    SelectorItem {
+                        content,
+                        selected: Box::new(move |editor, compositor| {
+                            select_item(editor, compositor, item);
+                        }),
+                    }
+                })
+                .collect();
+
+            selector.set_items(selector_items);
+        },
+    );
+}
+
+fn update_buffer_items(editor: &mut Editor, query: &str) {
+    let mut items = PrioritizedVec::new();
+
+    let matcher = build_fuzzy_matcher();
+    for (id, doc) in editor.documents.documents().iter() {
+        if let Some(score) = matcher.fuzzy_match(doc.path_in_str(), query) {
+            items.insert(
+                score + 100,
+                FinderItem::Buffer {
+                    name: doc.name().to_owned(),
+                    id: *id,
+                },
+            );
+        }
+    }
+
+    editor.jobs.await_in_mainloop(
+        async move { items.into_sorted_vec() },
+        |_editor, compositor, items| {
+            let selector: &mut SelectorView = compositor.get_mut_surface_by_name("selector");
+            if selector.opened_by() != "finder" {
+                return;
+            }
+
+            let selector_items = items
+                .into_iter()
+                .map(|item| {
+                    let content = match &item {
+                        FinderItem::File(path) => SelectorContent::Normal {
+                            label: path.to_owned(),
+                            sub_label: Some("(file)".to_owned()),
+                        },
+                        FinderItem::Buffer { name, .. } => SelectorContent::Normal {
+                            label: name.to_owned(),
+                            sub_label: Some("(buffer)".to_owned()),
+                        },
+                        _ => unreachable!(),
                     };
 
                     SelectorItem {

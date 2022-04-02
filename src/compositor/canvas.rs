@@ -351,3 +351,39 @@ impl<'a> CanvasViewMut<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::canvas::DrawOp;
+
+    use super::Canvas;
+    use arrayvec::ArrayString;
+    use pretty_assertions::assert_eq;
+
+    fn arraystring(s: &str) -> ArrayString<8> {
+        ArrayString::from(s).unwrap()
+    }
+
+    #[test]
+    fn test_compute_draw_updates() {
+        let mut canvas1 = Canvas::new(1, 10);
+        canvas1.view_mut().write_str(0, 0, "あ");
+        let mut canvas2 = Canvas::new(1, 10);
+        canvas2.view_mut().write_str(0, 0, "a");
+        assert_eq!(
+            canvas2.compute_draw_updates(&canvas1),
+            vec![DrawOp::Grapheme(arraystring("a")), DrawOp::Whitespaces(1)]
+        );
+
+        let mut canvas1 = Canvas::new(2, 10);
+        canvas1.view_mut().write_str(0, 0, "あ");
+        canvas1.view_mut().write_str(1, 0, "x");
+        let mut canvas2 = Canvas::new(2, 10);
+        canvas2.view_mut().write_str(0, 0, "a");
+        canvas2.view_mut().write_str(1, 0, "b");
+        // assert_eq!(
+        //     canvas2.compute_draw_updates(&canvas1),
+        //     vec![DrawOp::Grapheme(arraystring("a")), DrawOp::Whitespaces(1)]
+        // );
+    }
+}

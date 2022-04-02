@@ -18,6 +18,5 @@ tempfile = "3"
 noa_editorconfig = { path = "../editorconfig" }
 noa_languages = { path = "../languages" }
 
-
 [dev-dependencies]
 pretty_assertions = "1"

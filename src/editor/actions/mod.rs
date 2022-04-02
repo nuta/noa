@@ -17,6 +17,7 @@ pub const ACTIONS: &[&dyn Action] = &[
     &basic_editing::Save,
     &basic_editing::SaveAll,
     &basic_editing::OpenFilder,
+    &basic_editing::OpenBufferSwitcher,
     &basic_editing::BackspaceWord,
     &basic_editing::Truncate,
     &basic_editing::Delete,

@@ -1012,6 +1012,7 @@ dependencies = [
  "noa_buffer",
  "noa_common",
  "parking_lot",
+ "pretty_assertions 1.2.0",
  "tokio",
 ]
 
