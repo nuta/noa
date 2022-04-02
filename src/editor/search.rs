@@ -14,7 +14,8 @@ use anyhow::{bail, Result};
 
 use fuzzy_matcher::FuzzyMatcher;
 use grep::{
-    regex::RegexMatcherBuilder,
+    matcher::Matcher,
+    regex::{RegexMatcher, RegexMatcherBuilder},
     searcher::{Searcher, SinkError},
 };
 use ignore::{WalkBuilder, WalkState};
@@ -64,16 +65,23 @@ pub struct SearchMatch {
     pub byte_range: std::ops::Range<usize>,
 }
 
-struct SearchMatchSink {
-    tx: UnboundedSender<(i64, SearchMatch)>,
+struct SearchMatchSink<'a> {
+    matcher: &'a RegexMatcher,
+    tx: &'a UnboundedSender<(i64, SearchMatch)>,
     heutristic_search_caches: HashMap<&'static str, Regex>,
-    path: String,
-    query: String,
+    path: &'a str,
+    query: &'a str,
 }
 
-impl SearchMatchSink {
-    fn new(tx: UnboundedSender<(i64, SearchMatch)>, path: String, query: String) -> Self {
+impl<'a> SearchMatchSink<'a> {
+    fn new(
+        matcher: &'a RegexMatcher,
+        tx: &'a UnboundedSender<(i64, SearchMatch)>,
+        path: &'a str,
+        query: &'a str,
+    ) -> Self {
         Self {
+            matcher,
             tx,
             path,
             heutristic_search_caches: HashMap::new(),
@@ -90,7 +98,7 @@ impl SearchMatchSink {
     ) {
         let score = self.compute_extra_score(line_text);
         let item = SearchMatch {
-            path: self.path.clone(),
+            path: self.path.to_owned(),
             pos: Position::new(lineno.saturating_sub(1), x),
             line_text: line_text.to_owned(),
             byte_range,
@@ -107,7 +115,7 @@ impl SearchMatchSink {
         if let Some((lang, Some(pattern))) = guess_language(Path::new(&self.path))
             .map(|lang| (lang, lang.heutristic_search_regex.as_ref()))
         {
-            let replaced_pattern = pattern.replace(r"\1", &self.query);
+            let replaced_pattern = pattern.replace(r"\1", self.query);
             self.heutristic_search_caches
                 .entry(lang.name)
                 .or_insert_with(|| regex::Regex::new(&replaced_pattern).unwrap())
@@ -120,7 +128,7 @@ impl SearchMatchSink {
     }
 }
 
-impl grep::searcher::Sink for SearchMatchSink {
+impl<'a> grep::searcher::Sink for SearchMatchSink<'a> {
     type Error = io::Error;
 
     fn matched(
@@ -136,11 +144,25 @@ impl grep::searcher::Sink for SearchMatchSink {
             }
         };
 
-        // TODO:
-        let x = 0;
-        let range = 0..0;
+        let mut start = 0;
+        let mut end = 0;
+        self.matcher
+            .find_iter(mat.bytes(), |m| {
+                start = m.start();
+                end = m.end();
+                false
+            })
+            .unwrap();
 
-        self.send(line_text, lineno, x, range);
+        let mut x = 0;
+        for (char_i, (byte_i, _)) in line_text.char_indices().enumerate() {
+            if byte_i == start {
+                x = char_i;
+                break;
+            }
+        }
+
+        self.send(line_text, lineno, x, start..end);
         Ok(true)
     }
 }
@@ -177,7 +199,6 @@ pub fn search_texts_globally(
 
     WalkBuilder::new(workspace_dir)
         .hidden(true)
-        .follow_links(true)
         .max_filesize(Some(FILE_SIZE_MAX))
         .threads(*NUM_WORKER_CPUS)
         .build_parallel()
@@ -200,7 +221,7 @@ pub fn search_texts_globally(
                     .search_path(
                         &matcher,
                         &dirent.path(),
-                        SearchMatchSink::new(tx.clone(), path_str, query.to_owned()),
+                        SearchMatchSink::new(&matcher, &tx, &path_str, query),
                     )
                     .oops();
 

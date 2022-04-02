@@ -55,7 +55,7 @@ pub static LANGUAGES: &[Language] = &[
         filenames: &[],
         extensions: &["rs"],
         line_comment: Some("//"),
-        heutristic_search_regex: None,
+        heutristic_search_regex: Some(r"(type|struct|static|const|fn)\w\1"),
         tree_sitter: Some(TreeSitter {
             url: "https://github.com/tree-sitter/tree-sitter-rust",
             sources: &["src/parser.c", "src/scanner.c"],
