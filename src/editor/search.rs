@@ -1,13 +1,13 @@
 use std::{
     cmp::{max, min},
     collections::{HashMap, HashSet},
-    io::Read,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
 };
+use std::{io::ErrorKind, process::Stdio};
 
 use anyhow::Result;
 
@@ -18,10 +18,12 @@ use noa_languages::guess_language;
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::UnboundedSender};
+use tokio::{io::BufReader, process::Command};
 
 use crate::completion::build_fuzzy_matcher;
 
-static NUM_WORKER_CPUS: Lazy<usize> = Lazy::new(|| max(2, num_cpus::get() / 2));
+// Avoid using all CPUs: leave some cores to do other tasks.
+static NUM_WORKER_CPUS: Lazy<usize> = Lazy::new(|| max(2, num_cpus::get().saturating_sub(2)));
 
 #[derive(Clone)]
 pub struct CancelFlag {
@@ -99,9 +101,6 @@ pub fn search_texts_globally(
     let workspace_dir = workspace_dir.to_owned();
     let query = query.to_owned();
     tokio::spawn(async move {
-        use std::{io::ErrorKind, process::Stdio};
-        use tokio::{io::BufReader, process::Command};
-
         let mut cmd = Command::new("rg");
         cmd.args(&[
             "--json",
@@ -181,7 +180,8 @@ pub fn search_texts_globally(
             // For example, "(struct|type) \1" matches "struct Foo" and "type Foo" in Rust.
             const HEURISTIC_SEARCH_REGEX_EXTRA_SCORE: i64 = 100;
             let path = m.data.path.text;
-            let score = if let Some((lang, Some(pattern))) = guess_language(Path::new(&path)).map(|lang| (lang, lang.heutristic_search_regex.as_ref()))
+            let score = if let Some((lang, Some(pattern))) = guess_language(Path::new(&path))
+                .map(|lang| (lang, lang.heutristic_search_regex.as_ref()))
             {
                 let replaced_pattern = pattern.replace(r"\1", &query);
                 preferred
@@ -221,94 +221,102 @@ pub fn search_paths_globally(
 ) -> Result<()> {
     use ignore::{WalkBuilder, WalkState};
 
-    WalkBuilder::new(workspace_dir).build_parallel().run(|| {
-        let matcher = build_fuzzy_matcher();
-        let tx = tx.clone();
-        let cancel_flag = cancel_flag.clone();
-        Box::new(move |dirent| {
-            if cancel_flag.is_cancelled() {
-                return WalkState::Quit;
-            }
-
-            if let Ok(dirent) = dirent {
-                let meta = dirent.metadata().unwrap();
-                if !meta.is_file() {
-                    return WalkState::Continue;
-                }
-
-                if let Some(exclude_paths) = exclude_paths.as_ref() {
-                    if exclude_paths.contains(dirent.path()) {
-                        return WalkState::Continue;
-                    }
-                }
-
-                match dirent.path().to_str() {
-                    Some(path) => {
-                        let mut score = match matcher.fuzzy_match(path, query) {
-                            Some(score) => score,
-                            None => return WalkState::Continue,
-                        };
-
-                        // Recently used.
-                        if let Ok(atime) = meta.accessed() {
-                            if let Ok(elapsed) = atime.elapsed() {
-                                score += (100 / max(1, min(elapsed.as_secs(), 360))) as i64;
-                                score += (100 / max(1, elapsed.as_secs())) as i64;
-                            }
-                        }
-
-                        // Recently modified.
-                        if let Ok(mtime) = meta.modified() {
-                            if let Ok(elapsed) = mtime.elapsed() {
-                                score += (10
-                                    / max(
-                                        1,
-                                        min(elapsed.as_secs() / (3600 * 24 * 30), 3600 * 24 * 30),
-                                    )) as i64;
-                                score += (100 / max(1, min(elapsed.as_secs(), 360))) as i64;
-                                score += (100 / max(1, elapsed.as_secs())) as i64;
-                            }
-                        }
-
-                        let path = path.strip_prefix("./").unwrap_or(path);
-
-                        let _ = tx.send((score, path.to_owned()));
-                    }
-                    None => {
-                        warn!("non-utf8 path: {:?}", dirent.path());
-                    }
-                }
-            }
-
-            WalkState::Continue
-        })
-    });
-
-    Ok(())
-}
-
-/// Reads all files to cache file contents in (kernel) memory.
-pub fn warm_up_search_cache(workspace_dir: &Path) {
-    use ignore::{WalkBuilder, WalkState};
-
     WalkBuilder::new(workspace_dir)
         .threads(*NUM_WORKER_CPUS)
         .build_parallel()
         .run(|| {
-            let mut buf = vec![0u8; 4096];
+            let matcher = build_fuzzy_matcher();
+            let tx = tx.clone();
+            let cancel_flag = cancel_flag.clone();
             Box::new(move |dirent| {
+                if cancel_flag.is_cancelled() {
+                    return WalkState::Quit;
+                }
+
                 if let Ok(dirent) = dirent {
                     let meta = dirent.metadata().unwrap();
-                    if !meta.is_file() || meta.len() > 8 * 1024 * 1024 {
+                    if !meta.is_file() {
                         return WalkState::Continue;
                     }
 
-                    if let Ok(mut file) = std::fs::File::open(dirent.path()) {
-                        let _ = file.read(buf.as_mut_slice());
+                    if let Some(exclude_paths) = exclude_paths.as_ref() {
+                        if exclude_paths.contains(dirent.path()) {
+                            return WalkState::Continue;
+                        }
+                    }
+
+                    match dirent.path().to_str() {
+                        Some(path) => {
+                            let mut score = match matcher.fuzzy_match(path, query) {
+                                Some(score) => score,
+                                None => return WalkState::Continue,
+                            };
+
+                            // Recently used.
+                            if let Ok(atime) = meta.accessed() {
+                                if let Ok(elapsed) = atime.elapsed() {
+                                    score += (100 / max(1, min(elapsed.as_secs(), 360))) as i64;
+                                    score += (100 / max(1, elapsed.as_secs())) as i64;
+                                }
+                            }
+
+                            // Recently modified.
+                            if let Ok(mtime) = meta.modified() {
+                                if let Ok(elapsed) = mtime.elapsed() {
+                                    score += (10
+                                        / max(
+                                            1,
+                                            min(
+                                                elapsed.as_secs() / (3600 * 24 * 30),
+                                                3600 * 24 * 30,
+                                            ),
+                                        )) as i64;
+                                    score += (100 / max(1, min(elapsed.as_secs(), 360))) as i64;
+                                    score += (100 / max(1, elapsed.as_secs())) as i64;
+                                }
+                            }
+
+                            let path = path.strip_prefix("./").unwrap_or(path);
+
+                            let _ = tx.send((score, path.to_owned()));
+                        }
+                        None => {
+                            warn!("non-utf8 path: {:?}", dirent.path());
+                        }
                     }
                 }
 
                 WalkState::Continue
             })
         });
+
+    Ok(())
+}
+
+/// Reads all files to cache file contents in (kernel) memory.
+pub fn warm_up_search_cache(workspace_dir: &Path) {
+    let workspace_dir = workspace_dir.to_path_buf();
+    tokio::spawn(async move {
+        let mut cmd = Command::new("rg");
+        cmd.args(&[
+            "--hidden",
+            "--glob",
+            "!.git",
+            "--no-config",
+            "--follow",
+            "--max-filesize",
+            "8M",
+            "--crlf",
+            "--fixed-strings",
+            "--case-sensitive",
+            "9z9z9z9z9z9z9z9z9z9z9z9z", /* dummy string that won't match in any files */
+        ]);
+
+        cmd.stdin(Stdio::null());
+        cmd.stdout(Stdio::piped());
+        cmd.stderr(Stdio::null());
+        cmd.current_dir(workspace_dir);
+        cmd.kill_on_drop(true);
+        let _ = cmd.status().await;
+    });
 }
