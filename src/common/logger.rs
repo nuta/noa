@@ -96,9 +96,29 @@ impl<T, E: Debug> OopsExt for std::result::Result<T, E> {
 }
 
 #[macro_export]
+macro_rules! debug_warn {
+    ($($arg:tt)*) => {{
+        #[cfg(debug_assertions)]
+        {
+            warn!($($arg)*);
+        }
+    }}
+}
+
+#[macro_export]
 macro_rules! warn_once {
     ($($arg:tt)*) => {{
         static WARN_ONCE: ::std::sync::Once = ::std::sync::Once::new();
         WARN_ONCE.call_once(|| warn!($($arg)*));
+    }}
+}
+
+#[macro_export]
+macro_rules! debug_warn_once {
+    ($($arg:tt)*) => {{
+        #[cfg(debug_assertions)]
+        {
+            $crate::warn_once!($($arg)*);
+        }
     }}
 }

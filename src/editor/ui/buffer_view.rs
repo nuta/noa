@@ -8,7 +8,7 @@ use noa_buffer::{
     cursor::{Position, Range},
     display_width::DisplayWidth,
 };
-use noa_common::logger::OopsExt;
+use noa_common::{debug_warn, logger::OopsExt};
 use noa_compositor::{
     canvas::{CanvasViewMut, Color, Style},
     surface::{HandledEvent, KeyEvent, Layout, RectSize, Surface},
@@ -173,7 +173,7 @@ impl Surface for BufferView {
                 } else if status & LineStatus::REPO_DIFF_MASK == LineStatus::REMOVED {
                     Some("line_status.deleted")
                 } else {
-                    warn!("ignored line status: {:?}", status);
+                    debug_warn!("ignored line status: {:?}", status);
                     None
                 };
 

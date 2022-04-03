@@ -3,8 +3,8 @@ use std::cmp::min;
 use arrayvec::ArrayString;
 use noa_buffer::display_width::DisplayWidth;
 use noa_common::{
+    debug_warn,
     logger::{self, backtrace},
-    warn_once,
 };
 
 pub use crossterm::style::Color;
@@ -127,9 +127,14 @@ impl Canvas {
             && x + other.width <= self.width;
 
         if !in_bounds {
-            warn!(
+            debug_warn!(
                 "out of bounds copy: dst_size=({}, {}), dst_pos=({}, {}), src_size=({}, {})",
-                self.height, self.width, y, x, other.height, other.width,
+                self.height,
+                self.width,
+                y,
+                x,
+                other.height,
+                other.width,
             );
             backtrace();
             return;
@@ -282,7 +287,7 @@ impl<'a> CanvasViewMut<'a> {
     pub fn write(&mut self, y: usize, x: usize, graph: Grapheme) {
         let in_bounds = y < self.height && x < self.width;
         if !in_bounds {
-            warn_once!(
+            debug_warn!(
                 "out of bounds draw: (y, x) = ({}, {}), (height, width) = ({}, {})",
                 y,
                 x,
@@ -295,7 +300,7 @@ impl<'a> CanvasViewMut<'a> {
 
         let graph_width = graph.chars.display_width();
         if x + graph_width > self.width {
-            warn_once!(
+            debug_warn!(
                 "out of bounds draw: \"{}\" (width={})",
                 graph.chars,
                 graph_width
@@ -305,7 +310,7 @@ impl<'a> CanvasViewMut<'a> {
         }
 
         if graph.chars.contains('\n') {
-            warn_once!("tried to draw '\\n'");
+            debug_warn!("tried to draw '\\n'");
             logger::backtrace();
             return;
         }
@@ -388,9 +393,14 @@ impl<'a> CanvasViewMut<'a> {
     {
         let in_bounds = y <= y_end && x <= x_end && y_end <= self.height && x_end <= self.width;
         if !in_bounds {
-            warn!(
+            debug_warn!(
                 "out of bounds update_range: (y, x) = ({}-{}, {}-{}), (height, width) = ({}, {})",
-                y, y_end, x, x_end, self.height, self.width,
+                y,
+                y_end,
+                x,
+                x_end,
+                self.height,
+                self.width,
             );
             backtrace();
             return;

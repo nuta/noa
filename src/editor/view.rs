@@ -6,7 +6,7 @@ use noa_buffer::{
     cursor::{Position, Range},
     display_width::DisplayWidth,
 };
-use noa_common::warn_once;
+use noa_common::debug_warn_once;
 use noa_compositor::canvas::{Grapheme, Style};
 
 use crate::config::theme_for;
@@ -212,14 +212,14 @@ impl View {
         let (start_y, start_x) = match self.locate_row_by_position(range.front()) {
             Some(yx) => yx,
             None => {
-                warn_once!("out of bounds highlight: {:?}", range);
+                debug_warn_once!("out of bounds highlight: {:?}", range);
                 return;
             }
         };
         let (end_y, end_x) = match self.locate_row_by_position(range.back()) {
             Some(yx) => yx,
             None => {
-                warn_once!("out of bounds highlight: {:?}", range);
+                debug_warn_once!("out of bounds highlight: {:?}", range);
                 return;
             }
         };
