@@ -244,7 +244,7 @@ impl Surface for BufferView {
                     .enumerate()
                     .any(|(_i, c)| !c.is_main_cursor() && c.position() == Some(end_of_row_pos))
                 {
-                    row_end_marker = Some((' ', buffer_x + row.len_chars()));
+                    row_end_marker = Some((' ', buffer_x + row.total_width()));
                 }
             }
 
@@ -255,7 +255,7 @@ impl Surface for BufferView {
             // The main cursor is at the end of line.
             if main_cursor_pos.y == row.lineno - 1 && main_cursor_pos.x == row.last_position().x + 1
             {
-                self.cursor_position = (canvas_y, buffer_x + row.len_chars());
+                self.cursor_position = (canvas_y, buffer_x + row.total_width());
             // The main cursor is at the end of empty line.
             } else if main_cursor_pos.y == row.lineno - 1 && row.is_empty() {
                 self.cursor_position = (canvas_y, buffer_x);

@@ -120,7 +120,6 @@ impl Iterator for GraphemeIter<'_> {
     /// Runs in amortized O(K) time and worst-case O(log N + K) time, where K
     /// is the length in bytes of the grapheme.
     fn next(&mut self) -> Option<Self::Item> {
-        dbg!("next -----");
         let mut tmp = ArrayString::<4>::new();
         // Not sure if `std::usize::MAX` cause problems.
         let mut cursor = GraphemeCursor::new(0, std::usize::MAX, false);
@@ -152,7 +151,7 @@ impl Iterator for GraphemeIter<'_> {
                 }
             };
 
-            dbg!(chunk);
+            // dbg!(chunk);
             match cursor.next_boundary(chunk, offset) {
                 Ok(Some(n)) => {
                     let mut grapheme = ArrayString::new();

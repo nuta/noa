@@ -62,6 +62,10 @@ impl DisplayRow {
         Range::from_positions(self.first_position(), self.last_position())
     }
 
+    pub fn total_width(&self) -> usize {
+        self.graphemes.iter().map(|g| g.width).sum()
+    }
+
     pub fn locate_column_by_position(&self, pos: Position) -> Option<usize> {
         if let Ok(pos) = self.positions.binary_search(&pos) {
             return Some(pos);
