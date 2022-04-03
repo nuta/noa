@@ -151,12 +151,12 @@ impl Surface for BufferView {
         // Buffer contents.
         let main_cursor_pos = main_cursor.moving_position();
         for (i_y, row) in doc.view().visible_rows().iter().enumerate() {
-            let y = buffer_y + i_y;
+            let canvas_y = buffer_y + i_y;
 
             // Highlight the current line.
             if main_cursor.selection().is_empty() && main_cursor_pos.y == row.lineno - 1 {
                 canvas.apply_style(
-                    y,
+                    canvas_y,
                     buffer_x,
                     canvas.width() - 1,
                     theme_for("buffer.current_line"),
@@ -177,31 +177,30 @@ impl Surface for BufferView {
                 };
 
                 if let Some(theme_key) = theme_key {
-                    canvas.write_char_with_style(y, 0, ' ', theme_for(theme_key));
+                    canvas.write_char_with_style(canvas_y, 0, ' ', theme_for(theme_key));
                 }
             }
 
             // Draw lineno.
             let lineno_x = lineno_x + max_lineno_width - row.lineno.display_width();
-            canvas.write_str(y, lineno_x, &format!("{}", row.lineno));
+            canvas.write_str(canvas_y, lineno_x, &format!("{}", row.lineno));
 
             // Draw each characters in the row.
             let mut row_end_marker = None;
-            for (i_x, (grapheme, pos)) in row.graphemes.iter().zip(row.positions.iter()).enumerate()
-            {
-                let x = buffer_x + i_x;
-                if x >= canvas.width() {
+            let mut canvas_x = buffer_x;
+            for (grapheme, pos) in row.graphemes.iter().zip(row.positions.iter()) {
+                if canvas_x >= canvas.width() {
                     // The cursor may go beyond the right edge of the screen if
                     // soft wrapping is disabled.
                     continue;
                 }
 
                 // Draw the character.
-                canvas.write(y, x, *grapheme);
+                canvas.write(canvas_y, canvas_x, *grapheme);
 
                 // Check if the main cursor is at this position.
                 if *pos == main_cursor_pos {
-                    self.cursor_position = (y, x);
+                    self.cursor_position = (canvas_y, canvas_x);
                 }
 
                 // Update decoration if the cursor includes or is located at
@@ -210,17 +209,19 @@ impl Surface for BufferView {
                     if c.selection().contains(*pos)
                         || (!c.is_main_cursor() && c.position() == Some(*pos))
                     {
-                        canvas.set_inverted(y, x, x + 1, true);
+                        canvas.set_inverted(canvas_y, canvas_x, canvas_x + grapheme.width, true);
 
                         let mut next_pos = *pos;
                         next_pos.move_by(buffer, 0, 0, 0, 1);
                         if c.selection().contains(next_pos) {
-                            row_end_marker = Some((' ', x + 1));
+                            row_end_marker = Some((' ', canvas_x + grapheme.width));
                         }
 
                         break;
                     }
                 }
+
+                canvas_x += grapheme.width;
             }
 
             // Cursors at a empty row.
@@ -248,16 +249,16 @@ impl Surface for BufferView {
             }
 
             if let Some((_ch, x)) = row_end_marker {
-                canvas.set_inverted(y, x, x + 1, true);
+                canvas.set_inverted(canvas_y, x, x + 1, true);
             }
 
             // The main cursor is at the end of line.
             if main_cursor_pos.y == row.lineno - 1 && main_cursor_pos.x == row.last_position().x + 1
             {
-                self.cursor_position = (y, buffer_x + row.len_chars());
+                self.cursor_position = (canvas_y, buffer_x + row.len_chars());
             // The main cursor is at the end of empty line.
             } else if main_cursor_pos.y == row.lineno - 1 && row.is_empty() {
-                self.cursor_position = (y, buffer_x);
+                self.cursor_position = (canvas_y, buffer_x);
             }
         }
 

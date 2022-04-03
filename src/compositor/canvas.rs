@@ -1,14 +1,16 @@
+use std::cmp::{max, min};
+
 use arrayvec::ArrayString;
 use noa_buffer::display_width::DisplayWidth;
 use noa_common::logger::{self, backtrace};
 
 pub use crossterm::style::Color;
+use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum DrawOp {
     MoveTo { y: usize, x: usize },
     Grapheme(ArrayString<8>),
-    Whitespaces(usize),
     FgColor(Color),
     BgColor(Color),
     Bold,
@@ -65,6 +67,7 @@ pub struct Grapheme {
     /// The character. It can be larger than 1 if it consists of multiple unicode
     /// characters like A with the acute accent.
     pub chars: ArrayString<8>,
+    pub width: usize,
     pub style: Style,
 }
 
@@ -72,6 +75,7 @@ impl Grapheme {
     pub fn new(grapheme: &str) -> Grapheme {
         Grapheme {
             chars: ArrayString::from(grapheme).unwrap(),
+            width: grapheme.display_width(),
             style: Default::default(),
         }
     }
@@ -142,13 +146,10 @@ impl Canvas {
         }
     }
 
-    pub fn compute_draw_updates(&self, other: &Canvas) -> Vec<DrawOp> {
+    pub fn diff(&self, other: &Canvas) -> Vec<DrawOp> {
         debug_assert_eq!(self.width(), other.width());
         debug_assert_eq!(self.height(), other.height());
 
-        let mut y = 0;
-        let mut x = 0;
-        let mut char_i = 0;
         let mut fg = Color::Reset;
         let mut bg = Color::Reset;
         let mut bold = false;
@@ -156,13 +157,17 @@ impl Canvas {
         let mut inverted = false;
         let mut needs_move = false;
         let mut ops = Vec::with_capacity(self.width() * self.height());
-        let mut old_total_width = 0;
-        let mut new_total_width = 0;
-        for (new, old) in self.graphs.iter().zip(&other.graphs) {
-            if old == new {
+        let mut skip: usize = 0;
+        let mut invalidated: usize = 0;
+        for (i, (new, old)) in self.graphs.iter().zip(&other.graphs).enumerate() {
+            if skip > 0 || (old == new && invalidated == 0) {
                 needs_move = true;
+                skip = skip.saturating_sub(1);
+                invalidated = invalidated.saturating_sub(1);
             } else {
                 if needs_move {
+                    let y = i / self.width;
+                    let x = i % self.width;
                     ops.push(DrawOp::MoveTo { y, x });
                     needs_move = false;
                 }
@@ -205,26 +210,8 @@ impl Canvas {
                 }
 
                 ops.push(DrawOp::Grapheme(new.chars));
-            }
-
-            let old_width = old.chars.display_width();
-            let new_width = new.chars.display_width();
-            old_total_width += old_width;
-            new_total_width += new_width;
-            x += new_width;
-
-            char_i += 1;
-            if char_i >= self.width {
-                y += 1;
-                x = 0;
-                char_i = 0;
-
-                if new_total_width < old_total_width {
-                    ops.push(DrawOp::Whitespaces(old_total_width - new_total_width));
-                }
-
-                new_total_width = 0;
-                old_total_width = 0;
+                skip = new.width.saturating_sub(1);
+                invalidated = max(new.width, old.width).saturating_sub(1);
             }
         }
 
@@ -301,6 +288,16 @@ impl<'a> CanvasViewMut<'a> {
             return;
         }
 
+        let graph_width = graph.chars.display_width();
+        if x + graph_width > self.width {
+            warn!(
+                "out of bounds draw: \"{}\" (width={})",
+                graph.chars, graph_width
+            );
+            backtrace();
+            return;
+        }
+
         if graph.chars.contains('\n') {
             warn!("tried to draw '\\n'");
             logger::backtrace();
@@ -310,8 +307,17 @@ impl<'a> CanvasViewMut<'a> {
         let index = (self.y + y) * self.canvas_width + self.x + x;
         self.graphs[index] = Grapheme {
             chars: graph.chars,
+            width: graph.width,
             style: self.graphs[index].style.merge(graph.style),
         };
+
+        for i in (index + 1)..min(index + graph_width, self.width) {
+            self.graphs[i] = Grapheme {
+                chars: ArrayString::new(),
+                width: 0,
+                style: Default::default(),
+            };
+        }
     }
 
     pub fn write_char(&mut self, y: usize, x: usize, ch: char) {
@@ -321,7 +327,15 @@ impl<'a> CanvasViewMut<'a> {
     pub fn write_char_with_style(&mut self, y: usize, x: usize, ch: char, style: Style) {
         let mut chars = ArrayString::new();
         chars.push(ch);
-        self.write(y, x, Grapheme { chars, style })
+        self.write(
+            y,
+            x,
+            Grapheme {
+                chars,
+                width: ch.display_width(),
+                style,
+            },
+        )
     }
 
     pub fn write_str(&mut self, y: usize, x: usize, string: &str) {
@@ -329,8 +343,19 @@ impl<'a> CanvasViewMut<'a> {
     }
 
     pub fn write_str_with_style(&mut self, y: usize, x: usize, string: &str, style: Style) {
-        for (i, ch) in string.chars().enumerate() {
-            self.write_char_with_style(y, x + i, ch, style);
+        let mut i = 0;
+        for chars in UnicodeSegmentation::graphemes(string, true) {
+            let width = chars.display_width();
+            self.write(
+                y,
+                x + i,
+                Grapheme {
+                    chars: ArrayString::from(chars).unwrap(),
+                    width,
+                    style,
+                },
+            );
+            i += width;
         }
     }
 
@@ -385,30 +410,32 @@ mod tests {
     }
 
     #[test]
-    fn test_compute_draw_updates() {
-        let mut canvas1 = Canvas::new(1, 10);
+    fn test_diff1() {
+        let mut canvas1 = Canvas::new(1, 2);
         canvas1.view_mut().write_str(0, 0, "あ");
-        let mut canvas2 = Canvas::new(1, 10);
+        let mut canvas2 = Canvas::new(1, 2);
         canvas2.view_mut().write_str(0, 0, "a");
         assert_eq!(
-            canvas2.compute_draw_updates(&canvas1),
-            vec![DrawOp::Grapheme(arraystring("a")), DrawOp::Whitespaces(1)]
-        );
-
-        let mut canvas1 = Canvas::new(2, 10);
-        canvas1.view_mut().write_str(0, 0, "あ");
-        canvas1.view_mut().write_str(1, 0, "い");
-        let mut canvas2 = Canvas::new(2, 10);
-        canvas2.view_mut().write_str(0, 0, "x");
-        canvas2.view_mut().write_str(1, 0, "y");
-        assert_eq!(
-            canvas2.compute_draw_updates(&canvas1),
+            canvas2.diff(&canvas1),
             vec![
-                DrawOp::Grapheme(arraystring("x")),
-                DrawOp::Whitespaces(1),
-                DrawOp::MoveTo { y: 1, x: 0 },
-                DrawOp::Grapheme(arraystring("y")),
-                DrawOp::Whitespaces(1)
+                DrawOp::Grapheme(arraystring("a")),
+                DrawOp::Grapheme(arraystring(" "))
+            ]
+        );
+    }
+
+    #[test]
+    fn test_diff2() {
+        let mut canvas1 = Canvas::new(1, 6);
+        canvas1.view_mut().write_str(0, 0, "aあbbb");
+        let mut canvas2 = Canvas::new(1, 6);
+        canvas2.view_mut().write_str(0, 0, "aaabbb");
+        assert_eq!(
+            canvas2.diff(&canvas1),
+            vec![
+                DrawOp::MoveTo { y: 0, x: 1 },
+                DrawOp::Grapheme(arraystring("a")),
+                DrawOp::Grapheme(arraystring("a")),
             ]
         );
     }

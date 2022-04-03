@@ -1014,6 +1014,7 @@ dependencies = [
  "parking_lot",
  "pretty_assertions 1.2.0",
  "tokio",
+ "unicode-segmentation",
 ]
 
 [[package]]

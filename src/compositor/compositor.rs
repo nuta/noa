@@ -155,8 +155,7 @@ impl<C: 'static> Compositor<C> {
         }
 
         // Compute diffs.
-        let draw_ops =
-            self.screens[screen_index].compute_draw_updates(&self.screens[prev_screen_index]);
+        let draw_ops = self.screens[screen_index].diff(&self.screens[prev_screen_index]);
 
         // Write into the terminal.
         let mut drawer = self.terminal.drawer();

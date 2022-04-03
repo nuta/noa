@@ -311,6 +311,7 @@ impl View {
                         for _ in 0..n {
                             graphemes.push(Grapheme {
                                 chars: ArrayString::from(" ").unwrap(),
+                                width: 1,
                                 style: Style::default(),
                             });
                             positions.push(pos);
@@ -338,6 +339,7 @@ impl View {
 
                         graphemes.push(Grapheme {
                             chars,
+                            width: chars.display_width(),
                             style: Style::default(),
                         });
                         positions.push(pos);
@@ -393,6 +395,7 @@ mod tests {
     fn g(c: &str) -> Grapheme {
         Grapheme {
             chars: ArrayString::from(c).unwrap(),
+            width: c.display_width(),
             style: Style::default(),
         }
     }
@@ -400,6 +403,7 @@ mod tests {
     fn g2(c: &str, fg: Color) -> Grapheme {
         Grapheme {
             chars: ArrayString::from(c).unwrap(),
+            width: c.display_width(),
             style: Style {
                 fg,
                 ..Style::default()

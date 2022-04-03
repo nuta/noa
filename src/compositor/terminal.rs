@@ -1,5 +1,4 @@
 use std::{
-    borrow::Cow,
     io::{stdout, Stdout, Write},
     time::Duration,
 };
@@ -185,14 +184,6 @@ where
     });
 }
 
-fn whitespaces(width: usize) -> Cow<'static, str> {
-    if width <= 16 {
-        Cow::Borrowed(&"                "[..width])
-    } else {
-        Cow::Owned(" ".repeat(width))
-    }
-}
-
 pub struct Drawer<'a> {
     stdout: Stdout,
     // Keep the terminal reference so that we don't write into stdout after
@@ -220,9 +211,6 @@ impl<'a> Drawer<'a> {
             }
             DrawOp::Grapheme(s) => {
                 queue!(self.stdout, Print(s)).ok();
-            }
-            DrawOp::Whitespaces(width) => {
-                queue!(self.stdout, Print(whitespaces(*width))).ok();
             }
             DrawOp::FgColor(color) => {
                 queue!(self.stdout, SetForegroundColor(*color)).ok();
