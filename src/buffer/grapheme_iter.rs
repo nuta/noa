@@ -99,8 +99,8 @@ impl<'a> GraphemeIter<'a> {
                 Err(GraphemeIncomplete::PrevChunk) => {
                     // Continue this loop.
                 }
-                Err(GraphemeIncomplete::PreContext(_)) => {
-                    todo!();
+                Err(GraphemeIncomplete::PreContext(n)) => {
+                    todo!()
                 }
             }
 
@@ -120,6 +120,7 @@ impl Iterator for GraphemeIter<'_> {
     /// Runs in amortized O(K) time and worst-case O(log N + K) time, where K
     /// is the length in bytes of the grapheme.
     fn next(&mut self) -> Option<Self::Item> {
+        dbg!("next -----");
         let mut tmp = ArrayString::<4>::new();
         // Not sure if `std::usize::MAX` cause problems.
         let mut cursor = GraphemeCursor::new(0, std::usize::MAX, false);
@@ -151,6 +152,7 @@ impl Iterator for GraphemeIter<'_> {
                 }
             };
 
+            dbg!(chunk);
             match cursor.next_boundary(chunk, offset) {
                 Ok(Some(n)) => {
                     let mut grapheme = ArrayString::new();
@@ -176,8 +178,19 @@ impl Iterator for GraphemeIter<'_> {
                     // Here's unreachable from `next_boundary`.
                     unreachable!();
                 }
-                Err(GraphemeIncomplete::PreContext(_)) => {
-                    todo!();
+                Err(GraphemeIncomplete::PreContext(n)) => {
+                    let raw_buffer = self.iter.buffer();
+                    let end = raw_buffer.pos_to_byte_index(self.iter.last_position());
+                    let start = end - n;
+                    let (context, chunk_byte_idx, _, _) = raw_buffer.rope().chunk_at_byte(start);
+                    dbg!(
+                        &context[chunk_byte_idx..(chunk_byte_idx + n)],
+                        self.iter.last_position(),
+                        n,
+                        chunk_byte_idx,
+                        offset
+                    );
+                    cursor.provide_context(&context[chunk_byte_idx..(chunk_byte_idx + n)], 0)
                 }
             }
 
@@ -213,6 +226,15 @@ mod tests {
         assert_eq!(iter.next_position(), Position::new(1, 0));
         assert_eq!(iter.next(), Some(ArrayString::from_str("X").unwrap()));
         assert_eq!(iter.next_position(), Position::new(1, 1));
+    }
+
+    #[test]
+    fn test_grapheme_iter_with_complicated_emojis() {
+        let buffer = RawBuffer::from_text("a👩‍🔬");
+        let mut iter = buffer.grapheme_iter(Position::new(0, 0));
+
+        assert_eq!(iter.next_position(), Position::new(0, 0));
+        assert_eq!(iter.next(), Some(ArrayString::from_str("a👩‍🔬").unwrap()));
     }
 
     #[test]

@@ -311,6 +311,7 @@ impl<'a> CanvasViewMut<'a> {
             style: self.graphs[index].style.merge(graph.style),
         };
 
+        // Fill dummy values if it's a wide-width character.
         for i in (index + 1)..min(index + graph_width, self.width) {
             self.graphs[i] = Grapheme {
                 chars: ArrayString::from(" ").unwrap(),
