@@ -13,7 +13,7 @@ use clap::Parser;
 use config::parse_config_files;
 use editor::Editor;
 use finder::open_finder;
-use noa_common::{logger::install_logger, time_report::TimeReport};
+use noa_common::{logger::install_logger, time_report::TimeReport, warn_once};
 use noa_compositor::{terminal::Event, Compositor};
 use search::warm_up_search_cache;
 use tokio::{

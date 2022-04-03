@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::{Context, Result};
+use noa_common::warn_once;
 use noa_compositor::{
     canvas::{Color, Style},
     terminal::{KeyCode, KeyModifiers},
@@ -264,7 +265,7 @@ pub fn theme_for(key: &str) -> Style {
     match THEME.get(key) {
         Some(style) => *style,
         None => {
-            warn!("not defined theme: \"{}\"", key);
+            warn_once!("not defined theme: \"{}\"", key);
             Default::default()
         }
     }

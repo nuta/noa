@@ -1,7 +1,9 @@
 #[macro_use]
 extern crate log;
 
-pub mod dirs;
+#[macro_use]
 pub mod logger;
+
+pub mod dirs;
 pub mod prioritized_vec;
 pub mod time_report;

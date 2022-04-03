@@ -2,7 +2,10 @@ use std::cmp::min;
 
 use arrayvec::ArrayString;
 use noa_buffer::display_width::DisplayWidth;
-use noa_common::logger::{self, backtrace};
+use noa_common::{
+    logger::{self, backtrace},
+    warn_once,
+};
 
 pub use crossterm::style::Color;
 use unicode_segmentation::UnicodeSegmentation;
@@ -279,9 +282,12 @@ impl<'a> CanvasViewMut<'a> {
     pub fn write(&mut self, y: usize, x: usize, graph: Grapheme) {
         let in_bounds = y < self.height && x < self.width;
         if !in_bounds {
-            warn!(
+            warn_once!(
                 "out of bounds draw: (y, x) = ({}, {}), (height, width) = ({}, {})",
-                y, x, self.height, self.width,
+                y,
+                x,
+                self.height,
+                self.width,
             );
             backtrace();
             return;
@@ -289,16 +295,17 @@ impl<'a> CanvasViewMut<'a> {
 
         let graph_width = graph.chars.display_width();
         if x + graph_width > self.width {
-            warn!(
+            warn_once!(
                 "out of bounds draw: \"{}\" (width={})",
-                graph.chars, graph_width
+                graph.chars,
+                graph_width
             );
             backtrace();
             return;
         }
 
         if graph.chars.contains('\n') {
-            warn!("tried to draw '\\n'");
+            warn_once!("tried to draw '\\n'");
             logger::backtrace();
             return;
         }
