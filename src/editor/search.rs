@@ -21,7 +21,7 @@ use grep::{
 use ignore::{WalkBuilder, WalkState};
 use noa_buffer::cursor::Position;
 
-use noa_common::oops::OopsExt;
+use noa_common::logger::OopsExt;
 
 use noa_languages::guess_language;
 use once_cell::sync::Lazy;

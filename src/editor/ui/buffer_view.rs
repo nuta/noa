@@ -8,9 +8,9 @@ use noa_buffer::{
     cursor::{Position, Range},
     display_width::DisplayWidth,
 };
-use noa_common::oops::OopsExt;
+use noa_common::logger::OopsExt;
 use noa_compositor::{
-    canvas::CanvasViewMut,
+    canvas::{CanvasViewMut, Color, Style},
     surface::{HandledEvent, KeyEvent, Layout, RectSize, Surface},
     terminal::{KeyCode, KeyModifiers, MouseButton, MouseEventKind},
     Compositor,
@@ -135,7 +135,7 @@ impl Surface for BufferView {
             max_lineno_width = buffer.num_lines().display_width();
             buffer_y = 0;
             buffer_x = lineno_x + max_lineno_width + 1 /* line status */;
-            buffer_width = canvas.width() - buffer_x  - 2 /* row_end_marker and mini map */;
+            buffer_width = canvas.width() - buffer_x - 1 /* row_end_marker */;
             buffer_height = canvas.height();
 
             doc.layout_view(&editor.find_query.text(), buffer_height, buffer_width);
@@ -150,6 +150,7 @@ impl Surface for BufferView {
 
         // Buffer contents.
         let main_cursor_pos = main_cursor.moving_position();
+        let scroll_x = doc.view().scroll_x();
         for (i_y, row) in doc.view().visible_rows().iter().enumerate() {
             let canvas_y = buffer_y + i_y;
 
@@ -188,8 +189,13 @@ impl Surface for BufferView {
             // Draw each characters in the row.
             let mut row_end_marker = None;
             let mut canvas_x = buffer_x;
-            for (grapheme, pos) in row.graphemes.iter().zip(row.positions.iter()) {
-                if canvas_x >= canvas.width() {
+            for (grapheme, pos) in row
+                .graphemes
+                .iter()
+                .skip(scroll_x)
+                .zip(row.positions.iter().skip(scroll_x))
+            {
+                if canvas_x - buffer_x >= buffer_width {
                     // The cursor may go beyond the right edge of the screen if
                     // soft wrapping is disabled.
                     continue;

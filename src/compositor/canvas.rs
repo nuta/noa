@@ -215,7 +215,6 @@ impl Canvas {
             }
         }
 
-        trace!("ops = {:?}", ops);
         ops
     }
 

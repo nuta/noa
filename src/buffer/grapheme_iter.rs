@@ -99,7 +99,7 @@ impl<'a> GraphemeIter<'a> {
                 Err(GraphemeIncomplete::PrevChunk) => {
                     // Continue this loop.
                 }
-                Err(GraphemeIncomplete::PreContext(n)) => {
+                Err(GraphemeIncomplete::PreContext(_n)) => {
                     todo!()
                 }
             }

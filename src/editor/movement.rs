@@ -36,13 +36,13 @@ pub struct Movement<'a> {
 impl<'a> Movement<'a> {
     /// Moves the cursor to left by one grapheme.
     pub fn move_cursors_left(&mut self) {
-        self.update_cursors_with(|buffer, _, _, c| c.move_left(buffer));
+        self.move_cursors_horizontally(-1, |c, pos| c.move_to_pos(pos));
         self.state.visual_xs.clear();
     }
 
     /// Moves the cursor to right by one grapheme.
     pub fn move_cursors_right(&mut self) {
-        self.update_cursors_with(|buffer, _, _, c| c.move_right(buffer));
+        self.move_cursors_horizontally(1, |c, pos| c.move_to_pos(pos));
         self.state.visual_xs.clear();
     }
 

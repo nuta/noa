@@ -86,6 +86,7 @@ impl DisplayRow {
 
 pub struct View {
     rows: Vec<DisplayRow>,
+    scroll_x: usize,
     scroll_y: usize,
     height: usize,
     softwrap: bool,
@@ -95,6 +96,7 @@ impl View {
     pub fn new() -> View {
         View {
             rows: Vec::new(),
+            scroll_x: 0,
             scroll_y: 0,
             height: 0,
             softwrap: true,
@@ -103,6 +105,14 @@ impl View {
 
     pub fn visible_rows(&self) -> &[DisplayRow] {
         &self.rows[self.scroll_y..min(self.rows.len(), self.scroll_y + self.height)]
+    }
+
+    pub fn scroll_x(&self) -> usize {
+        if self.softwrap {
+            0
+        } else {
+            self.scroll_x
+        }
     }
 
     pub fn all_rows(&self) -> &[DisplayRow] {
@@ -139,8 +149,15 @@ impl View {
         Range::from_positions(self.first_visible_position(), self.last_visible_position())
     }
 
+    pub fn is_softwrapped(&self) -> bool {
+        self.softwrap
+    }
+
     pub fn toggle_soft_wrap(&mut self) {
         self.softwrap = !self.softwrap;
+        if !self.softwrap {
+            self.scroll_x = 0;
+        }
     }
 
     pub fn scroll_up(&mut self) {
@@ -233,7 +250,7 @@ impl View {
     pub fn layout(&mut self, buffer: &Buffer, height: usize, width: usize) {
         use rayon::prelude::*;
 
-        let width = if self.softwrap {
+        let layout_width = if self.softwrap {
             width
         } else {
             // Disable soft wrapping.
@@ -244,13 +261,14 @@ impl View {
         self.rows = (0..buffer.num_lines())
             .into_par_iter()
             .map(|y| {
-                let rows = self.layout_line(buffer, y, width);
+                let rows = self.layout_line(buffer, y, layout_width);
                 debug_assert!(!rows.is_empty());
                 rows
             })
             .flatten()
             .collect();
 
+        // Adjust scroll_y and scroll_x if necessary.
         let main_pos = buffer.main_cursor().moving_position();
         while main_pos < self.first_visible_position() {
             self.scroll_y -= 1;
@@ -258,6 +276,21 @@ impl View {
 
         while main_pos > self.last_visible_position() {
             self.scroll_y += 1;
+        }
+
+        if !self.softwrap {
+            let col_index = self
+                .locate_row_by_position(main_pos)
+                .unwrap()
+                .1
+                .saturating_sub(1);
+
+            // dbg!(main_pos, col_index, self.scroll_x, width);
+            if col_index >= self.scroll_x + width {
+                self.scroll_x = col_index - (width - 1);
+            } else if col_index < self.scroll_x {
+                self.scroll_x = col_index;
+            }
         }
 
         debug_assert!(self.scroll_y < self.rows.len());
@@ -390,6 +423,7 @@ impl View {
 
 #[cfg(test)]
 mod tests {
+    use noa_buffer::cursor::Cursor;
     use noa_compositor::canvas::{Color, Grapheme, Style};
     use noa_editorconfig::EditorConfig;
     use pretty_assertions::assert_eq;
@@ -547,6 +581,33 @@ mod tests {
                 p(0, 4)
             ]
         );
+    }
+
+    #[test]
+    fn test_horizontal_scrolling() {
+        let mut view = View::new();
+        view.toggle_soft_wrap();
+
+        let mut buffer = Buffer::from_text("abcWXYZ");
+        buffer.set_cursors_for_test(&[Cursor::new(0, 3)]);
+        view.layout(&buffer, 0, 3);
+        assert_eq!(view.scroll_x, 0);
+        buffer.set_cursors_for_test(&[Cursor::new(0, 4)]);
+        view.layout(&buffer, 0, 3);
+        assert_eq!(view.scroll_x, 1);
+        buffer.set_cursors_for_test(&[Cursor::new(0, 5)]);
+        view.layout(&buffer, 0, 3);
+        assert_eq!(view.scroll_x, 2);
+
+        buffer.set_cursors_for_test(&[Cursor::new(0, 3)]);
+        view.layout(&buffer, 0, 3);
+        assert_eq!(view.scroll_x, 2);
+        buffer.set_cursors_for_test(&[Cursor::new(0, 2)]);
+        view.layout(&buffer, 0, 3);
+        assert_eq!(view.scroll_x, 1);
+        buffer.set_cursors_for_test(&[Cursor::new(0, 1)]);
+        view.layout(&buffer, 0, 3);
+        assert_eq!(view.scroll_x, 0);
     }
 
     #[test]

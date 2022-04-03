@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use noa_common::oops::OopsExt;
+use noa_common::logger::OopsExt;
 use notify::{DebouncedEvent, Watcher};
 use tokio::sync::mpsc;
 

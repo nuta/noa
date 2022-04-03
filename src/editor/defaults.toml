@@ -31,7 +31,7 @@ key_bindings = [
     { scope = "buffer", key = "u", modifiers = ["alt"], action = "redo" },
     { scope = "buffer", key = "y", modifiers = ["ctrl"], action = "undo_cursors" },
     { scope = "buffer", key = "n", modifiers = ["ctrl"], action = "comment_out" },
-    # { scope = "buffer", key = "", modifiers = ["ctrl"], action = "softwrap" },
+    { scope = "buffer", key = "F1", modifiers = [], action = "softwrap" },
     # move diff
 
 ]
@@ -99,5 +99,6 @@ key_bindings = [
 "syntax.value" = { fg = "grey" }
 "syntax.variable" = { fg = "grey" }
 "syntax.variable.builtin" = { fg = "grey" }
+"syntax._parent" = {}
 
 [colors]

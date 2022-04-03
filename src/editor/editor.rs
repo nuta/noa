@@ -10,7 +10,7 @@ use noa_buffer::{
     cursor::{Position, Range},
 };
 
-use noa_common::oops::OopsExt;
+use noa_common::logger::OopsExt;
 use noa_compositor::line_edit::LineEdit;
 
 use noa_languages::tree_sitter;

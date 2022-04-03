@@ -26,7 +26,7 @@ use noa_buffer::{
 };
 use noa_common::{
     dirs::{backup_dir, noa_dir},
-    oops::OopsExt,
+    logger::OopsExt,
     prioritized_vec::PrioritizedVec,
 };
 
