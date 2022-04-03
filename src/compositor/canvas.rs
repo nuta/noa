@@ -1,4 +1,4 @@
-use std::cmp::{max, min};
+use std::cmp::min;
 
 use arrayvec::ArrayString;
 use noa_buffer::display_width::DisplayWidth;
@@ -10,7 +10,7 @@ use unicode_segmentation::UnicodeSegmentation;
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum DrawOp {
     MoveTo { y: usize, x: usize },
-    Grapheme(ArrayString<8>),
+    Grapheme(ArrayString<16>),
     FgColor(Color),
     BgColor(Color),
     Bold,
@@ -66,7 +66,7 @@ impl Default for Style {
 pub struct Grapheme {
     /// The character. It can be larger than 1 if it consists of multiple unicode
     /// characters like A with the acute accent.
-    pub chars: ArrayString<8>,
+    pub chars: ArrayString<16>,
     pub width: usize,
     pub style: Style,
 }
@@ -211,7 +211,7 @@ impl Canvas {
 
                 ops.push(DrawOp::Grapheme(new.chars));
                 skip = new.width.saturating_sub(1);
-                invalidated = max(new.width, old.width).saturating_sub(1);
+                invalidated = old.width.saturating_sub(1);
             }
         }
 
@@ -313,8 +313,8 @@ impl<'a> CanvasViewMut<'a> {
 
         for i in (index + 1)..min(index + graph_width, self.width) {
             self.graphs[i] = Grapheme {
-                chars: ArrayString::new(),
-                width: 0,
+                chars: ArrayString::from(" ").unwrap(),
+                width: 1,
                 style: Default::default(),
             };
         }
@@ -405,7 +405,7 @@ mod tests {
     use arrayvec::ArrayString;
     use pretty_assertions::assert_eq;
 
-    fn arraystring(s: &str) -> ArrayString<8> {
+    fn arraystring(s: &str) -> ArrayString<16> {
         ArrayString::from(s).unwrap()
     }
 
@@ -421,6 +421,15 @@ mod tests {
                 DrawOp::Grapheme(arraystring("a")),
                 DrawOp::Grapheme(arraystring(" "))
             ]
+        );
+
+        let mut canvas1 = Canvas::new(1, 2);
+        canvas1.view_mut().write_str(0, 0, "a");
+        let mut canvas2 = Canvas::new(1, 2);
+        canvas2.view_mut().write_str(0, 0, "あ");
+        assert_eq!(
+            canvas2.diff(&canvas1),
+            vec![DrawOp::Grapheme(arraystring("あ")),]
         );
     }
 
