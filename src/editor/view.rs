@@ -150,10 +150,6 @@ impl View {
         Range::from_positions(self.first_visible_position(), self.last_visible_position())
     }
 
-    pub fn is_softwrapped(&self) -> bool {
-        self.softwrap
-    }
-
     pub fn toggle_soft_wrap(&mut self) {
         self.softwrap = !self.softwrap;
         if !self.softwrap {

@@ -10,7 +10,7 @@ use noa_buffer::{
 };
 use noa_common::{debug_warn, logger::OopsExt};
 use noa_compositor::{
-    canvas::{CanvasViewMut, Color, Style},
+    canvas::{CanvasViewMut},
     surface::{HandledEvent, KeyEvent, Layout, RectSize, Surface},
     terminal::{KeyCode, KeyModifiers, MouseButton, MouseEventKind},
     Compositor,
