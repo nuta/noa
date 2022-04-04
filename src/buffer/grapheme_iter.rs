@@ -250,7 +250,7 @@ mod tests {
         let buffer = RawBuffer::from_text("a👩‍🔬");
         let mut iter = buffer.grapheme_iter(Position::new(0, 4));
 
-        // This is expected
+        // FIXME: It should return the whole emoji, not a part of it.
         assert_eq!(iter.next_position(), Position::new(0, 4));
         assert_eq!(iter.prev(), Some(ArrayString::from_str("🔬").unwrap()));
         assert_eq!(iter.next_position(), Position::new(0, 3));
