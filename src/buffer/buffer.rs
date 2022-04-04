@@ -554,12 +554,6 @@ mod tests {
         b.insert("👩‍🔬");
         assert_eq!(b.cursors(), &[Cursor::new(0, 4)]);
 
-        // This is pretty intuitive and undesired behavior but VS Code also behaves
-        // this way -- Unicode is way too complicated :(
-        b.backspace();
-        assert_eq!(b.text(), "a👩‍"); // woman + zero-width joiner
-        assert_eq!(b.cursors(), &[Cursor::new(0, 3)]);
-
         b.backspace();
         assert_eq!(b.text(), "a");
         assert_eq!(b.cursors(), &[Cursor::new(0, 1)]);

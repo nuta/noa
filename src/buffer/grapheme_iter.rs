@@ -1,24 +1,114 @@
 use arrayvec::ArrayString;
+use ropey::str_utils::byte_to_char_idx;
 use unicode_segmentation::{GraphemeCursor, GraphemeIncomplete};
 
-use crate::{char_iter::CharIter, cursor::Position};
+use crate::{
+    cursor::{Position, Range},
+    raw_buffer::RawBuffer,
+};
+
+/// Finds the next grapheme boundary after the given char position.
+///
+/// Based on <https://github.com/cessen/led/blob/8a9388e8166e3e076f8bc8e256327bee9cd177b7/src/graphemes.rs>.
+/// Apache 2.0 or MIT licensed.
+pub fn next_grapheme_boundary(slice: &ropey::RopeSlice, char_idx: usize) -> Option<usize> {
+    // Bounds check
+    debug_assert!(char_idx <= slice.len_chars());
+
+    // We work with bytes for this, so convert.
+    let byte_idx = slice.char_to_byte(char_idx);
+
+    // Get the chunk with our byte index in it.
+    let (mut chunk, mut chunk_byte_idx, mut chunk_char_idx, _) = slice.chunk_at_byte(byte_idx);
+
+    // Set up the grapheme cursor.
+    let mut gc = GraphemeCursor::new(byte_idx, slice.len_bytes(), true);
+
+    // Find the next grapheme cluster boundary.
+    loop {
+        match gc.next_boundary(chunk, chunk_byte_idx) {
+            Ok(None) => return None,
+            Ok(Some(n)) => {
+                let tmp = byte_to_char_idx(chunk, n - chunk_byte_idx);
+                return Some(chunk_char_idx + tmp);
+            }
+            Err(GraphemeIncomplete::NextChunk) => {
+                chunk_byte_idx += chunk.len();
+                let (a, _, c, _) = slice.chunk_at_byte(chunk_byte_idx);
+                chunk = a;
+                chunk_char_idx = c;
+            }
+            Err(GraphemeIncomplete::PreContext(n)) => {
+                let ctx_chunk = slice.chunk_at_byte(n - 1).0;
+                gc.provide_context(ctx_chunk, n - ctx_chunk.len());
+            }
+            _ => unreachable!(),
+        }
+    }
+}
+
+/// Finds the previous grapheme boundary before the given char position.
+///
+/// Based on <https://github.com/cessen/led/blob/8a9388e8166e3e076f8bc8e256327bee9cd177b7/src/graphemes.rs>.
+/// Apache 2.0 or MIT licensed.
+pub fn prev_grapheme_boundary(slice: &ropey::RopeSlice, char_idx: usize) -> Option<usize> {
+    // Bounds check
+    debug_assert!(char_idx <= slice.len_chars());
+
+    // We work with bytes for this, so convert.
+    let byte_idx = slice.char_to_byte(char_idx);
+
+    // Get the chunk with our byte index in it.
+    let (mut chunk, mut chunk_byte_idx, mut chunk_char_idx, _) = slice.chunk_at_byte(byte_idx);
+
+    // Set up the grapheme cursor.
+    let mut gc = GraphemeCursor::new(byte_idx, slice.len_bytes(), true);
+
+    // Find the previous grapheme cluster boundary.
+    loop {
+        match gc.prev_boundary(chunk, chunk_byte_idx) {
+            Ok(None) => return None,
+            Ok(Some(n)) => {
+                let tmp = byte_to_char_idx(chunk, n - chunk_byte_idx);
+                return Some(chunk_char_idx + tmp);
+            }
+            Err(GraphemeIncomplete::PrevChunk) => {
+                let (a, b, c, _) = slice.chunk_at_byte(chunk_byte_idx - 1);
+                chunk = a;
+                chunk_byte_idx = b;
+                chunk_char_idx = c;
+            }
+            Err(GraphemeIncomplete::PreContext(n)) => {
+                let ctx_chunk = slice.chunk_at_byte(n - 1).0;
+                gc.provide_context(ctx_chunk, n - ctx_chunk.len());
+            }
+            _ => unreachable!(),
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct GraphemeIter<'a> {
-    iter: CharIter<'a>,
+    buf: &'a RawBuffer,
+    next_pos: Position,
+    last_pos: Position,
 }
 
 impl<'a> GraphemeIter<'a> {
-    pub fn new(iter: CharIter<'a>) -> GraphemeIter<'a> {
-        GraphemeIter { iter }
+    pub fn new(buf: &'a RawBuffer, pos: Position) -> GraphemeIter<'a> {
+        GraphemeIter {
+            buf,
+            next_pos: pos,
+            last_pos: pos,
+        }
     }
 
     pub fn next_position(&self) -> Position {
-        self.iter.next_position()
+        self.next_pos
     }
 
     pub fn last_position(&self) -> Position {
-        self.iter.last_position()
+        self.last_pos
     }
 
     /// Returns the previous grapheme.
@@ -28,92 +118,13 @@ impl<'a> GraphemeIter<'a> {
     /// Runs in amortized O(K) time and worst-case O(log N + K) time, where K
     /// is the length in bytes of the grapheme.
     pub fn prev(&mut self) -> Option<ArrayString<16>> {
-        // Must be large enough to hold all characters in a grapheme.
-        const OFFSET_END: usize = 16;
-
-        let mut cursor = GraphemeCursor::new(
-            OFFSET_END, 0, /* AFAIK this field is used in prev_boundary */
-            true,
-        );
-        let mut chunk = String::new();
-        let mut char_start = self.iter.clone();
-        loop {
-            match self.iter.prev() {
-                Some(ch) => {
-                    chunk.insert(0, ch);
-                }
-                None => {
-                    // Reached to the EOF.
-                    if chunk.is_empty() {
-                        return None;
-                    } else {
-                        // Return the last grapheme.
-
-                        // Characters comes in reverse order "CBA".
-                        let mut reversed = ArrayString::<16>::new();
-                        while let Some(ch) = char_start.prev() {
-                            reversed.push(ch);
-                        }
-
-                        //  "CBA" -> "ABC"
-                        let mut grapheme = ArrayString::new();
-                        for ch in reversed.chars().rev() {
-                            grapheme.push(ch);
-                        }
-
-                        debug_assert!(!grapheme.is_empty());
-
-                        self.iter = char_start;
-                        return Some(grapheme);
-                    }
-                }
-            };
-
-            match cursor.prev_boundary(&chunk, OFFSET_END - chunk.len()) {
-                Ok(Some(offset)) => {
-                    // Characters comes in reverse order "CBA".
-                    let mut grapheme = ArrayString::new();
-                    for ch in chunk[(chunk.len() - (OFFSET_END - offset))..].chars().rev() {
-                        grapheme.push(ch);
-                        char_start.prev();
-                    }
-
-                    self.iter = char_start;
-                    return Some(grapheme);
-                }
-                Ok(None) => {
-                    // Here's unreachable since the length is set to std::usize::MAX.
-                    unreachable!();
-                }
-                Err(GraphemeIncomplete::NextChunk) => {
-                    // Here's unreachable from `next_boundary`.
-                    unreachable!();
-                }
-                Err(GraphemeIncomplete::InvalidOffset) => {
-                    // Why?
-                    panic!("GraphemeIncomplete::InvalidOffset");
-                }
-                Err(GraphemeIncomplete::PrevChunk) => {
-                    // Continue this loop.
-                }
-                Err(GraphemeIncomplete::PreContext(mut n)) => {
-                    let mut new_chunk = String::new();
-                    let mut iter = self.iter.clone();
-                    while n > 0 {
-                        if let Some(ch) = iter.prev() {
-                            new_chunk.insert(0, ch);
-                            n -= n.saturating_sub(ch.len_utf8());
-                        } else {
-                            break;
-                        }
-                    }
-                    cursor.provide_context(
-                        &new_chunk[..],
-                        OFFSET_END - chunk.len() - new_chunk.len(),
-                    );
-                }
-            }
-        }
+        let slice = self.buf.rope().slice(..);
+        let char_index = prev_grapheme_boundary(&slice, self.buf.pos_to_char_index(self.next_pos))?;
+        let pos = self.buf.char_index_to_pos(char_index);
+        let grapheme = self.buf.substr(Range::from_positions(self.next_pos, pos));
+        self.last_pos = self.next_pos;
+        self.next_pos = pos;
+        Some(ArrayString::from(&grapheme).unwrap())
     }
 }
 
@@ -127,65 +138,13 @@ impl Iterator for GraphemeIter<'_> {
     /// Runs in amortized O(K) time and worst-case O(log N + K) time, where K
     /// is the length in bytes of the grapheme.
     fn next(&mut self) -> Option<Self::Item> {
-        // Not sure if `std::usize::MAX` cause problems.
-        let mut cursor = GraphemeCursor::new(0, std::usize::MAX, true);
-        let mut char_start = self.iter.clone();
-        let mut chunk = String::new();
-        loop {
-            match self.iter.next() {
-                Some(ch) => {
-                    chunk.push(ch);
-                }
-                None => {
-                    // Reached to the EOF.
-                    if chunk.is_empty() {
-                        return None;
-                    } else {
-                        // Return the last grapheme.
-                        let mut grapheme = ArrayString::new();
-                        for ch in char_start.by_ref() {
-                            grapheme.push(ch);
-                        }
-
-                        debug_assert!(!grapheme.is_empty());
-
-                        self.iter = char_start;
-                        return Some(grapheme);
-                    }
-                }
-            };
-
-            match cursor.next_boundary(&chunk, 0) {
-                Ok(Some(n)) => {
-                    let mut grapheme = ArrayString::new();
-                    while grapheme.len() < n {
-                        grapheme.push(char_start.next().unwrap());
-                    }
-
-                    self.iter = char_start;
-                    return Some(grapheme);
-                }
-                Ok(None) => {
-                    // Here's unreachable since the length is set to std::usize::MAX.
-                    unreachable!();
-                }
-                Err(GraphemeIncomplete::NextChunk) => {
-                    // Continue his loop.
-                }
-                Err(GraphemeIncomplete::InvalidOffset) => {
-                    // Why?
-                    panic!("GraphemeIncomplete::InvalidOffset");
-                }
-                Err(GraphemeIncomplete::PrevChunk) => {
-                    // Here's unreachable from `next_boundary`.
-                    unreachable!();
-                }
-                Err(GraphemeIncomplete::PreContext(_)) => {
-                    // Here's unreachable because `chunk` contains a complete grapheme.
-                    unreachable!();
-                }
-            }
-        }
+        let slice = self.buf.rope().slice(..);
+        let char_index = next_grapheme_boundary(&slice, self.buf.pos_to_char_index(self.next_pos))?;
+        let pos = self.buf.char_index_to_pos(char_index);
+        let grapheme = self.buf.substr(Range::from_positions(self.next_pos, pos));
+        self.last_pos = self.next_pos;
+        self.next_pos = pos;
+        Some(ArrayString::from(&grapheme).unwrap())
     }
 }
 
@@ -250,14 +209,8 @@ mod tests {
         let buffer = RawBuffer::from_text("a👩‍🔬");
         let mut iter = buffer.grapheme_iter(Position::new(0, 4));
 
-        // FIXME: It should return the whole emoji, not a part of it.
         assert_eq!(iter.next_position(), Position::new(0, 4));
-        assert_eq!(iter.prev(), Some(ArrayString::from_str("🔬").unwrap()));
-        assert_eq!(iter.next_position(), Position::new(0, 3));
-        assert_eq!(
-            iter.prev(),
-            Some(ArrayString::from_str("\u{200d}👩").unwrap())
-        );
+        assert_eq!(iter.prev(), Some(ArrayString::from_str("👩‍🔬").unwrap()));
         assert_eq!(iter.next_position(), Position::new(0, 1));
         assert_eq!(iter.prev(), Some(ArrayString::from_str("a").unwrap()));
         assert_eq!(iter.next_position(), Position::new(0, 0));

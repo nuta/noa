@@ -152,7 +152,7 @@ impl RawBuffer {
     /// Returns an iterator at the given position which allows traversing
     /// graphemes in the buffer back and forth.
     pub fn grapheme_iter(&self, pos: Position) -> GraphemeIter<'_> {
-        GraphemeIter::new(self.char_iter(pos))
+        GraphemeIter::new(self, pos)
     }
 
     /// Returns the current word range.
@@ -228,6 +228,12 @@ impl RawBuffer {
 
     pub(crate) fn pos_to_byte_index(&self, pos: Position) -> usize {
         self.rope.char_to_byte(self.pos_to_char_index(pos))
+    }
+
+    pub(crate) fn char_index_to_pos(&self, char_index: usize) -> Position {
+        let y = self.rope.char_to_line(char_index);
+        let x = char_index - self.rope.line_to_char(y);
+        Position { y, x }
     }
 }
 
