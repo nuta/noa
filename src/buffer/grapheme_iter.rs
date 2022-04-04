@@ -95,7 +95,6 @@ impl<'a> GraphemeIter<'a> {
                 }
                 Err(GraphemeIncomplete::PrevChunk) => {
                     // Continue this loop.
-                    dbg!(">>> prev_chunk");
                 }
                 Err(GraphemeIncomplete::PreContext(mut n)) => {
                     let mut new_chunk = String::new();
@@ -164,7 +163,6 @@ impl Iterator for GraphemeIter<'_> {
                     }
 
                     self.iter = char_start;
-                    dbg!(grapheme);
                     return Some(grapheme);
                 }
                 Ok(None) => {
