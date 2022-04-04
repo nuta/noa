@@ -28,21 +28,23 @@ impl<'a> GraphemeIter<'a> {
     /// Runs in amortized O(K) time and worst-case O(log N + K) time, where K
     /// is the length in bytes of the grapheme.
     pub fn prev(&mut self) -> Option<ArrayString<16>> {
-        let mut tmp = ArrayString::<4>::new();
-        // Not sure if `std::usize::MAX` cause problems.
-        let mut cursor = GraphemeCursor::new(std::usize::MAX, std::usize::MAX, false);
-        let mut offset = 0;
+        // Must be large enough to hold all characters in a grapheme.
+        const OFFSET_END: usize = 16;
+
+        let mut cursor = GraphemeCursor::new(
+            OFFSET_END, 0, /* AFAIK this field is used in prev_boundary */
+            true,
+        );
+        let mut chunk = String::new();
         let mut char_start = self.iter.clone();
         loop {
-            let (chunk, ch_len) = match self.iter.prev() {
+            match self.iter.prev() {
                 Some(ch) => {
-                    tmp.clear();
-                    tmp.push(ch);
-                    (tmp.as_str(), ch.len_utf8())
+                    chunk.insert(0, ch);
                 }
                 None => {
                     // Reached to the EOF.
-                    if offset == 0 {
+                    if chunk.is_empty() {
                         return None;
                     } else {
                         // Return the last grapheme.
@@ -67,18 +69,13 @@ impl<'a> GraphemeIter<'a> {
                 }
             };
 
-            match cursor.prev_boundary(chunk, std::usize::MAX - offset - ch_len) {
-                Ok(Some(n)) => {
+            match cursor.prev_boundary(&chunk, OFFSET_END - chunk.len()) {
+                Ok(Some(offset)) => {
                     // Characters comes in reverse order "CBA".
-                    let mut reversed = ArrayString::<16>::new();
-                    while reversed.len() < std::usize::MAX - n {
-                        reversed.push(char_start.prev().unwrap());
-                    }
-
-                    //  "CBA" -> "ABC"
                     let mut grapheme = ArrayString::new();
-                    for ch in reversed.chars().rev() {
+                    for ch in chunk[(chunk.len() - (OFFSET_END - offset))..].chars().rev() {
                         grapheme.push(ch);
+                        char_start.prev();
                     }
 
                     self.iter = char_start;
@@ -98,14 +95,25 @@ impl<'a> GraphemeIter<'a> {
                 }
                 Err(GraphemeIncomplete::PrevChunk) => {
                     // Continue this loop.
+                    dbg!(">>> prev_chunk");
                 }
-                Err(GraphemeIncomplete::PreContext(_n)) => {
-                    todo!()
+                Err(GraphemeIncomplete::PreContext(mut n)) => {
+                    let mut new_chunk = String::new();
+                    let mut iter = self.iter.clone();
+                    while n > 0 {
+                        if let Some(ch) = iter.prev() {
+                            new_chunk.insert(0, ch);
+                            n -= n.saturating_sub(ch.len_utf8());
+                        } else {
+                            break;
+                        }
+                    }
+                    cursor.provide_context(
+                        &new_chunk[..],
+                        OFFSET_END - chunk.len() - new_chunk.len(),
+                    );
                 }
             }
-
-            debug_assert!(ch_len > 0);
-            offset += ch_len;
         }
     }
 }
@@ -120,21 +128,18 @@ impl Iterator for GraphemeIter<'_> {
     /// Runs in amortized O(K) time and worst-case O(log N + K) time, where K
     /// is the length in bytes of the grapheme.
     fn next(&mut self) -> Option<Self::Item> {
-        let mut tmp = ArrayString::<4>::new();
         // Not sure if `std::usize::MAX` cause problems.
-        let mut cursor = GraphemeCursor::new(0, std::usize::MAX, false);
-        let mut offset = 0;
+        let mut cursor = GraphemeCursor::new(0, std::usize::MAX, true);
         let mut char_start = self.iter.clone();
+        let mut chunk = String::new();
         loop {
-            let (chunk, ch_len) = match self.iter.next() {
+            match self.iter.next() {
                 Some(ch) => {
-                    tmp.clear();
-                    tmp.push(ch);
-                    (tmp.as_str(), ch.len_utf8())
+                    chunk.push(ch);
                 }
                 None => {
                     // Reached to the EOF.
-                    if offset == 0 {
+                    if chunk.is_empty() {
                         return None;
                     } else {
                         // Return the last grapheme.
@@ -151,8 +156,7 @@ impl Iterator for GraphemeIter<'_> {
                 }
             };
 
-            // dbg!(chunk);
-            match cursor.next_boundary(chunk, offset) {
+            match cursor.next_boundary(&chunk, 0) {
                 Ok(Some(n)) => {
                     let mut grapheme = ArrayString::new();
                     while grapheme.len() < n {
@@ -160,6 +164,7 @@ impl Iterator for GraphemeIter<'_> {
                     }
 
                     self.iter = char_start;
+                    dbg!(grapheme);
                     return Some(grapheme);
                 }
                 Ok(None) => {
@@ -167,7 +172,7 @@ impl Iterator for GraphemeIter<'_> {
                     unreachable!();
                 }
                 Err(GraphemeIncomplete::NextChunk) => {
-                    // Continue this loop.
+                    // Continue his loop.
                 }
                 Err(GraphemeIncomplete::InvalidOffset) => {
                     // Why?
@@ -177,24 +182,11 @@ impl Iterator for GraphemeIter<'_> {
                     // Here's unreachable from `next_boundary`.
                     unreachable!();
                 }
-                Err(GraphemeIncomplete::PreContext(n)) => {
-                    let raw_buffer = self.iter.buffer();
-                    let end = raw_buffer.pos_to_byte_index(self.iter.last_position());
-                    let start = end - n;
-                    let (context, chunk_byte_idx, _, _) = raw_buffer.rope().chunk_at_byte(start);
-                    dbg!(
-                        &context[chunk_byte_idx..(chunk_byte_idx + n)],
-                        self.iter.last_position(),
-                        n,
-                        chunk_byte_idx,
-                        offset
-                    );
-                    cursor.provide_context(&context[chunk_byte_idx..(chunk_byte_idx + n)], 0)
+                Err(GraphemeIncomplete::PreContext(_)) => {
+                    // Here's unreachable because `chunk` contains a complete grapheme.
+                    unreachable!();
                 }
             }
-
-            debug_assert!(ch_len > 0);
-            offset += ch_len;
         }
     }
 }
@@ -228,15 +220,6 @@ mod tests {
     }
 
     #[test]
-    fn test_grapheme_iter_with_complicated_emojis() {
-        let buffer = RawBuffer::from_text("a👩‍🔬");
-        let mut iter = buffer.grapheme_iter(Position::new(0, 0));
-
-        assert_eq!(iter.next_position(), Position::new(0, 0));
-        assert_eq!(iter.next(), Some(ArrayString::from_str("a👩‍🔬").unwrap()));
-    }
-
-    #[test]
     fn test_grapheme_iter_prev() {
         // ABC
         // XY
@@ -248,6 +231,38 @@ mod tests {
         assert_eq!(iter.next_position(), Position::new(0, 3));
         assert_eq!(iter.prev(), Some(ArrayString::from_str("C").unwrap()));
         assert_eq!(iter.next_position(), Position::new(0, 2));
+    }
+
+    #[test]
+    fn test_grapheme_iter_next_with_complicated_emojis() {
+        // Note: the emoji is 3-characters wide: U+1F469 U+200D U+1F52C.
+        let buffer = RawBuffer::from_text("a👩‍🔬");
+        let mut iter = buffer.grapheme_iter(Position::new(0, 0));
+
+        assert_eq!(iter.next_position(), Position::new(0, 0));
+        assert_eq!(iter.next(), Some(ArrayString::from_str("a").unwrap()));
+        assert_eq!(iter.next_position(), Position::new(0, 1));
+        assert_eq!(iter.next(), Some(ArrayString::from_str("👩‍🔬").unwrap()));
+        assert_eq!(iter.next_position(), Position::new(0, 4));
+    }
+
+    #[test]
+    fn test_grapheme_iter_prev_with_complicated_emojis() {
+        // Note: the emoji is 3-characters wide: U+1F469 U+200D U+1F52C.
+        let buffer = RawBuffer::from_text("a👩‍🔬");
+        let mut iter = buffer.grapheme_iter(Position::new(0, 4));
+
+        // This is expected
+        assert_eq!(iter.next_position(), Position::new(0, 4));
+        assert_eq!(iter.prev(), Some(ArrayString::from_str("🔬").unwrap()));
+        assert_eq!(iter.next_position(), Position::new(0, 3));
+        assert_eq!(
+            iter.prev(),
+            Some(ArrayString::from_str("\u{200d}👩").unwrap())
+        );
+        assert_eq!(iter.next_position(), Position::new(0, 1));
+        assert_eq!(iter.prev(), Some(ArrayString::from_str("a").unwrap()));
+        assert_eq!(iter.next_position(), Position::new(0, 0));
     }
 
     #[test]

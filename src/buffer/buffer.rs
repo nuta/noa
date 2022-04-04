@@ -547,6 +547,25 @@ mod tests {
     }
 
     #[test]
+    fn complicated_emojis() {
+        // Note: the emoji is 3-characters wide: U+1F469 U+200D U+1F52C.
+        let mut b = Buffer::new();
+        b.insert("a");
+        b.insert("👩‍🔬");
+        assert_eq!(b.cursors(), &[Cursor::new(0, 4)]);
+
+        // This is pretty intuitive and undesired behavior but VS Code also behaves
+        // this way -- Unicode is way too complicated :(
+        b.backspace();
+        assert_eq!(b.text(), "a👩‍"); // woman + zero-width joiner
+        assert_eq!(b.cursors(), &[Cursor::new(0, 3)]);
+
+        b.backspace();
+        assert_eq!(b.text(), "a");
+        assert_eq!(b.cursors(), &[Cursor::new(0, 1)]);
+    }
+
+    #[test]
     fn test_insertion_at_eof() {
         let mut b = Buffer::from_text("ABC");
         b.set_cursors_for_test(&[Cursor::new(0, 3)]);

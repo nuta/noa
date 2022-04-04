@@ -8,6 +8,16 @@ use std::{
 use crate::raw_buffer::RawBuffer;
 
 /// The zero-based position in the buffer.
+///
+/// Both `x` and `y` are indices in characters (`char`), not graphemes. For
+/// example, the Woman Scientist emoji, represented as three characters
+/// (U+1F469 U+200D U+1F52C), occupies 3 (not 1) in x-axis:
+///
+/// ```text
+/// U+1F469 U+200D U+1F52C
+/// ^       ^      ^
+/// x=0     x=1    x=2
+/// ```
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Position {
     /// The line number. 0-origin.
