@@ -178,10 +178,9 @@ impl Iterator for BidirectionalGraphemeIter<'_> {
 
 /// Another grapheme iterator implementation faster than `BidirectionalGraphemeIter`.
 pub struct GraphemeIter<'a> {
-    slice: ropey::RopeSlice<'a>,
+    rope: ropey::RopeSlice<'a>,
     chunk: &'a str,
     chunk_start: usize,
-    last_offset: usize,
     gc: GraphemeCursor,
     next_char_pos: Position,
 }
@@ -204,33 +203,37 @@ impl<'a> GraphemeIter<'a> {
         let gc = GraphemeCursor::new(byte_idx, slice.len_bytes(), true);
 
         GraphemeIter {
-            slice,
+            rope: slice,
             chunk,
             chunk_start: chunk_byte_idx,
-            last_offset: byte_idx,
             gc,
             next_char_pos: pos,
         }
     }
 
-    /// Returns the next grapheme's range in `self.chunk` in bytes.
-    pub fn next_boundary(&mut self) -> Option<std::ops::Range<usize>> {
+    pub fn next_boundary(&mut self) -> Option<RopeSlice<'a>> {
+        let start = self.gc.cur_cursor();
         loop {
             match self.gc.next_boundary(self.chunk, self.chunk_start) {
                 Ok(None) => return None,
-                Ok(Some(offset)) => {
-                    let range = (self.last_offset - self.chunk_start)..(offset - self.chunk_start);
-                    self.last_offset = offset;
-                    return Some(range);
+                Ok(Some(end)) => {
+                    if start < self.chunk_start {
+                        let char_start = self.rope.byte_to_char(start);
+                        let char_end = self.rope.byte_to_char(end);
+                        return Some(self.rope.slice(char_start..char_end));
+                    } else {
+                        return Some(
+                            self.chunk[(start - self.chunk_start)..(end - self.chunk_start)].into(),
+                        );
+                    }
                 }
                 Err(GraphemeIncomplete::NextChunk) => {
                     self.chunk_start += self.chunk.len();
-                    let (a, _, _, _) = self.slice.chunk_at_byte(self.chunk_start);
+                    let (a, _, _, _) = self.rope.chunk_at_byte(self.chunk_start);
                     self.chunk = a;
-                    self.last_offset = self.chunk_start;
                 }
                 Err(GraphemeIncomplete::PreContext(n)) => {
-                    let ctx_chunk = self.slice.chunk_at_byte(n - 1).0;
+                    let ctx_chunk = self.rope.chunk_at_byte(n - 1).0;
                     self.gc.provide_context(ctx_chunk, n - ctx_chunk.len());
                 }
                 _ => unreachable!(),
@@ -240,7 +243,7 @@ impl<'a> GraphemeIter<'a> {
 }
 
 impl<'a> Iterator for GraphemeIter<'a> {
-    type Item = (Position, &'a str);
+    type Item = (Position, RopeSlice<'a>);
 
     /// Returns the next grapheme.
     ///
@@ -249,10 +252,7 @@ impl<'a> Iterator for GraphemeIter<'a> {
     /// Runs in amortized O(K) time and worst-case O(log N + K) time, where K
     /// is the length in bytes of the grapheme.
     fn next(&mut self) -> Option<Self::Item> {
-        let byte_range = self.next_boundary()?;
-        // dbg!(&byte_range);
-        let grapheme = &self.chunk[byte_range];
-
+        let grapheme = self.next_boundary()?;
         let pos = self.next_char_pos;
         for ch in grapheme.chars() {
             match ch {
@@ -319,11 +319,11 @@ mod tests {
         let buffer = RawBuffer::from_text("ABC\nXY");
         let mut iter = buffer.grapheme_iter(Position::new(0, 0));
 
-        assert_eq!(iter.next(), Some((pos(0, 0), "A")));
-        assert_eq!(iter.next(), Some((pos(0, 1), "B")));
-        assert_eq!(iter.next(), Some((pos(0, 2), "C")));
-        assert_eq!(iter.next(), Some((pos(0, 3), "\n")));
-        assert_eq!(iter.next(), Some((pos(1, 0), "X")));
+        assert_eq!(iter.next(), Some((pos(0, 0), "A".into())));
+        assert_eq!(iter.next(), Some((pos(0, 1), "B".into())));
+        assert_eq!(iter.next(), Some((pos(0, 2), "C".into())));
+        assert_eq!(iter.next(), Some((pos(0, 3), "\n".into())));
+        assert_eq!(iter.next(), Some((pos(1, 0), "X".into())));
     }
 
     #[test]
@@ -352,8 +352,8 @@ mod tests {
         let buffer = RawBuffer::from_text("a👩‍🔬");
         let mut iter = buffer.grapheme_iter(Position::new(0, 0));
 
-        assert_eq!(iter.next(), Some((pos(0, 0), "a")));
-        assert_eq!(iter.next(), Some((pos(0, 1), "👩‍🔬")));
+        assert_eq!(iter.next(), Some((pos(0, 0), "a".into())));
+        assert_eq!(iter.next(), Some((pos(0, 1), "👩‍🔬".into())));
     }
 
     #[test]

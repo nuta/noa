@@ -260,7 +260,7 @@ impl View {
 
         self.height = height;
         self.rows = (0..buffer.num_lines())
-            // .into_par_iter()
+            .into_par_iter()
             .map(|y| {
                 let rows = self.layout_line(buffer, y, layout_width);
                 debug_assert!(!rows.is_empty());
