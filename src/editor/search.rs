@@ -111,20 +111,31 @@ impl<'a> SearchMatchSink<'a> {
         // Prioritize matches that're likely to be definitions.
         //
         // For example, "(struct|type) \1" matches "struct Foo" and "type Foo" in Rust.
-        const HEURISTIC_SEARCH_REGEX_EXTRA_SCORE: i64 = 100;
+        const HEURISTIC_SEARCH_REGEX_EXTRA_SCORE: i64 = 300;
         if let Some((lang, Some(pattern))) = guess_language(Path::new(&self.path))
             .map(|lang| (lang, lang.heutristic_search_regex.as_ref()))
         {
-            let replaced_pattern = pattern.replace(r"\1", self.query);
-            self.heutristic_search_caches
-                .entry(lang.name)
-                .or_insert_with(|| regex::Regex::new(&replaced_pattern).unwrap())
-                .find(line_text)
-                .map(|_| HEURISTIC_SEARCH_REGEX_EXTRA_SCORE)
-                .unwrap_or(0)
-        } else {
-            0
+            if let Some(re) = self.heutristic_search_caches.get(lang.name) {
+                if re.find(line_text).is_some() {
+                    return HEURISTIC_SEARCH_REGEX_EXTRA_SCORE;
+                }
+            } else {
+                let replaced_pattern = pattern.replace(r"\1", self.query);
+                let re = match regex::Regex::new(&replaced_pattern) {
+                    Ok(re) => re,
+                    Err(err) => {
+                        warn!("regex compile error: {}", err);
+                        return 0;
+                    }
+                };
+
+                if re.find(line_text).is_some() {
+                    return HEURISTIC_SEARCH_REGEX_EXTRA_SCORE;
+                }
+            }
         }
+
+        0
     }
 }
 

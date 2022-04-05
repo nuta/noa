@@ -218,11 +218,11 @@ impl Surface for SelectorView {
                     );
                     canvas.write_str(y, x, truncate_to_width(&s, max_width));
 
-                    let x = before_text.display_width();
+                    let x_off = before_text.display_width();
                     canvas.apply_style(
                         y,
-                        1 + x,
-                        min(canvas.width(), 1 + x + matched_text.display_width()),
+                        x + x_off,
+                        x + min(max_width, x_off + matched_text.display_width()),
                         Style {
                             fg: Color::Red,
                             ..Default::default()

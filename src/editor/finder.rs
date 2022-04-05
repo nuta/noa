@@ -200,11 +200,11 @@ fn update_items(editor: &mut Editor, query: &str) {
                 }
 
                 tokio::select! {
-                    Some((_, item)) = text_items_rx.recv() => {
-                        items.insert(0, FinderItem::SearchMatch(item));
+                    Some((score, item)) = text_items_rx.recv() => {
+                        items.insert(score, FinderItem::SearchMatch(item));
                     }
-                    Some((_, path)) = path_items_rx.recv() => {
-                        items.insert(0, FinderItem::File(path));
+                    Some((score, path)) = path_items_rx.recv() => {
+                        items.insert(score, FinderItem::File(path));
                     }
                     else => {
                         break;

@@ -33,6 +33,7 @@ key_bindings = [
     { scope = "buffer", key = "n", modifiers = ["ctrl"], action = "comment_out" },
     { scope = "buffer", key = "F1", modifiers = [], action = "softwrap" },
     # move diff
+    # global search with current word
 
 ]
 

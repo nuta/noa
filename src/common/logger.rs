@@ -3,7 +3,7 @@ use backtrace::Backtrace;
 use log::Level;
 use std::{
     fmt::Debug,
-    io::{BufRead, BufReader, Seek, SeekFrom},
+    io::{BufRead, BufReader, ErrorKind, Seek, SeekFrom},
     path::Path,
 };
 
@@ -74,7 +74,12 @@ pub fn prettify_backtrace(backtrace: Backtrace) {
 }
 
 pub fn shrink_file(path: &Path, max_len: usize) -> Result<()> {
-    let meta = std::fs::metadata(path)?;
+    let meta = match std::fs::metadata(path) {
+        Ok(meta) => meta,
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(err.into()),
+    };
+
     let current_len: usize = meta.len().try_into()?;
     if current_len <= max_len {
         return Ok(());
