@@ -78,12 +78,11 @@ impl Surface for MetaLineView {
         // Apply the style.
         canvas.apply_style(0, 0, canvas.width(), theme_for("meta_line.background"));
 
-        let _leftside_width = match self.mode {
+        match self.mode {
             MetaLineMode::Search => {
                 // Search query.
                 let truncated_query = truncate_to_width_suffix(&search_query, canvas.width());
                 canvas.write_str(0, 1, truncated_query);
-                truncated_query.display_width()
             }
             MetaLineMode::Normal => {
                 // Cursor position.
@@ -141,8 +140,6 @@ impl Surface for MetaLineView {
                 );
                 canvas.write_str(0, 1, filename);
                 canvas.write_str(0, 1 + filename_width + 1, &left_text);
-
-                1 + filename_width + 1
             }
         };
 

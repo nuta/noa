@@ -52,7 +52,7 @@ key_bindings = [
 
 "label" = { bold = true, inverted = true }
 "prompt.name" = { bg = "grey", bold = true }
-"meta_line.background" = { invert = true }
+"meta_line.background" = { inverted = true }
 
 "selector.input" = { fg = "grey" }
 "selector.selected" = { fg = "grey" }
