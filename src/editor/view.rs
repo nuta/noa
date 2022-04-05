@@ -673,7 +673,7 @@ mod tests {
 
     #[bench]
     fn bench_layout_medium_text(b: &mut test::Bencher) {
-        let (mut view, buffer) = create_view_and_buffer(2048);
+        let (mut view, buffer) = create_view_and_buffer(128);
         b.iter(|| view.layout(&buffer, 4096, 120));
     }
 }
