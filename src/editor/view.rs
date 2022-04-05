@@ -260,7 +260,7 @@ impl View {
 
         self.height = height;
         self.rows = (0..buffer.num_lines())
-            .into_par_iter()
+            // .into_par_iter()
             .map(|y| {
                 let rows = self.layout_line(buffer, y, layout_width);
                 debug_assert!(!rows.is_empty());
@@ -286,7 +286,6 @@ impl View {
                 .1
                 .saturating_sub(1);
 
-            // dbg!(main_pos, col_index, self.scroll_x, width);
             if col_index >= self.scroll_x + width {
                 self.scroll_x = col_index - (width - 1);
             } else if col_index < self.scroll_x {
@@ -509,7 +508,7 @@ mod tests {
 
         // Soft wrapping.
         let buffer = Buffer::from_text("ABC123XYZ");
-        view.layout(&buffer, 1, 3);
+        view.layout(&buffer, 2, 3);
         assert_eq!(view.rows.len(), 3);
         assert_eq!(view.rows[0].graphemes, vec![g("A"), g("B"), g("C")]);
         assert_eq!(view.rows[0].positions, vec![p(0, 0), p(0, 1), p(0, 2)]);

@@ -4,7 +4,7 @@ use crate::{
     char_iter::CharIter,
     cursor::{Position, Range},
     find::FindIter,
-    grapheme_iter::GraphemeIter,
+    grapheme_iter::{BidirectionalGraphemeIter, GraphemeIter},
     word_iter::{is_word_char, WordIter},
 };
 
@@ -151,8 +151,19 @@ impl RawBuffer {
 
     /// Returns an iterator at the given position which allows traversing
     /// graphemes in the buffer back and forth.
+    ///
+    /// Prefer using this method over `bidi_grapheme_iter` if you don't
+    /// need to move a iterator backwards.
     pub fn grapheme_iter(&self, pos: Position) -> GraphemeIter<'_> {
         GraphemeIter::new(self, pos)
+    }
+
+    /// Returns an iterator at the given position which allows traversing
+    /// graphemes in the buffer back and forth.
+    ///
+    /// Note that this is slower than `grapheme_iter`.
+    pub fn bidirectional_grapheme_iter(&self, pos: Position) -> BidirectionalGraphemeIter<'_> {
+        BidirectionalGraphemeIter::new(self, pos)
     }
 
     /// Returns the current word range.
