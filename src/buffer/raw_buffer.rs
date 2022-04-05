@@ -211,7 +211,7 @@ impl RawBuffer {
     /// # Complexity
     ///
     /// Runs in O(log N) time, where N is the length of the rope.
-    pub(crate) fn pos_to_char_index(&self, pos: Position) -> usize {
+    pub fn pos_to_char_index(&self, pos: Position) -> usize {
         if pos.y == self.num_lines() && pos.x == 0 {
             // EOF.
             return self.rope.line_to_char(pos.y) + self.line_len(pos.y);
@@ -226,11 +226,11 @@ impl RawBuffer {
         self.rope.line_to_char(pos.y) + column
     }
 
-    pub(crate) fn pos_to_byte_index(&self, pos: Position) -> usize {
+    pub fn pos_to_byte_index(&self, pos: Position) -> usize {
         self.rope.char_to_byte(self.pos_to_char_index(pos))
     }
 
-    pub(crate) fn char_index_to_pos(&self, char_index: usize) -> Position {
+    pub fn char_index_to_pos(&self, char_index: usize) -> Position {
         let y = self.rope.char_to_line(char_index);
         let x = char_index - self.rope.line_to_char(y);
         Position { y, x }

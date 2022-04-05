@@ -220,15 +220,12 @@ async fn main() {
         //
         // Interestingly, handling a compositor event and modifying a document
         // is super fast (less than 100 us in total in my machine).
-        while editor.documents.current_mut().is_parsing_in_progress() {
-            match timeout(Duration::from_millis(5), updated_syntax_rx.recv()).await {
-                Ok(Some((doc_id, doc_ver, new_tree))) => {
-                    if let Some(doc) = editor.documents.get_mut_document_by_id(doc_id) {
-                        doc.set_syntax_tree(doc_ver, new_tree);
-                    }
-                }
-                _ => {
-                    break;
+        if editor.documents.current_mut().is_parsing_in_progress() {
+            if let Ok(Some((doc_id, doc_ver, new_tree))) =
+                timeout(Duration::from_millis(5), updated_syntax_rx.recv()).await
+            {
+                if let Some(doc) = editor.documents.get_mut_document_by_id(doc_id) {
+                    doc.set_syntax_tree(doc_ver, new_tree);
                 }
             }
         }

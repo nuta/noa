@@ -88,6 +88,7 @@ pub struct GraphemeIter<'a> {
     buf: &'a RawBuffer,
     slice: RopeSlice<'a>,
     next_char_index: usize,
+    next_char_pos: Position,
 }
 
 impl<'a> GraphemeIter<'a> {
@@ -97,11 +98,12 @@ impl<'a> GraphemeIter<'a> {
             buf,
             slice: buf.rope().slice(..),
             next_char_index: char_index,
+            next_char_pos: pos,
         }
     }
 
     pub fn next_position(&self) -> Position {
-        self.buf.char_index_to_pos(self.next_char_index)
+        self.next_char_pos
     }
 
     /// Returns the previous grapheme.
@@ -116,8 +118,24 @@ impl<'a> GraphemeIter<'a> {
             .slice
             .slice(char_index..self.next_char_index)
             .to_string();
+
+        for ch in grapheme.chars().rev() {
+            match ch {
+                '\n' => {
+                    self.next_char_pos.y -= 1;
+                    self.next_char_pos.x = self.buf.line_len(self.next_char_pos.y);
+                }
+                '\r' => {
+                    // Do nothing.
+                }
+                _ => {
+                    self.next_char_pos.x = self.next_char_pos.x.saturating_sub(1);
+                }
+            }
+        }
+
         self.next_char_index = char_index;
-        Some((self.buf.char_index_to_pos(char_index), grapheme))
+        Some((self.next_char_pos, grapheme))
     }
 }
 
@@ -136,9 +154,25 @@ impl Iterator for GraphemeIter<'_> {
             .slice
             .slice(self.next_char_index..char_index)
             .to_string();
-        let last_char_index = self.next_char_index;
+
+        let pos = self.next_char_pos;
+        for ch in grapheme.chars() {
+            match ch {
+                '\n' => {
+                    self.next_char_pos.y += 1;
+                    self.next_char_pos.x = 0;
+                }
+                '\r' => {
+                    // Do nothing.
+                }
+                _ => {
+                    self.next_char_pos.x += 1;
+                }
+            }
+        }
+
         self.next_char_index = char_index;
-        Some((self.buf.char_index_to_pos(last_char_index), grapheme))
+        Some((pos, grapheme))
     }
 }
 

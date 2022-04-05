@@ -6,7 +6,7 @@ use noa_buffer::cursor::*;
 use noa_buffer::raw_buffer::*;
 
 #[bench]
-fn bench_iterate_next_128_graphemes(b: &mut test::Bencher) {
+fn bench_iterate_next_graphemes(b: &mut test::Bencher) {
     // A grapheme ("u" with some marks), consists of U+0075 U+0308 U+0304.
     let buffer = RawBuffer::from_text(&"\u{0075}\u{0308}\u{0304}".repeat(128));
 
@@ -19,7 +19,7 @@ fn bench_iterate_next_128_graphemes(b: &mut test::Bencher) {
 }
 
 #[bench]
-fn bench_iterate_next_prev_graphemes(b: &mut test::Bencher) {
+fn bench_iterate_prev_graphemes(b: &mut test::Bencher) {
     // A grapheme ("u" with some marks), consists of U+0075 U+0308 U+0304.
     let buffer = RawBuffer::from_text(&"\u{0075}\u{0308}\u{0304}".repeat(128));
 
