@@ -1,6 +1,11 @@
+use anyhow::Result;
 use backtrace::Backtrace;
 use log::Level;
-use std::fmt::Debug;
+use std::{
+    fmt::Debug,
+    io::{BufRead, BufReader, Seek, SeekFrom},
+    path::Path,
+};
 
 use crate::dirs::log_file_path;
 
@@ -8,20 +13,25 @@ pub fn install_logger(name: &str) {
     fern::Dispatch::new()
         .format(|out, message, record| {
             out.finish(format_args!(
-                "{}[{}:{}] {}{}\x1b[0m",
-                match record.level() {
+                "{color_start}[{filename}:{lineno}] {prefix}{color_end}{message}\x1b[0m",
+                color_start = match record.level() {
                     Level::Error => "\x1b[1;31m",
                     Level::Warn => "\x1b[1;33m",
                     _ => "\x1b[34m",
                 },
-                record.file().unwrap_or_else(|| record.target()),
-                record.line().unwrap_or(0),
-                match record.level() {
+                color_end = match record.level() {
                     Level::Error => "\x1b[1;31m",
                     Level::Warn => "\x1b[1;33m",
                     _ => "\x1b[0m",
                 },
-                message
+                prefix = match record.level() {
+                    Level::Error => "Error: ",
+                    Level::Warn => "Warn: ",
+                    _ => "",
+                },
+                filename = record.file().unwrap_or_else(|| record.target()),
+                lineno = record.line().unwrap_or(0),
+                message = message
             ))
         })
         .level(if cfg!(debug_assertions) {
@@ -61,6 +71,30 @@ pub fn prettify_backtrace(backtrace: Backtrace) {
             }
         }
     }
+}
+
+pub fn shrink_file(path: &Path, max_len: usize) -> Result<()> {
+    let meta = std::fs::metadata(path)?;
+    let current_len: usize = meta.len().try_into()?;
+    if current_len <= max_len {
+        return Ok(());
+    }
+
+    let new_len = current_len - max_len;
+
+    // Look for the nearest newline character.
+    let mut file = std::fs::OpenOptions::new().read(true).open(path)?;
+    file.seek(SeekFrom::Current(new_len.try_into()?))?;
+    let mut reader = BufReader::new(file);
+    let mut buf = Vec::new();
+    reader.read_until(b'\n', &mut buf)?;
+
+    // Copy contents after the newline character and replace the old file.
+    let mut new_file = tempfile::NamedTempFile::new()?;
+    std::io::copy(&mut reader, &mut new_file)?;
+    new_file.persist(path)?;
+
+    Ok(())
 }
 
 pub fn backtrace() {

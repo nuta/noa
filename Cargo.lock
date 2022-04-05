@@ -987,6 +987,7 @@ dependencies = [
  "fern",
  "log",
  "once_cell",
+ "tempfile",
 ]
 
 [[package]]

@@ -8,15 +8,22 @@ extern crate log;
 
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
+use anyhow::Result;
 use clap::Parser;
 
 use config::parse_config_files;
 use editor::Editor;
 use finder::open_finder;
-use noa_common::{logger::install_logger, time_report::TimeReport};
+use noa_common::{
+    dirs::log_file_path,
+    logger::{install_logger, shrink_file},
+    time_report::TimeReport,
+};
 use noa_compositor::{terminal::Event, Compositor};
 use search::warm_up_search_cache;
 use tokio::{
+    fs::File,
+    io::{AsyncBufReadExt, BufReader},
     sync::{
         mpsc::{self, unbounded_channel, UnboundedSender},
         Notify,
@@ -53,6 +60,28 @@ mod view;
 struct Args {
     #[clap(name = "FILE", parse(from_os_str))]
     files: Vec<PathBuf>,
+    #[clap(long = "print-warn-logs")]
+    print_warn_logs: bool,
+}
+
+const LOG_FILE_LEN_MAX: usize = 256 * 1024;
+
+async fn print_warn_logs() -> Result<()> {
+    let f = File::open(log_file_path("main")).await?;
+    let mut reader = BufReader::new(f);
+    let mut line = String::new();
+    loop {
+        reader.read_line(&mut line).await?;
+        if line.is_empty() {
+            break;
+        }
+
+        if line.contains("Error:") || line.contains("Warn:") {
+            println!("{}", line);
+        }
+    }
+
+    Ok(())
 }
 
 #[tokio::main]
@@ -62,8 +91,12 @@ async fn main() {
     // Parse the default theme here to print panics in stderr.
     parse_config_files();
 
-    install_logger("main");
     let args = Args::parse();
+
+    if args.print_warn_logs {
+        print_warn_logs().await.expect("failed to print warn logs");
+        return;
+    }
 
     let workspace_dir = args
         .files
@@ -72,6 +105,8 @@ async fn main() {
         .cloned()
         .unwrap_or_else(|| PathBuf::from("."));
 
+    shrink_file(&log_file_path("main"), LOG_FILE_LEN_MAX).expect("failed to shrink log file");
+    install_logger("main");
     warm_up_search_cache(&workspace_dir);
 
     let render_request = Arc::new(Notify::new());
