@@ -153,7 +153,7 @@ impl Surface for SelectorView {
 
         (
             Layout::Fixed {
-                y: screen_size.height.saturating_sub(height + 1),
+                y: screen_size.height.saturating_sub(height + 2),
                 x: 0,
             },
             RectSize {
