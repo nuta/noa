@@ -55,7 +55,11 @@ impl DisplayRow {
     pub fn end_of_row_position(&self) -> Position {
         self.positions
             .last()
-            .map(|pos| Position::new(pos.y, pos.x + 1))
+            .map(|pos| {
+                let grapheme = self.graphemes.last().unwrap();
+                let len_chars = grapheme.chars.chars().count();
+                Position::new(pos.y, pos.x + len_chars)
+            })
             .unwrap_or_else(|| Position::new(self.lineno - 1, 0))
     }
 
@@ -140,7 +144,7 @@ impl View {
             None | Some(_) => {
                 // If the cursor is at EOF or at the end of a line (with no
                 // following wrapped virtual lines), then the last visible should
-                // be 1 character past from the last position the row.
+                // be 1 character past from the last position in the row.
                 row.end_of_row_position()
             }
         }
@@ -578,6 +582,36 @@ mod tests {
                 p(0, 4)
             ]
         );
+    }
+
+    #[test]
+    fn last_visible_position() {
+        let mut view = View::new();
+        view.layout(&Buffer::from_text(""), 3, 16);
+        assert_eq!(view.last_visible_position(), p(0, 0));
+
+        let mut view = View::new();
+        view.layout(&Buffer::from_text("a"), 3, 16);
+        assert_eq!(view.last_visible_position(), p(0, 1));
+
+        let mut view = View::new();
+        view.layout(&Buffer::from_text("a\n"), 3, 16);
+        assert_eq!(view.last_visible_position(), p(1, 0));
+
+        let mut view = View::new();
+        view.layout(&Buffer::from_text("a\nb"), 3, 16);
+        assert_eq!(view.last_visible_position(), p(1, 1));
+
+        let mut view = View::new();
+        view.layout(&Buffer::from_text("a\nb\n"), 3, 16);
+        assert_eq!(view.last_visible_position(), p(2, 0));
+    }
+
+    #[test]
+    fn last_visible_position_with_complicated_emoji() {
+        let mut view = View::new();
+        view.layout(&Buffer::from_text("👩‍🔬"), 3, 16);
+        assert_eq!(view.last_visible_position(), p(0, 3));
     }
 
     #[test]
