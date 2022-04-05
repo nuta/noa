@@ -102,35 +102,44 @@ impl Surface for MetaLineView {
                         .count();
                     if num_invisible_cursors > 0 {
                         format!(
-                            "{} [{}+{}]",
+                            "{} ({}+{})",
                             cursor_pos.x,
                             buffer.cursors().len(),
                             num_invisible_cursors
                         )
                     } else {
-                        format!("{} [{}]", cursor_pos.x, buffer.cursors().len())
+                        format!("{} ({})", cursor_pos.x, buffer.cursors().len())
                     }
                 } else {
                     format!("{}", cursor_pos.x)
                 };
 
                 // Is the buffer dirty?
-                let is_dirty = if doc.is_dirty() { " [dirty]" } else { "" };
+                let is_dirty = if doc.is_dirty() { "[+]" } else { "" };
 
                 // Are there any in-progress async jobs?
-                let is_busy = if editor.jobs.is_busy() { " [busy]" } else { "" };
+                let is_busy = if editor.jobs.is_busy() { "[busy]" } else { "" };
 
-                let left_text = format!("{}{}{}", cursor_text, is_dirty, is_busy);
+                let left_text = [is_dirty].join(" ");
+                let right_text = [is_busy, &cursor_text].join(" ");
 
                 // File name.
                 let filename = truncate_to_width_suffix(
                     doc.name(),
-                    canvas.width().saturating_sub(left_text.display_width() + 2),
+                    canvas
+                        .width()
+                        .saturating_sub(left_text.display_width() + right_text.display_width() + 3),
                 );
                 let filename_width = filename.display_width();
-                canvas.write_str(0, 1, filename);
 
-                // Cursor position.
+                canvas.write_str(
+                    0,
+                    canvas
+                        .width()
+                        .saturating_sub(1 + right_text.display_width()),
+                    &right_text,
+                );
+                canvas.write_str(0, 1, filename);
                 canvas.write_str(0, 1 + filename_width + 1, &left_text);
 
                 1 + filename_width + 1

@@ -486,7 +486,7 @@ impl DocumentManager {
             disable_parser_for_test,
         )
         .expect("failed to open scratch");
-        scratch_doc.set_name("**scratch**");
+        scratch_doc.set_name("[scratch]");
         scratch_doc.set_virtual_file(true);
 
         let mut manager = DocumentManager {
