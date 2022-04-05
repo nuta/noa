@@ -10,7 +10,7 @@ use noa_buffer::{
 };
 use noa_common::{debug_warn, logger::OopsExt};
 use noa_compositor::{
-    canvas::{CanvasViewMut},
+    canvas::CanvasViewMut,
     surface::{HandledEvent, KeyEvent, Layout, RectSize, Surface},
     terminal::{KeyCode, KeyModifiers, MouseButton, MouseEventKind},
     Compositor,
@@ -187,7 +187,7 @@ impl Surface for BufferView {
             canvas.write_str(canvas_y, lineno_x, &format!("{}", row.lineno));
 
             // Draw each characters in the row.
-            let mut row_end_marker = None;
+            let mut virtual_cursor_x = None;
             let mut canvas_x = buffer_x;
             for (grapheme, pos) in row
                 .graphemes
@@ -220,7 +220,7 @@ impl Surface for BufferView {
                         let mut next_pos = *pos;
                         next_pos.move_by(buffer, 0, 0, 0, 1);
                         if c.selection().contains(next_pos) {
-                            row_end_marker = Some((' ', canvas_x + grapheme.width));
+                            virtual_cursor_x = Some(canvas_x + grapheme.width);
                         }
 
                         break;
@@ -236,7 +236,7 @@ impl Surface for BufferView {
                     !c.is_main_cursor() && c.selection().overlaps(Position::new(row.lineno - 1, 0))
                 })
             {
-                row_end_marker = Some((' ', buffer_x));
+                virtual_cursor_x = Some(buffer_x);
             }
 
             // Cursors at the end of a row.
@@ -250,11 +250,11 @@ impl Surface for BufferView {
                     .enumerate()
                     .any(|(_i, c)| !c.is_main_cursor() && c.position() == Some(end_of_row_pos))
                 {
-                    row_end_marker = Some((' ', buffer_x + row.total_width()));
+                    virtual_cursor_x = Some(buffer_x + row.total_width());
                 }
             }
 
-            if let Some((_ch, x)) = row_end_marker {
+            if let Some(x) = virtual_cursor_x {
                 canvas.set_inverted(canvas_y, x, x + 1, true);
             }
 
