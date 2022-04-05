@@ -98,6 +98,22 @@ impl SelectorView {
         self.adjust_scroll();
     }
 
+    pub fn select_item(
+        &mut self,
+        editor: &mut Editor,
+        compositor: &mut Compositor<Editor>,
+        index: usize,
+    ) {
+        if index >= self.items.len() {
+            notify_warn!("out of bound selection");
+            return;
+        }
+
+        let item = self.items.remove(index);
+        (item.selected)(editor, compositor);
+        self.close();
+    }
+
     pub fn adjust_scroll(&mut self) {
         while self.scroll + self.items_height <= self.selected_index {
             self.scroll += 1;
@@ -163,19 +179,29 @@ impl Surface for SelectorView {
                 .height()
                 .saturating_sub(if self.input.is_some() { 1 } else { 0 });
 
-        for (i, item) in self
+        for (y, (i, item)) in self
             .items
             .iter()
+            .enumerate()
             .skip(self.scroll)
             .take(self.items_height)
             .enumerate()
         {
+            let prefix = if i < 9 {
+                format!("[F{}] ", i + 1)
+            } else {
+                format!("     ")
+            };
+            canvas.write_str(y, 1, &prefix);
+
+            let x = 1 + prefix.display_width();
+            let max_width = canvas.width().saturating_sub(x);
             match &item.content {
                 SelectorContent::Normal {
                     label,
                     sub_label: _,
                 } => {
-                    canvas.write_str(i, 1, truncate_to_width(label, canvas.width() - 2));
+                    canvas.write_str(y, x, truncate_to_width(label, max_width));
                 }
                 SelectorContent::SearchMatch {
                     path,
@@ -190,11 +216,11 @@ impl Surface for SelectorView {
                         "{before_text}{matched_text}{after_text} ({path}:{lineno})",
                         lineno = pos.y + 1
                     );
-                    canvas.write_str(i, 1, truncate_to_width(&s, canvas.width() - 2));
+                    canvas.write_str(y, x, truncate_to_width(&s, max_width));
 
                     let x = before_text.display_width();
                     canvas.apply_style(
-                        i,
+                        y,
                         1 + x,
                         min(canvas.width(), 1 + x + matched_text.display_width()),
                         Style {
@@ -205,8 +231,8 @@ impl Surface for SelectorView {
                 }
             }
 
-            if self.scroll + i == self.selected_index {
-                canvas.apply_style(i, 0, canvas.width(), theme_for("selector.selected"));
+            if self.scroll + y == self.selected_index {
+                canvas.apply_style(y, 0, canvas.width(), theme_for("selector.selected"));
             }
         }
 
@@ -239,14 +265,7 @@ impl Surface for SelectorView {
 
         match (key.code, key.modifiers) {
             (KeyCode::Enter, NONE) => {
-                if self.selected_index >= self.items.len() {
-                    warn!("out of bounds selected_index");
-                    return HandledEvent::Consumed;
-                }
-
-                let item = self.items.remove(self.selected_index);
-                (item.selected)(editor, compositor);
-                self.close();
+                self.select_item(editor, compositor, self.selected_index);
             }
             (KeyCode::Down, NONE) => {
                 self.selected_index =
@@ -256,6 +275,9 @@ impl Surface for SelectorView {
             (KeyCode::Up, NONE) => {
                 self.selected_index = self.selected_index.saturating_sub(1);
                 self.adjust_scroll();
+            }
+            (KeyCode::F(n), NONE) if n < 10 => {
+                self.select_item(editor, compositor, (n - 1) as usize);
             }
             (KeyCode::Char('q'), CTRL) => {
                 self.close();
