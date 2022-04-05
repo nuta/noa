@@ -190,7 +190,7 @@ impl Surface for SelectorView {
             let prefix = if i < 9 {
                 format!("[F{}] ", i + 1)
             } else {
-                format!("     ")
+                "     ".to_string()
             };
             canvas.write_str(y, 1, &prefix);
 
