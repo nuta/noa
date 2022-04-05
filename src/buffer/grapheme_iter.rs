@@ -1,11 +1,7 @@
-use arrayvec::ArrayString;
-use ropey::str_utils::byte_to_char_idx;
+use ropey::{str_utils::byte_to_char_idx, RopeSlice};
 use unicode_segmentation::{GraphemeCursor, GraphemeIncomplete};
 
-use crate::{
-    cursor::{Position, Range},
-    raw_buffer::RawBuffer,
-};
+use crate::{cursor::Position, raw_buffer::RawBuffer};
 
 /// Finds the next grapheme boundary after the given char position.
 ///
@@ -90,25 +86,22 @@ pub fn prev_grapheme_boundary(slice: &ropey::RopeSlice, char_idx: usize) -> Opti
 #[derive(Clone)]
 pub struct GraphemeIter<'a> {
     buf: &'a RawBuffer,
-    next_pos: Position,
-    last_pos: Position,
+    slice: RopeSlice<'a>,
+    next_char_index: usize,
 }
 
 impl<'a> GraphemeIter<'a> {
     pub fn new(buf: &'a RawBuffer, pos: Position) -> GraphemeIter<'a> {
+        let char_index = buf.pos_to_char_index(pos);
         GraphemeIter {
             buf,
-            next_pos: pos,
-            last_pos: pos,
+            slice: buf.rope().slice(..),
+            next_char_index: char_index,
         }
     }
 
     pub fn next_position(&self) -> Position {
-        self.next_pos
-    }
-
-    pub fn last_position(&self) -> Position {
-        self.last_pos
+        self.buf.char_index_to_pos(self.next_char_index)
     }
 
     /// Returns the previous grapheme.
@@ -117,19 +110,19 @@ impl<'a> GraphemeIter<'a> {
     ///
     /// Runs in amortized O(K) time and worst-case O(log N + K) time, where K
     /// is the length in bytes of the grapheme.
-    pub fn prev(&mut self) -> Option<ArrayString<16>> {
-        let slice = self.buf.rope().slice(..);
-        let char_index = prev_grapheme_boundary(&slice, self.buf.pos_to_char_index(self.next_pos))?;
-        let pos = self.buf.char_index_to_pos(char_index);
-        let grapheme = self.buf.substr(Range::from_positions(self.next_pos, pos));
-        self.last_pos = self.next_pos;
-        self.next_pos = pos;
-        Some(ArrayString::from(&grapheme).unwrap())
+    pub fn prev(&mut self) -> Option<(Position, String)> {
+        let char_index = prev_grapheme_boundary(&self.slice, self.next_char_index)?;
+        let grapheme = self
+            .slice
+            .slice(char_index..self.next_char_index)
+            .to_string();
+        self.next_char_index = char_index;
+        Some((self.buf.char_index_to_pos(char_index), grapheme))
     }
 }
 
 impl Iterator for GraphemeIter<'_> {
-    type Item = ArrayString<16>;
+    type Item = (Position, String);
 
     /// Returns the next grapheme.
     ///
@@ -138,23 +131,30 @@ impl Iterator for GraphemeIter<'_> {
     /// Runs in amortized O(K) time and worst-case O(log N + K) time, where K
     /// is the length in bytes of the grapheme.
     fn next(&mut self) -> Option<Self::Item> {
-        let slice = self.buf.rope().slice(..);
-        let char_index = next_grapheme_boundary(&slice, self.buf.pos_to_char_index(self.next_pos))?;
-        let pos = self.buf.char_index_to_pos(char_index);
-        let grapheme = self.buf.substr(Range::from_positions(self.next_pos, pos));
-        self.last_pos = self.next_pos;
-        self.next_pos = pos;
-        Some(ArrayString::from(&grapheme).unwrap())
+        let char_index = next_grapheme_boundary(&self.slice, self.next_char_index)?;
+        let grapheme = self
+            .slice
+            .slice(self.next_char_index..char_index)
+            .to_string();
+        let last_char_index = self.next_char_index;
+        self.next_char_index = char_index;
+        Some((self.buf.char_index_to_pos(last_char_index), grapheme))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use crate::raw_buffer::RawBuffer;
 
     use super::*;
+
+    fn pos(y: usize, x: usize) -> Position {
+        Position { y, x }
+    }
+
+    fn string(s: &str) -> String {
+        s.to_owned()
+    }
 
     #[test]
     fn test_grapheme_iter_next() {
@@ -163,17 +163,11 @@ mod tests {
         let buffer = RawBuffer::from_text("ABC\nXY");
         let mut iter = buffer.grapheme_iter(Position::new(0, 0));
 
-        assert_eq!(iter.next_position(), Position::new(0, 0));
-        assert_eq!(iter.next(), Some(ArrayString::from_str("A").unwrap()));
-        assert_eq!(iter.next_position(), Position::new(0, 1));
-        assert_eq!(iter.next(), Some(ArrayString::from_str("B").unwrap()));
-        assert_eq!(iter.next_position(), Position::new(0, 2));
-        assert_eq!(iter.next(), Some(ArrayString::from_str("C").unwrap()));
-        assert_eq!(iter.next_position(), Position::new(0, 3));
-        assert_eq!(iter.next(), Some(ArrayString::from_str("\n").unwrap()));
-        assert_eq!(iter.next_position(), Position::new(1, 0));
-        assert_eq!(iter.next(), Some(ArrayString::from_str("X").unwrap()));
-        assert_eq!(iter.next_position(), Position::new(1, 1));
+        assert_eq!(iter.next(), Some((pos(0, 0), string("A"))));
+        assert_eq!(iter.next(), Some((pos(0, 1), string("B"))));
+        assert_eq!(iter.next(), Some((pos(0, 2), string("C"))));
+        assert_eq!(iter.next(), Some((pos(0, 3), string("\n"))));
+        assert_eq!(iter.next(), Some((pos(1, 0), string("X"))));
     }
 
     #[test]
@@ -183,11 +177,8 @@ mod tests {
         let buffer = RawBuffer::from_text("ABC\nXY");
         let mut iter = buffer.grapheme_iter(Position::new(1, 0));
 
-        assert_eq!(iter.next_position(), Position::new(1, 0));
-        assert_eq!(iter.prev(), Some(ArrayString::from_str("\n").unwrap()));
-        assert_eq!(iter.next_position(), Position::new(0, 3));
-        assert_eq!(iter.prev(), Some(ArrayString::from_str("C").unwrap()));
-        assert_eq!(iter.next_position(), Position::new(0, 2));
+        assert_eq!(iter.prev(), Some((pos(0, 3), string("\n"))));
+        assert_eq!(iter.prev(), Some((pos(0, 2), string("C"))));
     }
 
     #[test]
@@ -196,11 +187,8 @@ mod tests {
         let buffer = RawBuffer::from_text("a👩‍🔬");
         let mut iter = buffer.grapheme_iter(Position::new(0, 0));
 
-        assert_eq!(iter.next_position(), Position::new(0, 0));
-        assert_eq!(iter.next(), Some(ArrayString::from_str("a").unwrap()));
-        assert_eq!(iter.next_position(), Position::new(0, 1));
-        assert_eq!(iter.next(), Some(ArrayString::from_str("👩‍🔬").unwrap()));
-        assert_eq!(iter.next_position(), Position::new(0, 4));
+        assert_eq!(iter.next(), Some((pos(0, 0), string("a"))));
+        assert_eq!(iter.next(), Some((pos(0, 1), string("👩‍🔬"))));
     }
 
     #[test]
@@ -209,11 +197,8 @@ mod tests {
         let buffer = RawBuffer::from_text("a👩‍🔬");
         let mut iter = buffer.grapheme_iter(Position::new(0, 4));
 
-        assert_eq!(iter.next_position(), Position::new(0, 4));
-        assert_eq!(iter.prev(), Some(ArrayString::from_str("👩‍🔬").unwrap()));
-        assert_eq!(iter.next_position(), Position::new(0, 1));
-        assert_eq!(iter.prev(), Some(ArrayString::from_str("a").unwrap()));
-        assert_eq!(iter.next_position(), Position::new(0, 0));
+        assert_eq!(iter.prev(), Some((pos(0, 1), string("👩‍🔬"))));
+        assert_eq!(iter.prev(), Some((pos(0, 0), string("a"))));
     }
 
     #[test]
@@ -223,86 +208,82 @@ mod tests {
         let buffer = RawBuffer::from_text("ABC\nXY");
         let mut iter = buffer.grapheme_iter(Position::new(0, 3));
 
-        assert_eq!(iter.next_position(), Position::new(0, 3));
-        assert_eq!(iter.next(), Some(ArrayString::from_str("\n").unwrap()));
-        assert_eq!(iter.next_position(), Position::new(1, 0));
-        assert_eq!(iter.prev(), Some(ArrayString::from_str("\n").unwrap()));
-        assert_eq!(iter.next_position(), Position::new(0, 3));
-        assert_eq!(iter.next(), Some(ArrayString::from_str("\n").unwrap()));
-        assert_eq!(iter.next_position(), Position::new(1, 0));
+        assert_eq!(iter.next(), Some((pos(0, 3), string("\n"))));
+        assert_eq!(iter.prev(), Some((pos(0, 3), string("\n"))));
+        assert_eq!(iter.next(), Some((pos(0, 3), string("\n"))));
     }
 
     #[test]
     fn test_grapheme_iter_next2() {
         let buffer = RawBuffer::from_text("ABC");
         let mut iter = buffer.grapheme_iter(Position::new(0, 0));
-        assert_eq!(iter.next().map(|s| s.to_string()), Some("A".to_string()));
-        assert_eq!(iter.next().map(|s| s.to_string()), Some("B".to_string()));
-        assert_eq!(iter.next().map(|s| s.to_string()), Some("C".to_string()));
-        assert_eq!(iter.next().map(|s| s.to_string()), None);
+        assert_eq!(iter.next().map(|(_pos, s)| s), Some("A".to_string()));
+        assert_eq!(iter.next().map(|(_pos, s)| s), Some("B".to_string()));
+        assert_eq!(iter.next().map(|(_pos, s)| s), Some("C".to_string()));
+        assert_eq!(iter.next().map(|(_pos, s)| s), None);
 
         let buffer = RawBuffer::from_text("あaい");
         let mut iter = buffer.grapheme_iter(Position::new(0, 0));
-        assert_eq!(iter.next().map(|s| s.to_string()), Some("あ".to_string()));
-        assert_eq!(iter.next().map(|s| s.to_string()), Some("a".to_string()));
-        assert_eq!(iter.next().map(|s| s.to_string()), Some("い".to_string()));
-        assert_eq!(iter.next().map(|s| s.to_string()), None);
+        assert_eq!(iter.next().map(|(_pos, s)| s), Some("あ".to_string()));
+        assert_eq!(iter.next().map(|(_pos, s)| s), Some("a".to_string()));
+        assert_eq!(iter.next().map(|(_pos, s)| s), Some("い".to_string()));
+        assert_eq!(iter.next().map(|(_pos, s)| s), None);
 
         // A grapheme ("ka" in Katakana with Dakuten), consists of U+304B U+3099.
         let buffer = RawBuffer::from_text("\u{304b}\u{3099}");
         let mut iter = buffer.grapheme_iter(Position::new(0, 0));
         assert_eq!(
-            iter.next().map(|s| s.to_string()),
+            iter.next().map(|(_pos, s)| s),
             Some("\u{304b}\u{3099}".to_string())
         );
-        assert_eq!(iter.next().map(|s| s.to_string()), None);
+        assert_eq!(iter.next().map(|(_pos, s)| s), None);
 
         // A grapheme ("u" with some marks), consists of U+0075 U+0308 U+0304.
         let buffer = RawBuffer::from_text("\u{0075}\u{0308}\u{0304}BC");
         let mut iter = buffer.grapheme_iter(Position::new(0, 0));
         assert_eq!(
-            iter.next().map(|s| s.to_string()),
+            iter.next().map(|(_pos, s)| s),
             Some("\u{0075}\u{0308}\u{0304}".to_string())
         );
-        assert_eq!(iter.next().map(|s| s.to_string()), Some("B".to_string()));
-        assert_eq!(iter.next().map(|s| s.to_string()), Some("C".to_string()));
-        assert_eq!(iter.next().map(|s| s.to_string()), None);
+        assert_eq!(iter.next().map(|(_pos, s)| s), Some("B".to_string()));
+        assert_eq!(iter.next().map(|(_pos, s)| s), Some("C".to_string()));
+        assert_eq!(iter.next().map(|(_pos, s)| s), None);
     }
 
     #[test]
     fn test_grapheme_iter_prev2() {
         let buffer = RawBuffer::from_text("ABC");
         let mut iter = buffer.grapheme_iter(Position::new(0, 3));
-        assert_eq!(iter.prev().map(|s| s.to_string()), Some("C".to_string()));
-        assert_eq!(iter.prev().map(|s| s.to_string()), Some("B".to_string()));
-        assert_eq!(iter.prev().map(|s| s.to_string()), Some("A".to_string()));
-        assert_eq!(iter.prev().map(|s| s.to_string()), None);
+        assert_eq!(iter.prev().map(|(_pos, s)| s), Some("C".to_string()));
+        assert_eq!(iter.prev().map(|(_pos, s)| s), Some("B".to_string()));
+        assert_eq!(iter.prev().map(|(_pos, s)| s), Some("A".to_string()));
+        assert_eq!(iter.prev().map(|(_pos, s)| s), None);
 
         let buffer = RawBuffer::from_text("あaい");
         let mut iter = buffer.grapheme_iter(Position::new(0, 3));
-        assert_eq!(iter.prev().map(|s| s.to_string()), Some("い".to_string()));
-        assert_eq!(iter.prev().map(|s| s.to_string()), Some("a".to_string()));
-        assert_eq!(iter.prev().map(|s| s.to_string()), Some("あ".to_string()));
-        assert_eq!(iter.prev().map(|s| s.to_string()), None);
+        assert_eq!(iter.prev().map(|(_pos, s)| s), Some("い".to_string()));
+        assert_eq!(iter.prev().map(|(_pos, s)| s), Some("a".to_string()));
+        assert_eq!(iter.prev().map(|(_pos, s)| s), Some("あ".to_string()));
+        assert_eq!(iter.prev().map(|(_pos, s)| s), None);
 
         // A grapheme ("か" with dakuten), consists of U+304B U+3099.
         let buffer = RawBuffer::from_text("\u{304b}\u{3099}");
         let mut iter = buffer.grapheme_iter(Position::new(0, 2));
         assert_eq!(
-            iter.prev().map(|s| s.to_string()),
+            iter.prev().map(|(_pos, s)| s),
             Some("\u{304b}\u{3099}".to_string())
         );
-        assert_eq!(iter.prev().map(|s| s.to_string()), None);
+        assert_eq!(iter.prev().map(|(_pos, s)| s), None);
 
         // A grapheme ("u" with some marks), consists of U+0075 U+0308 U+0304.
         let buffer = RawBuffer::from_text("\u{0075}\u{0308}\u{0304}BC");
         let mut iter = buffer.grapheme_iter(Position::new(0, 5));
-        assert_eq!(iter.prev().map(|s| s.to_string()), Some("C".to_string()));
-        assert_eq!(iter.prev().map(|s| s.to_string()), Some("B".to_string()));
+        assert_eq!(iter.prev().map(|(_pos, s)| s), Some("C".to_string()));
+        assert_eq!(iter.prev().map(|(_pos, s)| s), Some("B".to_string()));
         assert_eq!(
-            iter.prev().map(|s| s.to_string()),
+            iter.prev().map(|(_pos, s)| s),
             Some("\u{0075}\u{0308}\u{0304}".to_string())
         );
-        assert_eq!(iter.prev().map(|s| s.to_string()), None);
+        assert_eq!(iter.prev().map(|(_pos, s)| s), None);
     }
 }

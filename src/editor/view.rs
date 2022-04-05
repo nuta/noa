@@ -312,9 +312,9 @@ impl View {
             // specifically `unprocessed_grapheme` is Some, avoid consuming
             // the grapheme iterator.
             loop {
-                let grapheme_rope =
+                let (grapheme_pos, grapheme) =
                     match unprocessed_grapheme.take().or_else(|| grapheme_iter.next()) {
-                        Some(_) if grapheme_iter.last_position().y > y => {
+                        Some((pos, _)) if pos.y > y => {
                             should_return = true;
                             break;
                         }
@@ -322,12 +322,12 @@ impl View {
                             should_return = true;
                             break;
                         }
-                        Some(rope) => rope,
+                        Some((pos, grapheme)) => (pos, grapheme),
                     };
 
                 // Turn the grapheme into a string `chars`.
                 let mut chars = ArrayString::new();
-                for ch in grapheme_rope.chars() {
+                for ch in grapheme.chars() {
                     chars.push(ch);
                 }
 
@@ -367,7 +367,7 @@ impl View {
                         if grapheme_width > width_remaining {
                             // Save the current grapheme so that the it will be
                             // processed again in the next display row.
-                            unprocessed_grapheme = Some(grapheme_rope);
+                            unprocessed_grapheme = Some((grapheme_pos, grapheme));
                             break;
                         }
 
