@@ -173,7 +173,6 @@ impl<C: 'static> Compositor<C> {
     }
 
     pub fn handle_input(&mut self, ctx: &mut C, input: InputEvent) {
-        trace!("input: {:?}", input);
         match input {
             InputEvent::Key(key) => {
                 self.past_layers = Vec::new();
