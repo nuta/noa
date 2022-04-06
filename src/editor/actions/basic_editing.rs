@@ -415,7 +415,9 @@ impl Action for Undo {
     }
 
     fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
-        editor.current_buffer_mut().undo();
+        if !editor.current_buffer_mut().undo() {
+            notify_warn!("no more undo");
+        }
         Ok(())
     }
 }
@@ -441,7 +443,9 @@ impl Action for Redo {
     }
 
     fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
-        editor.current_buffer_mut().redo();
+        if !editor.current_buffer_mut().redo() {
+            notify_warn!("no more redo");
+        }
         Ok(())
     }
 }

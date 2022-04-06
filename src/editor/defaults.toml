@@ -34,7 +34,7 @@ key_bindings = [
     { scope = "buffer", key = "F1", modifiers = [], action = "softwrap" },
     # move diff
     # global search with current word
-
+    # undo cursor changes
 ]
 
 # Based on One Dark Pro theme

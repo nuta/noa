@@ -23,7 +23,7 @@ impl Buffer {
     pub fn select_current_word(&mut self) {
         self.update_cursors_with(|c, buffer| {
             if let Some(selection) = buffer.current_word(c.moving_position()) {
-                c.select_pos(selection);
+                c.select_range(selection);
             }
         });
     }

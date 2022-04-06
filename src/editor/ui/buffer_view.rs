@@ -381,7 +381,11 @@ impl Surface for BufferView {
     ) -> HandledEvent {
         let doc = editor.documents.current_mut();
         clear_completion(compositor, doc);
-        doc.buffer_mut().insert(s);
+
+        let buffer = doc.buffer_mut();
+        buffer.insert(s);
+        buffer.save_undo();
+
         self.post_update_job(editor);
         HandledEvent::Consumed
     }

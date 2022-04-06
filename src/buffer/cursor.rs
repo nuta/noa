@@ -403,10 +403,6 @@ impl Cursor {
         self.selection = selection;
     }
 
-    pub fn select_pos(&mut self, selection: Range) {
-        self.selection = selection;
-    }
-
     pub fn move_moving_position_to(&mut self, pos: Position) {
         self.selection.end = pos;
     }

@@ -175,7 +175,7 @@ impl Buffer {
     }
 
     pub fn select_main_cursor_range(&mut self, selection: Range) {
-        self.set_main_cursor_with(|c, _| c.select_pos(selection));
+        self.set_main_cursor_with(|c, _| c.select_range(selection));
     }
 
     pub fn set_main_cursor_with<F>(&mut self, mut f: F)
@@ -219,7 +219,7 @@ impl Buffer {
             if c.selection().is_empty() {
                 // Select the current word.
                 if let Some(selection) = buf.current_word(c.moving_position()) {
-                    c.select_pos(selection);
+                    c.select_range(selection);
                 }
             }
 
@@ -420,20 +420,36 @@ impl Buffer {
         true
     }
 
-    pub fn undo(&mut self) {
-        if let Some(state) = self.undo_stack.pop() {
+    /// Returns `false` if the undo stack is empty.
+    pub fn undo(&mut self) -> bool {
+        while let Some(state) = self.undo_stack.pop() {
+            if *self.raw_buffer() == state.buf {
+                continue;
+            }
+
             self.set_raw_buffer(state.buf.clone());
             self.cursors = state.cursors.clone();
             self.redo_stack.push(state);
+            return true;
         }
+
+        false
     }
 
-    pub fn redo(&mut self) {
-        if let Some(state) = self.redo_stack.pop() {
+    /// Returns `false` if the redo stack is empty.
+    pub fn redo(&mut self) -> bool {
+        while let Some(state) = self.redo_stack.pop() {
+            if *self.raw_buffer() == state.buf {
+                continue;
+            }
+
             self.set_raw_buffer(state.buf.clone());
             self.cursors = state.cursors.clone();
             self.redo_stack.push(state);
+            return true;
         }
+
+        false
     }
 
     pub fn undo_cursor_movements(&mut self) {
@@ -919,5 +935,14 @@ mod tests {
         b.truncate();
         assert_eq!(b.text(), "ABCD\nXYZ");
         assert_eq!(b.cursors(), &[Cursor::new(0, 4)]);
+    }
+
+    #[test]
+    fn set_raw_buffer() {
+        let mut b = Buffer::from_text("ABC");
+
+        b.set_raw_buffer(RawBuffer::from_text("XYZ"));
+        assert_eq!(b.text(), "XYZ");
+        assert_eq!(b.cursors(), &[Cursor::new(0, 3)]);
     }
 }

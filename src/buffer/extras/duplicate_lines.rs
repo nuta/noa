@@ -13,7 +13,7 @@ impl Buffer {
 
             c.move_to(s.front().y, 0);
             self.buf.edit_at_cursor(c, past_cursors, &text);
-            c.select_pos(s);
+            c.select_range(s);
         });
     }
 
