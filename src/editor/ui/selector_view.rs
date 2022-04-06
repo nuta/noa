@@ -197,10 +197,20 @@ impl Surface for SelectorView {
             let x = 1 + prefix.display_width();
             let max_width = canvas.width().saturating_sub(x);
             match &item.content {
-                SelectorContent::Normal {
-                    label,
-                    sub_label: _,
-                } => {
+                SelectorContent::Normal { label, sub_label } => {
+                    let leftside_width = label.display_width();
+                    if let Some(sub_label) = sub_label {
+                        let rightside_max_width = max_width.saturating_sub(leftside_width + 3);
+                        let rightside_width = min(sub_label.display_width(), rightside_max_width);
+                        let rightside_x = canvas.width().saturating_sub(rightside_width);
+
+                        canvas.write_str(
+                            y,
+                            rightside_x,
+                            truncate_to_width(sub_label, rightside_max_width),
+                        );
+                    }
+
                     canvas.write_str(y, x, truncate_to_width(label, max_width));
                 }
                 SelectorContent::SearchMatch {

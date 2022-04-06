@@ -224,13 +224,21 @@ fn update_items(editor: &mut Editor, query: &str) {
                 .into_iter()
                 .map(|item| {
                     let content = match &item {
-                        FinderItem::File(path) => SelectorContent::Normal {
-                            label: path.to_owned(),
-                            sub_label: Some("(file)".to_owned()),
-                        },
+                        FinderItem::File(path) => {
+                            let (label, sub_label) = match path.rfind('/') {
+                                Some(slash_index) => {
+                                    let dir = format!("({})", &path[..slash_index]);
+                                    let file_name = path[slash_index + 1..].to_string();
+                                    (file_name, Some(dir))
+                                }
+                                None => (path.to_owned(), None),
+                            };
+
+                            SelectorContent::Normal { label, sub_label }
+                        }
                         FinderItem::Buffer { name, .. } => SelectorContent::Normal {
                             label: name.to_owned(),
-                            sub_label: Some("(buffer)".to_owned()),
+                            sub_label: Some("[buffer]".to_owned()),
                         },
                         FinderItem::SearchMatch(SearchMatch {
                             path,
@@ -245,7 +253,7 @@ fn update_items(editor: &mut Editor, query: &str) {
                         },
                         FinderItem::Action { name } => SelectorContent::Normal {
                             label: name.to_owned(),
-                            sub_label: Some("(action)".to_owned()),
+                            sub_label: Some("[action]".to_owned()),
                         },
                     };
 
