@@ -181,7 +181,7 @@ pub struct GraphemeIter<'a> {
     rope: ropey::RopeSlice<'a>,
     chunk: &'a str,
     chunk_start: usize,
-    gc: GraphemeCursor,
+    cursor: GraphemeCursor,
     next_char_pos: Position,
 }
 
@@ -200,30 +200,32 @@ impl<'a> GraphemeIter<'a> {
         let (chunk, chunk_byte_idx, _, _) = slice.chunk_at_byte(byte_idx);
 
         // Set up the grapheme cursor.
-        let gc = GraphemeCursor::new(byte_idx, slice.len_bytes(), true);
+        let cursor = GraphemeCursor::new(byte_idx, slice.len_bytes(), true);
 
         GraphemeIter {
             rope: slice,
             chunk,
             chunk_start: chunk_byte_idx,
-            gc,
+            cursor,
             next_char_pos: pos,
         }
     }
 
-    pub fn next_boundary(&mut self) -> Option<RopeSlice<'a>> {
-        let start = self.gc.cur_cursor();
+    pub fn next_boundary(&mut self) -> Option<&'a str> {
+        let start = self.cursor.cur_cursor();
         loop {
-            match self.gc.next_boundary(self.chunk, self.chunk_start) {
+            match self.cursor.next_boundary(self.chunk, self.chunk_start) {
                 Ok(None) => return None,
                 Ok(Some(end)) => {
                     if start < self.chunk_start {
-                        let char_start = self.rope.byte_to_char(start);
-                        let char_end = self.rope.byte_to_char(end);
-                        return Some(self.rope.slice(char_start..char_end));
+                        // SAFETY: as_str always returns Some(_) because we only dereference
+                        //         a single grapheme here and according to ropey's README it
+                        //         ensures all characters in a grapheme are stored in a single
+                        //         string.
+                        return Some(self.rope.byte_slice(start..end).as_str().unwrap());
                     } else {
                         return Some(
-                            self.chunk[(start - self.chunk_start)..(end - self.chunk_start)].into(),
+                            &self.chunk[(start - self.chunk_start)..(end - self.chunk_start)],
                         );
                     }
                 }
@@ -234,7 +236,7 @@ impl<'a> GraphemeIter<'a> {
                 }
                 Err(GraphemeIncomplete::PreContext(n)) => {
                     let ctx_chunk = self.rope.chunk_at_byte(n - 1).0;
-                    self.gc.provide_context(ctx_chunk, n - ctx_chunk.len());
+                    self.cursor.provide_context(ctx_chunk, n - ctx_chunk.len());
                 }
                 _ => unreachable!(),
             }
@@ -243,7 +245,7 @@ impl<'a> GraphemeIter<'a> {
 }
 
 impl<'a> Iterator for GraphemeIter<'a> {
-    type Item = (Position, RopeSlice<'a>);
+    type Item = (Position, &'a str);
 
     /// Returns the next grapheme.
     ///
@@ -319,11 +321,11 @@ mod tests {
         let buffer = RawBuffer::from_text("ABC\nXY");
         let mut iter = buffer.grapheme_iter(Position::new(0, 0));
 
-        assert_eq!(iter.next(), Some((pos(0, 0), "A".into())));
-        assert_eq!(iter.next(), Some((pos(0, 1), "B".into())));
-        assert_eq!(iter.next(), Some((pos(0, 2), "C".into())));
-        assert_eq!(iter.next(), Some((pos(0, 3), "\n".into())));
-        assert_eq!(iter.next(), Some((pos(1, 0), "X".into())));
+        assert_eq!(iter.next(), Some((pos(0, 0), "A")));
+        assert_eq!(iter.next(), Some((pos(0, 1), "B")));
+        assert_eq!(iter.next(), Some((pos(0, 2), "C")));
+        assert_eq!(iter.next(), Some((pos(0, 3), "\n")));
+        assert_eq!(iter.next(), Some((pos(1, 0), "X")));
     }
 
     #[test]
@@ -352,8 +354,8 @@ mod tests {
         let buffer = RawBuffer::from_text("a👩‍🔬");
         let mut iter = buffer.grapheme_iter(Position::new(0, 0));
 
-        assert_eq!(iter.next(), Some((pos(0, 0), "a".into())));
-        assert_eq!(iter.next(), Some((pos(0, 1), "👩‍🔬".into())));
+        assert_eq!(iter.next(), Some((pos(0, 0), "a")));
+        assert_eq!(iter.next(), Some((pos(0, 1), "👩‍🔬")));
     }
 
     #[test]
