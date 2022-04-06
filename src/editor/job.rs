@@ -47,7 +47,7 @@ impl JobManager {
     {
         self.futures.push(
             async move {
-                let result = tokio::spawn(future).await.unwrap();
+                let result = tokio::spawn(future).await?;
 
                 // Curring the callback.
                 let boxed_callback: Box<
