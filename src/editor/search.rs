@@ -318,9 +318,6 @@ pub fn search_paths_globally(
                             }
 
                             let score = ((fuzzy_score as f64) * boost).abs() as i64;
-                            if boost > 1. {
-                                trace!("score: {} * {} = {} ({})", fuzzy_score, boost, score, path);
-                            }
                             let path = path.strip_prefix("./").unwrap_or(path);
                             let _ = tx.send((score, path.to_owned()));
                         }
