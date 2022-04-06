@@ -8,6 +8,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
+    time::Duration,
 };
 
 use anyhow::{bail, Result};
@@ -251,6 +252,7 @@ pub fn search_paths_globally(
     exclude_paths: Option<&HashSet<PathBuf>>,
     cancel_flag: CancelFlag,
 ) -> Result<()> {
+    let first_query_char = query.chars().next();
     WalkBuilder::new(workspace_dir)
         .hidden(true)
         .threads(*NUM_WORKER_CPUS)
@@ -278,37 +280,48 @@ pub fn search_paths_globally(
 
                     match dirent.path().to_str() {
                         Some(path) => {
-                            let mut score = match matcher.fuzzy_match(path, query) {
+                            let fuzzy_score = match matcher.fuzzy_match(path, query) {
                                 Some(score) => score,
                                 None => return WalkState::Continue,
                             };
 
-                            // Recently used.
-                            if let Ok(atime) = meta.accessed() {
-                                if let Ok(elapsed) = atime.elapsed() {
-                                    score += (100 / max(1, min(elapsed.as_secs(), 360))) as i64;
-                                    score += (100 / max(1, elapsed.as_secs())) as i64;
+                            let mut boost = 1.;
+
+                            // "/buffer.rs" should be prioritized over "/raw_buffer.rs"
+                            let str_after_slash = path
+                                .rfind('/')
+                                .and_then(|last_slash_idx| Some(&path[last_slash_idx + 1..]))
+                                .unwrap_or(path);
+                            if let Some(first_query_char) = first_query_char {
+                                if str_after_slash.starts_with(first_query_char) {
+                                    boost += 0.2;
                                 }
                             }
 
                             // Recently modified.
                             if let Ok(mtime) = meta.modified() {
                                 if let Ok(elapsed) = mtime.elapsed() {
-                                    score += (10
-                                        / max(
-                                            1,
-                                            min(
-                                                elapsed.as_secs() / (3600 * 24 * 30),
-                                                3600 * 24 * 30,
-                                            ),
-                                        )) as i64;
-                                    score += (100 / max(1, min(elapsed.as_secs(), 360))) as i64;
-                                    score += (100 / max(1, elapsed.as_secs())) as i64;
+                                    const LAST_14_DAYS: Duration =
+                                        Duration::from_secs(60 * 60 * 24 * 14);
+                                    if elapsed < LAST_14_DAYS {
+                                        let a = LAST_14_DAYS.as_secs_f64();
+                                        let b = elapsed.as_secs_f64() + 1.;
+                                        debug_assert!(b > 0.);
+                                        let c = a / b.log(100.);
+                                        boost += c / a;
+                                    }
                                 }
                             }
 
-                            let path = path.strip_prefix("./").unwrap_or(path);
+                            if boost > 2. {
+                                boost = 2.;
+                            }
 
+                            let score = ((fuzzy_score as f64) * boost).abs() as i64;
+                            if boost > 1. {
+                                trace!("score: {} * {} = {} ({})", fuzzy_score, boost, score, path);
+                            }
+                            let path = path.strip_prefix("./").unwrap_or(path);
                             let _ = tx.send((score, path.to_owned()));
                         }
                         None => {
