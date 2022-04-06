@@ -671,18 +671,18 @@ mod tests {
     #[bench]
     fn bench_words_10_lines(b: &mut test::Bencher) {
         let (documents, _dummy_files) = create_documents(1, 10);
-        b.iter(|| documents.words());
+        b.iter(|| test::black_box(documents.words()));
     }
 
     #[bench]
     fn bench_words_500_lines(b: &mut test::Bencher) {
         let (documents, _dummy_files) = create_documents(1, 500);
-        b.iter(|| documents.words());
+        b.iter(|| test::black_box(documents.words()));
     }
 
     #[bench]
     fn bench_words_4_files(b: &mut test::Bencher) {
         let (documents, _dummy_files) = create_documents(4, 500);
-        b.iter(|| documents.words());
+        b.iter(|| test::black_box(documents.words()));
     }
 }

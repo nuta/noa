@@ -218,10 +218,6 @@ impl<'a> GraphemeIter<'a> {
                 Ok(None) => return None,
                 Ok(Some(end)) => {
                     if start < self.chunk_start {
-                        // SAFETY: as_str always returns Some(_) because we only dereference
-                        //         a single grapheme here and according to ropey's README it
-                        //         ensures all characters in a grapheme are stored in a single
-                        //         string.
                         return Some(self.rope.byte_slice(start..end).as_str().unwrap());
                     } else {
                         return Some(
