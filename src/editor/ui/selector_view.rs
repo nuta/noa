@@ -228,8 +228,8 @@ impl Surface for SelectorView {
                     let rightside =
                         format!("{path}:{lineno}", path = file_name, lineno = pos.y + 1);
 
-                    let leftside_width = leftside.display_width();
-                    let rightside_max_width = max_width.saturating_sub(leftside_width + 3);
+                    let leftside_width = min(leftside.display_width(), max_width);
+                    let rightside_max_width = max_width.saturating_sub(leftside_width + 1);
                     let rightside_width = min(rightside.display_width(), rightside_max_width);
                     let rightside_x = canvas.width().saturating_sub(rightside_width);
 
