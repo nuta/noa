@@ -28,10 +28,10 @@ enum FinderItem {
     Action { name: String },
 }
 
-pub fn open_finder(editor: &mut Editor, compositor: &mut Compositor<Editor>) {
+pub fn open_finder(editor: &mut Editor, compositor: &mut Compositor<Editor>, query: Option<&str>) {
     let selector: &mut SelectorView = compositor.get_mut_surface_by_name("selector");
     selector.open("finder", true, Some(Box::new(update_items)));
-    update_items(editor, "");
+    update_items(editor, query.unwrap_or(""));
 }
 
 pub fn open_buffer_switcher(editor: &mut Editor, compositor: &mut Compositor<Editor>) {

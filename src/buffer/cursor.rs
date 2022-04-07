@@ -531,6 +531,7 @@ impl CursorSet {
         );
         let id = cursor.id;
         new_cursors.push(cursor);
+        self.save_undo_state();
         self.update_cursors(&new_cursors);
         id
     }
@@ -553,11 +554,11 @@ impl CursorSet {
     }
 
     pub fn update_cursors(&mut self, new_cursors: &[Cursor]) {
-        self.do_set_cursors(new_cursors, false);
+        self.do_set_cursors(new_cursors);
         debug_assert!(self.cursors.iter().any(|c| c.is_main_cursor()));
     }
 
-    fn do_set_cursors(&mut self, new_cursors: &[Cursor], save_undo: bool) {
+    fn do_set_cursors(&mut self, new_cursors: &[Cursor]) {
         debug_assert!(!new_cursors.is_empty());
 
         // Sort and merge cursors.
@@ -592,12 +593,6 @@ impl CursorSet {
             }
         }
 
-        if save_undo {
-            self.undo_stack.push(CursorUndoState {
-                cursors: self.cursors.clone(),
-            });
-        }
-
         self.cursors = new_cursors;
         debug_assert!(!self.cursors.is_empty());
     }
@@ -627,19 +622,39 @@ impl CursorSet {
         self.redo_stack.clear();
     }
 
+    pub fn save_undo_state(&mut self) {
+        if self.cursors.is_empty() {
+            return;
+        }
+
+        self.undo_stack.push(CursorUndoState {
+            cursors: self.cursors.clone(),
+        });
+    }
+
     pub fn undo_cursor_movements(&mut self) {
-        if let Some(state) = self.undo_stack.pop() {
-            self.do_set_cursors(&state.cursors, false);
+        while let Some(state) = self.undo_stack.pop() {
+            if self.cursors == state.cursors {
+                continue;
+            }
+
+            self.do_set_cursors(&state.cursors);
             debug_assert!(self.cursors.iter().any(|c| c.is_main_cursor()));
             self.redo_stack.push(state);
+            break;
         }
     }
 
     pub fn redo_cursor_movements(&mut self) {
-        if let Some(state) = self.redo_stack.pop() {
-            self.do_set_cursors(&state.cursors, false);
+        while let Some(state) = self.redo_stack.pop() {
+            if self.cursors == state.cursors {
+                continue;
+            }
+
+            self.do_set_cursors(&state.cursors);
             debug_assert!(self.cursors.iter().any(|c| c.is_main_cursor()));
             self.undo_stack.push(state);
+            break;
         }
     }
 }

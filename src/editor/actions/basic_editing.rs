@@ -44,7 +44,7 @@ impl Action for OpenFilder {
     }
 
     fn run(&self, editor: &mut Editor, compositor: &mut Compositor<Editor>) -> Result<()> {
-        open_finder(editor, compositor);
+        open_finder(editor, compositor, None);
         Ok(())
     }
 }
@@ -97,6 +97,19 @@ impl Action for Delete {
 
     fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
         editor.current_buffer_mut().delete();
+        Ok(())
+    }
+}
+
+pub struct MoveToTop;
+
+impl Action for MoveToTop {
+    fn name(&self) -> &'static str {
+        "move_to_top"
+    }
+
+    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+        editor.current_buffer_mut().move_to_top();
         Ok(())
     }
 }
@@ -174,6 +187,32 @@ impl Action for FindCurrentWord {
         if let Some(word_range) = word_range {
             let text = buffer.substr(word_range);
             editor.find_query.set_text(&text);
+        }
+        Ok(())
+    }
+}
+
+pub struct FindCurrentWordGlobally;
+
+impl Action for FindCurrentWordGlobally {
+    fn name(&self) -> &'static str {
+        "find_current_word_globally"
+    }
+
+    fn run(&self, editor: &mut Editor, compositor: &mut Compositor<Editor>) -> Result<()> {
+        let doc = editor.documents.current_mut();
+        let buffer = doc.buffer_mut();
+        buffer.clear_secondary_cursors();
+        let c = buffer.main_cursor();
+        let word_range = if c.is_selection() {
+            Some(c.selection())
+        } else {
+            buffer.current_word(c.moving_position())
+        };
+
+        if let Some(word_range) = word_range {
+            let text = buffer.substr(word_range);
+            open_finder(editor, compositor, Some(&format!("/{}", text)));
         }
         Ok(())
     }

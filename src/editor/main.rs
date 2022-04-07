@@ -148,7 +148,7 @@ async fn main() {
     compositor.add_frontmost_layer(Box::new(CompletionView::new()));
 
     if no_files_opened {
-        open_finder(&mut editor, &mut compositor);
+        open_finder(&mut editor, &mut compositor, None);
     }
 
     compositor.render_to_terminal(&mut editor);

@@ -13,6 +13,9 @@ key_bindings = [
     { scope = "buffer", key = "b", modifiers = ["alt"], action = "move_to_prev_word" },
     { scope = "buffer", key = "h", modifiers = ["ctrl"], action = "find_current_word" },
     { scope = "buffer", key = "h", modifiers = ["alt"], action = "select_all_current_word" },
+    { scope = "buffer", key = "g", modifiers = ["ctrl"], action = "find_current_word_globally" },
+    { scope = "buffer", key = "up", modifiers = ["ctrl"], action = "move_to_prev_diff" },
+    { scope = "buffer", key = "down", modifiers = ["ctrl"], action = "move_to_next_diff" },
     { scope = "buffer", key = "left", modifiers = ["alt", "shift"], action = "select_prev_word" },
     { scope = "buffer", key = "right", modifiers = ["alt", "shift"], action = "select_next_word" },
     { scope = "buffer", key = "up", modifiers = ["ctrl", "alt"], action = "add_cursors_up" },
@@ -31,10 +34,7 @@ key_bindings = [
     { scope = "buffer", key = "u", modifiers = ["alt"], action = "redo" },
     { scope = "buffer", key = "y", modifiers = ["ctrl"], action = "undo_cursors" },
     { scope = "buffer", key = "n", modifiers = ["ctrl"], action = "comment_out" },
-    { scope = "buffer", key = "F1", modifiers = [], action = "softwrap" },
-    # move diff
-    # global search with current word
-    # undo cursor changes
+    { scope = "buffer", key = "home", modifiers = [], action = "move_to_top" },
 ]
 
 [colors]

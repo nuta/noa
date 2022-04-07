@@ -59,6 +59,24 @@ impl Buffer {
             c.select(s.start.y + 1, s.start.x, s.end.y + 1, s.end.x);
         });
     }
+
+    pub fn move_to_end_of_line(&mut self) {
+        self.cursors.foreach(|c, _past_cursors| {
+            let y = c.moving_position().y;
+            c.move_to(y, self.buf.line_len(y));
+        });
+    }
+
+    pub fn move_to_beginning_of_line(&mut self) {
+        self.cursors.foreach(|c, _past_cursors| {
+            c.move_to(c.moving_position().y, 0);
+        });
+    }
+
+    pub fn move_to_top(&mut self) {
+        self.cursors.save_undo_state();
+        self.select_main_cursor(0, 0, 0, 0);
+    }
 }
 
 #[cfg(test)]

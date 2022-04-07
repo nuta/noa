@@ -20,7 +20,7 @@ impl Action for MoveToNextDiff {
                 doc.buffer_mut().move_main_cursor_to_pos(pos);
             }
             None => {
-                notify_warn!("no previous diff line");
+                notify_warn!("no next diff line");
             }
         }
         Ok(())
