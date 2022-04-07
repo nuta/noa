@@ -151,6 +151,7 @@ impl Surface for BufferView {
         // Buffer contents.
         let main_cursor_pos = main_cursor.moving_position();
         let scroll_x = doc.view().scroll_x();
+        let mut prev_lineno = None;
         for (i_y, row) in doc.view().visible_rows().iter().enumerate() {
             let canvas_y = buffer_y + i_y;
 
@@ -183,8 +184,14 @@ impl Surface for BufferView {
             }
 
             // Draw lineno.
-            let lineno_x = lineno_x + max_lineno_width - row.lineno.display_width();
-            canvas.write_str(canvas_y, lineno_x, &format!("{}", row.lineno));
+            let lineno_width = row.lineno.display_width();
+            let lineno_x = lineno_x + max_lineno_width - lineno_width;
+            if prev_lineno == Some(row.lineno) {
+                // Soft wrapped.
+                canvas.write_str(canvas_y, lineno_x, &".".repeat(lineno_width));
+            } else {
+                canvas.write_str(canvas_y, lineno_x, &format!("{}", row.lineno));
+            }
 
             // Draw each characters in the row.
             let mut virtual_cursor_x = None;
@@ -266,6 +273,8 @@ impl Surface for BufferView {
             } else if main_cursor_pos.y == row.lineno - 1 && row.is_empty() {
                 self.cursor_position = (canvas_y, buffer_x);
             }
+
+            prev_lineno = Some(row.lineno);
         }
 
         // Re-render to update flashing later.
