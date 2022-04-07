@@ -289,8 +289,7 @@ pub fn search_paths_globally(
 
                             // "/buffer.rs" should be prioritized over "/raw_buffer.rs"
                             let str_after_slash = path
-                                .rfind('/')
-                                .and_then(|last_slash_idx| Some(&path[last_slash_idx + 1..]))
+                                .rfind('/').map(|last_slash_idx| &path[last_slash_idx + 1..])
                                 .unwrap_or(path);
                             if let Some(first_query_char) = first_query_char {
                                 if str_after_slash.starts_with(first_query_char) {

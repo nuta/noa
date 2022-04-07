@@ -71,6 +71,7 @@ async fn print_warn_logs() -> Result<()> {
     let mut reader = BufReader::new(f);
     let mut line = String::new();
     loop {
+        line.clear();
         reader.read_line(&mut line).await?;
         if line.is_empty() {
             break;

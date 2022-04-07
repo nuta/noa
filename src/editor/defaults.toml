@@ -37,8 +37,8 @@ key_bindings = [
     # undo cursor changes
 ]
 
-# Based on One Dark Pro theme
-# https://github.com/Binaryify/OneDark-Pro
+[colors]
+
 [theme]
 "buffer.find_match" = { bg = "grey" }
 "buffer.current_line" = { bg = "" }
@@ -64,6 +64,7 @@ key_bindings = [
 "completion.item" = { bg = "grey" }
 "completion.selected" = { bg = "grey" }
 
+"syntax.comment" = { fg = "yellow" }
 "syntax.boolean" = { fg = "grey" }
 "syntax.conditional" = { fg = "red" }
 "syntax.constant" = { fg = "grey" }
@@ -71,7 +72,8 @@ key_bindings = [
 "syntax.field" = { fg = "grey" }
 "syntax.float" = { fg = "grey" }
 "syntax.function" = { fg = "green" }
-"syntax.include" = { fg = "grey" }
+"syntax.function.macro" = { fg = "green" }
+"syntax.include" = { fg = "red" }
 "syntax.keyword" = { fg = "red" }
 "syntax.keyword.function" = { fg = "magenta" }
 "syntax.keyword.operator" = { fg = "magenta" }
@@ -101,5 +103,3 @@ key_bindings = [
 "syntax.variable" = { fg = "grey" }
 "syntax.variable.builtin" = { fg = "grey" }
 "syntax._parent" = {}
-
-[colors]
