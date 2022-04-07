@@ -85,7 +85,7 @@ impl Surface for PromptView {
     }
 
     fn cursor_position(&self, _editor: &mut Editor) -> Option<(usize, usize)> {
-        Some((0, 1 + self.title_width + self.input.cursor_position()))
+        Some((0, 1 + self.title_width + 1 + self.input.cursor_position()))
     }
 
     fn render(&mut self, _editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {

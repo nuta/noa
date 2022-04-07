@@ -50,8 +50,7 @@ key_bindings = [
 "line_status.added" = { bg = "grey" }
 "line_status.deleted" = { bg = "grey" }
 
-"label" = { bold = true, inverted = true }
-"prompt.name" = { bg = "grey", bold = true }
+"prompt.name" = { bold = true, fg = "blue" }
 "meta_line.background" = { inverted = true }
 
 "selector.input" = { fg = "grey" }
