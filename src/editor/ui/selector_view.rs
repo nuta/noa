@@ -222,17 +222,29 @@ impl Surface for SelectorView {
                     let before_text = &line_text[..range.start];
                     let matched_text = &line_text[range.start..range.end];
                     let after_text = &line_text[range.end..];
-                    let s = format!(
-                        "{before_text}{matched_text}{after_text} ({path}:{lineno})",
-                        lineno = pos.y + 1
+                    let leftside = format!("{before_text}{matched_text}{after_text}",);
+
+                    let file_name = path.rfind('/').map_or("", |i| &path[i + 1..]);
+                    let rightside =
+                        format!("{path}:{lineno}", path = file_name, lineno = pos.y + 1);
+
+                    let leftside_width = leftside.display_width();
+                    let rightside_max_width = max_width.saturating_sub(leftside_width + 3);
+                    let rightside_width = min(rightside.display_width(), rightside_max_width);
+                    let rightside_x = canvas.width().saturating_sub(rightside_width);
+
+                    canvas.write_str(y, x, truncate_to_width(&leftside, leftside_width));
+                    canvas.write_str(
+                        y,
+                        rightside_x,
+                        truncate_to_width(&rightside, rightside_max_width),
                     );
-                    canvas.write_str(y, x, truncate_to_width(&s, max_width));
 
                     let x_off = before_text.display_width();
                     canvas.apply_style(
                         y,
                         x + x_off,
-                        x + min(max_width, x_off + matched_text.display_width()),
+                        x + min(leftside_width, x_off + matched_text.display_width()),
                         Style {
                             fg: Color::Red,
                             ..Default::default()
