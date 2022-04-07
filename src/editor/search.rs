@@ -229,6 +229,10 @@ pub fn search_texts_globally(
                     Err(_) => return WalkState::Continue,
                 };
 
+                if !matches!(dirent.file_type(), Some(file_type) if file_type.is_file()) {
+                    return WalkState::Continue;
+                }
+
                 let path_str = dirent.path().to_str().unwrap().to_owned();
                 Searcher::new()
                     .search_path(
@@ -289,7 +293,8 @@ pub fn search_paths_globally(
 
                             // "/buffer.rs" should be prioritized over "/raw_buffer.rs"
                             let str_after_slash = path
-                                .rfind('/').map(|last_slash_idx| &path[last_slash_idx + 1..])
+                                .rfind('/')
+                                .map(|last_slash_idx| &path[last_slash_idx + 1..])
                                 .unwrap_or(path);
                             if let Some(first_query_char) = first_query_char {
                                 if str_after_slash.starts_with(first_query_char) {
