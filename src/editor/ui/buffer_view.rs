@@ -47,7 +47,7 @@ impl BufferView {
             cursor_position: (0, 0),
             selection_start: None,
             time_last_clicked: Instant::now()
-                .checked_sub(Duration::from_secs(10000 /* long time before */))
+                .checked_sub(Duration::from_secs(60 /* long time before */))
                 .unwrap(),
             num_clicked: 0,
             buffer_x: 0,
