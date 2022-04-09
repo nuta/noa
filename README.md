@@ -4,7 +4,7 @@ A modern [nano](https://www.nano-editor.org/)-like terminal-based text editor.
 
 - Native multiple cursors based editing inspired by [Visual Studio Code](https://code.visualstudio.com/).
 - No distraction: let you focus on coding.
-- Fuzzy file filder and global search.
+- Fuzzy file finder and global search.
 - Language-aware syntax highlighting and editing by [tree-sitter](https://tree-sitter.github.io/tree-sitter/).
 
 ![screenshot](https://raw.githubusercontent.com/nuta/noa/prototyping/screenshot.png)
@@ -14,7 +14,6 @@ A modern [nano](https://www.nano-editor.org/)-like terminal-based text editor.
 ```
 git clone https://github.com/nuta/noa && cd noa
 cargo install --path src/editor
-cargo install --path src/proxy
 ```
 
 ### How to Use
