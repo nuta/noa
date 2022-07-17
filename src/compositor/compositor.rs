@@ -2,13 +2,16 @@ use std::slice;
 
 use tokio::sync::mpsc;
 
-use crate::{surface::HandledEvent, terminal::InputEvent};
-
-use super::{
+use crate::{
     canvas::Canvas,
-    surface::{Layout, RectSize, Surface},
-    terminal::{self, Terminal},
+    terminal::{self, Terminal,InputEvent},
 };
+
+#[derive(Clone, Copy, Debug)]
+pub struct RectSize {
+    pub height: usize,
+    pub width: usize,
+}
 
 pub struct Compositor {
     terminal: Terminal,
@@ -47,4 +50,6 @@ impl Compositor {
     pub async fn recv_terminal_event(&mut self) -> Option<terminal::Event> {
         self.term_rx.recv().await
     }
+
+    pub fn render_to_terminal(&mut self  {}
 }

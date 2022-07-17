@@ -16,7 +16,7 @@ impl Ui {
     }
 
     pub async fn run(mut self) {
-        self.compositor.render_to_terminal(&mut self.editor);
+        self.compositor.render_to_terminal();
         loop {
             tokio::select! {
                 biased;
