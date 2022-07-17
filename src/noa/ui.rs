@@ -1,9 +1,9 @@
-use noa_compositor::Compositor;
+use noa_compositor::compositor::Compositor;
 
 use crate::editor::Editor;
 
 pub struct Ui {
-    compositor: Compositor<Editor>,
+    compositor: Compositor,
     editor: Editor,
 }
 
@@ -16,7 +16,8 @@ impl Ui {
     }
 
     pub async fn run(mut self) {
-        'outer: loop {
+        self.compositor.render_to_terminal(&mut self.editor);
+        loop {
             tokio::select! {
                 biased;
 
