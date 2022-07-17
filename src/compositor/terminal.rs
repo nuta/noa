@@ -1,11 +1,15 @@
 use std::{
+    fmt,
     io::{stdout, Stdout, Write},
-    time::Duration, fmt,
+    time::Duration,
 };
 
 use crossterm::{
     cursor::{self, MoveTo},
-    event::{DisableMouseCapture, EnableMouseCapture, Event as TermEvent, EventStream, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,},
+    event::{
+        DisableMouseCapture, EnableMouseCapture, Event as TermEvent, EventStream, KeyCode,
+        KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    },
     execute, queue,
     style::{Attribute, Print, SetAttribute, SetBackgroundColor, SetForegroundColor},
     terminal::*,

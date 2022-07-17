@@ -1,4 +1,7 @@
-use std::{sync::atomic::{Ordering, AtomicUsize}, path::PathBuf};
+use std::{
+    path::PathBuf,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 use noa_buffer::buffer::Buffer;
 
@@ -15,9 +18,7 @@ impl DocumentId {
 #[derive(Debug)]
 pub enum DocumentKind {
     Scratch,
-    File {
-        path: PathBuf,
-    }
+    File { path: PathBuf },
 }
 
 pub struct Document {

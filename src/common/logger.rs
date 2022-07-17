@@ -2,10 +2,11 @@ use anyhow::Result;
 use backtrace::Backtrace;
 use log::{Level, LevelFilter};
 use std::{
+    fmt::Debug,
+    fs::{create_dir_all, File, OpenOptions},
+    io::{self, prelude::*, BufReader, SeekFrom},
     path::Path,
-    io::{self, BufReader, SeekFrom, prelude::*},
-    fmt::Debug, sync::Mutex,
-    fs::{create_dir_all,File, OpenOptions},
+    sync::Mutex,
 };
 
 use crate::dirs::log_file_path;
@@ -18,18 +19,18 @@ struct Logger {
 
 impl Logger {
     pub fn new(file: File) -> Self {
-        Logger { log_file: Mutex::new(file) }
+        Logger {
+            log_file: Mutex::new(file),
+        }
     }
 }
 
 impl log::Log for Logger {
     fn enabled(&self, _metadata: &log::Metadata) -> bool {
         true
-     }
-
-    fn flush(&self) {
-
     }
+
+    fn flush(&self) {}
 
     fn log(&self, record: &log::Record) {
         let color_start = match record.level() {
@@ -57,7 +58,6 @@ impl log::Log for Logger {
         let _ = self.log_file.lock().unwrap().write_all(message.as_bytes());
     }
 }
-
 
 pub fn shrink_file(path: &Path, max_len: usize) -> Result<()> {
     let meta = match std::fs::metadata(path) {
@@ -92,7 +92,11 @@ pub fn install_logger(name: &str) {
     let log_path = log_file_path(name);
     shrink_file(&log_path, LOG_FILE_LEN_MAX).expect("failed to shrink the log file");
     let _ = create_dir_all(log_path.parent().unwrap());
-    let log_file = OpenOptions::new().append(true).create(true).open(log_path).expect("failed to open the log file");
+    let log_file = OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(log_path)
+        .expect("failed to open the log file");
 
     log::set_max_level(if cfg!(debug_assertions) {
         LevelFilter::Debug
@@ -139,7 +143,7 @@ impl<T, E: Debug> OopsExt for std::result::Result<T, E> {
     fn oops(self) {
         match self {
             Ok(_) => {}
-            Err(err)=> {
+            Err(err) => {
                 warn!("oops: {:?}", err);
                 crate::logger::backtrace();
             }

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::document::{DocumentId, Document};
+use crate::document::{Document, DocumentId};
 
 pub struct Editor {
     documents: HashMap<DocumentId, Document>,
