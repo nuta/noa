@@ -8,7 +8,7 @@ use crossterm::{
     cursor::{self, MoveTo},
     event::{
         DisableMouseCapture, EnableMouseCapture, Event as TermEvent, EventStream, KeyCode,
-        KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+        KeyEvent, KeyModifiers, MouseEvent,
     },
     execute, queue,
     style::{Attribute, Print, SetAttribute, SetBackgroundColor, SetForegroundColor},

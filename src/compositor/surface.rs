@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use crate::Compositor;
+use crate::compositor::Compositor;
 
 use super::canvas::CanvasViewMut;
 pub use crossterm::event::{KeyEvent, MouseEvent};
