@@ -1,52 +1,74 @@
 use anyhow::Result;
 use backtrace::Backtrace;
-use log::Level;
+use log::{Level, LevelFilter};
 use std::{
     fmt::Debug,
-    io::{BufRead, BufReader, ErrorKind, Seek, SeekFrom},
+    io::{BufRead, BufReader, ErrorKind, Seek, SeekFrom, },
     path::Path,
 };
 
 use crate::dirs::log_file_path;
 
-pub fn install_logger(name: &str) {
-    fern::Dispatch::new()
-        .format(|out, message, record| {
-            out.finish(format_args!(
-                "{color_start}[{filename}:{lineno}] {prefix}{color_end}{message}\x1b[0m",
-                color_start = match record.level() {
-                    Level::Error => "\x1b[1;31m",
-                    Level::Warn => "\x1b[1;33m",
-                    _ => "\x1b[34m",
-                },
-                color_end = match record.level() {
-                    Level::Error => "\x1b[1;31m",
-                    Level::Warn => "\x1b[1;33m",
-                    _ => "\x1b[0m",
-                },
-                prefix = match record.level() {
-                    Level::Error => "Error: ",
-                    Level::Warn => "Warn: ",
-                    _ => "",
-                },
-                filename = record.file().unwrap_or_else(|| record.target()),
-                lineno = record.line().unwrap_or(0),
-                message = message
-            ))
-        })
-        .level(if cfg!(debug_assertions) {
-            log::LevelFilter::Trace
-        } else {
-            log::LevelFilter::Info
-        })
-        .chain(fern::log_file(log_file_path(name)).unwrap())
-        .apply()
-        .expect("failed to initialize the logger");
+const LOG_FILE_LEN_MAX: usize = 256 * 1024;
 
-    std::panic::set_hook(Box::new(|info| {
-        error!("{}", info);
-        prettify_backtrace(backtrace::Backtrace::new());
-    }));
+struct Logger {
+}
+
+impl Logger {
+    pub fn new() -> Self {
+        Logger { }
+    }
+}
+
+impl log::Log for Logger {
+    fn enabled(&self, _metadata: &log::Metadata) -> bool {
+        true
+     }
+
+    fn flush(&self) {
+
+    }
+
+    fn log(&self, record: &log::Record) {
+        let color_start = match record.level() {
+            Level::Error => "\x1b[1;31m",
+            Level::Warn => "\x1b[1;33m",
+            _ => "\x1b[34m",
+        };
+        let color_end = match record.level() {
+            Level::Error => "\x1b[1;31m",
+            Level::Warn => "\x1b[1;33m",
+            _ => "\x1b[0m",
+        };
+        let prefix = match record.level() {
+            Level::Error => " Error:",
+            Level::Warn => " Warn:",
+            _ => "",
+        };
+        let filename = record.file().unwrap_or_else(|| record.target());
+        let lineno = record.line().unwrap_or(0);
+
+        // self.log_file.write_all(
+        //     format!(
+        //         "{color_start}[{filename}:{lineno}]{prefix}{color_end} {}\n",
+        //         record.args()
+        //     )
+        //     .as_bytes(),
+        // ).unwrap_or_else(|e| {
+        //     eprintln!("failed to write to the log file: {}", e);
+        // });
+    }
+}
+
+pub fn install_logger(name: &str) {
+    let log_path = log_file_path(name);
+    shrink_file(&log_path, LOG_FILE_LEN_MAX).expect("failed to shrink the log file");
+
+    log::set_max_level(if cfg!(debug_assertions) {
+        LevelFilter::Debug
+    } else {
+        LevelFilter::Info
+    });
 }
 
 pub fn prettify_backtrace(backtrace: Backtrace) {
@@ -73,7 +95,7 @@ pub fn prettify_backtrace(backtrace: Backtrace) {
     }
 }
 
-pub fn shrink_file(path: &Path, max_len: usize) -> Result<()> {
+fn shrink_file(path: &Path, max_len: usize) -> Result<()> {
     let meta = match std::fs::metadata(path) {
         Ok(meta) => meta,
         Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
@@ -107,27 +129,15 @@ pub fn backtrace() {
 }
 
 pub trait OopsExt: Sized {
-    fn oops_with_reason(self, reason: &str);
-
-    fn oops(self) {
-        self.oops_with_reason("");
-    }
-
-    fn oops_with<F: FnOnce() -> String>(self, reason: F) {
-        self.oops_with_reason(&reason())
-    }
+    fn oops(self);
 }
 
 impl<T, E: Debug> OopsExt for std::result::Result<T, E> {
-    fn oops_with_reason(self, reason: &str) {
+    fn oops(self) {
         match self {
             Ok(_) => {}
-            Err(err) if reason.is_empty() => {
+            Err(err)=> {
                 warn!("oops: {:?}", err);
-                crate::logger::backtrace();
-            }
-            Err(err) => {
-                warn!("oops: {}: {:?}", reason, err);
                 crate::logger::backtrace();
             }
         }
