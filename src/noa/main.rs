@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use noa_common::logger::install_logger;
 
 mod editor;
