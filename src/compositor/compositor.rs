@@ -51,5 +51,5 @@ impl Compositor {
         self.term_rx.recv().await
     }
 
-    pub fn render_to_terminal(&mut self  {}
+    pub fn render_to_terminal(&mut self) {}
 }
