@@ -8,6 +8,7 @@ use tokio::{sync::mpsc, fs::{OpenOptions, create_dir_all}, io::AsyncWriteExt};
 
 mod editor;
 mod ui;
+mod document;
 
 #[tokio::main]
 async fn main() {
