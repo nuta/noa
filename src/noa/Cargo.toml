@@ -16,6 +16,8 @@ log = "0"
 anyhow = "1"
 clap = { version = "3", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = "0.2"
 futures = "0"
 
 noa_common = { path = "../common" }

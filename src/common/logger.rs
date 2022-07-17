@@ -2,9 +2,10 @@ use anyhow::Result;
 use backtrace::Backtrace;
 use log::{Level, LevelFilter};
 use std::{
-    fmt::Debug,
-    io::{BufRead, BufReader, ErrorKind, Seek, SeekFrom, },
     path::Path,
+    io::{self, BufReader, SeekFrom, prelude::*},
+    fmt::Debug, sync::Mutex,
+    fs::{create_dir_all,File, OpenOptions},
 };
 
 use crate::dirs::log_file_path;
@@ -12,11 +13,12 @@ use crate::dirs::log_file_path;
 const LOG_FILE_LEN_MAX: usize = 256 * 1024;
 
 struct Logger {
+    log_file: Mutex<File>,
 }
 
 impl Logger {
-    pub fn new() -> Self {
-        Logger { }
+    pub fn new(file: File) -> Self {
+        Logger { log_file: Mutex::new(file) }
     }
 }
 
@@ -47,28 +49,58 @@ impl log::Log for Logger {
         };
         let filename = record.file().unwrap_or_else(|| record.target());
         let lineno = record.line().unwrap_or(0);
+        let message = format!(
+            "{color_start}[{filename}:{lineno}]{prefix}{color_end} {}\n",
+            record.args()
+        );
 
-        // self.log_file.write_all(
-        //     format!(
-        //         "{color_start}[{filename}:{lineno}]{prefix}{color_end} {}\n",
-        //         record.args()
-        //     )
-        //     .as_bytes(),
-        // ).unwrap_or_else(|e| {
-        //     eprintln!("failed to write to the log file: {}", e);
-        // });
+        let _ = self.log_file.lock().unwrap().write_all(message.as_bytes());
     }
+}
+
+
+pub fn shrink_file(path: &Path, max_len: usize) -> Result<()> {
+    let meta = match std::fs::metadata(path) {
+        Ok(meta) => meta,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(err.into()),
+    };
+
+    let current_len: usize = meta.len().try_into()?;
+    if current_len <= max_len {
+        return Ok(());
+    }
+
+    let new_len = current_len - max_len;
+
+    // Look for the nearest newline character.
+    let mut file = std::fs::OpenOptions::new().read(true).open(path)?;
+    file.seek(SeekFrom::Current(new_len.try_into()?))?;
+    let mut reader = BufReader::new(file);
+    let mut buf = Vec::new();
+    reader.read_until(b'\n', &mut buf)?;
+
+    // Copy contents after the newline character and replace the old file.
+    let mut new_file = tempfile::NamedTempFile::new()?;
+    std::io::copy(&mut reader, &mut new_file)?;
+    new_file.persist(path)?;
+
+    Ok(())
 }
 
 pub fn install_logger(name: &str) {
     let log_path = log_file_path(name);
     shrink_file(&log_path, LOG_FILE_LEN_MAX).expect("failed to shrink the log file");
+    let _ = create_dir_all(log_path.parent().unwrap());
+    let log_file = OpenOptions::new().append(true).create(true).open(log_path).expect("failed to open the log file");
 
     log::set_max_level(if cfg!(debug_assertions) {
         LevelFilter::Debug
     } else {
         LevelFilter::Info
     });
+
+    log::set_boxed_logger(Box::new(Logger::new(log_file))).expect("failed to set the logger");
 }
 
 pub fn prettify_backtrace(backtrace: Backtrace) {
@@ -93,35 +125,6 @@ pub fn prettify_backtrace(backtrace: Backtrace) {
             }
         }
     }
-}
-
-fn shrink_file(path: &Path, max_len: usize) -> Result<()> {
-    let meta = match std::fs::metadata(path) {
-        Ok(meta) => meta,
-        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
-        Err(err) => return Err(err.into()),
-    };
-
-    let current_len: usize = meta.len().try_into()?;
-    if current_len <= max_len {
-        return Ok(());
-    }
-
-    let new_len = current_len - max_len;
-
-    // Look for the nearest newline character.
-    let mut file = std::fs::OpenOptions::new().read(true).open(path)?;
-    file.seek(SeekFrom::Current(new_len.try_into()?))?;
-    let mut reader = BufReader::new(file);
-    let mut buf = Vec::new();
-    reader.read_until(b'\n', &mut buf)?;
-
-    // Copy contents after the newline character and replace the old file.
-    let mut new_file = tempfile::NamedTempFile::new()?;
-    std::io::copy(&mut reader, &mut new_file)?;
-    new_file.persist(path)?;
-
-    Ok(())
 }
 
 pub fn backtrace() {
