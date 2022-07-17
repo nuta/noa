@@ -13,7 +13,7 @@ impl DocumentId {
 }
 
 pub struct Document {
-    id: DocumentId,
+    pub id: DocumentId,
     buffer: Buffer,
 }
 
