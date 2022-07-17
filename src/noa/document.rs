@@ -1,8 +1,8 @@
-use std::sync::atomic::{Ordering, AtomicUsize};
+use std::{sync::atomic::{Ordering, AtomicUsize}, path::PathBuf};
 
 use noa_buffer::buffer::Buffer;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DocumentId(usize);
 
 impl DocumentId {
@@ -12,15 +12,25 @@ impl DocumentId {
     }
 }
 
+#[derive(Debug)]
+pub enum DocumentKind {
+    Scratch,
+    File {
+        path: PathBuf,
+    }
+}
+
 pub struct Document {
     pub id: DocumentId,
+    kind: DocumentKind,
     buffer: Buffer,
 }
 
 impl Document {
-    pub fn new() -> Self {
+    pub fn scratch() -> Self {
         Document {
             id: DocumentId::new(),
+            kind: DocumentKind::Scratch,
             buffer: Buffer::new(),
         }
     }
