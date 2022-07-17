@@ -34,18 +34,6 @@ pub fn noa_workdir(workdir: &Path) -> PathBuf {
     dir
 }
 
-pub fn proxy_sock_path(workdir: &Path, id: &str) -> PathBuf {
-    let dir = noa_workdir(workdir);
-    let name = format!("proxy-{}.sock", id);
-    dir.join(&name)
-}
-
-pub fn proxy_pid_path(workdir: &Path, id: &str) -> PathBuf {
-    let dir = noa_workdir(workdir);
-    let name = format!("proxy-{}.pid", id);
-    dir.join(&name)
-}
-
 pub fn log_file_path(name: &str) -> PathBuf {
     let log_dir = noa_dir().join("log");
     create_dir_all(&log_dir).expect("failed to create dir");
@@ -56,12 +44,4 @@ pub fn backup_dir() -> PathBuf {
     let backup_dir = noa_dir().join("backup");
     create_dir_all(&backup_dir).expect("failed to create dir");
     backup_dir
-}
-
-pub fn noa_bin_args() -> &'static [&'static str] {
-    if cfg!(debug_assertions) {
-        &["cargo", "run", "--bin", "noa", "--"]
-    } else {
-        &["noa"]
-    }
 }
