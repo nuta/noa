@@ -90,6 +90,10 @@ impl Surface for Text {
             pos_in_buffer,
         } in doc.reflow_iter(doc.top_left, canvas.width(), doc.editorconfig().tab_width)
         {
+            if canvas_y >= canvas.height() {
+                break;
+            }
+
             match grapheme {
                 PrintableGrapheme::Grapheme(grapheme) => {
                     canvas.write(
