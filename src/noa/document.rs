@@ -4,7 +4,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use noa_buffer::buffer::Buffer;
+use noa_buffer::{buffer::Buffer, cursor::Position};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DocumentId(usize);
@@ -24,8 +24,9 @@ pub enum DocumentKind {
 
 pub struct Document {
     pub id: DocumentId,
-    kind: DocumentKind,
-    buffer: Buffer,
+    pub kind: DocumentKind,
+    pub buffer: Buffer,
+    pub top_left: Position,
 }
 
 impl Document {
@@ -34,6 +35,7 @@ impl Document {
             id: DocumentId::new(),
             kind: DocumentKind::Scratch,
             buffer: Buffer::new(),
+            top_left: Position::new(0, 0),
         }
     }
 }

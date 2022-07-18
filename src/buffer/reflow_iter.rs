@@ -46,35 +46,45 @@ impl<'a> Iterator for ReflowIter<'a> {
     type Item = ReflowItem<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let (pos_in_buffer, grapheme) = self.iter.next()?;
-        let (printable, grapheme_width) = if grapheme == "\t" {
-            let n = width_to_next_tab_stop(self.screen_x, self.tab_width);
-            (PrintableGrapheme::Whitespaces, n)
-        } else {
-            let w = grapheme.display_width();
-            if w == 0 {
-                // We treat a zero-width character as a single character otherwise it'll be
-                // very confusing.
-                (PrintableGrapheme::ZeroWidth, 1)
-            } else {
-                (PrintableGrapheme::Grapheme(grapheme), w)
+        loop {
+            let (pos_in_buffer, grapheme) = self.iter.next()?;
+            let (printable, grapheme_width) = match grapheme {
+                "\n" => {
+                    self.screen_y += 1;
+                    self.screen_x = 0;
+                    continue;
+                }
+                "\t" => {
+                    let n = width_to_next_tab_stop(self.screen_x, self.tab_width);
+                    (PrintableGrapheme::Whitespaces, n)
+                }
+                _ => {
+                    let w = grapheme.display_width();
+                    if w == 0 {
+                        // We treat a zero-width character as a single character otherwise it'll be
+                        // very confusing.
+                        (PrintableGrapheme::ZeroWidth, 1)
+                    } else {
+                        (PrintableGrapheme::Grapheme(grapheme), w)
+                    }
+                }
+            };
+
+            if self.screen_x + grapheme_width > self.screen_width {
+                self.screen_y += 1;
+                self.screen_x = 0;
             }
-        };
 
-        if self.screen_x + grapheme_width > self.screen_width {
-            self.screen_y += 1;
-            self.screen_x = 0;
+            let pos_in_screen = (self.screen_y, self.screen_x);
+            self.screen_x += grapheme_width;
+
+            return Some(ReflowItem {
+                grapheme: printable,
+                grapheme_width,
+                pos_in_buffer,
+                pos_in_screen,
+            });
         }
-
-        let pos_in_screen = (self.screen_y, self.screen_x);
-        self.screen_x += grapheme_width;
-
-        Some(ReflowItem {
-            grapheme: printable,
-            grapheme_width,
-            pos_in_buffer,
-            pos_in_screen,
-        })
     }
 }
 
