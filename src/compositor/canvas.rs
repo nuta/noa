@@ -83,6 +83,14 @@ impl Grapheme {
         }
     }
 
+    pub fn new_with_width(grapheme: &str, width: usize) -> Grapheme {
+        Grapheme {
+            chars: ArrayString::from(grapheme).unwrap(),
+            width,
+            style: Default::default(),
+        }
+    }
+
     pub fn blank() -> Grapheme {
         Grapheme::new(" ")
     }

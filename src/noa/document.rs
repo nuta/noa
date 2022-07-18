@@ -1,4 +1,5 @@
 use std::{
+    ops::{Deref, DerefMut},
     path::PathBuf,
     sync::atomic::{AtomicUsize, Ordering},
 };
@@ -34,5 +35,19 @@ impl Document {
             kind: DocumentKind::Scratch,
             buffer: Buffer::new(),
         }
+    }
+}
+
+impl Deref for Document {
+    type Target = Buffer;
+
+    fn deref(&self) -> &Self::Target {
+        &self.buffer
+    }
+}
+
+impl DerefMut for Document {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.buffer
     }
 }
