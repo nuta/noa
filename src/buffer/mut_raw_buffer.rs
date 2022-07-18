@@ -5,7 +5,7 @@ use crate::{
     raw_buffer::RawBuffer,
 };
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Change {
     pub range: Range,
     pub byte_range: std::ops::Range<usize>,

@@ -10,7 +10,7 @@ use noa_common::{
 pub use crossterm::style::Color;
 use unicode_segmentation::UnicodeSegmentation;
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum DrawOp {
     MoveTo { y: usize, x: usize },
     Grapheme(ArrayString<16>),
@@ -24,7 +24,7 @@ pub enum DrawOp {
     NoUnderline,
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Style {
     pub fg: Color,
     pub bg: Color,
@@ -65,7 +65,7 @@ impl Default for Style {
 }
 
 /// A character in the terminal screen.
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Grapheme {
     /// The character. It can be larger than 1 if it consists of multiple unicode
     /// characters like A with the acute accent.

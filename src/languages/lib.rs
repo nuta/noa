@@ -47,11 +47,5 @@ pub fn guess_language(path: &Path) -> Option<&'static Language> {
 }
 
 pub fn get_language_by_name(name: &str) -> Option<&'static Language> {
-    for lang in LANGUAGES {
-        if lang.name == name {
-            return Some(lang);
-        }
-    }
-
-    None
+    LANGUAGES.iter().find(|&lang| lang.name == name)
 }

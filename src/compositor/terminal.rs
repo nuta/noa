@@ -18,14 +18,14 @@ use futures::StreamExt;
 
 use crate::canvas::DrawOp;
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum InputEvent {
     Key(KeyEvent),
     Mouse(MouseEvent),
     KeyBatch(String),
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Event {
     Input(InputEvent),
     Resize { height: usize, width: usize },

@@ -19,7 +19,7 @@ pub struct RectSize {
     pub width: usize,
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum HandledEvent {
     Consumed,
     Ignored,

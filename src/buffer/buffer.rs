@@ -14,7 +14,7 @@ use crate::{
     syntax::{ParserError, Syntax},
 };
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct TextEdit {
     pub range: Range,
     pub new_text: String,

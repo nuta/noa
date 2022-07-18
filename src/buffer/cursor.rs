@@ -133,7 +133,7 @@ impl PartialOrd for Position {
 ///
 /// Note that `start` don't have to be less (in respect to its `Ord` implementation)
 /// than `end`.
-#[derive(Clone, Copy, PartialEq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Range {
     /// The start position.
     pub(crate) start: Position,
