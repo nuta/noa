@@ -127,19 +127,19 @@ impl Surface for Text {
         for ReflowItem {
             grapheme,
             grapheme_width,
-            pos_in_screen: (canvas_y, canvas_x),
+            pos_in_screen,
             pos_in_buffer,
         } in doc.reflow_iter(doc.top_left, canvas.width(), doc.editorconfig().tab_width)
         {
-            if canvas_y >= canvas.height() {
+            if pos_in_screen.y >= canvas.height() {
                 break;
             }
 
             match grapheme {
                 PrintableGrapheme::Grapheme(grapheme) => {
                     canvas.write(
-                        canvas_y,
-                        canvas_x,
+                        pos_in_screen.y,
+                        pos_in_screen.x,
                         Grapheme::new_with_width(grapheme, grapheme_width),
                     );
                 }

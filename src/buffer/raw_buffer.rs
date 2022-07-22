@@ -5,6 +5,7 @@ use crate::{
     cursor::{Position, Range},
     find::FindIter,
     grapheme_iter::{BidirectionalGraphemeIter, GraphemeIter},
+    paragraph_iter::ParagraphIter,
     reflow_iter::ReflowIter,
     word_iter::{is_word_char, WordIter},
 };
@@ -102,6 +103,13 @@ impl RawBuffer {
             .count()
     }
 
+    pub fn clamp_position(&self, pos: Position) -> Position {
+        Position::new(
+            min(pos.y, self.num_lines().saturating_sub(1)),
+            min(pos.x, self.line_len(pos.y)),
+        )
+    }
+
     pub fn clamp_range(&self, range: Range) -> Range {
         let mut r = range;
         r.start.y = min(r.start.y, self.num_lines().saturating_sub(1));
@@ -111,8 +119,12 @@ impl RawBuffer {
         r
     }
 
+    pub fn is_valid_position(&self, pos: Position) -> bool {
+        self.clamp_position(pos) == pos
+    }
+
     pub fn is_valid_range(&self, range: Range) -> bool {
-        self.clamp_range(range) == range
+        self.is_valid_position(range.start) && self.is_valid_position(range.end)
     }
 
     /// Turns the whole buffer into a string.
@@ -174,6 +186,15 @@ impl RawBuffer {
         tab_width: usize,
     ) -> ReflowIter<'_> {
         ReflowIter::new(self, pos, screen_width, tab_width)
+    }
+
+    pub fn paragraph_iter(
+        &self,
+        pos: Position,
+        screen_width: usize,
+        tab_width: usize,
+    ) -> ParagraphIter<'_> {
+        ParagraphIter::new(self, pos, screen_width, tab_width)
     }
 
     /// Returns the current word range.

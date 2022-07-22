@@ -5,7 +5,13 @@ use std::{
     sync::atomic::{self, AtomicUsize},
 };
 
-use crate::raw_buffer::RawBuffer;
+use crate::{raw_buffer::RawBuffer, reflow_iter::ReflowItem};
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Direction {
+    Prev,
+    Next,
+}
 
 /// The zero-based position in the buffer.
 ///
@@ -94,28 +100,68 @@ impl Position {
         }
     }
 
+    fn screen_x(&self, buf: &RawBuffer, screen_width: usize, tab_width: usize) -> usize {
+        let iter = buf
+            .paragraph_iter(*self, screen_width, tab_width)
+            .next()
+            .expect("invalid position");
+
+        let mut last_screen_x = 0;
+        for ReflowItem {
+            pos_in_buffer,
+            pos_in_screen,
+            ..
+        } in iter.reflow_iter
+        {
+            if pos_in_buffer == *self {
+                return pos_in_screen.x;
+            }
+
+            last_screen_x = pos_in_screen.x;
+        }
+
+        assert!(buf.line_len(self.y) == self.x);
+        last_screen_x
+    }
+
     fn move_vertically_by(
-        &mut self,
+        &self,
         buf: &RawBuffer,
-        up: usize,
-        down: usize,
+        direction: Direction,
         screen_width: usize,
-        screen_x: usize,
         tab_width: usize,
-    ) {
-        if up > 0 {
-            let start_pos = if self.x >= screen_width {
-                Position::new(self.y, self.x - screen_width)
-            } else {
-                let prev_line_y = self.y.saturating_sub(1);
-                Position::new(prev_line_y, buf.line_len(prev_line_y) - screen_width)
-            };
-            let mut reflow_iter = buf.reflow_iter(start_pos, screen_width, tab_width);
-            while let (item) = reflow_iter.next() {
-                // if  {
-                //     *self = item.pos;
-                //     break;
-                // }
+    ) -> Option<Position> {
+        let screen_x = self.screen_x(buf, screen_width, tab_width);
+        let mut paragraph_iter = buf.paragraph_iter(*self, screen_width, tab_width);
+
+        dbg!(self);
+        match direction {
+            Direction::Next => {
+                // Skip the current paragraph.
+                paragraph_iter.next();
+                let reflow_iter = paragraph_iter.next()?.reflow_iter;
+
+                let mut prev_pos_in_buffer = None;
+                for ReflowItem {
+                    pos_in_buffer,
+                    pos_in_screen,
+                    ..
+                } in reflow_iter
+                {
+                    dbg!(pos_in_buffer, pos_in_screen);
+                    if pos_in_screen.x > screen_x {
+                        return Some(prev_pos_in_buffer.unwrap_or(pos_in_buffer));
+                    } else if pos_in_screen.x == screen_x {
+                        return Some(pos_in_buffer);
+                    }
+
+                    prev_pos_in_buffer = Some(pos_in_buffer);
+                }
+
+                return prev_pos_in_buffer.map(|pos| Position::new(pos.y, pos.x + 1));
+            }
+            Direction::Prev => {
+                todo!()
             }
         }
     }
@@ -669,6 +715,8 @@ impl<'a> IntoIterator for &'a CursorSet {
 
 #[cfg(test)]
 mod tests {
+    use crate::buffer::Buffer;
+
     use super::*;
     use pretty_assertions::assert_eq;
 
@@ -712,5 +760,27 @@ mod tests {
         cursors.set_cursors_for_test(&[Cursor::new(0, 2)]);
         cursors.add_cursor(Range::new(0, 0, 0, 2));
         assert_eq!(cursors.cursors, vec![Cursor::new_selection(0, 0, 0, 2)]);
+    }
+
+    #[test]
+    fn move_down() {
+        // abcde
+        // xyz
+        // a
+        let buf = Buffer::from_text("abcde\nxyz\na");
+        let screen_width = 5;
+        let tab_width = 4;
+        assert_eq!(
+            Position::new(0, 1).move_vertically_by(&buf, Direction::Next, screen_width, tab_width),
+            Some(Position::new(1, 1))
+        );
+        assert_eq!(
+            Position::new(1, 2).move_vertically_by(&buf, Direction::Next, screen_width, tab_width),
+            Some(Position::new(2, 1))
+        );
+        assert_eq!(
+            Position::new(2, 1).move_vertically_by(&buf, Direction::Next, screen_width, tab_width),
+            None
+        );
     }
 }
