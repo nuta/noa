@@ -2,10 +2,16 @@ use noa_buffer::reflow_iter::{PrintableGrapheme, ReflowItem};
 use noa_compositor::{
     canvas::{CanvasViewMut, Grapheme},
     compositor::Compositor,
-    surface::{Layout, RectSize, Surface},
+    surface::{HandledEvent, KeyEvent, Layout, RectSize, Surface},
+    terminal::{KeyCode, KeyModifiers},
 };
+use tokio::sync::mpsc::{self, UnboundedSender};
 
 use crate::editor::Editor;
+
+enum MainloopCommand {
+    Quit,
+}
 
 pub struct Ui {
     compositor: Compositor<Editor>,
@@ -21,25 +27,34 @@ impl Ui {
     }
 
     pub async fn run(mut self) {
-        self.compositor.add_frontmost_layer(Box::new(Text::new()));
-        self.compositor.render_to_terminal(&mut self.editor);
+        let (mainloop_tx, mut mainloop_rx) = mpsc::unbounded_channel();
+        self.compositor
+            .add_frontmost_layer(Box::new(Text::new(mainloop_tx.clone())));
         loop {
+            self.compositor.render(&mut self.editor);
             tokio::select! {
                 biased;
 
-                Some(ev) = self.compositor.recv_terminal_event() => {
-                    break;
+                Some(command) = mainloop_rx.recv() => {
+                    match command {
+                        MainloopCommand::Quit => break,
+                    }
+                }
+
+                _ = self.compositor.handle_event(&mut self.editor) => {
                 }
             }
         }
     }
 }
 
-struct Text {}
+struct Text {
+    mainloop_tx: UnboundedSender<MainloopCommand>,
+}
 
 impl Text {
-    pub fn new() -> Self {
-        Text {}
+    pub fn new(mainloop_tx: UnboundedSender<MainloopCommand>) -> Self {
+        Text { mainloop_tx }
     }
 }
 
@@ -77,6 +92,32 @@ impl Surface for Text {
 
     fn cursor_position(&self, ctx: &mut Self::Context) -> Option<(usize, usize)> {
         None
+    }
+
+    fn handle_key_event(
+        &mut self,
+        editor: &mut Editor,
+        _compositor: &mut Compositor<Self::Context>,
+        key: KeyEvent,
+    ) -> HandledEvent {
+        const NONE: KeyModifiers = KeyModifiers::NONE;
+        const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
+
+        let doc = editor.current_document_mut();
+
+        let mut show_completion = false;
+        match (key.code, key.modifiers) {
+            (KeyCode::Char('q'), CTRL) => {
+                self.mainloop_tx.send(MainloopCommand::Quit);
+            }
+            (KeyCode::Esc, NONE) => {
+                doc.clear_secondary_cursors();
+            }
+            _ => {}
+        }
+
+        HandledEvent::Consumed
     }
 
     fn render(&mut self, editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {

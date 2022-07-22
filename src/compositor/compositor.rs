@@ -59,8 +59,19 @@ impl<C: 'static> Compositor<C> {
         self.screen_size
     }
 
-    pub async fn recv_terminal_event(&mut self) -> Option<terminal::Event> {
-        self.term_rx.recv().await
+    pub async fn handle_event(&mut self, ctx: &mut C) -> Option<terminal::Event> {
+        let ev = self.term_rx.recv().await;
+        match &ev {
+            Some(terminal::Event::Input(input_event)) => {
+                self.handle_input_event(ctx, input_event);
+            }
+            Some(terminal::Event::Resize { height, width }) => {
+                self.resize_screen(*height, *width);
+            }
+            None => {}
+        }
+
+        ev
     }
 
     pub fn add_frontmost_layer(&mut self, surface: Box<dyn Surface<Context = C> + Send>) {
@@ -108,13 +119,13 @@ impl<C: 'static> Compositor<C> {
         unreachable!("surface \"{}\" not found", name);
     }
 
-    pub fn resize_screen(&mut self, height: usize, width: usize) {
+    fn resize_screen(&mut self, height: usize, width: usize) {
         self.screen_size = RectSize { height, width };
         self.screens = [Canvas::new(height, width), Canvas::new(height, width)];
         self.terminal.clear();
     }
 
-    pub fn render_to_terminal(&mut self, ctx: &mut C) {
+    pub fn render(&mut self, ctx: &mut C) {
         // Re-layout layers.
         let mut prev_cursor_pos = None;
         for layer in self.layers.iter_mut() {
@@ -169,13 +180,13 @@ impl<C: 'static> Compositor<C> {
         drawer.flush();
     }
 
-    pub fn handle_input(&mut self, ctx: &mut C, input: InputEvent) {
+    fn handle_input_event(&mut self, ctx: &mut C, input: &InputEvent) {
         match input {
             InputEvent::Key(key) => {
                 self.past_layers = Vec::new();
                 while let Some(mut layer) = self.layers.pop() {
                     let result = if layer.surface.is_active(ctx) {
-                        layer.surface.handle_key_event(ctx, self, key)
+                        layer.surface.handle_key_event(ctx, self, *key)
                     } else {
                         HandledEvent::Ignored
                     };
