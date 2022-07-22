@@ -102,7 +102,9 @@ impl Surface for Text {
                         Grapheme::new_with_width(grapheme, grapheme_width),
                     );
                 }
-                PrintableGrapheme::Whitespaces | PrintableGrapheme::ZeroWidth => {
+                PrintableGrapheme::Whitespaces
+                | PrintableGrapheme::ZeroWidth
+                | PrintableGrapheme::EndOfLine => {
                     // Already filled with whitespaces by `canvas.clear()`.
                 }
             }

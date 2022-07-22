@@ -11,7 +11,6 @@ path = "lib.rs"
 log = "0"
 tokio = { version = "1", features = ["full"] }
 futures = "0"
-parking_lot = "0"
 crossterm = { version = "0", features = ["event-stream"] }
 arrayvec = "0"
 unicode-segmentation = "1"

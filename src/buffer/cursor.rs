@@ -93,6 +93,32 @@ impl Position {
             }
         }
     }
+
+    fn move_vertically_by(
+        &mut self,
+        buf: &RawBuffer,
+        up: usize,
+        down: usize,
+        screen_width: usize,
+        screen_x: usize,
+        tab_width: usize,
+    ) {
+        if up > 0 {
+            let start_pos = if self.x >= screen_width {
+                Position::new(self.y, self.x - screen_width)
+            } else {
+                let prev_line_y = self.y.saturating_sub(1);
+                Position::new(prev_line_y, buf.line_len(prev_line_y) - screen_width)
+            };
+            let mut reflow_iter = buf.reflow_iter(start_pos, screen_width, tab_width);
+            while let (item) = reflow_iter.next() {
+                // if  {
+                //     *self = item.pos;
+                //     break;
+                // }
+            }
+        }
+    }
 }
 
 impl Debug for Position {

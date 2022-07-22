@@ -10,14 +10,19 @@ use tokio::{
     sync::mpsc,
 };
 
+use crate::finder::warm_up_search_cache;
+
 mod document;
 mod editor;
+mod finder;
 mod ui;
 
 #[tokio::main]
 async fn main() {
     install_logger("main");
     info!("hi!");
+
+    // warm_up_search_cache();
 
     let mut editor = editor::Editor::new();
     let mut ui = ui::Ui::new(editor);
