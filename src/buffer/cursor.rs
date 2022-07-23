@@ -134,31 +134,56 @@ impl Position {
         let screen_x = self.screen_x(buf, screen_width, tab_width);
         let mut paragraph_iter = buf.paragraph_iter(*self, screen_width, tab_width);
 
-        dbg!(self);
         match direction {
             Direction::Next => {
-                // Skip the current paragraph.
-                paragraph_iter.next();
-                let reflow_iter = paragraph_iter.next()?.reflow_iter;
+                // Get the reflow_iter for the current paragraph and move it
+                // until the next screen row after the `self` position.
+                let reflow_iter = paragraph_iter
+                    .next()?
+                    .reflow_iter
+                    .skip_while(|item| item.pos_in_buffer != *self)
+                    .skip_while(|item| item.pos_in_screen.x >= screen_x);
 
-                let mut prev_pos_in_buffer = None;
+                // Current paragraph (soft wrapping).
+                let mut last_pos_in_buffer = None;
                 for ReflowItem {
                     pos_in_buffer,
                     pos_in_screen,
                     ..
                 } in reflow_iter
                 {
-                    dbg!(pos_in_buffer, pos_in_screen);
                     if pos_in_screen.x > screen_x {
-                        return Some(prev_pos_in_buffer.unwrap_or(pos_in_buffer));
+                        return Some(last_pos_in_buffer.unwrap_or(pos_in_buffer));
                     } else if pos_in_screen.x == screen_x {
                         return Some(pos_in_buffer);
                     }
 
-                    prev_pos_in_buffer = Some(pos_in_buffer);
+                    last_pos_in_buffer = Some(pos_in_buffer);
                 }
 
-                prev_pos_in_buffer.map(|pos| Position::new(pos.y, pos.x + 1))
+                if let Some(pos_in_buffer) = last_pos_in_buffer {
+                    return Some(Position::new(pos_in_buffer.y, pos_in_buffer.x + 1));
+                }
+
+                // Next paragraph.
+                let reflow_iter = paragraph_iter.next()?.reflow_iter;
+                let mut last_pos_in_buffer = None;
+                for ReflowItem {
+                    pos_in_buffer,
+                    pos_in_screen,
+                    ..
+                } in reflow_iter
+                {
+                    if pos_in_screen.x > screen_x {
+                        return Some(last_pos_in_buffer.unwrap_or(pos_in_buffer));
+                    } else if pos_in_screen.x == screen_x {
+                        return Some(pos_in_buffer);
+                    }
+
+                    last_pos_in_buffer = Some(pos_in_buffer);
+                }
+
+                last_pos_in_buffer.map(|pos| Position::new(pos.y, pos.x + 1))
             }
             Direction::Prev => {
                 todo!()
@@ -721,6 +746,13 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     #[test]
+    fn position_ordering() {
+        assert!(Position::new(0, 0) < Position::new(0, 1));
+        assert!(Position::new(0, 123) < Position::new(1, 0));
+        assert!(Position::new(1, 0) < Position::new(2, 0));
+    }
+
+    #[test]
     fn range_overlaps_with() {
         let a = Range::new(0, 1, 0, 1);
         let b = Range::new(0, 1, 0, 1);
@@ -767,7 +799,7 @@ mod tests {
         // abcde
         // xyz
         // a
-        let buf = Buffer::from_text("abcde\nxyz\na");
+        let buf = Buffer::from_text("abcd\nxyz\na");
         let screen_width = 5;
         let tab_width = 4;
         assert_eq!(
@@ -780,6 +812,27 @@ mod tests {
         );
         assert_eq!(
             Position::new(2, 1).move_vertically_by(&buf, Direction::Next, screen_width, tab_width),
+            None
+        );
+    }
+
+    #[test]
+    fn move_down_wrapped() {
+        // abcde
+        // xyz
+        let buf = Buffer::from_text("abcdexyz");
+        let screen_width = 5;
+        let tab_width = 4;
+        assert_eq!(
+            Position::new(0, 2).move_vertically_by(&buf, Direction::Next, screen_width, tab_width),
+            Some(Position::new(0, 7))
+        );
+        assert_eq!(
+            Position::new(0, 4).move_vertically_by(&buf, Direction::Next, screen_width, tab_width),
+            Some(Position::new(0, 8))
+        );
+        assert_eq!(
+            Position::new(0, 7).move_vertically_by(&buf, Direction::Next, screen_width, tab_width),
             None
         );
     }

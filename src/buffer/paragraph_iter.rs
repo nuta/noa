@@ -37,13 +37,18 @@ impl<'a> Iterator for ParagraphIter<'a> {
             return None;
         }
 
-        dbg!(pos);
-
         // TODO: Support for too long lines: split a line into multiple paragraphs.
-        let pos = Position::new(pos.y, 0);
-        self.pos = Position::new(pos.y + 1, 0);
+        let pos_start = Position::new(pos.y, 0);
+        let pos_end = Position::new(pos.y + 1, 0);
+        self.pos = Position::new(pos_start.y + 1, 0);
 
-        let reflow_iter = ReflowIter::new(self.buffer, pos, self.screen_width, self.tab_width);
+        let reflow_iter = ReflowIter::new(
+            self.buffer,
+            pos_start,
+            Some(pos_end),
+            self.screen_width,
+            self.tab_width,
+        );
         Some(Paragraph { reflow_iter })
     }
 }

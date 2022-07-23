@@ -145,7 +145,7 @@ impl Surface for Text {
                 }
                 PrintableGrapheme::Whitespaces
                 | PrintableGrapheme::ZeroWidth
-                | PrintableGrapheme::EndOfLine => {
+                | PrintableGrapheme::Newline => {
                     // Already filled with whitespaces by `canvas.clear()`.
                 }
             }

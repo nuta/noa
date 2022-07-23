@@ -14,7 +14,8 @@ pub enum PrintableGrapheme<'a> {
     Grapheme(&'a str),
     Whitespaces,
     ZeroWidth,
-    EndOfLine,
+    /// Contains newline character(s).
+    Newline(Option<&'a str>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -31,12 +32,14 @@ pub struct ReflowIter<'a> {
     screen_width: usize,
     screen_pos: ScreenPosition,
     tab_width: usize,
+    pos_end: Option<Position>,
 }
 
 impl<'a> ReflowIter<'a> {
     pub fn new(
         buffer: &'a RawBuffer,
         pos_start: Position,
+        pos_end: Option<Position>,
         screen_width: usize,
         tab_width: usize,
     ) -> ReflowIter<'a> {
@@ -45,6 +48,7 @@ impl<'a> ReflowIter<'a> {
             screen_width,
             screen_pos: ScreenPosition { y: 0, x: 0 },
             tab_width,
+            pos_end,
         }
     }
 }
@@ -55,8 +59,12 @@ impl<'a> Iterator for ReflowIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let (pos_in_buffer, grapheme) = self.iter.next()?;
+            if matches!(self.pos_end, Some(pos_end) if pos_in_buffer >= pos_end) {
+                return None;
+            }
+
             let (printable, grapheme_width) = match grapheme {
-                "\n" => (PrintableGrapheme::EndOfLine, 1),
+                "\n" => (PrintableGrapheme::Newline(Some(grapheme)), 1),
                 "\t" => {
                     let n = width_to_next_tab_stop(self.screen_pos.x, self.tab_width);
                     (PrintableGrapheme::Whitespaces, n)
@@ -80,7 +88,7 @@ impl<'a> Iterator for ReflowIter<'a> {
 
             let pos_in_screen = self.screen_pos;
 
-            if printable == PrintableGrapheme::EndOfLine {
+            if matches!(printable, PrintableGrapheme::Newline(_)) {
                 self.screen_pos.y += 1;
                 self.screen_pos.x = 0;
             } else {
@@ -112,7 +120,7 @@ mod tests {
         // abc
         // d
         let buf = RawBuffer::from_text("abc\nd");
-        let mut iter = ReflowIter::new(&buf, Position::new(0, 0), 4, 4);
+        let mut iter = ReflowIter::new(&buf, Position::new(0, 0), None, 4, 4);
         assert_eq!(
             iter.next(),
             Some(ReflowItem {
@@ -143,7 +151,7 @@ mod tests {
         assert_eq!(
             iter.next(),
             Some(ReflowItem {
-                grapheme: PrintableGrapheme::EndOfLine,
+                grapheme: PrintableGrapheme::Newline(Some("\n")),
                 grapheme_width: 1,
                 pos_in_buffer: Position::new(0, 3),
                 pos_in_screen: ScreenPosition { y: 0, x: 3 },
@@ -165,7 +173,7 @@ mod tests {
         // ab
         // c
         let buf = RawBuffer::from_text("abc");
-        let mut iter = ReflowIter::new(&buf, Position::new(0, 0), 2, 4);
+        let mut iter = ReflowIter::new(&buf, Position::new(0, 0), None, 2, 4);
         assert_eq!(
             iter.next(),
             Some(ReflowItem {
