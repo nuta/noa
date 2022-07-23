@@ -25,6 +25,7 @@ pub enum DocumentKind {
 #[derive(Debug)]
 pub struct Scroll {
     pub buf_pos: Position,
+    /// `screen_pos.x` is 0 if soft wrap is enabled.
     pub screen_pos: ScreenPosition,
 }
 
