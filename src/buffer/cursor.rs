@@ -139,19 +139,12 @@ impl Position {
 
                 // Current paragraph (soft wrapping).
                 match find_same_screen_x(buf, reflow_iter, screen_x) {
-                    (true, Some(pos)) => Some(pos),
-                    (true, None) => unreachable!(),
-                    (false, Some(pos)) => Some(pos),
-                    (false, None) => {
+                    Some(pos) => Some(pos),
+                    None => {
                         // Next paragraph.
                         match paragraph_iter.next() {
                             Some(Paragraph { reflow_iter }) => {
-                                match find_same_screen_x(buf, reflow_iter, screen_x) {
-                                    (true, Some(pos)) => Some(pos),
-                                    (true, None) => unreachable!(),
-                                    (false, Some(pos)) => Some(Position::new(pos.y, pos.x)),
-                                    (false, None) => None,
-                                }
+                                find_same_screen_x(buf, reflow_iter, screen_x)
                             }
                             None => None,
                         }
@@ -187,7 +180,7 @@ impl Position {
 
                         // Current paragraph (soft wrapping).
                         match find_same_screen_x(buf, prev_row_reflow_iter, screen_x) {
-                            (true, Some(pos)) => Some(pos),
+                            Some(pos) => Some(pos),
                             _ => {
                                 unreachable!();
                             }
@@ -198,11 +191,7 @@ impl Position {
                         paragraph_iter.prev();
                         match paragraph_iter.prev() {
                             Some(Paragraph { reflow_iter }) => {
-                                match find_same_screen_x(buf, reflow_iter, screen_x) {
-                                    (_, Some(pos)) => Some(pos),
-                                    (true, None) => unreachable!(),
-                                    (false, None) => None,
-                                }
+                                find_same_screen_x(buf, reflow_iter, screen_x)
                             }
                             None => None,
                         }
@@ -212,7 +201,7 @@ impl Position {
         };
 
         let new_pos = new_pos.unwrap_or(*self);
-        dbg!(new_pos);
+
         debug_assert!(new_pos.y < buf.num_lines());
         debug_assert!(new_pos.x <= buf.line_len(new_pos.y));
         new_pos
@@ -223,45 +212,33 @@ fn find_same_screen_x<'a, I: Iterator<Item = ReflowItem<'a>>>(
     buf: &RawBuffer,
     reflow_iter: I,
     screen_x: usize,
-) -> (bool, Option<Position>) {
+) -> Option<Position> {
     let mut last = None;
     for ReflowItem {
         pos_in_buffer,
         pos_in_screen,
-        grapheme,
         ..
     } in reflow_iter
     {
         if pos_in_screen.x > screen_x {
-            return (
-                true,
-                Some(
-                    last.map(|(buffer_pos, _)| buffer_pos)
-                        .unwrap_or(pos_in_buffer),
-                ),
+            return Some(
+                last.map(|(buffer_pos, _)| buffer_pos)
+                    .unwrap_or(pos_in_buffer),
             );
         } else if pos_in_screen.x == screen_x {
-            return (true, Some(pos_in_buffer));
+            return Some(pos_in_buffer);
         }
 
-        dbg!(grapheme);
         last = Some((pos_in_buffer, pos_in_screen));
     }
 
-    dbg!(last);
     match last {
-        Some((pos_in_buffer, pos_in_screen)) if pos_in_screen.x <= screen_x => (
-            false,
-            Some(Position::new(
-                pos_in_buffer.y,
-                min(pos_in_buffer.x + 1, buf.line_len(pos_in_buffer.y)),
-            )),
-        ),
-        Some((pos_in_buffer, _)) => {
-            dbg!("2");
-            (false, Some(Position::new(pos_in_buffer.y, pos_in_buffer.x)))
-        }
-        None => (false, None),
+        Some((pos_in_buffer, pos_in_screen)) if pos_in_screen.x <= screen_x => Some(Position::new(
+            pos_in_buffer.y,
+            min(pos_in_buffer.x + 1, buf.line_len(pos_in_buffer.y)),
+        )),
+        Some((pos_in_buffer, _)) => Some(Position::new(pos_in_buffer.y, pos_in_buffer.x)),
+        None => None,
     }
 }
 
