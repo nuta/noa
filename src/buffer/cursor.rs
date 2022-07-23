@@ -5,7 +5,11 @@ use std::{
     sync::atomic::{self, AtomicUsize},
 };
 
-use crate::{paragraph_iter::Paragraph, raw_buffer::RawBuffer, reflow_iter::ReflowItem};
+use crate::{
+    paragraph_iter::Paragraph,
+    raw_buffer::RawBuffer,
+    reflow_iter::{ReflowItem, ReflowIter},
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Direction {
@@ -157,32 +161,14 @@ impl Position {
                 }
             }
             Direction::Prev => {
-                // Get the reflow_iter for the current paragraph and move it
-                // until the previous screen row before the `self` position.
-                let mut tmp = [None, None];
-                let mut row = 0;
-                for ReflowItem {
-                    pos_in_buffer,
-                    pos_in_screen,
-                    ..
-                } in paragraph_iter.next().unwrap().reflow_iter
-                {
-                    if pos_in_screen.x == 0 {
-                        row += 1;
-                        tmp[row % 2] = Some(pos_in_buffer);
-                    }
-
-                    if pos_in_buffer == *self {
-                        break;
-                    }
-                }
-
-                let prev_row_buffer_pos = tmp[(row.saturating_sub(1)) % 2];
-                match prev_row_buffer_pos {
-                    Some(prev_row_buffer_pos) => {
-                        let prev_row_reflow_iter =
-                            buf.reflow_iter(prev_row_buffer_pos, screen_width, tab_width);
-
+                match get_reflow_iter_from_prev_row(
+                    paragraph_iter.next().unwrap(),
+                    *self,
+                    buf,
+                    screen_width,
+                    tab_width,
+                ) {
+                    Some(prev_row_reflow_iter) => {
                         // Current paragraph (soft wrapping).
                         find_same_screen_x(buf, prev_row_reflow_iter, screen_x)
                     }
@@ -190,7 +176,13 @@ impl Position {
                         // Previous paragraph. We need to run prev() twice to get the previous one.
                         paragraph_iter.prev();
                         match paragraph_iter.prev() {
-                            Some(Paragraph { reflow_iter }) => {
+                            Some(paragraph) => {
+                                let reflow_iter = get_reflow_iter_for_last_row(
+                                    paragraph,
+                                    buf,
+                                    screen_width,
+                                    tab_width,
+                                );
                                 find_same_screen_x(buf, reflow_iter, screen_x)
                             }
                             None => None,
@@ -240,6 +232,56 @@ fn find_same_screen_x<'a, I: Iterator<Item = ReflowItem<'a>>>(
         Some((pos_in_buffer, _)) => Some(Position::new(pos_in_buffer.y, pos_in_buffer.x)),
         None => None,
     }
+}
+
+fn get_reflow_iter_from_prev_row<'a>(
+    paragraph: Paragraph,
+    pos: Position,
+    buf: &'a RawBuffer,
+    screen_width: usize,
+    tab_width: usize,
+) -> Option<ReflowIter<'a>> {
+    let mut tmp = [None, None];
+    let mut row = 0;
+    for ReflowItem {
+        pos_in_buffer,
+        pos_in_screen,
+        ..
+    } in paragraph.reflow_iter
+    {
+        if pos_in_screen.x == 0 {
+            row += 1;
+            tmp[row % 2] = Some(pos_in_buffer);
+        }
+
+        if pos_in_buffer == pos {
+            break;
+        }
+    }
+
+    let prev_row_buffer_pos = tmp[(row.saturating_sub(1)) % 2];
+    prev_row_buffer_pos.map(|pos| buf.reflow_iter(pos, screen_width, tab_width))
+}
+
+fn get_reflow_iter_for_last_row<'a>(
+    paragraph: Paragraph,
+    buf: &'a RawBuffer,
+    screen_width: usize,
+    tab_width: usize,
+) -> ReflowIter<'a> {
+    let mut last_row_buffer_pos = paragraph.reflow_iter.range().front();
+    for ReflowItem {
+        pos_in_buffer,
+        pos_in_screen,
+        ..
+    } in paragraph.reflow_iter
+    {
+        if pos_in_screen.x == 0 {
+            last_row_buffer_pos = pos_in_buffer;
+        }
+    }
+
+    buf.reflow_iter(last_row_buffer_pos, screen_width, tab_width)
 }
 
 impl Debug for Position {
@@ -1023,6 +1065,20 @@ mod tests {
         assert_eq!(
             Position::new(0, 1).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
             Position::new(0, 1)
+        );
+    }
+
+    #[test]
+    fn move_up_wrapped2() {
+        // abcde
+        // fg
+        // xyz
+        let buf = Buffer::from_text("abcdefg\nxyz");
+        let screen_width = 5;
+        let tab_width = 4;
+        assert_eq!(
+            Position::new(1, 1).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+            Position::new(0, 6)
         );
     }
 

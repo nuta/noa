@@ -151,6 +151,9 @@ impl Surface for Text {
             (KeyCode::Char(ch), NONE) => {
                 doc.smart_insert_char(ch);
             }
+            (KeyCode::Enter, NONE) => {
+                doc.smart_insert_char('\n');
+            }
             (KeyCode::Char(ch), SHIFT) => {
                 doc.smart_insert_char(ch.to_ascii_uppercase());
             }
