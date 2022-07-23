@@ -231,7 +231,7 @@ impl<C: 'static> Compositor<C> {
                 self.past_layers = Vec::new();
                 while let Some(mut layer) = self.layers.pop() {
                     let result = if layer.surface.is_active(ctx) {
-                        layer.surface.handle_key_batch_event(ctx, self, &input)
+                        layer.surface.handle_key_batch_event(ctx, self, input)
                     } else {
                         HandledEvent::Ignored
                     };

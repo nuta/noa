@@ -26,7 +26,7 @@ impl Editor {
     }
 
     pub fn current_document(&self) -> &Document {
-        &self.documents.get(&self.current_doc).unwrap()
+        self.documents.get(&self.current_doc).unwrap()
     }
 
     pub fn current_document_mut(&mut self) -> &mut Document {

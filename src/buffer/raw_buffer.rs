@@ -6,7 +6,6 @@ use crate::{
     find::FindIter,
     grapheme_iter::{BidirectionalGraphemeIter, GraphemeIter},
     paragraph_iter::ParagraphIter,
-    reflow_iter::ReflowIter,
     word_iter::{is_word_char, WordIter},
 };
 
