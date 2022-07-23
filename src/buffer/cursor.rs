@@ -158,7 +158,7 @@ impl Position {
                     prev_pos_in_buffer = Some(pos_in_buffer);
                 }
 
-                return prev_pos_in_buffer.map(|pos| Position::new(pos.y, pos.x + 1));
+                prev_pos_in_buffer.map(|pos| Position::new(pos.y, pos.x + 1))
             }
             Direction::Prev => {
                 todo!()
