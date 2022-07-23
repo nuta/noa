@@ -1,4 +1,7 @@
-use noa_buffer::reflow_iter::{PrintableGrapheme, ReflowItem};
+use noa_buffer::{
+    paragraph_iter::Paragraph,
+    reflow_iter::{PrintableGrapheme, ReflowItem},
+};
 use noa_compositor::{
     canvas::{CanvasViewMut, Grapheme},
     compositor::Compositor,
@@ -124,29 +127,42 @@ impl Surface for Text {
         canvas.clear();
 
         let doc = editor.current_document();
-        for ReflowItem {
-            grapheme,
-            grapheme_width,
-            pos_in_screen,
-            pos_in_buffer,
-        } in doc.reflow_iter(doc.top_left, canvas.width(), doc.editorconfig().tab_width)
+        for (paragraph_screen_y, Paragraph { reflow_iter }) in doc
+            .paragraph_iter(
+                doc.scroll.position,
+                canvas.width(),
+                doc.editorconfig().tab_width,
+            )
+            .enumerate()
         {
-            if pos_in_screen.y >= canvas.height() {
-                break;
-            }
-
-            match grapheme {
-                PrintableGrapheme::Grapheme(grapheme) => {
-                    canvas.write(
-                        pos_in_screen.y,
-                        pos_in_screen.x,
-                        Grapheme::new_with_width(grapheme, grapheme_width),
-                    );
+            for ReflowItem {
+                grapheme,
+                grapheme_width,
+                pos_in_screen,
+                pos_in_buffer,
+            } in reflow_iter
+            {
+                if pos_in_screen.y >= canvas.height() {
+                    break;
                 }
-                PrintableGrapheme::Whitespaces
-                | PrintableGrapheme::ZeroWidth
-                | PrintableGrapheme::Newline => {
-                    // Already filled with whitespaces by `canvas.clear()`.
+
+                if pos_in_screen.y < doc.scroll.screen_y {
+                    continue;
+                }
+
+                match grapheme {
+                    PrintableGrapheme::Grapheme(grapheme) => {
+                        canvas.write(
+                            paragraph_screen_y + pos_in_screen.y,
+                            pos_in_screen.x,
+                            Grapheme::new_with_width(grapheme, grapheme_width),
+                        );
+                    }
+                    PrintableGrapheme::Whitespaces
+                    | PrintableGrapheme::ZeroWidth
+                    | PrintableGrapheme::Newline(_) => {
+                        // Already filled with whitespaces by `canvas.clear()`.
+                    }
                 }
             }
         }

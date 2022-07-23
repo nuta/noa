@@ -177,17 +177,6 @@ impl RawBuffer {
         BidirectionalGraphemeIter::new(self, pos)
     }
 
-    /// Returns an iterator at the given position which returns graphemes in
-    /// the screen.
-    pub fn reflow_iter(
-        &self,
-        pos: Position,
-        screen_width: usize,
-        tab_width: usize,
-    ) -> ReflowIter<'_> {
-        ReflowIter::new(self, pos, None, screen_width, tab_width)
-    }
-
     pub fn paragraph_iter(
         &self,
         pos: Position,

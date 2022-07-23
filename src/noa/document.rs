@@ -22,11 +22,17 @@ pub enum DocumentKind {
     File { path: PathBuf },
 }
 
+#[derive(Debug)]
+pub struct Scroll {
+    pub position: Position,
+    pub screen_y: usize,
+}
+
 pub struct Document {
     pub id: DocumentId,
     pub kind: DocumentKind,
     pub buffer: Buffer,
-    pub top_left: Position,
+    pub scroll: Scroll,
 }
 
 impl Document {
@@ -35,7 +41,10 @@ impl Document {
             id: DocumentId::new(),
             kind: DocumentKind::Scratch,
             buffer: Buffer::new(),
-            top_left: Position::new(0, 0),
+            scroll: Scroll {
+                position: Position::new(0, 0),
+                screen_y: 0,
+            },
         }
     }
 }
