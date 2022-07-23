@@ -78,70 +78,68 @@ impl<'a> Iterator for ReflowIter<'a> {
     type Item = ReflowItem<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let (pos_in_buffer, grapheme) = match self.iter.next() {
-                Some((pos_in_buffer, grapheme)) => (pos_in_buffer, grapheme),
-                None if self.return_eof => {
-                    self.return_eof = false;
-                    return Some(ReflowItem {
-                        grapheme: PrintableGrapheme::Eof,
-                        grapheme_width: 0,
-                        // What if it's not eof?
-                        pos_in_buffer: Position::new(
-                            self.buffer.num_lines() - 1,
-                            self.buffer.line_len(self.buffer.num_lines() - 1),
-                        ),
-                        pos_in_screen: self.screen_pos,
-                    });
-                }
-                None => {
-                    return None;
-                }
-            };
-
-            if pos_in_buffer >= self.range.back() {
+        let (pos_in_buffer, grapheme) = match self.iter.next() {
+            Some((pos_in_buffer, grapheme)) => (pos_in_buffer, grapheme),
+            None if self.return_eof => {
+                self.return_eof = false;
+                return Some(ReflowItem {
+                    grapheme: PrintableGrapheme::Eof,
+                    grapheme_width: 0,
+                    // What if it's not eof?
+                    pos_in_buffer: Position::new(
+                        self.buffer.num_lines() - 1,
+                        self.buffer.line_len(self.buffer.num_lines() - 1),
+                    ),
+                    pos_in_screen: self.screen_pos,
+                });
+            }
+            None => {
                 return None;
             }
+        };
 
-            let (printable, grapheme_width) = match grapheme {
-                "\n" => (PrintableGrapheme::Newline(Some(grapheme)), 1),
-                "\t" => {
-                    let n = width_to_next_tab_stop(self.screen_pos.x, self.tab_width);
-                    (PrintableGrapheme::Whitespaces, n)
-                }
-                _ => {
-                    let w = grapheme.display_width();
-                    if w == 0 {
-                        // We treat a zero-width character as a single character otherwise it'll be
-                        // very confusing.
-                        (PrintableGrapheme::ZeroWidth, 1)
-                    } else {
-                        (PrintableGrapheme::Grapheme(grapheme), w)
-                    }
-                }
-            };
-
-            if self.screen_pos.x + grapheme_width > self.screen_width {
-                self.screen_pos.y += 1;
-                self.screen_pos.x = 0;
-            }
-
-            let pos_in_screen = self.screen_pos;
-
-            if matches!(printable, PrintableGrapheme::Newline(_)) {
-                self.screen_pos.y += 1;
-                self.screen_pos.x = 0;
-            } else {
-                self.screen_pos.x += grapheme_width;
-            }
-
-            return Some(ReflowItem {
-                grapheme: printable,
-                grapheme_width,
-                pos_in_buffer,
-                pos_in_screen,
-            });
+        if pos_in_buffer >= self.range.back() {
+            return None;
         }
+
+        let (printable, grapheme_width) = match grapheme {
+            "\n" => (PrintableGrapheme::Newline(Some(grapheme)), 1),
+            "\t" => {
+                let n = width_to_next_tab_stop(self.screen_pos.x, self.tab_width);
+                (PrintableGrapheme::Whitespaces, n)
+            }
+            _ => {
+                let w = grapheme.display_width();
+                if w == 0 {
+                    // We treat a zero-width character as a single character otherwise it'll be
+                    // very confusing.
+                    (PrintableGrapheme::ZeroWidth, 1)
+                } else {
+                    (PrintableGrapheme::Grapheme(grapheme), w)
+                }
+            }
+        };
+
+        if self.screen_pos.x + grapheme_width > self.screen_width {
+            self.screen_pos.y += 1;
+            self.screen_pos.x = 0;
+        }
+
+        let pos_in_screen = self.screen_pos;
+
+        if matches!(printable, PrintableGrapheme::Newline(_)) {
+            self.screen_pos.y += 1;
+            self.screen_pos.x = 0;
+        } else {
+            self.screen_pos.x += grapheme_width;
+        }
+
+        return Some(ReflowItem {
+            grapheme: printable,
+            grapheme_width,
+            pos_in_buffer,
+            pos_in_screen,
+        });
     }
 }
 
