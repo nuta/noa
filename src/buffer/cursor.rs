@@ -8,7 +8,7 @@ use std::{
 use crate::{
     paragraph_iter::Paragraph,
     raw_buffer::RawBuffer,
-    reflow_iter::{ReflowItem, ReflowIter},
+    reflow_iter::{ReflowItem, ReflowIter, ScreenPosition},
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -169,7 +169,7 @@ impl Position {
                     tab_width,
                 ) {
                     Some(prev_row_reflow_iter) => {
-                        // Current paragraph (soft wrapping).
+                        // Previous row in the same paragraph (soft wrapping).
                         find_same_screen_x(buf, prev_row_reflow_iter, screen_x)
                     }
                     None => {
@@ -205,13 +205,17 @@ fn find_same_screen_x<'a, I: Iterator<Item = ReflowItem<'a>>>(
     reflow_iter: I,
     screen_x: usize,
 ) -> Option<Position> {
-    let mut last = None;
+    let mut last: Option<(Position, ScreenPosition)> = None;
     for ReflowItem {
         pos_in_buffer,
         pos_in_screen,
         ..
     } in reflow_iter
     {
+        if matches!(last, Some((_, prev_pos_in_screen)) if prev_pos_in_screen.x > pos_in_screen.x) {
+            break;
+        }
+
         if pos_in_screen.x > screen_x {
             return Some(
                 last.map(|(buffer_pos, _)| buffer_pos)
@@ -532,10 +536,6 @@ impl Cursor {
 
     pub fn fixed_position(&self) -> Position {
         self.selection.start
-    }
-
-    fn fixed_position_mut(&mut self) -> &mut Position {
-        &mut self.selection.start
     }
 
     pub(crate) fn selection_mut(&mut self) -> &mut Range {
