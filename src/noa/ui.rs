@@ -53,11 +53,15 @@ impl Ui {
 
 struct Text {
     mainloop_tx: UnboundedSender<MainloopCommand>,
+    buffer_width: usize,
 }
 
 impl Text {
     pub fn new(mainloop_tx: UnboundedSender<MainloopCommand>) -> Self {
-        Text { mainloop_tx }
+        Text {
+            mainloop_tx,
+            buffer_width: 0,
+        }
     }
 }
 
@@ -117,6 +121,18 @@ impl Surface for Text {
             (KeyCode::Esc, NONE) => {
                 doc.clear_secondary_cursors();
             }
+            (KeyCode::Left, NONE) => {
+                doc.move_cursors_left();
+            }
+            (KeyCode::Right, NONE) => {
+                doc.move_cursors_right();
+            }
+            (KeyCode::Up, NONE) => {
+                doc.move_cursors_up(self.buffer_width);
+            }
+            (KeyCode::Down, NONE) => {
+                doc.move_cursors_down(self.buffer_width);
+            }
             _ => {}
         }
 
@@ -125,12 +141,13 @@ impl Surface for Text {
 
     fn render(&mut self, editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
         canvas.clear();
+        self.buffer_width = canvas.width();
 
         let doc = editor.current_document();
         for (paragraph_screen_y, Paragraph { reflow_iter }) in doc
             .paragraph_iter(
                 doc.scroll.buf_pos,
-                canvas.width(),
+                self.buffer_width,
                 doc.editorconfig().tab_width,
             )
             .enumerate()

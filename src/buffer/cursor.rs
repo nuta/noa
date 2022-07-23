@@ -495,6 +495,24 @@ impl Cursor {
         }
     }
 
+    pub fn move_up(&mut self, buf: &RawBuffer, screen_width: usize, tab_width: usize) {
+        self.move_to_pos(self.selection.front().move_vertically(
+            buf,
+            Direction::Prev,
+            screen_width,
+            tab_width,
+        ));
+    }
+
+    pub fn move_down(&mut self, buf: &RawBuffer, screen_width: usize, tab_width: usize) {
+        self.move_to_pos(self.selection.back().move_vertically(
+            buf,
+            Direction::Next,
+            screen_width,
+            tab_width,
+        ));
+    }
+
     pub fn expand_left(&mut self, buf: &RawBuffer) {
         let pos = self.selection.front_mut();
         *pos = pos.move_horizontally(buf, Direction::Prev);

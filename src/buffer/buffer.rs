@@ -155,6 +155,30 @@ impl Buffer {
         self.set_main_cursor_with(|c, _| c.move_to_pos(pos));
     }
 
+    pub fn move_cursors_left(&mut self) {
+        self.update_cursors_with(|c, buf| {
+            c.move_left(buf);
+        })
+    }
+
+    pub fn move_cursors_right(&mut self) {
+        self.update_cursors_with(|c, buf| {
+            c.move_left(buf);
+        })
+    }
+
+    pub fn move_cursors_up(&mut self, screen_width: usize) {
+        self.update_cursors_with(|c, buf| {
+            c.move_up(buf, screen_width, buf.editorconfig().tab_width);
+        })
+    }
+
+    pub fn move_cursors_down(&mut self, screen_width: usize) {
+        self.update_cursors_with(|c, buf| {
+            c.move_down(buf, screen_width, buf.editorconfig().tab_width);
+        })
+    }
+
     pub fn select_main_cursor(
         &mut self,
         start_y: usize,
