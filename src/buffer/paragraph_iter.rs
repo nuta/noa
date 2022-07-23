@@ -1,4 +1,8 @@
-use crate::{cursor::Position, raw_buffer::RawBuffer, reflow_iter::ReflowIter};
+use crate::{
+    cursor::{Position, Range},
+    raw_buffer::RawBuffer,
+    reflow_iter::ReflowIter,
+};
 
 pub struct Paragraph<'a> {
     pub reflow_iter: ReflowIter<'a>,
@@ -39,8 +43,7 @@ impl<'a> ParagraphIter<'a> {
 
         let reflow_iter = ReflowIter::new(
             self.buffer,
-            pos_start,
-            Some(pos_end),
+            Range::from_positions(pos_start, pos_end),
             self.screen_width,
             self.tab_width,
         );
@@ -64,8 +67,7 @@ impl<'a> Iterator for ParagraphIter<'a> {
 
         let reflow_iter = ReflowIter::new(
             self.buffer,
-            pos_start,
-            Some(pos_end),
+            Range::from_positions(pos_start, pos_end),
             self.screen_width,
             self.tab_width,
         );

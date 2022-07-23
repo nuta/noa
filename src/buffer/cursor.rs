@@ -144,7 +144,12 @@ impl Position {
                         // Next paragraph.
                         match paragraph_iter.next() {
                             Some(Paragraph { reflow_iter }) => {
-                                find_same_screen_x(buf, reflow_iter, screen_x)
+                                let range = reflow_iter.range();
+                                if range.front().y == buf.num_lines() - 1 {
+                                    Some(range.front())
+                                } else {
+                                    find_same_screen_x(buf, reflow_iter, screen_x)
+                                }
                             }
                             None => None,
                         }
@@ -922,7 +927,8 @@ mod tests {
         // abcde
         // xyz
         // f
-        let buf = Buffer::from_text("abcd\nxyz\nf");
+        //
+        let buf = Buffer::from_text("abcd\nxyz\nf\n");
         let screen_width = 5;
         let tab_width = 4;
         assert_eq!(
@@ -935,7 +941,11 @@ mod tests {
         );
         assert_eq!(
             Position::new(2, 1).move_vertically(&buf, Direction::Next, screen_width, tab_width),
-            Position::new(2, 1)
+            Position::new(3, 0)
+        );
+        assert_eq!(
+            Position::new(3, 0).move_vertically(&buf, Direction::Next, screen_width, tab_width),
+            Position::new(3, 0)
         );
     }
 
@@ -1046,5 +1056,33 @@ mod tests {
         assert_eq!(buf.cursors(), vec![Cursor::new_selection(1, 1, 0, 5)]);
         buf.select_cursors_left();
         assert_eq!(buf.cursors(), vec![Cursor::new_selection(1, 1, 0, 4)]);
+    }
+
+    #[test]
+    fn select_down() {
+        // abcde
+        // xyz
+        let mut buf = Buffer::from_text("abcde\nxyz");
+        let screen_width = 10;
+
+        buf.set_cursors_for_test(&[Cursor::new(0, 2)]);
+        buf.select_cursors_down(screen_width);
+        assert_eq!(buf.cursors(), vec![Cursor::new_selection(0, 2, 1, 2)]);
+        buf.select_cursors_down(screen_width);
+        assert_eq!(buf.cursors(), vec![Cursor::new_selection(0, 2, 1, 2)]);
+    }
+
+    #[test]
+    fn select_up() {
+        // abcde
+        // xyz
+        let mut buf = Buffer::from_text("abcde\nxyz");
+        let screen_width = 10;
+
+        buf.set_cursors_for_test(&[Cursor::new(1, 2)]);
+        buf.select_cursors_up(screen_width);
+        assert_eq!(buf.cursors(), vec![Cursor::new_selection(1, 2, 0, 2)]);
+        buf.select_cursors_up(screen_width);
+        assert_eq!(buf.cursors(), vec![Cursor::new_selection(1, 2, 0, 2)]);
     }
 }

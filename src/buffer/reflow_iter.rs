@@ -1,5 +1,7 @@
 use crate::{
-    cursor::Position, display_width::DisplayWidth, grapheme_iter::GraphemeIter,
+    cursor::{Position, Range},
+    display_width::DisplayWidth,
+    grapheme_iter::GraphemeIter,
     raw_buffer::RawBuffer,
 };
 
@@ -41,27 +43,30 @@ pub struct ReflowIter<'a> {
     screen_width: usize,
     screen_pos: ScreenPosition,
     tab_width: usize,
-    pos_end: Option<Position>,
+    range: Range,
     return_eof: bool,
 }
 
 impl<'a> ReflowIter<'a> {
     pub fn new(
         buffer: &'a RawBuffer,
-        pos_start: Position,
-        pos_end: Option<Position>,
+        range: Range,
         screen_width: usize,
         tab_width: usize,
     ) -> ReflowIter<'a> {
         ReflowIter {
             buffer,
-            iter: buffer.grapheme_iter(pos_start),
+            iter: buffer.grapheme_iter(range.front()),
             screen_width,
             screen_pos: ScreenPosition { y: 0, x: 0 },
             tab_width,
-            pos_end,
+            range,
             return_eof: false,
         }
+    }
+
+    pub fn range(&self) -> Range {
+        self.range
     }
 
     pub fn enable_eof(&mut self, enable: bool) {
@@ -94,7 +99,7 @@ impl<'a> Iterator for ReflowIter<'a> {
                 }
             };
 
-            if matches!(self.pos_end, Some(pos_end) if pos_in_buffer >= pos_end) {
+            if pos_in_buffer >= self.range.back() {
                 return None;
             }
 
@@ -155,7 +160,7 @@ mod tests {
         // abc
         // d
         let buf = RawBuffer::from_text("abc\nd");
-        let mut iter = ReflowIter::new(&buf, Position::new(0, 0), None, 4, 4);
+        let mut iter = ReflowIter::new(&buf, Range::new(0, 0, usize::MAX, 0), 4, 4);
         assert_eq!(
             iter.next(),
             Some(ReflowItem {
@@ -208,7 +213,7 @@ mod tests {
         // ab
         // c
         let buf = RawBuffer::from_text("abc");
-        let mut iter = ReflowIter::new(&buf, Position::new(0, 0), None, 2, 4);
+        let mut iter = ReflowIter::new(&buf, Range::new(0, 0, usize::MAX, 0), 2, 4);
         assert_eq!(
             iter.next(),
             Some(ReflowItem {
