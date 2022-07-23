@@ -162,7 +162,60 @@ impl Position {
                 }
             }
             Direction::Prev => {
-                todo!()
+                // Get the reflow_iter for the current paragraph and move it
+                // until the previous screen row before the `self` position.
+                let mut prev_row_buffer_pos = None;
+                for ReflowItem {
+                    pos_in_buffer,
+                    pos_in_screen,
+                    ..
+                } in paragraph_iter.next().unwrap().reflow_iter
+                {
+                    if pos_in_screen.x == 0 {
+                        prev_row_buffer_pos = Some(pos_in_buffer);
+                    }
+
+                    if pos_in_buffer == *self {
+                        break;
+                    }
+                }
+
+                match prev_row_buffer_pos {
+                    Some(prev_row_buffer_pos) => {
+                        let prev_row_reflow_iter =
+                            buf.reflow_iter(prev_row_buffer_pos, screen_width, tab_width);
+
+                        // Current paragraph (soft wrapping).
+                        match find_pos_in_adjacent_rows_at_same_screen_x(
+                            prev_row_reflow_iter,
+                            screen_x,
+                        ) {
+                            (true, Some(pos)) => Some(pos),
+                            (true, None) => unreachable!(),
+                            (false, Some(pos)) => Some(Position::new(pos.y, pos.x + 1)),
+                            (false, None) => {
+                                // Next paragraph.
+                                match paragraph_iter.next() {
+                                    Some(next_paragraph) => {
+                                        match find_pos_in_adjacent_rows_at_same_screen_x(
+                                            next_paragraph.reflow_iter,
+                                            screen_x,
+                                        ) {
+                                            (true, Some(pos)) => Some(pos),
+                                            (true, None) => unreachable!(),
+                                            (false, Some(pos)) => {
+                                                Some(Position::new(pos.y, pos.x + 1))
+                                            }
+                                            (false, None) => None,
+                                        }
+                                    }
+                                    None => None,
+                                }
+                            }
+                        }
+                    }
+                    None => None,
+                }
             }
         };
 

@@ -177,6 +177,7 @@ impl Iterator for BidirectionalGraphemeIter<'_> {
 }
 
 /// Another grapheme iterator implementation faster than `BidirectionalGraphemeIter`.
+#[derive(Clone)]
 pub struct GraphemeIter<'a> {
     rope: ropey::RopeSlice<'a>,
     chunk: &'a str,

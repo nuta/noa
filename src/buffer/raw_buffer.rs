@@ -6,6 +6,7 @@ use crate::{
     find::FindIter,
     grapheme_iter::{BidirectionalGraphemeIter, GraphemeIter},
     paragraph_iter::ParagraphIter,
+    reflow_iter::ReflowIter,
     word_iter::{is_word_char, WordIter},
 };
 
@@ -174,6 +175,15 @@ impl RawBuffer {
     /// need to move a iterator backwards.
     pub fn bidirectional_grapheme_iter(&self, pos: Position) -> BidirectionalGraphemeIter<'_> {
         BidirectionalGraphemeIter::new(self, pos)
+    }
+
+    pub fn reflow_iter(
+        &self,
+        pos: Position,
+        screen_width: usize,
+        tab_width: usize,
+    ) -> ReflowIter<'_> {
+        ReflowIter::new(self, pos, None, screen_width, tab_width)
     }
 
     pub fn paragraph_iter(

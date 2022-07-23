@@ -32,6 +32,7 @@ pub struct ReflowItem<'a> {
     pub pos_in_screen: ScreenPosition,
 }
 
+#[derive(Clone)]
 pub struct ReflowIter<'a> {
     iter: GraphemeIter<'a>,
     /// The number of columns in the screen.
