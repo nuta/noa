@@ -182,34 +182,31 @@ impl Position {
                 let prev_row_buffer_pos = tmp[(row.saturating_sub(1)) % 2];
                 match prev_row_buffer_pos {
                     Some(prev_row_buffer_pos) => {
-                        dbg!(screen_x, prev_row_buffer_pos);
                         let prev_row_reflow_iter =
                             buf.reflow_iter(prev_row_buffer_pos, screen_width, tab_width);
 
                         // Current paragraph (soft wrapping).
                         match find_same_screen_x(prev_row_reflow_iter, screen_x) {
                             (true, Some(pos)) => Some(pos),
-                            (true, None) => unreachable!(),
-                            (false, Some(pos)) => Some(Position::new(pos.y, pos.x + 1)),
-                            (false, None) => {
-                                // Previous paragraph.
-                                match paragraph_iter.next() {
-                                    Some(Paragraph { reflow_iter }) => {
-                                        match find_same_screen_x(reflow_iter, screen_x) {
-                                            (true, Some(pos)) => Some(pos),
-                                            (true, None) => unreachable!(),
-                                            (false, Some(pos)) => {
-                                                Some(Position::new(pos.y, pos.x + 1))
-                                            }
-                                            (false, None) => None,
-                                        }
-                                    }
-                                    None => None,
-                                }
+                            _ => {
+                                unreachable!();
                             }
                         }
                     }
-                    None => None,
+                    None => {
+                        // Previous paragraph. We need to run prev() twice to get the previous one.
+                        paragraph_iter.prev();
+                        match paragraph_iter.prev() {
+                            Some(Paragraph { reflow_iter }) => {
+                                match find_same_screen_x(reflow_iter, screen_x) {
+                                    (_, Some(pos)) => Some(pos),
+                                    (true, None) => unreachable!(),
+                                    (false, None) => None,
+                                }
+                            }
+                            None => None,
+                        }
+                    }
                 }
             }
         };
@@ -229,6 +226,7 @@ fn find_same_screen_x<'a, I: Iterator<Item = ReflowItem<'a>>>(
     for ReflowItem {
         pos_in_buffer,
         pos_in_screen,
+        grapheme: _,
         ..
     } in reflow_iter
     {
@@ -942,18 +940,18 @@ mod tests {
         let buf = Buffer::from_text("xyz\nabcde");
         let screen_width = 5;
         let tab_width = 4;
-        // assert_eq!(
-        //     Position::new(1, 1).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
-        //     Position::new(0, 1)
-        // );
-        // assert_eq!(
-        //     Position::new(1, 4).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
-        //     Position::new(0, 3)
-        // );
-        // assert_eq!(
-        //     Position::new(0, 1).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
-        //     Position::new(0, 1)
-        // );
+        assert_eq!(
+            Position::new(1, 1).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+            Position::new(0, 1)
+        );
+        assert_eq!(
+            Position::new(1, 4).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+            Position::new(0, 3)
+        );
+        assert_eq!(
+            Position::new(0, 1).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+            Position::new(0, 1)
+        );
     }
 
     #[test]

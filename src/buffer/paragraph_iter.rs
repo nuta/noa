@@ -26,6 +26,26 @@ impl<'a> ParagraphIter<'a> {
             tab_width,
         }
     }
+
+    pub fn prev(&mut self) -> Option<Paragraph<'_>> {
+        if self.pos.y == 0 {
+            return None;
+        }
+
+        // TODO: Support for too long lines: split a line into multiple paragraphs.
+        let pos_start = Position::new(self.pos.y - 1, 0);
+        let pos_end = Position::new(self.pos.y, 0);
+        self.pos = Position::new(self.pos.y - 1, 0);
+
+        let reflow_iter = ReflowIter::new(
+            self.buffer,
+            pos_start,
+            Some(pos_end),
+            self.screen_width,
+            self.tab_width,
+        );
+        Some(Paragraph { reflow_iter })
+    }
 }
 
 impl<'a> Iterator for ParagraphIter<'a> {
