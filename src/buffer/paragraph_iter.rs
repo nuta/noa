@@ -1,7 +1,4 @@
-use crate::{
-    cursor::Position,
-    raw_buffer::RawBuffer, reflow_iter::ReflowIter,
-};
+use crate::{cursor::Position, raw_buffer::RawBuffer, reflow_iter::ReflowIter};
 
 pub struct Paragraph<'a> {
     pub reflow_iter: ReflowIter<'a>,
@@ -53,8 +50,6 @@ impl<'a> Iterator for ParagraphIter<'a> {
 
 #[cfg(test)]
 mod tests {
-    
-    
 
     #[test]
     fn paragraph_iter() {}
