@@ -179,12 +179,7 @@ impl Position {
                             buf.reflow_iter(prev_row_buffer_pos, screen_width, tab_width);
 
                         // Current paragraph (soft wrapping).
-                        match find_same_screen_x(buf, prev_row_reflow_iter, screen_x) {
-                            Some(pos) => Some(pos),
-                            _ => {
-                                unreachable!();
-                            }
-                        }
+                        find_same_screen_x(buf, prev_row_reflow_iter, screen_x)
                     }
                     None => {
                         // Previous paragraph. We need to run prev() twice to get the previous one.
