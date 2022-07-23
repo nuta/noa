@@ -54,6 +54,7 @@ impl Ui {
 struct Text {
     mainloop_tx: UnboundedSender<MainloopCommand>,
     buffer_width: usize,
+    cursor_screen_pos: Option<(usize, usize)>,
 }
 
 impl Text {
@@ -61,6 +62,7 @@ impl Text {
         Text {
             mainloop_tx,
             buffer_width: 0,
+            cursor_screen_pos: None,
         }
     }
 }
@@ -76,13 +78,13 @@ impl Surface for Text {
         self
     }
 
-    fn is_active(&self, ctx: &mut Self::Context) -> bool {
+    fn is_active(&self, ctx: &mut Editor) -> bool {
         true
     }
 
     fn layout(
         &mut self,
-        ctx: &mut Self::Context,
+        ctx: &mut Editor,
         screen_size: noa_compositor::surface::RectSize,
     ) -> (
         noa_compositor::surface::Layout,
@@ -97,14 +99,14 @@ impl Surface for Text {
         )
     }
 
-    fn cursor_position(&self, ctx: &mut Self::Context) -> Option<(usize, usize)> {
-        None
+    fn cursor_position(&self, editor: &mut Editor) -> Option<(usize, usize)> {
+        self.cursor_screen_pos
     }
 
     fn handle_key_event(
         &mut self,
         editor: &mut Editor,
-        _compositor: &mut Compositor<Self::Context>,
+        _compositor: &mut Compositor<Editor>,
         key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
@@ -144,6 +146,7 @@ impl Surface for Text {
         self.buffer_width = canvas.width();
 
         let doc = editor.current_document();
+        let main_cursor = doc.main_cursor();
         for (paragraph_screen_y, Paragraph { reflow_iter }) in doc
             .paragraph_iter(
                 doc.scroll.buf_pos,
@@ -184,6 +187,11 @@ impl Surface for Text {
                     | PrintableGrapheme::Newline(_) => {
                         // Already filled with whitespaces by `canvas.clear()`.
                     }
+                }
+
+                if main_cursor.moving_position() == pos_in_buffer {
+                    self.cursor_screen_pos =
+                        Some((paragraph_screen_y + pos_in_screen.y, pos_in_screen.x));
                 }
             }
         }

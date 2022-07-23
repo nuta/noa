@@ -163,7 +163,7 @@ impl Buffer {
 
     pub fn move_cursors_right(&mut self) {
         self.update_cursors_with(|c, buf| {
-            c.move_left(buf);
+            c.move_right(buf);
         })
     }
 
