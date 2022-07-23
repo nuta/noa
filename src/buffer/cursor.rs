@@ -5,7 +5,7 @@ use std::{
     sync::atomic::{self, AtomicUsize},
 };
 
-use crate::{raw_buffer::RawBuffer, reflow_iter::ReflowItem};
+use crate::{paragraph_iter::Paragraph, raw_buffer::RawBuffer, reflow_iter::ReflowItem};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Direction {
@@ -86,7 +86,7 @@ impl Position {
         }
 
         assert!(buf.line_len(self.y) == self.x);
-        last_screen_x
+        last_screen_x + 1
     }
 
     #[must_use]
@@ -138,18 +138,15 @@ impl Position {
                     .skip_while(|item| item.pos_in_screen.x >= screen_x);
 
                 // Current paragraph (soft wrapping).
-                match find_pos_in_adjacent_rows_at_same_screen_x(reflow_iter, screen_x) {
+                match find_same_screen_x(reflow_iter, screen_x) {
                     (true, Some(pos)) => Some(pos),
                     (true, None) => unreachable!(),
                     (false, Some(pos)) => Some(Position::new(pos.y, pos.x + 1)),
                     (false, None) => {
                         // Next paragraph.
                         match paragraph_iter.next() {
-                            Some(next_paragraph) => {
-                                match find_pos_in_adjacent_rows_at_same_screen_x(
-                                    next_paragraph.reflow_iter,
-                                    screen_x,
-                                ) {
+                            Some(Paragraph { reflow_iter }) => {
+                                match find_same_screen_x(reflow_iter, screen_x) {
                                     (true, Some(pos)) => Some(pos),
                                     (true, None) => unreachable!(),
                                     (false, Some(pos)) => Some(Position::new(pos.y, pos.x + 1)),
@@ -164,7 +161,8 @@ impl Position {
             Direction::Prev => {
                 // Get the reflow_iter for the current paragraph and move it
                 // until the previous screen row before the `self` position.
-                let mut prev_row_buffer_pos = None;
+                let mut tmp = [None, None];
+                let mut row = 0;
                 for ReflowItem {
                     pos_in_buffer,
                     pos_in_screen,
@@ -172,7 +170,8 @@ impl Position {
                 } in paragraph_iter.next().unwrap().reflow_iter
                 {
                     if pos_in_screen.x == 0 {
-                        prev_row_buffer_pos = Some(pos_in_buffer);
+                        row += 1;
+                        tmp[row % 2] = Some(pos_in_buffer);
                     }
 
                     if pos_in_buffer == *self {
@@ -180,27 +179,23 @@ impl Position {
                     }
                 }
 
+                let prev_row_buffer_pos = tmp[(row.saturating_sub(1)) % 2];
                 match prev_row_buffer_pos {
                     Some(prev_row_buffer_pos) => {
+                        dbg!(screen_x, prev_row_buffer_pos);
                         let prev_row_reflow_iter =
                             buf.reflow_iter(prev_row_buffer_pos, screen_width, tab_width);
 
                         // Current paragraph (soft wrapping).
-                        match find_pos_in_adjacent_rows_at_same_screen_x(
-                            prev_row_reflow_iter,
-                            screen_x,
-                        ) {
+                        match find_same_screen_x(prev_row_reflow_iter, screen_x) {
                             (true, Some(pos)) => Some(pos),
                             (true, None) => unreachable!(),
                             (false, Some(pos)) => Some(Position::new(pos.y, pos.x + 1)),
                             (false, None) => {
-                                // Next paragraph.
+                                // Previous paragraph.
                                 match paragraph_iter.next() {
-                                    Some(next_paragraph) => {
-                                        match find_pos_in_adjacent_rows_at_same_screen_x(
-                                            next_paragraph.reflow_iter,
-                                            screen_x,
-                                        ) {
+                                    Some(Paragraph { reflow_iter }) => {
+                                        match find_same_screen_x(reflow_iter, screen_x) {
                                             (true, Some(pos)) => Some(pos),
                                             (true, None) => unreachable!(),
                                             (false, Some(pos)) => {
@@ -226,7 +221,7 @@ impl Position {
     }
 }
 
-fn find_pos_in_adjacent_rows_at_same_screen_x<'a, I: Iterator<Item = ReflowItem<'a>>>(
+fn find_same_screen_x<'a, I: Iterator<Item = ReflowItem<'a>>>(
     reflow_iter: I,
     screen_x: usize,
 ) -> (bool, Option<Position>) {
@@ -872,6 +867,32 @@ mod tests {
     }
 
     #[test]
+    fn screen_x() {
+        // abcde
+        // xyz
+        // 123
+        let buf = Buffer::from_text("abcdxyz\n123");
+        let screen_width = 5;
+        let tab_width = 4;
+        assert_eq!(
+            Position::new(0, 0).screen_x(&buf, screen_width, tab_width),
+            0
+        );
+        assert_eq!(
+            Position::new(0, 4).screen_x(&buf, screen_width, tab_width),
+            4
+        );
+        assert_eq!(
+            Position::new(0, 5).screen_x(&buf, screen_width, tab_width),
+            0
+        );
+        assert_eq!(
+            Position::new(1, 3).screen_x(&buf, screen_width, tab_width),
+            3
+        );
+    }
+
+    #[test]
     fn move_down() {
         // abcde
         // xyz
@@ -911,6 +932,48 @@ mod tests {
         assert_eq!(
             Position::new(0, 7).move_vertically(&buf, Direction::Next, screen_width, tab_width),
             Position::new(0, 7)
+        );
+    }
+
+    #[test]
+    fn move_up() {
+        // xyz
+        // abcde
+        let buf = Buffer::from_text("xyz\nabcde");
+        let screen_width = 5;
+        let tab_width = 4;
+        // assert_eq!(
+        //     Position::new(1, 1).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+        //     Position::new(0, 1)
+        // );
+        // assert_eq!(
+        //     Position::new(1, 4).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+        //     Position::new(0, 3)
+        // );
+        // assert_eq!(
+        //     Position::new(0, 1).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+        //     Position::new(0, 1)
+        // );
+    }
+
+    #[test]
+    fn move_up_wrapped() {
+        // abcde
+        // xyz
+        let buf = Buffer::from_text("abcdexyz");
+        let screen_width = 5;
+        let tab_width = 4;
+        assert_eq!(
+            Position::new(0, 7).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+            Position::new(0, 2)
+        );
+        assert_eq!(
+            Position::new(0, 8).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+            Position::new(0, 3)
+        );
+        assert_eq!(
+            Position::new(0, 1).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+            Position::new(0, 1)
         );
     }
 }
