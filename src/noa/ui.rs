@@ -129,7 +129,7 @@ impl Surface for Text {
         let doc = editor.current_document();
         for (paragraph_screen_y, Paragraph { reflow_iter }) in doc
             .paragraph_iter(
-                doc.scroll.position,
+                doc.scroll.buf_pos,
                 canvas.width(),
                 doc.editorconfig().tab_width,
             )
@@ -146,7 +146,11 @@ impl Surface for Text {
                     break;
                 }
 
-                if pos_in_screen.y < doc.scroll.screen_y {
+                if pos_in_screen.y < doc.scroll.screen_pos.y {
+                    continue;
+                }
+
+                if pos_in_screen.x < doc.scroll.screen_pos.x {
                     continue;
                 }
 

@@ -9,6 +9,12 @@ pub struct ScreenPosition {
     pub x: usize,
 }
 
+impl ScreenPosition {
+    pub fn new(y: usize, x: usize) -> ScreenPosition {
+        ScreenPosition { y, x }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum PrintableGrapheme<'a> {
     Grapheme(&'a str),

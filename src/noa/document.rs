@@ -4,7 +4,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use noa_buffer::{buffer::Buffer, cursor::Position};
+use noa_buffer::{buffer::Buffer, cursor::Position, reflow_iter::ScreenPosition};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DocumentId(usize);
@@ -24,8 +24,8 @@ pub enum DocumentKind {
 
 #[derive(Debug)]
 pub struct Scroll {
-    pub position: Position,
-    pub screen_y: usize,
+    pub buf_pos: Position,
+    pub screen_pos: ScreenPosition,
 }
 
 pub struct Document {
@@ -42,8 +42,8 @@ impl Document {
             kind: DocumentKind::Scratch,
             buffer: Buffer::new(),
             scroll: Scroll {
-                position: Position::new(0, 0),
-                screen_y: 0,
+                buf_pos: Position::new(0, 0),
+                screen_pos: ScreenPosition::new(0, 0),
             },
         }
     }
