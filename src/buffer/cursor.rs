@@ -65,41 +65,6 @@ impl Position {
         Position::new(new_y, new_x)
     }
 
-    pub fn move_by(&mut self, buf: &RawBuffer, up: usize, down: usize, left: usize, right: usize) {
-        for _ in 0..left {
-            self.move_horizontally_by(buf, 1, 0);
-        }
-
-        for _ in 0..right {
-            self.move_horizontally_by(buf, 0, 1);
-        }
-
-        self.y = self.y.saturating_add(down);
-        self.y = self.y.saturating_sub(up);
-
-        self.y = min(self.y, buf.num_lines());
-        self.x = min(self.x, buf.line_len(self.y));
-    }
-
-    fn move_horizontally_by(&mut self, buf: &RawBuffer, left: usize, right: usize) {
-        debug_assert!(left <= 1);
-        debug_assert!(right <= 1);
-
-        if right > 0 {
-            let mut iter = buf.bidirectional_grapheme_iter(*self);
-            if iter.next().is_some() {
-                *self = iter.next_position();
-            }
-        }
-
-        if left > 0 {
-            let mut iter = buf.bidirectional_grapheme_iter(*self);
-            if iter.prev().is_some() {
-                *self = iter.next_position();
-            }
-        }
-    }
-
     fn screen_x(&self, buf: &RawBuffer, screen_width: usize, tab_width: usize) -> usize {
         let iter = buf
             .paragraph_iter(*self, screen_width, tab_width)
@@ -124,72 +89,111 @@ impl Position {
         last_screen_x
     }
 
-    fn move_vertically_by(
+    #[must_use]
+    pub fn move_horizontally(&self, buf: &RawBuffer, direction: Direction) -> Position {
+        let new_pos = match direction {
+            Direction::Next => {
+                let mut iter = buf.bidirectional_grapheme_iter(*self);
+                if iter.next().is_some() {
+                    Some(iter.next_position())
+                } else {
+                    None
+                }
+            }
+            Direction::Prev => {
+                let mut iter = buf.bidirectional_grapheme_iter(*self);
+                if iter.prev().is_some() {
+                    Some(iter.next_position())
+                } else {
+                    None
+                }
+            }
+        };
+
+        let new_pos = new_pos.unwrap_or(*self);
+        debug_assert!(new_pos.y < buf.num_lines());
+        debug_assert!(new_pos.x <= buf.line_len(new_pos.y));
+        new_pos
+    }
+
+    #[must_use]
+    fn move_vertically(
         &self,
         buf: &RawBuffer,
         direction: Direction,
         screen_width: usize,
         tab_width: usize,
-    ) -> Option<Position> {
+    ) -> Position {
         let screen_x = self.screen_x(buf, screen_width, tab_width);
         let mut paragraph_iter = buf.paragraph_iter(*self, screen_width, tab_width);
-
-        match direction {
+        let new_pos = match direction {
             Direction::Next => {
                 // Get the reflow_iter for the current paragraph and move it
                 // until the next screen row after the `self` position.
                 let reflow_iter = paragraph_iter
-                    .next()?
+                    .next()
+                    .unwrap()
                     .reflow_iter
                     .skip_while(|item| item.pos_in_buffer != *self)
                     .skip_while(|item| item.pos_in_screen.x >= screen_x);
 
                 // Current paragraph (soft wrapping).
-                let mut last_pos_in_buffer = None;
-                for ReflowItem {
-                    pos_in_buffer,
-                    pos_in_screen,
-                    ..
-                } in reflow_iter
-                {
-                    if pos_in_screen.x > screen_x {
-                        return Some(last_pos_in_buffer.unwrap_or(pos_in_buffer));
-                    } else if pos_in_screen.x == screen_x {
-                        return Some(pos_in_buffer);
+                match find_pos_in_adjacent_rows_at_same_screen_x(reflow_iter, screen_x) {
+                    (true, Some(pos)) => Some(pos),
+                    (true, None) => unreachable!(),
+                    (false, Some(pos)) => Some(Position::new(pos.y, pos.x + 1)),
+                    (false, None) => {
+                        // Next paragraph.
+                        match paragraph_iter.next() {
+                            Some(next_paragraph) => {
+                                match find_pos_in_adjacent_rows_at_same_screen_x(
+                                    next_paragraph.reflow_iter,
+                                    screen_x,
+                                ) {
+                                    (true, Some(pos)) => Some(pos),
+                                    (true, None) => unreachable!(),
+                                    (false, Some(pos)) => Some(Position::new(pos.y, pos.x + 1)),
+                                    (false, None) => None,
+                                }
+                            }
+                            None => None,
+                        }
                     }
-
-                    last_pos_in_buffer = Some(pos_in_buffer);
                 }
-
-                if let Some(pos_in_buffer) = last_pos_in_buffer {
-                    return Some(Position::new(pos_in_buffer.y, pos_in_buffer.x + 1));
-                }
-
-                // Next paragraph.
-                let reflow_iter = paragraph_iter.next()?.reflow_iter;
-                let mut last_pos_in_buffer = None;
-                for ReflowItem {
-                    pos_in_buffer,
-                    pos_in_screen,
-                    ..
-                } in reflow_iter
-                {
-                    if pos_in_screen.x > screen_x {
-                        return Some(last_pos_in_buffer.unwrap_or(pos_in_buffer));
-                    } else if pos_in_screen.x == screen_x {
-                        return Some(pos_in_buffer);
-                    }
-
-                    last_pos_in_buffer = Some(pos_in_buffer);
-                }
-
-                last_pos_in_buffer.map(|pos| Position::new(pos.y, pos.x + 1))
             }
             Direction::Prev => {
                 todo!()
             }
-        }
+        };
+
+        let new_pos = new_pos.unwrap_or(*self);
+        debug_assert!(new_pos.y < buf.num_lines());
+        debug_assert!(new_pos.x <= buf.line_len(new_pos.y));
+        new_pos
     }
+}
+
+fn find_pos_in_adjacent_rows_at_same_screen_x<'a, I: Iterator<Item = ReflowItem<'a>>>(
+    reflow_iter: I,
+    screen_x: usize,
+) -> (bool, Option<Position>) {
+    let mut last_pos_in_buffer = None;
+    for ReflowItem {
+        pos_in_buffer,
+        pos_in_screen,
+        ..
+    } in reflow_iter
+    {
+        if pos_in_screen.x > screen_x {
+            return (true, Some(last_pos_in_buffer.unwrap_or(pos_in_buffer)));
+        } else if pos_in_screen.x == screen_x {
+            return (true, Some(pos_in_buffer));
+        }
+
+        last_pos_in_buffer = Some(pos_in_buffer);
+    }
+
+    (false, last_pos_in_buffer)
 }
 
 impl Debug for Position {
@@ -473,8 +477,8 @@ impl Cursor {
 
     pub fn move_left(&mut self, buf: &RawBuffer) {
         if self.selection.is_empty() {
-            self.selection.start.move_by(buf, 0, 0, 1, 0);
-            self.selection.end.move_by(buf, 0, 0, 1, 0);
+            self.selection.start = self.selection.start.move_horizontally(buf, Direction::Prev);
+            self.selection.end = self.selection.end.move_horizontally(buf, Direction::Prev);
             assert_eq!(self.selection.start, self.selection.end);
         } else {
             self.move_to_pos(self.selection.front());
@@ -483,8 +487,8 @@ impl Cursor {
 
     pub fn move_right(&mut self, buf: &RawBuffer) {
         if self.selection.is_empty() {
-            self.selection.start.move_by(buf, 0, 0, 0, 1);
-            self.selection.end.move_by(buf, 0, 0, 0, 1);
+            self.selection.start = self.selection.start.move_horizontally(buf, Direction::Next);
+            self.selection.end = self.selection.end.move_horizontally(buf, Direction::Next);
             assert_eq!(self.selection.start, self.selection.end);
         } else {
             self.move_to_pos(self.selection.back());
@@ -492,11 +496,13 @@ impl Cursor {
     }
 
     pub fn expand_left(&mut self, buf: &RawBuffer) {
-        self.selection.front_mut().move_by(buf, 0, 0, 1, 0)
+        let pos = self.selection.front_mut();
+        *pos = pos.move_horizontally(buf, Direction::Prev);
     }
 
     pub fn expand_right(&mut self, buf: &RawBuffer) {
-        self.selection.back_mut().move_by(buf, 0, 0, 0, 1)
+        let pos = self.selection.back_mut();
+        *pos = pos.move_horizontally(buf, Direction::Next);
     }
 
     pub fn select_overlapped_lines(&mut self) {
@@ -803,16 +809,16 @@ mod tests {
         let screen_width = 5;
         let tab_width = 4;
         assert_eq!(
-            Position::new(0, 1).move_vertically_by(&buf, Direction::Next, screen_width, tab_width),
-            Some(Position::new(1, 1))
+            Position::new(0, 1).move_vertically(&buf, Direction::Next, screen_width, tab_width),
+            Position::new(1, 1)
         );
         assert_eq!(
-            Position::new(1, 2).move_vertically_by(&buf, Direction::Next, screen_width, tab_width),
-            Some(Position::new(2, 1))
+            Position::new(1, 2).move_vertically(&buf, Direction::Next, screen_width, tab_width),
+            Position::new(2, 1)
         );
         assert_eq!(
-            Position::new(2, 1).move_vertically_by(&buf, Direction::Next, screen_width, tab_width),
-            None
+            Position::new(2, 1).move_vertically(&buf, Direction::Next, screen_width, tab_width),
+            Position::new(2, 1)
         );
     }
 
@@ -824,16 +830,16 @@ mod tests {
         let screen_width = 5;
         let tab_width = 4;
         assert_eq!(
-            Position::new(0, 2).move_vertically_by(&buf, Direction::Next, screen_width, tab_width),
-            Some(Position::new(0, 7))
+            Position::new(0, 2).move_vertically(&buf, Direction::Next, screen_width, tab_width),
+            Position::new(0, 7)
         );
         assert_eq!(
-            Position::new(0, 4).move_vertically_by(&buf, Direction::Next, screen_width, tab_width),
-            Some(Position::new(0, 8))
+            Position::new(0, 4).move_vertically(&buf, Direction::Next, screen_width, tab_width),
+            Position::new(0, 8)
         );
         assert_eq!(
-            Position::new(0, 7).move_vertically_by(&buf, Direction::Next, screen_width, tab_width),
-            None
+            Position::new(0, 7).move_vertically(&buf, Direction::Next, screen_width, tab_width),
+            Position::new(0, 7)
         );
     }
 }
