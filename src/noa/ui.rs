@@ -1,4 +1,5 @@
 use noa_buffer::{
+    cursor::Position,
     paragraph_iter::Paragraph,
     reflow_iter::{PrintableGrapheme, ReflowItem},
 };
@@ -159,14 +160,14 @@ impl Surface for Text {
 
         let doc = editor.current_document();
         let main_cursor = doc.main_cursor();
-        for (paragraph_screen_y, Paragraph { reflow_iter }) in doc
-            .paragraph_iter(
-                doc.scroll.buf_pos,
-                self.buffer_width,
-                doc.editorconfig().tab_width,
-            )
-            .enumerate()
-        {
+        let mut paragraph_screen_y = 0;
+        for (Paragraph { mut reflow_iter }) in doc.paragraph_iter(
+            doc.scroll.buf_pos,
+            self.buffer_width,
+            doc.editorconfig().tab_width,
+        ) {
+            reflow_iter.enable_eof(true);
+            let mut paragraph_height = 0;
             for ReflowItem {
                 grapheme,
                 grapheme_width,
@@ -186,26 +187,36 @@ impl Surface for Text {
                     continue;
                 }
 
+                info!("grapheme = {:?}", grapheme);
                 match grapheme {
                     PrintableGrapheme::Grapheme(grapheme) => {
+                        paragraph_height = pos_in_screen.y;
                         canvas.write(
                             paragraph_screen_y + pos_in_screen.y,
                             pos_in_screen.x,
                             Grapheme::new_with_width(grapheme, grapheme_width),
                         );
                     }
-                    PrintableGrapheme::Whitespaces
+                    PrintableGrapheme::Eof
+                    | PrintableGrapheme::Whitespaces
                     | PrintableGrapheme::ZeroWidth
                     | PrintableGrapheme::Newline(_) => {
                         // Already filled with whitespaces by `canvas.clear()`.
                     }
                 }
 
+                info!(
+                    "paragraph_screen_y + pos_in_screen.y = {:?}, {:?}",
+                    paragraph_screen_y, pos_in_screen.y
+                );
                 if main_cursor.moving_position() == pos_in_buffer {
+                    info!("main_cursor: {pos_in_buffer}");
                     self.cursor_screen_pos =
                         Some((paragraph_screen_y + pos_in_screen.y, pos_in_screen.x));
                 }
             }
+
+            paragraph_screen_y += 1 + paragraph_height;
         }
     }
 }

@@ -17,6 +17,7 @@ impl ScreenPosition {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum PrintableGrapheme<'a> {
+    Eof,
     Grapheme(&'a str),
     Whitespaces,
     ZeroWidth,
@@ -34,12 +35,14 @@ pub struct ReflowItem<'a> {
 
 #[derive(Clone)]
 pub struct ReflowIter<'a> {
+    buffer: &'a RawBuffer,
     iter: GraphemeIter<'a>,
     /// The number of columns in the screen.
     screen_width: usize,
     screen_pos: ScreenPosition,
     tab_width: usize,
     pos_end: Option<Position>,
+    return_eof: bool,
 }
 
 impl<'a> ReflowIter<'a> {
@@ -51,12 +54,18 @@ impl<'a> ReflowIter<'a> {
         tab_width: usize,
     ) -> ReflowIter<'a> {
         ReflowIter {
+            buffer,
             iter: buffer.grapheme_iter(pos_start),
             screen_width,
             screen_pos: ScreenPosition { y: 0, x: 0 },
             tab_width,
             pos_end,
+            return_eof: false,
         }
+    }
+
+    pub fn enable_eof(&mut self, enable: bool) {
+        self.return_eof = enable;
     }
 }
 
@@ -65,7 +74,26 @@ impl<'a> Iterator for ReflowIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            let (pos_in_buffer, grapheme) = self.iter.next()?;
+            let (pos_in_buffer, grapheme) = match self.iter.next() {
+                Some((pos_in_buffer, grapheme)) => (pos_in_buffer, grapheme),
+                None if self.return_eof => {
+                    self.return_eof = false;
+                    return Some(ReflowItem {
+                        grapheme: PrintableGrapheme::Eof,
+                        grapheme_width: 0,
+                        // What if it's not eof?
+                        pos_in_buffer: Position::new(
+                            self.buffer.num_lines() - 1,
+                            self.buffer.line_len(self.buffer.num_lines() - 1),
+                        ),
+                        pos_in_screen: self.screen_pos,
+                    });
+                }
+                None => {
+                    return None;
+                }
+            };
+
             if matches!(self.pos_end, Some(pos_end) if pos_in_buffer >= pos_end) {
                 return None;
             }
