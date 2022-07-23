@@ -134,12 +134,12 @@ impl<'a> Iterator for ReflowIter<'a> {
             self.screen_pos.x += grapheme_width;
         }
 
-        return Some(ReflowItem {
+        Some(ReflowItem {
             grapheme: printable,
             grapheme_width,
             pos_in_buffer,
             pos_in_screen,
-        });
+        })
     }
 }
 
