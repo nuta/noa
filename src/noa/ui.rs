@@ -124,17 +124,29 @@ impl Surface for Text {
             (KeyCode::Esc, NONE) => {
                 doc.clear_secondary_cursors();
             }
+            (KeyCode::Up, NONE) => {
+                doc.move_cursors_up(self.buffer_width);
+            }
+            (KeyCode::Down, NONE) => {
+                doc.move_cursors_down(self.buffer_width);
+            }
             (KeyCode::Left, NONE) => {
                 doc.move_cursors_left();
             }
             (KeyCode::Right, NONE) => {
                 doc.move_cursors_right();
             }
-            (KeyCode::Up, NONE) => {
-                doc.move_cursors_up(self.buffer_width);
+            (KeyCode::Up, SHIFT) => {
+                doc.select_cursors_up(self.buffer_width);
             }
-            (KeyCode::Down, NONE) => {
-                doc.move_cursors_down(self.buffer_width);
+            (KeyCode::Down, SHIFT) => {
+                doc.select_cursors_down(self.buffer_width);
+            }
+            (KeyCode::Left, SHIFT) => {
+                doc.select_cursors_left();
+            }
+            (KeyCode::Right, SHIFT) => {
+                doc.select_cursors_right();
             }
             (KeyCode::Char(ch), NONE) => {
                 doc.smart_insert_char(ch);
@@ -159,7 +171,7 @@ impl Surface for Text {
         self.buffer_width = canvas.width();
 
         let doc = editor.current_document();
-        let main_cursor = doc.main_cursor();
+        let main_cursor_pos = doc.main_cursor().moving_position();
         let mut paragraph_screen_y = 0;
         for (Paragraph { mut reflow_iter }) in doc.paragraph_iter(
             doc.scroll.buf_pos,
@@ -187,7 +199,6 @@ impl Surface for Text {
                     continue;
                 }
 
-                info!("grapheme = {:?}", grapheme);
                 match grapheme {
                     PrintableGrapheme::Grapheme(grapheme) => {
                         paragraph_height = pos_in_screen.y;
@@ -205,12 +216,7 @@ impl Surface for Text {
                     }
                 }
 
-                info!(
-                    "paragraph_screen_y + pos_in_screen.y = {:?}, {:?}",
-                    paragraph_screen_y, pos_in_screen.y
-                );
-                if main_cursor.moving_position() == pos_in_buffer {
-                    info!("main_cursor: {pos_in_buffer}");
+                if main_cursor_pos == pos_in_buffer {
                     self.cursor_screen_pos =
                         Some((paragraph_screen_y + pos_in_screen.y, pos_in_screen.x));
                 }

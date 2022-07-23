@@ -20,7 +20,6 @@ mod ui;
 #[tokio::main]
 async fn main() {
     install_logger("main");
-    info!("hi!");
 
     // warm_up_search_cache();
 

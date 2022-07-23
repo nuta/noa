@@ -479,8 +479,16 @@ impl Cursor {
         self.selection.end
     }
 
+    fn moving_position_mut(&mut self) -> &mut Position {
+        &mut self.selection.end
+    }
+
     pub fn fixed_position(&self) -> Position {
         self.selection.start
+    }
+
+    fn fixed_position_mut(&mut self) -> &mut Position {
+        &mut self.selection.start
     }
 
     pub(crate) fn selection_mut(&mut self) -> &mut Range {
@@ -552,6 +560,30 @@ impl Cursor {
             screen_width,
             tab_width,
         ));
+    }
+
+    pub fn select_left(&mut self, buf: &RawBuffer) {
+        *self.moving_position_mut() = self
+            .moving_position()
+            .move_horizontally(buf, Direction::Prev);
+    }
+
+    pub fn select_right(&mut self, buf: &RawBuffer) {
+        *self.moving_position_mut() = self
+            .moving_position()
+            .move_horizontally(buf, Direction::Next);
+    }
+
+    pub fn select_up(&mut self, buf: &RawBuffer, screen_width: usize, tab_width: usize) {
+        *self.moving_position_mut() =
+            self.moving_position()
+                .move_vertically(buf, Direction::Prev, screen_width, tab_width);
+    }
+
+    pub fn select_down(&mut self, buf: &RawBuffer, screen_width: usize, tab_width: usize) {
+        *self.moving_position_mut() =
+            self.moving_position()
+                .move_vertically(buf, Direction::Next, screen_width, tab_width);
     }
 
     pub fn expand_left(&mut self, buf: &RawBuffer) {
@@ -982,5 +1014,37 @@ mod tests {
             Position::new(0, 1).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
             Position::new(0, 1)
         );
+    }
+
+    #[test]
+    fn select_right() {
+        // abcde
+        // f
+        let mut buf = Buffer::from_text("abcde\nf");
+
+        buf.set_cursors_for_test(&[Cursor::new(0, 4)]);
+        buf.select_cursors_right();
+        assert_eq!(buf.cursors(), vec![Cursor::new_selection(0, 4, 0, 5)]);
+        buf.select_cursors_right();
+        assert_eq!(buf.cursors(), vec![Cursor::new_selection(0, 4, 1, 0)]);
+        buf.select_cursors_right();
+        assert_eq!(buf.cursors(), vec![Cursor::new_selection(0, 4, 1, 1)]);
+        buf.select_cursors_right();
+        assert_eq!(buf.cursors(), vec![Cursor::new_selection(0, 4, 1, 1)]);
+    }
+
+    #[test]
+    fn select_left() {
+        // abcde
+        // f
+        let mut buf = Buffer::from_text("abcde\nf");
+
+        buf.set_cursors_for_test(&[Cursor::new(1, 1)]);
+        buf.select_cursors_left();
+        assert_eq!(buf.cursors(), vec![Cursor::new_selection(1, 1, 1, 0)]);
+        buf.select_cursors_left();
+        assert_eq!(buf.cursors(), vec![Cursor::new_selection(1, 1, 0, 5)]);
+        buf.select_cursors_left();
+        assert_eq!(buf.cursors(), vec![Cursor::new_selection(1, 1, 0, 4)]);
     }
 }
