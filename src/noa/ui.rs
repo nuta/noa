@@ -135,6 +135,18 @@ impl Surface for Text {
             (KeyCode::Down, NONE) => {
                 doc.move_cursors_down(self.buffer_width);
             }
+            (KeyCode::Char(ch), NONE) => {
+                doc.smart_insert_char(ch);
+            }
+            (KeyCode::Char(ch), SHIFT) => {
+                doc.smart_insert_char(ch.to_ascii_uppercase());
+            }
+            (KeyCode::Backspace, NONE) => {
+                doc.backspace();
+            }
+            (KeyCode::Delete, NONE) => {
+                doc.delete();
+            }
             _ => {}
         }
 
