@@ -76,12 +76,14 @@ impl Position {
             .expect("invalid position");
 
         let mut last_screen_x = 0;
+        let mut is_empty_paragraph = true;
         for ReflowItem {
             pos_in_buffer,
             pos_in_screen,
             ..
         } in iter.reflow_iter
         {
+            is_empty_paragraph = false;
             if pos_in_buffer == *self {
                 return pos_in_screen.x;
             }
@@ -90,7 +92,7 @@ impl Position {
         }
 
         assert!(buf.line_len(self.y) == self.x);
-        last_screen_x + 1
+        last_screen_x + if is_empty_paragraph { 0 } else { 1 }
     }
 
     #[must_use]
@@ -145,7 +147,8 @@ impl Position {
                     .unwrap()
                     .reflow_iter
                     .skip_while(|item| item.pos_in_buffer != *self)
-                    .skip_while(|item| item.pos_in_screen.x >= screen_x);
+                    .skip_while(|item| item.pos_in_buffer == *self)
+                    .skip_while(|item| item.pos_in_screen.x > screen_x);
 
                 // Current paragraph (soft wrapping).
                 match find_same_screen_x(buf, reflow_iter, screen_x) {
@@ -961,7 +964,8 @@ mod tests {
         // abcde
         // xyz
         // 123
-        let buf = Buffer::from_text("abcdxyz\n123");
+        //
+        let buf = Buffer::from_text("abcdxyz\n123\n");
         let screen_width = 5;
         let tab_width = 4;
         assert_eq!(
@@ -977,8 +981,16 @@ mod tests {
             0
         );
         assert_eq!(
+            Position::new(1, 0).screen_x(&buf, screen_width, tab_width),
+            0
+        );
+        assert_eq!(
             Position::new(1, 3).screen_x(&buf, screen_width, tab_width),
             3
+        );
+        assert_eq!(
+            Position::new(2, 0).screen_x(&buf, screen_width, tab_width),
+            0
         );
     }
 
@@ -1016,6 +1028,10 @@ mod tests {
         let buf = Buffer::from_text("abcdexyz");
         let screen_width = 5;
         let tab_width = 4;
+        assert_eq!(
+            Position::new(0, 0).move_vertically(&buf, Direction::Next, screen_width, tab_width),
+            Position::new(0, 5)
+        );
         assert_eq!(
             Position::new(0, 2).move_vertically(&buf, Direction::Next, screen_width, tab_width),
             Position::new(0, 7)
@@ -1095,8 +1111,30 @@ mod tests {
         let screen_width = 5;
         let tab_width = 4;
         assert_eq!(
+            Position::new(1, 0).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+            Position::new(0, 5)
+        );
+        assert_eq!(
             Position::new(1, 1).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
             Position::new(0, 6)
+        );
+        assert_eq!(
+            Position::new(1, 0).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+            Position::new(0, 5)
+        );
+    }
+
+    #[test]
+    fn move_up_wrapped3() {
+        // abcde
+        // fg
+        //
+        let buf = Buffer::from_text("abcdefg\n");
+        let screen_width = 5;
+        let tab_width = 4;
+        assert_eq!(
+            Position::new(1, 0).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+            Position::new(0, 5)
         );
     }
 
@@ -1176,13 +1214,15 @@ mod tests {
     #[test]
     fn test_find_same_screen_x() {
         // abcde
-        let buf = Buffer::from_text("abcde");
+        // 01234
+        // xyz
+        let buf = Buffer::from_text("abcde01234xyz");
         let screen_width = 5;
 
-        let reflow_iter = buf.reflow_iter(Range::new(0, 0, usize::MAX, 0), scren_width, 4);
+        let reflow_iter = buf.reflow_iter(Range::new(0, 5, usize::MAX, 0), screen_width, 4);
         assert_eq!(
-            find_same_screen_x(&buf, reflow_iter, 0),
-            Some(Position::new(0, 0))
+            find_same_screen_x(&buf, reflow_iter, 2),
+            Some(Position::new(0, 7))
         );
     }
 }
