@@ -108,11 +108,7 @@ pub struct Canvas {
 
 impl Canvas {
     pub fn new(height: usize, width: usize) -> Canvas {
-        let mut graphs = Vec::with_capacity(height * width);
-        for _ in 0..(height * width) {
-            graphs.push(Grapheme::blank());
-        }
-
+        let graphs = vec![Grapheme::blank(); height * width];
         Canvas {
             graphs,
             width,
