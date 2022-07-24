@@ -60,23 +60,23 @@ impl<C: 'static> Compositor<C> {
         self.screen_size
     }
 
-    pub async fn handle_event(&mut self, ctx: &mut C) -> Option<terminal::Event> {
-        let ev = self.term_rx.recv().await;
-        match &ev {
-            Some(terminal::Event::Input(input_event)) => {
+    pub async fn receive_event(&mut self) -> Option<terminal::Event> {
+        self.term_rx.recv().await
+    }
+
+    pub fn handle_event(&mut self, ctx: &mut C, ev: terminal::Event) {
+        match ev {
+            terminal::Event::Input(input_event) => {
                 trace_timing!("handle_input_event", 20 /* ms */, {
                     self.handle_input_event(ctx, input_event);
                 });
             }
-            Some(terminal::Event::Resize { height, width }) => {
+            terminal::Event::Resize { height, width } => {
                 trace_timing!("resize_screen", 10 /* ms */, {
-                    self.resize_screen(*height, *width);
+                    self.resize_screen(height, width);
                 });
             }
-            None => {}
         }
-
-        ev
     }
 
     pub fn add_frontmost_layer(&mut self, surface: Box<dyn Surface<Context = C> + Send>) {
@@ -186,13 +186,13 @@ impl<C: 'static> Compositor<C> {
         drawer.flush();
     }
 
-    fn handle_input_event(&mut self, ctx: &mut C, input: &InputEvent) {
+    fn handle_input_event(&mut self, ctx: &mut C, input: InputEvent) {
         match input {
             InputEvent::Key(key) => {
                 self.past_layers = Vec::new();
                 while let Some(mut layer) = self.layers.pop() {
                     let result = if layer.surface.is_active(ctx) {
-                        layer.surface.handle_key_event(ctx, self, *key)
+                        layer.surface.handle_key_event(ctx, self, key)
                     } else {
                         HandledEvent::Ignored
                     };
@@ -237,7 +237,7 @@ impl<C: 'static> Compositor<C> {
                 self.past_layers = Vec::new();
                 while let Some(mut layer) = self.layers.pop() {
                     let result = if layer.surface.is_active(ctx) {
-                        layer.surface.handle_key_batch_event(ctx, self, input)
+                        layer.surface.handle_key_batch_event(ctx, self, &input)
                     } else {
                         HandledEvent::Ignored
                     };

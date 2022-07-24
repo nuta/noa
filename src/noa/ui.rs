@@ -39,18 +39,21 @@ impl Ui {
                 self.compositor.render(&mut self.editor);
             });
 
-            tokio::select! {
-                biased;
+            trace_timing!("process", 20 /* ms */, {
+                tokio::select! {
+                    biased;
 
-                Some(command) = mainloop_rx.recv() => {
-                    match command {
-                        MainloopCommand::Quit => break,
+                    Some(command) = mainloop_rx.recv() => {
+                        match command {
+                            MainloopCommand::Quit => break,
+                        }
+                    }
+
+                    Some(ev) = self.compositor.receive_event() => {
+                        self.compositor.handle_event(&mut self.editor, ev);
                     }
                 }
-
-                _ = self.compositor.handle_event(&mut self.editor) => {
-                }
-            }
+            });
         }
     }
 }
