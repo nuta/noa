@@ -116,6 +116,7 @@ impl Surface for Text {
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
         const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+        const ALT: KeyModifiers = KeyModifiers::ALT;
         const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
 
         let doc = editor.current_document_mut();
@@ -166,6 +167,18 @@ impl Surface for Text {
             }
             (KeyCode::Delete, NONE) => {
                 doc.delete();
+            }
+            (KeyCode::Char('a'), CTRL) => {
+                doc.move_to_beginning_of_line();
+            }
+            (KeyCode::Char('e'), CTRL) => {
+                doc.move_to_end_of_line();
+            }
+            (KeyCode::Char('f'), ALT) => {
+                doc.move_to_next_word();
+            }
+            (KeyCode::Char('b'), ALT) => {
+                doc.move_to_prev_word();
             }
             _ => {}
         }
