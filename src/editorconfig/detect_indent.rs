@@ -17,9 +17,7 @@ pub fn detect_indent_style(text: &str) -> Option<(IndentStyle, usize)> {
         let current = (indent_char, indent_count);
         if prev.is_none() || Some(current) != prev {
             let count_diff = match prev {
-                Some(prev) if current.0 == prev.0 => {
-                    ((current.1 as isize) - (prev.1 as isize)).abs() as usize
-                }
+                Some(prev) if current.0 == prev.0 => current.1.abs_diff(prev.1),
                 _ => current.1,
             };
 

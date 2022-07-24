@@ -230,7 +230,9 @@ fn find_same_screen_x<'a, I: Iterator<Item = ReflowItem<'a>>>(
                 last.map(|(buffer_pos, _)| buffer_pos)
                     .unwrap_or(pos_in_buffer),
             );
-        } else if pos_in_screen.x == screen_x {
+        }
+
+        if pos_in_screen.x == screen_x {
             return Some(pos_in_buffer);
         }
 

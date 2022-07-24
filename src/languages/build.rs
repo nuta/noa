@@ -1,3 +1,4 @@
+#![allow(clippy::format_push_string)]
 use std::{path::Path, process::Command};
 
 #[path = "languages.rs"]
