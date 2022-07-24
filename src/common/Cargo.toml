@@ -9,8 +9,7 @@ path = "lib.rs"
 
 [dependencies]
 backtrace = "0"
-log = "0"
-fern = "0"
+log = { version = "0", features = ["std"] }
 anyhow = "1"
 dirs = "3"
 once_cell = "1"
