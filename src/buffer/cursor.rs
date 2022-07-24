@@ -95,6 +95,9 @@ impl Position {
 
     #[must_use]
     pub fn move_horizontally(&self, buf: &RawBuffer, direction: Direction) -> Position {
+        debug_assert!(self.y < buf.num_lines());
+        debug_assert!(self.x <= buf.line_len(self.y));
+
         let new_pos = match direction {
             Direction::Next => {
                 let mut iter = buf.bidirectional_grapheme_iter(*self);
@@ -128,6 +131,9 @@ impl Position {
         screen_width: usize,
         tab_width: usize,
     ) -> Position {
+        debug_assert!(self.y < buf.num_lines());
+        debug_assert!(self.x <= buf.line_len(self.y));
+
         let screen_x = self.screen_x(buf, screen_width, tab_width);
         let mut paragraph_iter = buf.paragraph_iter(*self, screen_width, tab_width);
         let new_pos = match direction {
@@ -247,6 +253,7 @@ fn get_reflow_iter_from_prev_row<'a>(
 ) -> Option<ReflowIter<'a>> {
     let mut tmp = [None, None];
     let mut row = 0;
+    let paragraph_range = paragraph.reflow_iter.range();
     for ReflowItem {
         pos_in_buffer,
         pos_in_screen,
@@ -264,7 +271,13 @@ fn get_reflow_iter_from_prev_row<'a>(
     }
 
     let prev_row_buffer_pos = tmp[(row.saturating_sub(1)) % 2];
-    prev_row_buffer_pos.map(|pos| buf.reflow_iter(pos, screen_width, tab_width))
+    prev_row_buffer_pos.map(|pos| {
+        buf.reflow_iter(
+            Range::from_positions(pos, paragraph_range.back()),
+            screen_width,
+            tab_width,
+        )
+    })
 }
 
 fn get_reflow_iter_for_last_row<'a>(
@@ -273,7 +286,8 @@ fn get_reflow_iter_for_last_row<'a>(
     screen_width: usize,
     tab_width: usize,
 ) -> ReflowIter<'a> {
-    let mut last_row_buffer_pos = paragraph.reflow_iter.range().front();
+    let paragraph_range = paragraph.reflow_iter.range();
+    let mut last_row_buffer_pos = paragraph_range.front();
     for ReflowItem {
         pos_in_buffer,
         pos_in_screen,
@@ -285,7 +299,11 @@ fn get_reflow_iter_for_last_row<'a>(
         }
     }
 
-    buf.reflow_iter(last_row_buffer_pos, screen_width, tab_width)
+    buf.reflow_iter(
+        Range::from_positions(last_row_buffer_pos, paragraph_range.back()),
+        screen_width,
+        tab_width,
+    )
 }
 
 impl Debug for Position {
@@ -1083,6 +1101,19 @@ mod tests {
     }
 
     #[test]
+    fn move_up_to_empty_line() {
+        //
+        // abc
+        let buf = Buffer::from_text("\nabc");
+        let screen_width = 5;
+        let tab_width = 4;
+        assert_eq!(
+            Position::new(1, 2).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+            Position::new(0, 0)
+        );
+    }
+
+    #[test]
     fn select_right() {
         // abcde
         // f
@@ -1140,5 +1171,18 @@ mod tests {
         assert_eq!(buf.cursors(), vec![Cursor::new_selection(1, 2, 0, 2)]);
         buf.select_cursors_up(screen_width);
         assert_eq!(buf.cursors(), vec![Cursor::new_selection(1, 2, 0, 2)]);
+    }
+
+    #[test]
+    fn test_find_same_screen_x() {
+        // abcde
+        let buf = Buffer::from_text("abcde");
+        let screen_width = 5;
+
+        let reflow_iter = buf.reflow_iter(Range::new(0, 0, usize::MAX, 0), scren_width, 4);
+        assert_eq!(
+            find_same_screen_x(&buf, reflow_iter, 0),
+            Some(Position::new(0, 0))
+        );
     }
 }

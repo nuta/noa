@@ -179,16 +179,11 @@ impl RawBuffer {
 
     pub fn reflow_iter(
         &self,
-        pos: Position,
+        range: Range,
         screen_width: usize,
         tab_width: usize,
     ) -> ReflowIter<'_> {
-        ReflowIter::new(
-            self,
-            Range::new(pos.y, pos.x, usize::MAX, 0),
-            screen_width,
-            tab_width,
-        )
+        ReflowIter::new(self, range, screen_width, tab_width)
     }
 
     pub fn paragraph_iter(
