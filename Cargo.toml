@@ -2,3 +2,6 @@
 members = [
   "src/*",
 ]
+
+[profile.release]
+debug = 1
