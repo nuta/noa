@@ -1,12 +1,14 @@
 use anyhow::Result;
 use backtrace::Backtrace;
 use log::{Level, LevelFilter};
+use once_cell::sync::OnceCell;
 use std::{
     fmt::Debug,
     fs::{create_dir_all, File, OpenOptions},
     io::{self, prelude::*, BufReader, SeekFrom},
     path::Path,
     sync::Mutex,
+    time::Instant,
 };
 
 use crate::dirs::log_file_path;
@@ -177,4 +179,24 @@ macro_rules! debug_warn_once {
             $crate::warn_once!($($arg)*);
         }
     }}
+}
+
+pub static ENABLE_TIMING_TRACE: OnceCell<bool> = OnceCell::new();
+
+#[macro_export]
+macro_rules! trace_timing {
+    ($title:expr, $($block:block)*) => {{
+        let enabled = *$crate::logger::ENABLE_TIMING_TRACE.get_or_init(|| std::env::var("TIMING_TRACE").is_ok());
+        let tracing_start = if enabled {
+            Some(::std::time::Instant::now())
+        } else {
+            None
+        };
+
+        $($block)*;
+
+        if let Some(tracing_start) = tracing_start {
+            info!("{} timing: {:?}", $title, tracing_start.elapsed());
+        }
+    }};
 }

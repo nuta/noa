@@ -1,5 +1,6 @@
 use std::slice;
 
+use noa_common::trace_timing;
 use tokio::sync::mpsc;
 
 use crate::{surface::HandledEvent, terminal::InputEvent};
@@ -149,7 +150,9 @@ impl<C: 'static> Compositor<C> {
         let screen_index = self.active_screen_index;
 
         // Render and composite layers.
-        compose_layers(ctx, &mut self.screens[screen_index], self.layers.iter_mut());
+        trace_timing!("render_layers", {
+            compose_layers(ctx, &mut self.screens[screen_index], self.layers.iter_mut());
+        });
 
         // Get the cursor position.
         let mut cursor = None;
