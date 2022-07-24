@@ -154,7 +154,7 @@ impl<C: 'static> Compositor<C> {
         let screen_index = self.active_screen_index;
 
         // Render and composite layers.
-        trace_timing!("render_layers", 10 /* ms */, {
+        trace_timing!("render_layers", 8 /* ms */, {
             compose_layers(ctx, &mut self.screens[screen_index], self.layers.iter_mut());
         });
 

@@ -3,6 +3,9 @@
 #[macro_use]
 extern crate log;
 
+#[macro_use]
+extern crate noa_common;
+
 use noa_common::logger::install_logger;
 use tokio::{
     fs::{create_dir_all, OpenOptions},

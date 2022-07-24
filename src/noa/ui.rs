@@ -35,7 +35,10 @@ impl Ui {
         self.compositor
             .add_frontmost_layer(Box::new(Text::new(mainloop_tx.clone())));
         loop {
-            self.compositor.render(&mut self.editor);
+            trace_timing!("render", 10 /* ms */, {
+                self.compositor.render(&mut self.editor);
+            });
+
             tokio::select! {
                 biased;
 
