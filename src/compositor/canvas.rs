@@ -283,9 +283,7 @@ impl<'a> CanvasViewMut<'a> {
     }
 
     pub fn clear(&mut self) {
-        for graph in self.graphs.iter_mut() {
-            *graph = Grapheme::blank();
-        }
+        self.graphs.fill(Grapheme::blank());
     }
 
     pub fn write(&mut self, y: usize, x: usize, graph: Grapheme) {
