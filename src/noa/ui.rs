@@ -202,12 +202,14 @@ impl Surface for Text {
                     continue;
                 }
 
+                let canvas_y = paragraph_screen_y + pos_in_screen.y;
+                let canvas_x = pos_in_screen.x;
                 match grapheme {
                     PrintableGrapheme::Grapheme(grapheme) => {
                         paragraph_height = pos_in_screen.y;
                         canvas.write(
-                            paragraph_screen_y + pos_in_screen.y,
-                            pos_in_screen.x,
+                            canvas_y,
+                            canvas_x,
                             Grapheme::new_with_width(grapheme, grapheme_width),
                         );
                     }
@@ -216,6 +218,14 @@ impl Surface for Text {
                     | PrintableGrapheme::ZeroWidth
                     | PrintableGrapheme::Newline(_) => {
                         // Already filled with whitespaces by `canvas.clear()`.
+                    }
+                }
+
+                for c in doc.cursors() {
+                    if c.selection().contains(pos_in_buffer)
+                        || (!c.is_main_cursor() && c.position() == Some(pos_in_buffer))
+                    {
+                        canvas.set_inverted(canvas_y, canvas_x, canvas_x + grapheme_width, true);
                     }
                 }
 
