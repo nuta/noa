@@ -64,10 +64,14 @@ impl<C: 'static> Compositor<C> {
         let ev = self.term_rx.recv().await;
         match &ev {
             Some(terminal::Event::Input(input_event)) => {
-                self.handle_input_event(ctx, input_event);
+                trace_timing!("handle_input_event", 20 /* ms */, {
+                    self.handle_input_event(ctx, input_event);
+                });
             }
             Some(terminal::Event::Resize { height, width }) => {
-                self.resize_screen(*height, *width);
+                trace_timing!("resize_screen", 10 /* ms */, {
+                    self.resize_screen(*height, *width);
+                });
             }
             None => {}
         }
@@ -150,7 +154,7 @@ impl<C: 'static> Compositor<C> {
         let screen_index = self.active_screen_index;
 
         // Render and composite layers.
-        trace_timing!("render_layers", {
+        trace_timing!("render_layers", 10 /* ms */, {
             compose_layers(ctx, &mut self.screens[screen_index], self.layers.iter_mut());
         });
 
@@ -172,7 +176,6 @@ impl<C: 'static> Compositor<C> {
         let mut drawer = self.terminal.drawer();
         drawer.before_drawing();
 
-        trace!("draw changes: {} items", draw_ops.len());
         for op in draw_ops {
             drawer.draw(&op);
         }

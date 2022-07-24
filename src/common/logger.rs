@@ -8,7 +8,6 @@ use std::{
     io::{self, prelude::*, BufReader, SeekFrom},
     path::Path,
     sync::Mutex,
-    time::Instant,
 };
 
 use crate::dirs::log_file_path;
@@ -181,13 +180,28 @@ macro_rules! debug_warn_once {
     }}
 }
 
-pub static ENABLE_TIMING_TRACE: OnceCell<bool> = OnceCell::new();
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TimingTraceMode {
+    Disabled,
+    All,
+    OutliersOnly,
+}
+
+pub static ENABLE_TIMING_TRACE: OnceCell<TimingTraceMode> = OnceCell::new();
 
 #[macro_export]
 macro_rules! trace_timing {
-    ($title:expr, $($block:block)*) => {{
-        let enabled = *$crate::logger::ENABLE_TIMING_TRACE.get_or_init(|| std::env::var("TIMING_TRACE").is_ok());
-        let tracing_start = if enabled {
+    ($title:expr, $threshold_ms:expr, $($block:block)*) => {{
+        use $crate::logger::TimingTraceMode;
+
+        let mode = *$crate::logger::ENABLE_TIMING_TRACE.get_or_init(|| {
+            match std::env::var("TIMING_TRACE") {
+                Ok(s) if s == "all" => TimingTraceMode::All,
+                Ok(_) => TimingTraceMode::OutliersOnly,
+                _ => TimingTraceMode::Disabled,
+            }
+        });
+        let tracing_start = if mode != TimingTraceMode::Disabled {
             Some(::std::time::Instant::now())
         } else {
             None
@@ -196,7 +210,19 @@ macro_rules! trace_timing {
         $($block)*;
 
         if let Some(tracing_start) = tracing_start {
-            info!("{} timing: {:?}", $title, tracing_start.elapsed());
+            let elapsed = tracing_start.elapsed();
+            match mode {
+                TimingTraceMode::All => {
+                    info!("{} timing: {:?}", $title, elapsed);
+                }
+                TimingTraceMode::OutliersOnly => {
+                    if elapsed.as_millis() > $threshold_ms {
+                        warn!("{} timing: {:?}", $title, elapsed);
+                    }
+                }
+                TimingTraceMode::Disabled => {
+                }
+            }
         }
     }};
 }
