@@ -106,6 +106,11 @@ pub fn install_logger(name: &str) {
     });
 
     log::set_boxed_logger(Box::new(Logger::new(log_file))).expect("failed to set the logger");
+
+    std::panic::set_hook(Box::new(|info| {
+        error!("panic: {}", info);
+        prettify_backtrace(backtrace::Backtrace::new());
+    }));
 }
 
 pub fn prettify_backtrace(backtrace: Backtrace) {

@@ -9,7 +9,7 @@ extern crate noa_common;
 use std::path::PathBuf;
 
 use clap::Parser;
-use noa_common::logger::install_logger;
+use noa_common::logger::{install_logger, prettify_backtrace};
 use tokio::{
     fs::{create_dir_all, OpenOptions},
     io::AsyncWriteExt,
