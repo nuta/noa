@@ -191,6 +191,7 @@ impl Surface for Text {
 
     fn render(&mut self, editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
         canvas.clear();
+        self.cursor_screen_pos = None;
         self.buffer_width = canvas.width();
 
         info!("render");

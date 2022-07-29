@@ -1,6 +1,8 @@
 use crate::{
+    cursor::Position,
     paragraph_iter::{Paragraph, ParagraphIndex},
     raw_buffer::RawBuffer,
+    reflow_iter::ReflowItem,
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -63,7 +65,6 @@ impl Scroll {
         tab_width: usize,
         n: usize,
     ) {
-        info!("up: {:?}", self.y_in_paragraph);
         for _ in 0..n {
             if self.y_in_paragraph > 0 {
                 // Scroll within the current paragraph.
@@ -82,6 +83,25 @@ impl Scroll {
                         .unwrap_or(0);
                 }
             }
+        }
+    }
+
+    pub fn scroll_until_pos(
+        &mut self,
+        buffer: &RawBuffer,
+        screen_width: usize,
+        screen_height: usize,
+        tab_width: usize,
+        first_visible_pos: Position,
+        last_visible_pos: Position,
+        pos: Position,
+    ) {
+        while pos < first_visible_pos {
+            self.scroll_up(buffer, screen_width, tab_width, 1);
+        }
+
+        while pos < first_visible_pos {
+            self.scroll_up(buffer, screen_width, tab_width, 1);
         }
     }
 }

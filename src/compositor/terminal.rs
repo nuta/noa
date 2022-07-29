@@ -235,19 +235,18 @@ impl<'a> Drawer<'a> {
         }
     }
 
-    pub fn move_cursor(&mut self, screen_y: usize, screen_x: usize) {
-        queue!(self.stdout, MoveTo(screen_x as u16, screen_y as u16),).ok();
-    }
-
-    pub fn flush(&mut self) {
-        queue!(self.stdout, cursor::Show, SynchronizedOutput::End).ok();
+    pub fn flush(&mut self, cursor_pos: Option<(usize, usize)>) {
+        if let Some((y, x)) = cursor_pos {
+            queue!(self.stdout, MoveTo(x as u16, y as u16), cursor::Show).ok();
+        }
+        queue!(self.stdout, SynchronizedOutput::End).ok();
         self.stdout.flush().ok();
     }
 }
 
 impl<'a> Drop for Drawer<'a> {
     fn drop(&mut self) {
-        self.flush();
+        self.stdout.flush().ok();
     }
 }
 

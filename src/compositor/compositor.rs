@@ -179,11 +179,8 @@ impl<C: 'static> Compositor<C> {
         for op in draw_ops {
             drawer.draw(&op);
         }
-        if let Some((screen_y, screen_x)) = cursor {
-            drawer.move_cursor(screen_y, screen_x);
-        }
 
-        drawer.flush();
+        drawer.flush(cursor);
     }
 
     fn handle_input_event(&mut self, ctx: &mut C, input: InputEvent) {
