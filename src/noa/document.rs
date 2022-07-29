@@ -4,7 +4,9 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use noa_buffer::{buffer::Buffer, cursor::Position, reflow_iter::ScreenPosition};
+use noa_buffer::{
+    buffer::Buffer, cursor::Position, paragraph_iter::ParagraphIndex, reflow_iter::ScreenPosition,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DocumentId(usize);
@@ -24,9 +26,10 @@ pub enum DocumentKind {
 
 #[derive(Debug)]
 pub struct Scroll {
-    pub buf_pos: Position,
-    /// `screen_pos.x` is 0 if soft wrap is enabled.
-    pub screen_pos: ScreenPosition,
+    pub paragraph_index: ParagraphIndex,
+    pub y_in_paragraph: usize,
+    // Non-zero only if soft wrap is disabled.
+    pub x_in_paragraph: usize,
 }
 
 pub struct Document {
@@ -43,8 +46,9 @@ impl Document {
             kind: DocumentKind::Scratch,
             buffer: Buffer::new(),
             scroll: Scroll {
-                buf_pos: Position::new(0, 0),
-                screen_pos: ScreenPosition::new(0, 0),
+                paragraph_index: ParagraphIndex::zeroed(),
+                y_in_paragraph: 0,
+                x_in_paragraph: 0,
             },
         }
     }

@@ -4,6 +4,21 @@ use crate::{
     reflow_iter::ReflowIter,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ParagraphIndex {
+    buffer_y: usize,
+}
+
+impl ParagraphIndex {
+    pub fn new(_buffer: &RawBuffer, pos: Position) -> Self {
+        ParagraphIndex { buffer_y: pos.y }
+    }
+
+    pub fn zeroed() -> ParagraphIndex {
+        ParagraphIndex { buffer_y: 0 }
+    }
+}
+
 pub struct Paragraph<'a> {
     pub reflow_iter: ReflowIter<'a>,
 }
@@ -23,6 +38,17 @@ impl<'a> ParagraphIter<'a> {
         screen_width: usize,
         tab_width: usize,
     ) -> ParagraphIter<'a> {
+        let index = ParagraphIndex::new(buffer, pos);
+        Self::new_at_index(buffer, index, screen_width, tab_width)
+    }
+
+    pub fn new_at_index(
+        buffer: &'a RawBuffer,
+        index: ParagraphIndex,
+        screen_width: usize,
+        tab_width: usize,
+    ) -> ParagraphIter<'a> {
+        let pos = Position::new(index.buffer_y, 0);
         ParagraphIter {
             pos,
             buffer,

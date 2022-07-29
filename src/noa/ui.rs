@@ -193,8 +193,8 @@ impl Surface for Text {
         let doc = editor.current_document();
         let main_cursor_pos = doc.main_cursor().moving_position();
         let mut paragraph_screen_y = 0;
-        for (Paragraph { mut reflow_iter }) in doc.paragraph_iter(
-            doc.scroll.buf_pos,
+        for (Paragraph { mut reflow_iter }) in doc.paragraph_iter_at_index(
+            doc.scroll.paragraph_index,
             self.buffer_width,
             doc.editorconfig().tab_width,
         ) {
@@ -211,11 +211,11 @@ impl Surface for Text {
                     break;
                 }
 
-                if pos_in_screen.y < doc.scroll.screen_pos.y {
+                if pos_in_screen.y < doc.scroll.y_in_paragraph {
                     continue;
                 }
 
-                if pos_in_screen.x < doc.scroll.screen_pos.x {
+                if pos_in_screen.x < doc.scroll.x_in_paragraph {
                     continue;
                 }
 

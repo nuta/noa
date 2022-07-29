@@ -5,7 +5,7 @@ use crate::{
     cursor::{Position, Range},
     find::FindIter,
     grapheme_iter::{BidirectionalGraphemeIter, GraphemeIter},
-    paragraph_iter::ParagraphIter,
+    paragraph_iter::{ParagraphIndex, ParagraphIter},
     reflow_iter::ReflowIter,
     word_iter::{is_word_char, WordIter},
 };
@@ -193,6 +193,15 @@ impl RawBuffer {
         tab_width: usize,
     ) -> ParagraphIter<'_> {
         ParagraphIter::new(self, pos, screen_width, tab_width)
+    }
+
+    pub fn paragraph_iter_at_index(
+        &self,
+        index: ParagraphIndex,
+        screen_width: usize,
+        tab_width: usize,
+    ) -> ParagraphIter<'_> {
+        ParagraphIter::new_at_index(self, index, screen_width, tab_width)
     }
 
     /// Returns the current word range.
