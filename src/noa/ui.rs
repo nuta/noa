@@ -196,7 +196,7 @@ impl Surface for Text {
         info!("render");
         let doc = editor.current_document();
         let main_cursor_pos = doc.main_cursor().moving_position();
-        let mut paragraph_screen_y = 0;
+        let mut screen_y_offset = 0;
         for (Paragraph {
             mut reflow_iter,
             index: paragraph_index,
@@ -207,7 +207,14 @@ impl Surface for Text {
         ) {
             info!("render paragraph {:?}", paragraph_index);
             reflow_iter.enable_eof(true);
+
             let mut paragraph_height = 0;
+            let skipped_y = if doc.scroll.paragraph_index == paragraph_index {
+                doc.scroll.y_in_paragraph
+            } else {
+                0
+            };
+
             for ReflowItem {
                 grapheme,
                 grapheme_width,
@@ -221,12 +228,7 @@ impl Surface for Text {
                     continue;
                 }
 
-                let canvas_y = if doc.scroll.paragraph_index == paragraph_index {
-                    paragraph_screen_y + pos_in_screen.y - doc.scroll.y_in_paragraph
-                } else {
-                    paragraph_screen_y + pos_in_screen.y
-                };
-
+                let canvas_y = screen_y_offset + pos_in_screen.y - skipped_y;
                 if canvas_y >= canvas.height() {
                     break;
                 }
@@ -235,11 +237,11 @@ impl Surface for Text {
                     continue;
                 }
 
-                info!(
-                    "yx=({}, {}), g={:?}, paragraph_screen_y={}",
-                    pos_in_screen.y, pos_in_screen.x, grapheme, paragraph_screen_y
-                );
                 let canvas_x = pos_in_screen.x;
+                info!(
+                    "yx=({}, {}), canvas_y({}, {}), g={:?}, paragraph_screen_y={}",
+                    pos_in_screen.y, pos_in_screen.x, canvas_y, canvas_x, grapheme, screen_y_offset
+                );
                 match grapheme {
                     PrintableGrapheme::Grapheme(grapheme) => {
                         paragraph_height = pos_in_screen.y;
@@ -266,12 +268,11 @@ impl Surface for Text {
                 }
 
                 if main_cursor_pos == pos_in_buffer {
-                    self.cursor_screen_pos =
-                        Some((paragraph_screen_y + pos_in_screen.y, pos_in_screen.x));
+                    self.cursor_screen_pos = Some((canvas_y, canvas_x));
                 }
             }
 
-            paragraph_screen_y += 1 + paragraph_height;
+            screen_y_offset += 1 + paragraph_height - skipped_y;
         }
     }
 }

@@ -130,7 +130,8 @@ mod tests {
     fn scroll_down_soft_wrapped() {
         // abcde
         // xyz
-        let buf = RawBuffer::from_text("abcdexyz");
+        //
+        let buf = RawBuffer::from_text("abcdexyz\n");
         let mut scroll = Scroll {
             paragraph_index: ParagraphIndex::new(&buf, Position::new(0, 0)),
             x_in_paragraph: 0,
@@ -144,6 +145,16 @@ mod tests {
                 paragraph_index: ParagraphIndex { buffer_y: 0 },
                 x_in_paragraph: 0,
                 y_in_paragraph: 1,
+            }
+        );
+
+        scroll.scroll_down(&buf, 5, 4, 1);
+        assert_eq!(
+            scroll,
+            Scroll {
+                paragraph_index: ParagraphIndex { buffer_y: 1 },
+                x_in_paragraph: 0,
+                y_in_paragraph: 0,
             }
         );
     }
