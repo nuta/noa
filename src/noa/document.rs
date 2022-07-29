@@ -65,8 +65,13 @@ impl Document {
         );
     }
 
-    pub fn scroll_up(&mut self, n: usize) {
-        // self.scroll.scroll_up(&self.buffer, n);
+    pub fn scroll_up(&mut self, n: usize, screen_width: usize) {
+        self.scroll.scroll_up(
+            &self.buffer,
+            screen_width,
+            self.buffer.editorconfig().tab_width,
+            n,
+        );
     }
 }
 

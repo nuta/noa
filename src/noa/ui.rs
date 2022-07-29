@@ -132,6 +132,7 @@ impl Surface for Text {
             }
             (KeyCode::Up, NONE) => {
                 // doc.move_cursors_up(self.buffer_width);
+                doc.scroll_up(1, self.buffer_width);
             }
             (KeyCode::Down, NONE) => {
                 // doc.move_cursors_down(self.buffer_width);
