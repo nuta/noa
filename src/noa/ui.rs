@@ -222,13 +222,13 @@ impl Surface for Text {
                 pos_in_buffer,
             } in reflow_iter
             {
-                if doc.scroll.paragraph_index == paragraph_index
-                    && pos_in_screen.y < doc.scroll.y_in_paragraph
-                {
+                if pos_in_screen.y < skipped_y {
                     continue;
                 }
 
                 let canvas_y = screen_y_offset + pos_in_screen.y - skipped_y;
+                let canvas_x = pos_in_screen.x;
+
                 if canvas_y >= canvas.height() {
                     break;
                 }
@@ -237,11 +237,10 @@ impl Surface for Text {
                     continue;
                 }
 
-                let canvas_x = pos_in_screen.x;
-                info!(
-                    "yx=({}, {}), canvas_y({}, {}), g={:?}, paragraph_screen_y={}",
-                    pos_in_screen.y, pos_in_screen.x, canvas_y, canvas_x, grapheme, screen_y_offset
-                );
+                // info!(
+                //     "yx=({}, {}), canvas_y({}, {}), g={:?}, paragraph_screen_y={}",
+                //     pos_in_screen.y, pos_in_screen.x, canvas_y, canvas_x, grapheme, screen_y_offset
+                // );
                 match grapheme {
                     PrintableGrapheme::Grapheme(grapheme) => {
                         paragraph_height = pos_in_screen.y;
