@@ -120,7 +120,7 @@ pub fn prettify_backtrace(backtrace: Backtrace) {
                     continue;
                 }
 
-                error!(
+                warn!(
                     "    #{} {}:{}, col {}",
                     i,
                     filename,

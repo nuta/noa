@@ -97,10 +97,11 @@ impl Surface for Text {
     ) {
         (
             Layout::Fixed { y: 0, x: 0 },
-            RectSize {
-                width: screen_size.width,
-                height: screen_size.height.saturating_sub(2),
-            },
+            screen_size,
+            // RectSize {
+            //     width: screen_size.width,
+            //     height: screen_size.height.saturating_sub(2),
+            // },
         )
     }
 
@@ -130,10 +131,11 @@ impl Surface for Text {
                 doc.clear_secondary_cursors();
             }
             (KeyCode::Up, NONE) => {
-                doc.move_cursors_up(self.buffer_width);
+                // doc.move_cursors_up(self.buffer_width);
             }
             (KeyCode::Down, NONE) => {
-                doc.move_cursors_down(self.buffer_width);
+                // doc.move_cursors_down(self.buffer_width);
+                doc.scroll_down(1, self.buffer_width);
             }
             (KeyCode::Left, NONE) => {
                 doc.move_cursors_left();
@@ -190,16 +192,19 @@ impl Surface for Text {
         canvas.clear();
         self.buffer_width = canvas.width();
 
+        info!("render");
         let doc = editor.current_document();
         let main_cursor_pos = doc.main_cursor().moving_position();
         let mut paragraph_screen_y = 0;
         for (Paragraph {
-            mut reflow_iter, ..
+            mut reflow_iter,
+            index: paragraph_index,
         }) in doc.paragraph_iter_at_index(
             doc.scroll.paragraph_index,
             self.buffer_width,
             doc.editorconfig().tab_width,
         ) {
+            info!("render paragraph {:?}", paragraph_index);
             reflow_iter.enable_eof(true);
             let mut paragraph_height = 0;
             for ReflowItem {
@@ -209,19 +214,30 @@ impl Surface for Text {
                 pos_in_buffer,
             } in reflow_iter
             {
-                if pos_in_screen.y >= canvas.height() {
-                    break;
+                if doc.scroll.paragraph_index == paragraph_index
+                    && pos_in_screen.y < doc.scroll.y_in_paragraph
+                {
+                    continue;
                 }
 
-                if pos_in_screen.y < doc.scroll.y_in_paragraph {
-                    continue;
+                let canvas_y = if doc.scroll.paragraph_index == paragraph_index {
+                    paragraph_screen_y + pos_in_screen.y - doc.scroll.y_in_paragraph
+                } else {
+                    paragraph_screen_y + pos_in_screen.y
+                };
+
+                if canvas_y >= canvas.height() {
+                    break;
                 }
 
                 if pos_in_screen.x < doc.scroll.x_in_paragraph {
                     continue;
                 }
 
-                let canvas_y = paragraph_screen_y + pos_in_screen.y;
+                info!(
+                    "yx=({}, {}), g={:?}, paragraph_screen_y={}",
+                    pos_in_screen.y, pos_in_screen.x, grapheme, paragraph_screen_y
+                );
                 let canvas_x = pos_in_screen.x;
                 match grapheme {
                     PrintableGrapheme::Grapheme(grapheme) => {

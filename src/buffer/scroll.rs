@@ -3,7 +3,7 @@ use crate::{
     raw_buffer::RawBuffer,
 };
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Scroll {
     pub paragraph_index: ParagraphIndex,
     pub y_in_paragraph: usize,
@@ -60,5 +60,57 @@ impl Scroll {
         for _ in 0..n {
             //
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::cursor::Position;
+
+    use super::*;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn scroll_down() {
+        // abc
+        // xyz
+        let buf = RawBuffer::from_text("abc\nxyz");
+        let mut scroll = Scroll {
+            paragraph_index: ParagraphIndex::new(&buf, Position::new(0, 0)),
+            x_in_paragraph: 0,
+            y_in_paragraph: 0,
+        };
+
+        scroll.scroll_down(&buf, 5, 4, 1);
+        assert_eq!(
+            scroll,
+            Scroll {
+                paragraph_index: ParagraphIndex { buffer_y: 1 },
+                x_in_paragraph: 0,
+                y_in_paragraph: 0,
+            }
+        );
+    }
+
+    #[test]
+    fn scroll_down_soft_wrapped() {
+        // abcde
+        // xyz
+        let buf = RawBuffer::from_text("abcdexyz");
+        let mut scroll = Scroll {
+            paragraph_index: ParagraphIndex::new(&buf, Position::new(0, 0)),
+            x_in_paragraph: 0,
+            y_in_paragraph: 0,
+        };
+
+        scroll.scroll_down(&buf, 5, 4, 1);
+        assert_eq!(
+            scroll,
+            Scroll {
+                paragraph_index: ParagraphIndex { buffer_y: 0 },
+                x_in_paragraph: 0,
+                y_in_paragraph: 1,
+            }
+        );
     }
 }

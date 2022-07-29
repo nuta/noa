@@ -46,7 +46,7 @@ impl Terminal {
         queue!(
             stdout,
             EnterAlternateScreen,
-            EnableMouseCapture,
+            // TODO: EnableMouseCapture,
             SetCursorShape::BlinkingBeam,
         )
         .ok();

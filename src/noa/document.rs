@@ -56,10 +56,10 @@ impl Document {
         })
     }
 
-    pub fn scroll_down(&mut self, n: usize, scroll_width: usize) {
+    pub fn scroll_down(&mut self, n: usize, screen_width: usize) {
         self.scroll.scroll_down(
             &self.buffer,
-            scroll_width,
+            screen_width,
             self.buffer.editorconfig().tab_width,
             n,
         );
