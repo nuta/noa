@@ -45,7 +45,9 @@ async fn main() {
         let doc = document::Document::open(&file)
             .await
             .expect("failed to open file");
+        let doc_id = doc.id;
         editor.add_document(doc);
+        editor.switch_document(doc_id);
     }
 
     install_logger("main");
