@@ -15,5 +15,6 @@ pub mod mut_raw_buffer;
 pub mod paragraph_iter;
 pub mod raw_buffer;
 pub mod reflow_iter;
+pub mod scroll;
 pub mod syntax;
 pub mod word_iter;

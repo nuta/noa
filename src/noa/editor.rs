@@ -32,4 +32,8 @@ impl Editor {
     pub fn current_document_mut(&mut self) -> &mut Document {
         self.documents.get_mut(&self.current_doc).unwrap()
     }
+
+    pub fn switch_document(&mut self, doc: &Document) {
+        self.current_doc = doc.id;
+    }
 }

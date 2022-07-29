@@ -193,7 +193,9 @@ impl Surface for Text {
         let doc = editor.current_document();
         let main_cursor_pos = doc.main_cursor().moving_position();
         let mut paragraph_screen_y = 0;
-        for (Paragraph { mut reflow_iter }) in doc.paragraph_iter_at_index(
+        for (Paragraph {
+            mut reflow_iter, ..
+        }) in doc.paragraph_iter_at_index(
             doc.scroll.paragraph_index,
             self.buffer_width,
             doc.editorconfig().tab_width,

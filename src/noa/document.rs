@@ -1,18 +1,21 @@
 use std::{
+    fs::{File, OpenOptions},
     ops::{Deref, DerefMut},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::atomic::{AtomicUsize, Ordering},
 };
 
+use anyhow::Result;
 use noa_buffer::{
     buffer::Buffer, cursor::Position, paragraph_iter::ParagraphIndex, reflow_iter::ScreenPosition,
+    scroll::Scroll,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DocumentId(usize);
 
 impl DocumentId {
-    pub fn new() -> Self {
+    pub fn alloc() -> Self {
         static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
         DocumentId(NEXT_ID.fetch_add(1, Ordering::SeqCst))
     }
@@ -24,14 +27,6 @@ pub enum DocumentKind {
     File { path: PathBuf },
 }
 
-#[derive(Debug)]
-pub struct Scroll {
-    pub paragraph_index: ParagraphIndex,
-    pub y_in_paragraph: usize,
-    // Non-zero only if soft wrap is disabled.
-    pub x_in_paragraph: usize,
-}
-
 pub struct Document {
     pub id: DocumentId,
     pub kind: DocumentKind,
@@ -40,17 +35,38 @@ pub struct Document {
 }
 
 impl Document {
-    pub fn scratch() -> Self {
+    pub fn scratch() -> Document {
         Document {
-            id: DocumentId::new(),
+            id: DocumentId::alloc(),
             kind: DocumentKind::Scratch,
             buffer: Buffer::new(),
-            scroll: Scroll {
-                paragraph_index: ParagraphIndex::zeroed(),
-                y_in_paragraph: 0,
-                x_in_paragraph: 0,
-            },
+            scroll: Scroll::zeroed(),
         }
+    }
+
+    pub async fn open(path: &Path) -> Result<Document> {
+        let file = File::open(path)?;
+        Ok(Document {
+            id: DocumentId::alloc(),
+            kind: DocumentKind::File {
+                path: path.to_owned(),
+            },
+            buffer: Buffer::from_reader(file)?,
+            scroll: Scroll::zeroed(),
+        })
+    }
+
+    pub fn scroll_down(&mut self, n: usize, scroll_width: usize) {
+        self.scroll.scroll_down(
+            &self.buffer,
+            scroll_width,
+            self.buffer.editorconfig().tab_width,
+            n,
+        );
+    }
+
+    pub fn scroll_up(&mut self, n: usize) {
+        // self.scroll.scroll_up(&self.buffer, n);
     }
 }
 

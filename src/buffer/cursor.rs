@@ -156,7 +156,7 @@ impl Position {
                     None => {
                         // Next paragraph.
                         match paragraph_iter.next() {
-                            Some(Paragraph { reflow_iter }) => {
+                            Some(Paragraph { reflow_iter, .. }) => {
                                 let range = reflow_iter.range();
                                 if range.front().y == buf.num_lines() - 1 {
                                     Some(range.front())

@@ -20,6 +20,7 @@ impl ParagraphIndex {
 }
 
 pub struct Paragraph<'a> {
+    pub index: ParagraphIndex,
     pub reflow_iter: ReflowIter<'a>,
 }
 
@@ -73,7 +74,12 @@ impl<'a> ParagraphIter<'a> {
             self.screen_width,
             self.tab_width,
         );
-        Some(Paragraph { reflow_iter })
+        Some(Paragraph {
+            index: ParagraphIndex {
+                buffer_y: pos_start.y,
+            },
+            reflow_iter,
+        })
     }
 }
 
@@ -97,7 +103,12 @@ impl<'a> Iterator for ParagraphIter<'a> {
             self.screen_width,
             self.tab_width,
         );
-        Some(Paragraph { reflow_iter })
+        Some(Paragraph {
+            index: ParagraphIndex {
+                buffer_y: pos_start.y,
+            },
+            reflow_iter,
+        })
     }
 }
 
