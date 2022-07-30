@@ -2,6 +2,7 @@ use crate::{
     cursor::Position,
     paragraph_iter::{Paragraph, ParagraphIndex},
     raw_buffer::RawBuffer,
+    reflow_iter::ScreenPosition,
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -95,28 +96,21 @@ impl Scroll {
         last_visible_pos: Position,
         pos: Position,
     ) {
-        if pos < first_visible_pos {
-            if let Some((paragraph_index, y_in_paragraph)) =
+        if pos < first_visible_pos || pos > last_visible_pos {
+            if let Some((paragraph_index, pos_in_screen)) =
                 locate_row(buffer, screen_width, tab_width, pos)
             {
                 self.paragraph_index = paragraph_index;
-                self.y_in_paragraph = y_in_paragraph;
-            }
-        }
+                self.y_in_paragraph = pos_in_screen.y;
 
-        if pos > last_visible_pos {
-            if let Some((paragraph_index, y_in_paragraph)) =
-                locate_row(buffer, screen_width, tab_width, pos)
-            {
-                self.paragraph_index = paragraph_index;
-                self.y_in_paragraph = y_in_paragraph;
-
-                self.scroll_up(
-                    buffer,
-                    screen_width,
-                    tab_width,
-                    screen_height.saturating_sub(1),
-                );
+                if pos > last_visible_pos {
+                    self.scroll_up(
+                        buffer,
+                        screen_width,
+                        tab_width,
+                        screen_height.saturating_sub(1),
+                    );
+                }
             }
         }
     }
@@ -127,7 +121,7 @@ fn locate_row(
     screen_width: usize,
     tab_width: usize,
     pos: Position,
-) -> Option<(ParagraphIndex, usize)> {
+) -> Option<(ParagraphIndex, ScreenPosition)> {
     let paragraph = buffer
         .paragraph_iter(pos, screen_width, tab_width)
         .next()
@@ -137,7 +131,7 @@ fn locate_row(
         .reflow_iter
         .skip_while(|item| item.pos_in_buffer < pos)
         .next()
-        .map(|item| (paragraph.index, item.pos_in_screen.y))
+        .map(|item| (paragraph.index, item.pos_in_screen))
 }
 
 #[cfg(test)]

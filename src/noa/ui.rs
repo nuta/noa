@@ -175,7 +175,7 @@ impl Surface for Text {
             (KeyCode::Backspace, NONE) => {
                 doc.backspace();
             }
-            (KeyCode::Delete, NONE) => {
+            (KeyCode::Delete, NONE) | (KeyCode::Char('d'), CTRL) => {
                 doc.delete();
             }
             (KeyCode::Char('a'), CTRL) => {
@@ -262,11 +262,6 @@ impl Surface for Text {
                 if pos_in_screen.x < doc.scroll.x_in_paragraph {
                     continue;
                 }
-
-                // info!(
-                //     "yx=({}, {}), canvas_y({}, {}), g={:?}, paragraph_screen_y={}",
-                //     pos_in_screen.y, pos_in_screen.x, canvas_y, canvas_x, grapheme, screen_y_offset
-                // );
 
                 self.first_visible_pos = min(self.first_visible_pos, pos_in_buffer);
                 self.last_visible_pos = max(self.last_visible_pos, pos_in_buffer);
