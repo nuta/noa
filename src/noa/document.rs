@@ -73,6 +73,24 @@ impl Document {
             n,
         );
     }
+
+    pub fn adjust_scroll(
+        &mut self,
+        screen_width: usize,
+        screen_height: usize,
+        first_visible_pos: Position,
+        last_visible_pos: Position,
+    ) {
+        self.scroll.adjust_scroll(
+            &self.buffer,
+            screen_width,
+            screen_height,
+            self.buffer.editorconfig().tab_width,
+            first_visible_pos,
+            last_visible_pos,
+            self.buffer.main_cursor().moving_position(),
+        );
+    }
 }
 
 impl Deref for Document {

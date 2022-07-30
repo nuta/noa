@@ -2,7 +2,6 @@ use crate::{
     cursor::Position,
     paragraph_iter::{Paragraph, ParagraphIndex},
     raw_buffer::RawBuffer,
-    reflow_iter::ReflowItem,
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -38,7 +37,7 @@ impl Scroll {
                 .reflow_iter
                 .skip_while(|item| item.pos_in_screen.y <= self.y_in_paragraph);
 
-            if let Some(_) = current_paragraph_reflow.next() {
+            if current_paragraph_reflow.next().is_some() {
                 // Scroll within the current paragraph.
                 self.y_in_paragraph += 1;
                 continue;
@@ -86,7 +85,7 @@ impl Scroll {
         }
     }
 
-    pub fn scroll_until_pos(
+    pub fn adjust_scroll(
         &mut self,
         buffer: &RawBuffer,
         screen_width: usize,
@@ -96,14 +95,53 @@ impl Scroll {
         last_visible_pos: Position,
         pos: Position,
     ) {
-        while pos < first_visible_pos {
-            self.scroll_up(buffer, screen_width, tab_width, 1);
+        info!(
+            "adjust_scroll: {:?} {:?} {:?}",
+            pos, first_visible_pos, last_visible_pos
+        );
+        if pos < first_visible_pos {
+            if let Some((paragraph_index, y_in_paragraph)) =
+                locate_row(buffer, screen_width, tab_width, pos)
+            {
+                self.paragraph_index = paragraph_index;
+                self.y_in_paragraph = y_in_paragraph;
+            }
         }
 
-        while pos < first_visible_pos {
-            self.scroll_up(buffer, screen_width, tab_width, 1);
+        if pos > last_visible_pos {
+            if let Some((paragraph_index, y_in_paragraph)) =
+                locate_row(buffer, screen_width, tab_width, pos)
+            {
+                self.paragraph_index = paragraph_index;
+                self.y_in_paragraph = y_in_paragraph;
+
+                self.scroll_up(
+                    buffer,
+                    screen_width,
+                    tab_width,
+                    screen_height.saturating_sub(1),
+                );
+            }
         }
     }
+}
+
+fn locate_row(
+    buffer: &RawBuffer,
+    screen_width: usize,
+    tab_width: usize,
+    pos: Position,
+) -> Option<(ParagraphIndex, usize)> {
+    let paragraph = buffer
+        .paragraph_iter(pos, screen_width, tab_width)
+        .next()
+        .unwrap();
+
+    paragraph
+        .reflow_iter
+        .skip_while(|item| item.pos_in_buffer < pos)
+        .next()
+        .map(|item| (paragraph.index, item.pos_in_screen.y))
 }
 
 #[cfg(test)]
@@ -231,6 +269,31 @@ mod tests {
                 x_in_paragraph: 0,
                 y_in_paragraph: 0,
             }
+        );
+    }
+
+    #[test]
+    fn test_locate_row() {
+        // abcde
+        // xyz
+        // 123
+        let buf = RawBuffer::from_text("abcdexyz\n123");
+
+        assert_eq!(
+            locate_row(&buf, 5, 4, Position::new(0, 0)),
+            Some((ParagraphIndex { buffer_y: 0 }, 0))
+        );
+        assert_eq!(
+            locate_row(&buf, 5, 4, Position::new(0, 3)),
+            Some((ParagraphIndex { buffer_y: 0 }, 0))
+        );
+        assert_eq!(
+            locate_row(&buf, 5, 4, Position::new(0, 5)),
+            Some((ParagraphIndex { buffer_y: 0 }, 1))
+        );
+        assert_eq!(
+            locate_row(&buf, 5, 4, Position::new(1, 2)),
+            Some((ParagraphIndex { buffer_y: 1 }, 0))
         );
     }
 }

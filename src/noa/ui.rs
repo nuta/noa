@@ -1,3 +1,5 @@
+use std::cmp::{max, min};
+
 use noa_buffer::{
     cursor::Position,
     paragraph_iter::Paragraph,
@@ -59,6 +61,9 @@ impl Ui {
 struct Text {
     mainloop_tx: UnboundedSender<MainloopCommand>,
     buffer_width: usize,
+    buffer_height: usize,
+    first_visible_pos: Position,
+    last_visible_pos: Position,
     cursor_screen_pos: Option<(usize, usize)>,
 }
 
@@ -67,6 +72,9 @@ impl Text {
         Text {
             mainloop_tx,
             buffer_width: 0,
+            buffer_height: 0,
+            first_visible_pos: Position::new(0, 0),
+            last_visible_pos: Position::new(0, 0),
             cursor_screen_pos: None,
         }
     }
@@ -123,6 +131,7 @@ impl Surface for Text {
         let doc = editor.current_document_mut();
 
         let mut show_completion = false;
+        let mut adjust_scroll = true;
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), CTRL) => {
                 self.mainloop_tx.send(MainloopCommand::Quit);
@@ -133,10 +142,12 @@ impl Surface for Text {
             (KeyCode::Up, NONE) => {
                 // doc.move_cursors_up(self.buffer_width);
                 doc.scroll_up(1, self.buffer_width);
+                adjust_scroll = false;
             }
             (KeyCode::Down, NONE) => {
                 // doc.move_cursors_down(self.buffer_width);
                 doc.scroll_down(1, self.buffer_width);
+                adjust_scroll = false;
             }
             (KeyCode::Left, NONE) => {
                 doc.move_cursors_left();
@@ -186,6 +197,15 @@ impl Surface for Text {
             _ => {}
         }
 
+        if adjust_scroll {
+            doc.adjust_scroll(
+                self.buffer_width,
+                self.buffer_height,
+                self.first_visible_pos,
+                self.last_visible_pos,
+            );
+        }
+
         HandledEvent::Consumed
     }
 
@@ -193,8 +213,10 @@ impl Surface for Text {
         canvas.clear();
         self.cursor_screen_pos = None;
         self.buffer_width = canvas.width();
+        self.buffer_height = canvas.height();
+        self.first_visible_pos = Position::new(usize::MAX, usize::MAX);
+        self.last_visible_pos = Position::new(0, 0);
 
-        info!("render");
         let doc = editor.current_document();
         let main_cursor_pos = doc.main_cursor().moving_position();
         let mut screen_y_offset = 0;
@@ -206,7 +228,6 @@ impl Surface for Text {
             self.buffer_width,
             doc.editorconfig().tab_width,
         ) {
-            info!("render paragraph {:?}", paragraph_index);
             reflow_iter.enable_eof(true);
 
             let mut paragraph_height = 0;
@@ -242,6 +263,10 @@ impl Surface for Text {
                 //     "yx=({}, {}), canvas_y({}, {}), g={:?}, paragraph_screen_y={}",
                 //     pos_in_screen.y, pos_in_screen.x, canvas_y, canvas_x, grapheme, screen_y_offset
                 // );
+
+                self.first_visible_pos = min(self.first_visible_pos, pos_in_buffer);
+                self.last_visible_pos = max(self.last_visible_pos, pos_in_buffer);
+
                 match grapheme {
                     PrintableGrapheme::Grapheme(grapheme) => {
                         paragraph_height = pos_in_screen.y;
