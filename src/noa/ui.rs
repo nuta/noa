@@ -140,14 +140,10 @@ impl Surface for Text {
                 doc.clear_secondary_cursors();
             }
             (KeyCode::Up, NONE) => {
-                // doc.move_cursors_up(self.buffer_width);
-                doc.scroll_up(1, self.buffer_width);
-                adjust_scroll = false;
+                doc.move_cursors_up(self.buffer_width);
             }
             (KeyCode::Down, NONE) => {
-                // doc.move_cursors_down(self.buffer_width);
-                doc.scroll_down(1, self.buffer_width);
-                adjust_scroll = false;
+                doc.move_cursors_down(self.buffer_width);
             }
             (KeyCode::Left, NONE) => {
                 doc.move_cursors_left();
@@ -193,6 +189,14 @@ impl Surface for Text {
             }
             (KeyCode::Char('b'), ALT) => {
                 doc.move_to_prev_word();
+            }
+            (KeyCode::PageUp, NONE) => {
+                doc.scroll_up(1, self.buffer_width);
+                adjust_scroll = false;
+            }
+            (KeyCode::PageDown, NONE) => {
+                doc.scroll_down(1, self.buffer_width);
+                adjust_scroll = false;
             }
             _ => {}
         }
