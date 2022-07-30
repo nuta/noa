@@ -35,10 +35,6 @@ struct Args {
 async fn main() {
     let args = Args::parse();
 
-    if std::env::var("NOA_TOKIO_TRACE").is_ok() {
-        console_subscriber::init();
-    }
-
     // warm_up_search_cache();
 
     let mut editor = editor::Editor::new();
