@@ -11,7 +11,6 @@ impl Editor {
     pub fn new() -> Self {
         let mut documents = HashMap::new();
         let mut scratch_doc = Document::scratch();
-        scratch_doc.insert("Hello World from scratch!\n-----------------------\n\nby noa authors\nabcdedfghijklmnopqrstuvwxyzabcdedfghijklmnopqrstuvwxyzabcdedfghijklmnopqrstuvwxyzabcdedfghijklmnopqrstuvwxyzabcdedfghijklmnopqrstuvwxyzabcdedfghijklmnopqrstuvwxyzabcdedfghijklmnopqrstuvwxyzabcdedfghijklmnopqrstuvwxyzabcdedfghijklmnopqrstuvwxyz\n");
         let scratch_id = scratch_doc.id;
         documents.insert(scratch_id, scratch_doc);
 

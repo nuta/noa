@@ -284,19 +284,31 @@ mod tests {
 
         assert_eq!(
             locate_row(&buf, 5, 4, Position::new(0, 0)),
-            Some((ParagraphIndex { buffer_y: 0 }, 0))
+            Some((
+                ParagraphIndex { buffer_y: 0 },
+                ScreenPosition { y: 0, x: 0 }
+            ))
         );
         assert_eq!(
             locate_row(&buf, 5, 4, Position::new(0, 3)),
-            Some((ParagraphIndex { buffer_y: 0 }, 0))
+            Some((
+                ParagraphIndex { buffer_y: 0 },
+                ScreenPosition { y: 0, x: 0 }
+            ))
         );
         assert_eq!(
             locate_row(&buf, 5, 4, Position::new(0, 5)),
-            Some((ParagraphIndex { buffer_y: 0 }, 1))
+            Some((
+                ParagraphIndex { buffer_y: 0 },
+                ScreenPosition { y: 1, x: 0 }
+            ))
         );
         assert_eq!(
             locate_row(&buf, 5, 4, Position::new(1, 2)),
-            Some((ParagraphIndex { buffer_y: 1 }, 0))
+            Some((
+                ParagraphIndex { buffer_y: 1 },
+                ScreenPosition { y: 0, x: 0 }
+            ))
         );
     }
 }
