@@ -89,6 +89,7 @@ impl Scroll {
     pub fn adjust_scroll(
         &mut self,
         buffer: &RawBuffer,
+        virtual_screen_width: usize,
         screen_width: usize,
         screen_height: usize,
         tab_width: usize,
@@ -97,7 +98,7 @@ impl Scroll {
         pos: Position,
     ) {
         if let Some((paragraph_index, pos_in_screen)) =
-            locate_row(buffer, screen_width, tab_width, pos)
+            locate_row(buffer, virtual_screen_width, tab_width, pos)
         {
             // Scroll vertically.
             if pos < first_visible_pos || pos > last_visible_pos {
@@ -107,7 +108,7 @@ impl Scroll {
                 if pos > last_visible_pos {
                     self.scroll_up(
                         buffer,
-                        screen_width,
+                        virtual_screen_width,
                         tab_width,
                         screen_height.saturating_sub(1),
                     );
@@ -115,10 +116,10 @@ impl Scroll {
             }
 
             // Scroll horizontally (no softwrap).
-            info!(
-                "scroll h: {} {} {}",
-                pos_in_screen.x, self.x_in_paragraph, screen_width
-            );
+            if virtual_screen_width != usize::MAX {
+                self.x_in_paragraph = 0;
+            }
+
             if pos_in_screen.x >= self.x_in_paragraph + screen_width {
                 self.x_in_paragraph = pos_in_screen.x - screen_width + 1;
             } else if pos_in_screen.x < self.x_in_paragraph {

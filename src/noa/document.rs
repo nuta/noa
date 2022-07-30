@@ -76,6 +76,7 @@ impl Document {
 
     pub fn adjust_scroll(
         &mut self,
+        virtual_screen_width: usize,
         screen_width: usize,
         screen_height: usize,
         first_visible_pos: Position,
@@ -83,6 +84,7 @@ impl Document {
     ) {
         self.scroll.adjust_scroll(
             &self.buffer,
+            virtual_screen_width,
             screen_width,
             screen_height,
             self.buffer.editorconfig().tab_width,

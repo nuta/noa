@@ -200,7 +200,6 @@ impl Surface for Text {
                     self.virtual_buffer_width = self.buffer_width;
                 } else {
                     self.virtual_buffer_width = usize::MAX;
-
                 }
             }
             (KeyCode::PageUp, NONE) => {
@@ -217,6 +216,7 @@ impl Surface for Text {
         if adjust_scroll {
             doc.adjust_scroll(
                 self.virtual_buffer_width,
+                self.buffer_width,
                 self.buffer_height,
                 self.first_visible_pos,
                 self.last_visible_pos,
@@ -230,7 +230,7 @@ impl Surface for Text {
         canvas.clear();
         self.cursor_screen_pos = None;
         self.buffer_width = canvas.width();
-        if  self.virtual_buffer_width == 0 {
+        if self.virtual_buffer_width == 0 {
             self.virtual_buffer_width = canvas.width();
         }
         self.buffer_height = canvas.height();
