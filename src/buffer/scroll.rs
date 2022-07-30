@@ -96,10 +96,11 @@ impl Scroll {
         last_visible_pos: Position,
         pos: Position,
     ) {
-        if pos < first_visible_pos || pos > last_visible_pos {
-            if let Some((paragraph_index, pos_in_screen)) =
-                locate_row(buffer, screen_width, tab_width, pos)
-            {
+        if let Some((paragraph_index, pos_in_screen)) =
+            locate_row(buffer, screen_width, tab_width, pos)
+        {
+            // Scroll vertically.
+            if pos < first_visible_pos || pos > last_visible_pos {
                 self.paragraph_index = paragraph_index;
                 self.y_in_paragraph = pos_in_screen.y;
 
@@ -111,6 +112,13 @@ impl Scroll {
                         screen_height.saturating_sub(1),
                     );
                 }
+            }
+
+            // Scroll horizontally (no softwrap).
+            if pos_in_screen.x >= self.x_in_paragraph + screen_width {
+                self.x_in_paragraph = pos_in_screen.x - screen_width + 1;
+            } else if pos_in_screen.x < self.x_in_paragraph {
+                self.x_in_paragraph = pos_in_screen.x;
             }
         }
     }

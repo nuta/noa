@@ -60,22 +60,26 @@ impl Ui {
 
 struct Text {
     mainloop_tx: UnboundedSender<MainloopCommand>,
+    virtual_buffer_width: usize,
     buffer_width: usize,
     buffer_height: usize,
     first_visible_pos: Position,
     last_visible_pos: Position,
     cursor_screen_pos: Option<(usize, usize)>,
+    softwrap: bool,
 }
 
 impl Text {
     pub fn new(mainloop_tx: UnboundedSender<MainloopCommand>) -> Self {
         Text {
             mainloop_tx,
+            virtual_buffer_width: 0,
             buffer_width: 0,
             buffer_height: 0,
             first_visible_pos: Position::new(0, 0),
             last_visible_pos: Position::new(0, 0),
             cursor_screen_pos: None,
+            softwrap: true,
         }
     }
 }
@@ -140,10 +144,10 @@ impl Surface for Text {
                 doc.clear_secondary_cursors();
             }
             (KeyCode::Up, NONE) => {
-                doc.move_cursors_up(self.buffer_width);
+                doc.move_cursors_up(self.virtual_buffer_width);
             }
             (KeyCode::Down, NONE) => {
-                doc.move_cursors_down(self.buffer_width);
+                doc.move_cursors_down(self.virtual_buffer_width);
             }
             (KeyCode::Left, NONE) => {
                 doc.move_cursors_left();
@@ -152,10 +156,10 @@ impl Surface for Text {
                 doc.move_cursors_right();
             }
             (KeyCode::Up, SHIFT) => {
-                doc.select_cursors_up(self.buffer_width);
+                doc.select_cursors_up(self.virtual_buffer_width);
             }
             (KeyCode::Down, SHIFT) => {
-                doc.select_cursors_down(self.buffer_width);
+                doc.select_cursors_down(self.virtual_buffer_width);
             }
             (KeyCode::Left, SHIFT) => {
                 doc.select_cursors_left();
@@ -190,12 +194,21 @@ impl Surface for Text {
             (KeyCode::Char('b'), ALT) => {
                 doc.move_to_prev_word();
             }
+            (KeyCode::Char('r'), CTRL) => {
+                self.softwrap = !self.softwrap;
+                if self.softwrap {
+                    self.virtual_buffer_width = self.buffer_width;
+                } else {
+                    self.virtual_buffer_width = usize::MAX;
+
+                }
+            }
             (KeyCode::PageUp, NONE) => {
-                doc.scroll_up(1, self.buffer_width);
+                doc.scroll_up(1, self.virtual_buffer_width);
                 adjust_scroll = false;
             }
             (KeyCode::PageDown, NONE) => {
-                doc.scroll_down(1, self.buffer_width);
+                doc.scroll_down(1, self.virtual_buffer_width);
                 adjust_scroll = false;
             }
             _ => {}
@@ -203,7 +216,7 @@ impl Surface for Text {
 
         if adjust_scroll {
             doc.adjust_scroll(
-                self.buffer_width,
+                self.virtual_buffer_width,
                 self.buffer_height,
                 self.first_visible_pos,
                 self.last_visible_pos,
@@ -217,6 +230,9 @@ impl Surface for Text {
         canvas.clear();
         self.cursor_screen_pos = None;
         self.buffer_width = canvas.width();
+        if  self.virtual_buffer_width == 0 {
+            self.virtual_buffer_width = canvas.width();
+        }
         self.buffer_height = canvas.height();
         self.first_visible_pos = Position::new(usize::MAX, usize::MAX);
         self.last_visible_pos = Position::new(0, 0);
@@ -229,7 +245,7 @@ impl Surface for Text {
             index: paragraph_index,
         }) in doc.paragraph_iter_at_index(
             doc.scroll.paragraph_index,
-            self.buffer_width,
+            self.virtual_buffer_width,
             doc.editorconfig().tab_width,
         ) {
             reflow_iter.enable_eof(true);
@@ -252,15 +268,19 @@ impl Surface for Text {
                     continue;
                 }
 
+                if pos_in_screen.x < doc.scroll.x_in_paragraph {
+                    continue;
+                }
+
                 let canvas_y = screen_y_offset + pos_in_screen.y - skipped_y;
-                let canvas_x = pos_in_screen.x;
+                let canvas_x = pos_in_screen.x - doc.scroll.x_in_paragraph;
 
                 if canvas_y >= canvas.height() {
                     break;
                 }
 
-                if pos_in_screen.x < doc.scroll.x_in_paragraph {
-                    continue;
+                if canvas_x >= canvas.width() {
+                    break;
                 }
 
                 self.first_visible_pos = min(self.first_visible_pos, pos_in_buffer);
