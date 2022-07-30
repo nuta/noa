@@ -3,8 +3,7 @@
 ## Profiling
 
 ```
-perf record --call-graph=dwarf target/release/noa
-perf report --hierarchy
+cargo flamegraph --bin noa -- src/buffer/buffer.rs
 ```
 
 ## Using tokio-console
