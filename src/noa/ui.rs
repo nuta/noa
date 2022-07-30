@@ -57,6 +57,8 @@ impl Ui {
 
             let timeout = time::sleep(Duration::from_millis(3));
             tokio::pin!(timeout);
+
+            // Handle all pending events until the timeout is reached.
             'inner: for i in 0.. {
                 tokio::select! {
                     biased;
@@ -71,6 +73,7 @@ impl Ui {
                         self.compositor.handle_event(&mut self.editor, ev);
                     }
 
+                    // No pending events.
                     _ = futures::future::ready(()), if i > 0 => {
                         // Since we've already handled at least one event, if there're no
                         // pending events, we should break the loop to update the
