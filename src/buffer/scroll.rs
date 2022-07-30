@@ -115,6 +115,10 @@ impl Scroll {
             }
 
             // Scroll horizontally (no softwrap).
+            info!(
+                "scroll h: {} {} {}",
+                pos_in_screen.x, self.x_in_paragraph, screen_width
+            );
             if pos_in_screen.x >= self.x_in_paragraph + screen_width {
                 self.x_in_paragraph = pos_in_screen.x - screen_width + 1;
             } else if pos_in_screen.x < self.x_in_paragraph {
