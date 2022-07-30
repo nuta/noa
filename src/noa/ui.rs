@@ -1,4 +1,7 @@
-use std::cmp::{max, min};
+use std::{
+    cmp::{max, min},
+    time::Duration,
+};
 
 use noa_buffer::{
     cursor::Position,
@@ -12,7 +15,10 @@ use noa_compositor::{
     surface::{HandledEvent, KeyEvent, Layout, RectSize, Surface},
     terminal::{KeyCode, KeyModifiers},
 };
-use tokio::sync::mpsc::{self, UnboundedSender};
+use tokio::{
+    sync::mpsc::{self, UnboundedSender},
+    time,
+};
 
 use crate::{
     actions::execute_action_or_notify,
@@ -44,22 +50,40 @@ impl Ui {
             .add_frontmost_layer(Box::new(Text::new(mainloop_tx.clone())));
         self.compositor
             .add_frontmost_layer(Box::new(MetaLine::new()));
-        loop {
+        'outer: loop {
             trace_timing!("render", 10 /* ms */, {
                 self.compositor.render(&mut self.editor);
             });
 
-            tokio::select! {
-                biased;
+            let timeout = time::sleep(Duration::from_millis(3));
+            tokio::pin!(timeout);
+            'inner: for i in 0.. {
+                tokio::select! {
+                    biased;
 
-                Some(command) = mainloop_rx.recv() => {
-                    match command {
-                        MainloopCommand::Quit => break,
+                    Some(command) = mainloop_rx.recv() => {
+                        match command {
+                            MainloopCommand::Quit => break 'outer,
+                        }
                     }
-                }
 
-                Some(ev) = self.compositor.receive_event() => {
-                    self.compositor.handle_event(&mut self.editor, ev);
+                    Some(ev) = self.compositor.receive_event() => {
+                        self.compositor.handle_event(&mut self.editor, ev);
+                    }
+
+                    _ = futures::future::ready(()), if i > 0 => {
+                        // Since we've already handled at least one event, if there're no
+                        // pending events, we should break the loop to update the
+                        // terminal contents.
+                        info!("ev: {}", i);
+                        break 'inner;
+                    }
+
+                    _ = &mut timeout, if i > 0 => {
+                        // Taking too long to handle events. Break the loop to update the
+                        // terminal contents.
+                        break 'inner;
+                    }
                 }
             }
         }
@@ -365,8 +389,6 @@ impl Surface for Text {
                     get_keybinding_for(KeyBindingScope::Buffer, key.code, key.modifiers)
                 {
                     execute_action_or_notify(editor, compositor, &binding.action);
-                } else {
-                    trace!("unhandled key = {:?}", key);
                 }
             }
         }
