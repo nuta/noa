@@ -2,6 +2,7 @@ use std::cmp::{max, min};
 
 use noa_buffer::{
     cursor::Position,
+    display_width::DisplayWidth,
     paragraph_iter::Paragraph,
     reflow_iter::{PrintableGrapheme, ReflowItem},
 };
@@ -229,17 +230,30 @@ impl Surface for Text {
     fn render(&mut self, editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
         canvas.clear();
         self.cursor_screen_pos = None;
-        self.buffer_width = canvas.width();
-        if self.virtual_buffer_width == 0 {
-            self.virtual_buffer_width = canvas.width();
-        }
+
+        let doc = editor.current_document();
+
         self.buffer_height = canvas.height();
+        let lineno_width =
+            2 + (doc.scroll.paragraph_index.buffer_y + 1 + self.buffer_height).display_width();
+        let buffer_start_x = lineno_width;
+        self.buffer_width = canvas.width().saturating_sub(lineno_width);
+
+        if self.buffer_width == 0 {
+            warn!("too small screen");
+            return;
+        }
+
+        if self.virtual_buffer_width != usize::MAX {
+            self.virtual_buffer_width = self.buffer_width;
+        }
+
         self.first_visible_pos = Position::new(usize::MAX, usize::MAX);
         self.last_visible_pos = Position::new(0, 0);
 
-        let doc = editor.current_document();
         let main_cursor_pos = doc.main_cursor().moving_position();
         let mut screen_y_offset = 0;
+        let mut linenos: Vec<usize> = Vec::new();
         for (Paragraph {
             mut reflow_iter,
             index: paragraph_index,
@@ -273,7 +287,7 @@ impl Surface for Text {
                 }
 
                 let canvas_y = screen_y_offset + pos_in_screen.y - skipped_y;
-                let canvas_x = pos_in_screen.x - doc.scroll.x_in_paragraph;
+                let canvas_x = buffer_start_x + pos_in_screen.x - doc.scroll.x_in_paragraph;
 
                 if canvas_y >= canvas.height() {
                     break;
@@ -285,6 +299,10 @@ impl Surface for Text {
 
                 self.first_visible_pos = min(self.first_visible_pos, pos_in_buffer);
                 self.last_visible_pos = max(self.last_visible_pos, pos_in_buffer);
+
+                if canvas_y >= linenos.len() {
+                    linenos.push(pos_in_buffer.y + 1);
+                }
 
                 match grapheme {
                     PrintableGrapheme::Grapheme(grapheme) => {
@@ -317,6 +335,19 @@ impl Surface for Text {
             }
 
             screen_y_offset += 1 + paragraph_height - skipped_y;
+        }
+
+        let mut prev = 0;
+        for (canvas_y, lineno) in linenos.into_iter().enumerate() {
+            if lineno != prev {
+                canvas.write_str(
+                    canvas_y,
+                    1,
+                    &format!("{:>width$}", lineno, width = lineno_width - 2),
+                );
+            }
+
+            prev = lineno;
         }
     }
 }

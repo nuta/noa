@@ -6,7 +6,7 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ParagraphIndex {
-    pub(crate) buffer_y: usize,
+    pub buffer_y: usize,
 }
 
 impl ParagraphIndex {
