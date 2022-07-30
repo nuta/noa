@@ -1,0 +1,105 @@
+# Default values. These can be overridden by the config file ~/.config/noa/noa.toml
+# or ~/.noa.toml.
+key_bindings = [
+    { scope = "buffer", key = "s", modifiers = ["ctrl"], action = "save" },
+    { scope = "buffer", key = "f", modifiers = ["ctrl"], action = "open_finder" },
+    { scope = "buffer", key = "r", modifiers = ["ctrl"], action = "open_buffer_switcher" },
+    { scope = "buffer", key = "w", modifiers = ["ctrl"], action = "backspace_word" },
+    { scope = "buffer", key = "k", modifiers = ["ctrl"], action = "truncate" },
+    { scope = "buffer", key = "d", modifiers = ["ctrl"], action = "delete" },
+    { scope = "buffer", key = "a", modifiers = ["ctrl"], action = "move_to_beginning_of_line" },
+    { scope = "buffer", key = "e", modifiers = ["ctrl"], action = "move_to_end_of_line" },
+    { scope = "buffer", key = "f", modifiers = ["alt"], action = "move_to_next_word" },
+    { scope = "buffer", key = "b", modifiers = ["alt"], action = "move_to_prev_word" },
+    { scope = "buffer", key = "h", modifiers = ["ctrl"], action = "find_current_word" },
+    { scope = "buffer", key = "h", modifiers = ["alt"], action = "select_all_current_word" },
+    { scope = "buffer", key = "g", modifiers = ["ctrl"], action = "find_current_word_globally" },
+    { scope = "buffer", key = "up", modifiers = ["ctrl"], action = "move_to_prev_diff" },
+    { scope = "buffer", key = "down", modifiers = ["ctrl"], action = "move_to_next_diff" },
+    { scope = "buffer", key = "left", modifiers = ["alt", "shift"], action = "select_prev_word" },
+    { scope = "buffer", key = "right", modifiers = ["alt", "shift"], action = "select_next_word" },
+    { scope = "buffer", key = "up", modifiers = ["ctrl", "alt"], action = "add_cursors_up" },
+    { scope = "buffer", key = "down", modifiers = ["ctrl", "alt"], action = "add_cursors_down" },
+    { scope = "buffer", key = "up", modifiers = ["alt", "shift"], action = "duplicate_lines_up" },
+    { scope = "buffer", key = "down", modifiers = ["alt", "shift"], action = "duplicate_lines_down" },
+    { scope = "buffer", key = "up", modifiers = ["alt"], action = "move_lines_up" },
+    { scope = "buffer", key = "down", modifiers = ["alt"], action = "move_lines_down" },
+    { scope = "buffer", key = "left", modifiers = ["ctrl", "shift"], action = "select_until_beginning_of_line" },
+    { scope = "buffer", key = "right", modifiers = ["ctrl", "shift"], action = "select_until_end_of_line" },
+    { scope = "buffer", key = "b", modifiers = ["ctrl"], action = "expand_selection" },
+    { scope = "buffer", key = "x", modifiers = ["ctrl"], action = "cut" },
+    { scope = "buffer", key = "c", modifiers = ["ctrl"], action = "copy" },
+    { scope = "buffer", key = "v", modifiers = ["ctrl"], action = "paste" },
+    { scope = "buffer", key = "u", modifiers = ["ctrl"], action = "undo" },
+    { scope = "buffer", key = "u", modifiers = ["alt"], action = "redo" },
+    { scope = "buffer", key = "y", modifiers = ["ctrl"], action = "undo_cursors" },
+    { scope = "buffer", key = "n", modifiers = ["ctrl"], action = "comment_out" },
+    { scope = "buffer", key = "home", modifiers = [], action = "move_to_top" },
+]
+
+[colors]
+
+[theme]
+"buffer.find_match" = { bg = "grey" }
+"buffer.current_line" = { bg = "" }
+"buffer.line_status" = { fg = "grey" }
+"buffer.flash" = { bg = "yellow" }
+"buffer.matching_bracket" = { bg = "grey", bold = true }
+
+"line_status.modified" = { bg = "grey" }
+"line_status.added" = { bg = "grey" }
+"line_status.deleted" = { bg = "grey" }
+
+"label" = { bold = true, inverted = true }
+"prompt.name" = { bg = "grey", bold = true }
+"meta_line.background" = { inverted = true }
+
+"selector.input" = { fg = "grey" }
+"selector.selected" = { fg = "grey" }
+
+"notification.warn" = { fg = "grey" }
+"notification.info" = { fg = "grey" }
+"notification.error" = { fg = "grey" }
+
+"completion.item" = { bg = "grey" }
+"completion.selected" = { bg = "grey" }
+
+"syntax.comment" = { fg = "yellow" }
+"syntax.boolean" = { fg = "grey" }
+"syntax.conditional" = { fg = "red" }
+"syntax.constant" = { fg = "grey" }
+"syntax.constant.builtin" = { fg = "grey" }
+"syntax.field" = { fg = "grey" }
+"syntax.float" = { fg = "grey" }
+"syntax.function" = { fg = "green" }
+"syntax.function.macro" = { fg = "green" }
+"syntax.include" = { fg = "red" }
+"syntax.keyword" = { fg = "red" }
+"syntax.keyword.function" = { fg = "magenta" }
+"syntax.keyword.operator" = { fg = "magenta" }
+"syntax.keyword.return" = { fg = "magenta" }
+"syntax.label" = { fg = "grey" }
+"syntax._name" = { fg = "grey" }
+"syntax.namespace" = { fg = "grey" }
+"syntax.none" = { fg = "grey" }
+"syntax.number" = { fg = "grey" }
+"syntax.operator" = { fg = "grey" }
+"syntax.parameter" = { fg = "grey" }
+"syntax.property" = { fg = "grey" }
+"syntax.punctuation.bracket" = { fg = "grey" }
+"syntax.punctuation.delimiter" = { fg = "grey" }
+"syntax.punctuation.special" = { fg = "grey" }
+"syntax.repeat" = { fg = "grey" }
+"syntax.string" = { fg = "green" }
+"syntax.string.escape" = { fg = "blue" }
+"syntax.string.special" = { fg = "blue" }
+"syntax.text.emphasis" = { fg = "grey" }
+"syntax.text.literal" = { fg = "grey" }
+"syntax.text.strong" = { fg = "grey" }
+"syntax.text.title" = { fg = "grey" }
+"syntax.type" = { fg = "green" }
+"syntax.type.builtin" = { fg = "green" }
+"syntax.value" = { fg = "grey" }
+"syntax.variable" = { fg = "grey" }
+"syntax.variable.builtin" = { fg = "grey" }
+"syntax._parent" = {}
