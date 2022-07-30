@@ -88,7 +88,8 @@ impl<'a> Iterator for ParagraphIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let pos = self.pos;
-        if pos.y > self.buffer.num_lines() {
+        // if pos.y > self.buffer.num_lines() {
+        if !self.buffer.is_valid_position(pos) {
             return None;
         }
 

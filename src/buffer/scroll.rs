@@ -293,7 +293,7 @@ mod tests {
             locate_row(&buf, 5, 4, Position::new(0, 3)),
             Some((
                 ParagraphIndex { buffer_y: 0 },
-                ScreenPosition { y: 0, x: 0 }
+                ScreenPosition { y: 0, x: 3 }
             ))
         );
         assert_eq!(
@@ -307,7 +307,7 @@ mod tests {
             locate_row(&buf, 5, 4, Position::new(1, 2)),
             Some((
                 ParagraphIndex { buffer_y: 1 },
-                ScreenPosition { y: 0, x: 0 }
+                ScreenPosition { y: 0, x: 2 }
             ))
         );
     }
