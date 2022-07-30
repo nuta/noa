@@ -2,9 +2,9 @@
 
 
 
+Hello from noa!
 
-
-        crossterm::execute!(std::io::stdout(), crossterm::terminal::LeaveAlternateScreen).unwrap();
+     crossterm::execute!(std::io::stdout(), crossterm::terminal::LeaveAlternateScreen).unwrap();
 
         // Print captured stderr.
         drop(stderr_hold);
