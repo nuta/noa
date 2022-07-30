@@ -15,7 +15,8 @@ use noa_compositor::{
 use tokio::sync::mpsc::{self, UnboundedSender};
 
 use crate::{
-    config::theme_for,
+    actions::execute_action_or_notify,
+    config::{get_keybinding_for, theme_for, KeyBindingScope},
     editor::Editor,
     notification::{notification_manager, Notification},
 };
@@ -283,7 +284,7 @@ impl Surface for Text {
     fn handle_key_event(
         &mut self,
         editor: &mut Editor,
-        _compositor: &mut Compositor<Editor>,
+        compositor: &mut Compositor<Editor>,
         key: KeyEvent,
     ) -> HandledEvent {
         const NONE: KeyModifiers = KeyModifiers::NONE;
@@ -295,6 +296,7 @@ impl Surface for Text {
 
         let mut show_completion = false;
         let mut adjust_scroll = true;
+        // TODO: Move into defaults.toml
         match (key.code, key.modifiers) {
             (KeyCode::Char('q'), CTRL) => {
                 self.mainloop_tx.send(MainloopCommand::Quit);
@@ -338,20 +340,8 @@ impl Surface for Text {
             (KeyCode::Backspace, NONE) => {
                 doc.backspace();
             }
-            (KeyCode::Delete, NONE) | (KeyCode::Char('d'), CTRL) => {
+            (KeyCode::Delete, NONE) => {
                 doc.delete();
-            }
-            (KeyCode::Char('a'), CTRL) => {
-                doc.move_to_beginning_of_line();
-            }
-            (KeyCode::Char('e'), CTRL) => {
-                doc.move_to_end_of_line();
-            }
-            (KeyCode::Char('f'), ALT) => {
-                doc.move_to_next_word();
-            }
-            (KeyCode::Char('b'), ALT) => {
-                doc.move_to_prev_word();
             }
             (KeyCode::Char('r'), CTRL) => {
                 self.softwrap = !self.softwrap;
@@ -369,9 +359,19 @@ impl Surface for Text {
                 doc.scroll_down(1, self.virtual_buffer_width);
                 adjust_scroll = false;
             }
-            _ => {}
+            _ => {
+                drop(doc);
+                if let Some(binding) =
+                    get_keybinding_for(KeyBindingScope::Buffer, key.code, key.modifiers)
+                {
+                    execute_action_or_notify(editor, compositor, &binding.action);
+                } else {
+                    trace!("unhandled key = {:?}", key);
+                }
+            }
         }
 
+        let doc = editor.current_document_mut();
         if adjust_scroll {
             doc.adjust_scroll(
                 self.virtual_buffer_width,
