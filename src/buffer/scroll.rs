@@ -95,10 +95,6 @@ impl Scroll {
         last_visible_pos: Position,
         pos: Position,
     ) {
-        info!(
-            "adjust_scroll: {:?} {:?} {:?}",
-            pos, first_visible_pos, last_visible_pos
-        );
         if pos < first_visible_pos {
             if let Some((paragraph_index, y_in_paragraph)) =
                 locate_row(buffer, screen_width, tab_width, pos)
