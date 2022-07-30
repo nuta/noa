@@ -80,7 +80,7 @@ impl Document {
         })
     }
 
-    fn do_save_to_file(&mut self) {
+    pub fn save(&mut self) {
         let path = match &self.path {
             Some(path) => path,
             None => return,

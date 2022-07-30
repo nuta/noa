@@ -18,6 +18,8 @@ use tokio::{
 
 use crate::finder::warm_up_search_cache;
 
+mod actions;
+mod clipboard;
 mod config;
 mod document;
 mod editor;

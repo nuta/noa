@@ -1,10 +1,14 @@
 use std::collections::HashMap;
 
-use crate::document::{Document, DocumentId};
+use crate::{
+    clipboard::{self, ClipboardProvider},
+    document::{Document, DocumentId},
+};
 
 pub struct Editor {
     current_doc: DocumentId,
     documents: HashMap<DocumentId, Document>,
+    pub clipboard: Box<dyn ClipboardProvider>,
 }
 
 impl Editor {
@@ -17,6 +21,7 @@ impl Editor {
         Editor {
             documents,
             current_doc: scratch_id,
+            clipboard: clipboard::build_provider(),
         }
     }
 
