@@ -87,7 +87,7 @@ impl Document {
         };
 
         trace!("saving into a file: {}", path.display());
-        let with_sudo = match self.buffer.save_to_file(&path) {
+        let with_sudo = match self.buffer.save_to_file(path) {
             Ok(()) => {
                 if let Some(backup_path) = &self.backup_path {
                     let _ = std::fs::remove_file(backup_path);
@@ -96,7 +96,7 @@ impl Document {
                 false
             }
             Err(err) if err.kind() == ErrorKind::PermissionDenied => {
-                match self.buffer.save_to_file_with_sudo(&path) {
+                match self.buffer.save_to_file_with_sudo(path) {
                     Ok(()) => {
                         if let Some(backup_path) = &self.backup_path {
                             let _ = std::fs::remove_file(backup_path);

@@ -25,7 +25,7 @@ pub enum KeyBindingScope {
     Buffer,
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 pub struct KeyBinding {
     pub scope: KeyBindingScope,
     pub modifiers: Vec<Modifier>,

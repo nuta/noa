@@ -88,7 +88,7 @@ impl<'a> Iterator for ParagraphIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let pos = self.pos;
-        if !self.buffer.is_valid_position(pos) {
+        if pos.y > self.buffer.num_lines() {
             return None;
         }
 
@@ -97,6 +97,7 @@ impl<'a> Iterator for ParagraphIter<'a> {
         let pos_end = Position::new(pos.y + 1, 0);
         self.pos = Position::new(pos_start.y + 1, 0);
 
+        // FIXME: GraphemeIter::new() is slow
         let reflow_iter = ReflowIter::new(
             self.buffer,
             Range::from_positions(pos_start, pos_end),

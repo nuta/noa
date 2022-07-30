@@ -6,10 +6,6 @@ edition = "2021"
 [lib]
 path = "lib.rs"
 
-[[bench]]
-name = "bench_grapheme_iter"
-harness = false
-
 [dependencies]
 log = "0"
 ropey = "^1.3.2"
@@ -22,4 +18,3 @@ noa_languages = { path = "../languages" }
 
 [dev-dependencies]
 pretty_assertions = "1"
-criterion = "0"
