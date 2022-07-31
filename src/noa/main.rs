@@ -1,3 +1,5 @@
+#![allow(unused)] // FIXME:
+
 #[macro_use]
 extern crate log;
 

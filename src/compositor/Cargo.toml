@@ -19,5 +19,4 @@ noa_common = { path = "../common" }
 noa_buffer = { path = "../buffer" }
 
 [dev-dependencies]
-insta = "1"
 pretty_assertions = "1"

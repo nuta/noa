@@ -32,3 +32,4 @@ noa_compositor = { path = "../compositor" }
 
 [dev-dependencies]
 pretty_assertions = "0"
+insta = "1"

@@ -99,7 +99,7 @@ impl Grapheme {
 /// A rectangle filled with characters.
 pub struct Canvas {
     /// Contains `height * width` items.
-    graphs: Vec<Grapheme>,
+    graphemes: Vec<Grapheme>,
     /// The number of characters in a screen column.
     width: usize,
     /// The number of lines in the screen.
@@ -110,7 +110,7 @@ impl Canvas {
     pub fn new(height: usize, width: usize) -> Canvas {
         let graphs = vec![Grapheme::blank(); height * width];
         Canvas {
-            graphs,
+            graphemes: graphs,
             width,
             height,
         }
@@ -124,10 +124,14 @@ impl Canvas {
         self.height
     }
 
+    pub fn graphemes(&self) -> &[Grapheme] {
+        &self.graphemes
+    }
+
     pub fn invalidate(&mut self) {
         // "xx" forces diff to fill the screen with next screen buffer
         // because "xx" is invalid (not a single grapheme).
-        self.graphs = vec![Grapheme::new("xx"); self.height * self.width];
+        self.graphemes = vec![Grapheme::new("xx"); self.height * self.width];
     }
 
     pub fn copy_from_other(&mut self, y: usize, x: usize, other: &Canvas) {
@@ -160,7 +164,8 @@ impl Canvas {
             let dst_end = dst_start + other.width;
             let src_start = y_off * other.width;
             let src_end = src_start + other.width;
-            self.graphs[dst_start..dst_end].copy_from_slice(&other.graphs[src_start..src_end]);
+            self.graphemes[dst_start..dst_end]
+                .copy_from_slice(&other.graphemes[src_start..src_end]);
         }
     }
 
@@ -177,7 +182,7 @@ impl Canvas {
         let mut ops = Vec::with_capacity(self.width() * self.height());
         let mut skip: usize = 0;
         let mut invalidated: usize = 0;
-        for (i, (new, old)) in self.graphs.iter().zip(&other.graphs).enumerate() {
+        for (i, (new, old)) in self.graphemes.iter().zip(&other.graphemes).enumerate() {
             if skip > 0 || (old == new && invalidated == 0) {
                 needs_move = true;
                 skip = skip.saturating_sub(1);
@@ -238,7 +243,7 @@ impl Canvas {
 
     pub fn view_mut(&mut self) -> CanvasViewMut<'_> {
         CanvasViewMut {
-            graphs: &mut self.graphs,
+            graphs: &mut self.graphemes,
             canvas_width: self.width,
             y: 0,
             x: 0,

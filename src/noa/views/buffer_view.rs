@@ -342,3 +342,26 @@ impl Surface for BufferView {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::document::Document;
+
+    use super::*;
+    use noa_compositor::canvas::Canvas;
+    use pretty_assertions::assert_eq;
+    use tokio::sync::mpsc;
+
+    #[test]
+    fn with_softwrap() {
+        let (mainloop_tx, mainloop_rx) = mpsc::unbounded_channel();
+        let mut view = BufferView::new(mainloop_tx);
+
+        // 1 abcdefghijklmn
+        let mut editor = Editor::new();
+        editor.add_and_switch_document(Document::virtual_file("test.txt", "abcdefg"));
+        let mut canvas = Canvas::new(10, 8);
+        view.render(&mut editor, &mut canvas.view_mut());
+        insta::assert_debug_snapshot!(canvas.graphemes());
+    }
+}

@@ -1,5 +1,5 @@
 use std::{
-    fs::{File},
+    fs::File,
     io::ErrorKind,
     ops::{Deref, DerefMut},
     path::{Path, PathBuf},
@@ -8,9 +8,7 @@ use std::{
 };
 
 use anyhow::Result;
-use noa_buffer::{
-    buffer::Buffer, cursor::Position, raw_buffer::RawBuffer, scroll::Scroll,
-};
+use noa_buffer::{buffer::Buffer, cursor::Position, raw_buffer::RawBuffer, scroll::Scroll};
 
 use crate::{notify_info, notify_warn};
 
@@ -43,11 +41,11 @@ pub struct Document {
 }
 
 impl Document {
-    pub fn scratch() -> Document {
-        let buffer = Buffer::new();
+    pub fn virtual_file(name: &str, initial_content: &str) -> Document {
+        let buffer = Buffer::from_text(initial_content);
         let saved_buffer = buffer.raw_buffer().clone();
         Document {
-            name: "[scratch]".to_string(),
+            name: name.to_string(),
             id: DocumentId::alloc(),
             kind: DocumentKind::Scratch,
             buffer,

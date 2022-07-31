@@ -1,4 +1,4 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 use crate::{
     clipboard::{self, ClipboardProvider},
@@ -14,7 +14,7 @@ pub struct Editor {
 impl Editor {
     pub fn new() -> Self {
         let mut documents = HashMap::new();
-        let scratch_doc = Document::scratch();
+        let scratch_doc = Document::virtual_file("[scratch]", "");
         let scratch_id = scratch_doc.id;
         documents.insert(scratch_id, scratch_doc);
 
@@ -39,5 +39,11 @@ impl Editor {
 
     pub fn switch_document(&mut self, doc_id: DocumentId) {
         self.current_doc = doc_id;
+    }
+
+    pub fn add_and_switch_document(&mut self, doc: Document) {
+        let doc_id = doc.id;
+        self.add_document(doc);
+        self.switch_document(doc_id);
     }
 }
