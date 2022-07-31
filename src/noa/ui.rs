@@ -59,7 +59,7 @@ impl Ui {
                 self.compositor.render(&mut self.editor);
             });
 
-            let timeout = time::sleep(Duration::from_millis(3));
+            let timeout = time::sleep(Duration::from_millis(10));
             tokio::pin!(timeout);
 
             // Handle all pending events until the timeout is reached.
