@@ -16,7 +16,7 @@ pub fn run_external_command(
     let result = compositor.run_in_cooked_mode(|| {
         cmd.stdout(Stdio::piped())
             .stderr(Stdio::inherit())
-            .stdin(Stdio::inherit())
+            .stdin(Stdio::piped())
             .spawn()?
             .wait_with_output()
     });
