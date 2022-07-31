@@ -1,6 +1,5 @@
 ---
 source: src/noa/views/buffer_view.rs
-assertion_line: 365
 expression: canvas.graphemes()
 ---
 [
