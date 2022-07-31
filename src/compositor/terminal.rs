@@ -81,8 +81,8 @@ impl Terminal {
         let (event_abort_tx, event_abort_rx) = oneshot::channel();
         let stdio_listener = listen_events(self.event_tx.clone(), event_abort_rx);
         self.stdio_listener = Some((stdio_listener, event_abort_tx));
-        enable_raw_mode().unwrap();
         execute!(stdout(), DisableMouseCapture, EnterAlternateScreen).ok();
+        enable_raw_mode().unwrap();
     }
 
     pub fn clear(&mut self) {
