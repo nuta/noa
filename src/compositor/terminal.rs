@@ -141,7 +141,6 @@ fn listen_events(
                     break;
                 }
                     Some(Ok(ev)) = stream.next() => {
-                    info!("ev = {:?}", ev);
                     match ev {
                         TermEvent::Key(KeyEvent {
                             code: KeyCode::Char(key),
