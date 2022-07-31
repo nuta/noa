@@ -66,23 +66,25 @@ impl Terminal {
         self.width
     }
 
-    pub async fn stop_stdin_listening(&mut self) {
-        if let Some((join_handle, abort)) = self.stdio_listener.take() {
-            abort.send(()).unwrap();
-            join_handle.await.unwrap();
-            execute!(stdout(), DisableMouseCapture).ok();
-            disable_raw_mode().unwrap();
-        }
-    }
+    pub async fn run_in_cooked_mode<F, R>(&mut self, f: F) -> R
+    where
+        F: FnOnce() -> R,
+    {
+        let (join_handle, abort) = self.stdio_listener.take().unwrap();
+        abort.send(()).unwrap();
+        join_handle.await.unwrap();
+        execute!(stdout(), DisableMouseCapture).ok();
+        disable_raw_mode().unwrap();
 
-    pub fn restart_stdin_listening(&mut self) {
-        debug_assert!(self.stdio_listener.is_none());
+        let result = f();
 
         let (event_abort_tx, event_abort_rx) = oneshot::channel();
         let stdio_listener = listen_events(self.event_tx.clone(), event_abort_rx);
         self.stdio_listener = Some((stdio_listener, event_abort_tx));
         execute!(stdout(), DisableMouseCapture, EnterAlternateScreen).ok();
         enable_raw_mode().unwrap();
+
+        result
     }
 
     pub fn clear(&mut self) {

@@ -57,8 +57,13 @@ impl<C: 'static> Compositor<C> {
         self.screen_size
     }
 
-    pub fn terminal_mut(&mut self) -> &mut Terminal {
-        &mut self.terminal
+    pub async fn run_in_cooked_mode<F, R>(&mut self, ctx: &mut C, f: F) -> R
+    where
+        F: FnOnce() -> R,
+    {
+        let result = self.terminal.run_in_cooked_mode(f).await;
+        self.force_render(ctx);
+        result
     }
 
     pub async fn receive_event(&mut self) -> Option<terminal::Event> {

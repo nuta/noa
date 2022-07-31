@@ -75,16 +75,16 @@ impl Ui {
                                 .stdout(Stdio::piped())
                                 .stderr(Stdio::inherit());
 
-                                self.compositor.terminal_mut().stop_stdin_listening().await;
-                                match cmd.spawn() {
-                                    Ok(child) => {
-                                        let output = child.wait_with_output();
+                                let result = self.compositor.run_in_cooked_mode(&mut self.editor, || {
+                                    cmd.spawn().and_then(|child| child.wait_with_output())
+                                }).await;
+
+                                match result {
+                                    Ok(output) => {
                                         info!("output: {:?}", output);
                                     }
                                     Err(err) => notify_error!("failed to spawn: {}", err),
-                                };
-                                self.compositor.terminal_mut().restart_stdin_listening();
-                                self.compositor.force_render(&mut self.editor);
+                                }
                             }
                         }
                     }
