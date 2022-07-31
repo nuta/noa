@@ -272,22 +272,22 @@ pub enum SynchronizedOutput {
 
 impl crossterm::Command for SynchronizedOutput {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
-        let (param_2026, iterm2_op) = match self {
-            SynchronizedOutput::Begin => ('h', '1'),
-            SynchronizedOutput::End => ('l', '2'),
-        };
-
         // FIXME:
         return write!(f, "");
 
-        write!(
-            f,
-            concat!(
-                "\x1b[?2026{}",    // CSI ? 2026 param
-                "\x1bP={}s\x1b\\"  // ESC P = OP s ESC \
-            ),
-            param_2026, iterm2_op
-        )
+        // let (param_2026, iterm2_op) = match self {
+        //     SynchronizedOutput::Begin => ('h', '1'),
+        //     SynchronizedOutput::End => ('l', '2'),
+        // };
+
+        // write!(
+        //     f,
+        //     concat!(
+        //         "\x1b[?2026{}",    // CSI ? 2026 param
+        //         "\x1bP={}s\x1b\\"  // ESC P = OP s ESC \
+        //     ),
+        //     param_2026, iterm2_op
+        // )
     }
 }
 

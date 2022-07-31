@@ -1,6 +1,5 @@
 use std::slice;
 
-use futures::{executor::block_on, Future};
 use noa_common::trace_timing;
 use tokio::sync::mpsc;
 
