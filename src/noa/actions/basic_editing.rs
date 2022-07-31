@@ -30,7 +30,7 @@ impl Action for SaveAll {
         "save_all"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+    fn run(&self, _editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
         // TODO:
         // editor.documents.save_all();
         Ok(())
@@ -44,7 +44,7 @@ impl Action for OpenFilder {
         "open_finder"
     }
 
-    fn run(&self, editor: &mut Editor, compositor: &mut Compositor<Editor>) -> Result<()> {
+    fn run(&self, _editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
         // TODO:
         // open_finder(editor, compositor, None);
         Ok(())
@@ -162,7 +162,7 @@ impl Action for FindCurrentWord {
         "find_current_word"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+    fn run(&self, _editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
         // TODO:
         // let doc = editor.current_document_mut();
         // let buffer = doc.buffer_mut();
@@ -189,7 +189,7 @@ impl Action for FindCurrentWordGlobally {
         "find_current_word_globally"
     }
 
-    fn run(&self, editor: &mut Editor, compositor: &mut Compositor<Editor>) -> Result<()> {
+    fn run(&self, _editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
         // TODO:
         // let doc = editor.current_document_mut();
         // let buffer = doc.buffer_mut();
@@ -299,7 +299,7 @@ impl Action for AddCursorsUp {
         "add_cursors_up"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+    fn run(&self, _editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
         // TODO:
         // editor.current_document_mut().add_cursors_up();
         Ok(())
@@ -313,7 +313,7 @@ impl Action for AddCursorsDown {
         "add_cursors_down"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+    fn run(&self, _editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
         // TODO:
         // editor.current_document_mut().add_cursors_down();
         Ok(())
@@ -353,7 +353,7 @@ impl Action for SelectUntilBeginningOfLine {
         "select_until_beginning_of_line"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+    fn run(&self, _editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
         // TODO:
         // editor
         //     .current_document_mut()
@@ -369,7 +369,7 @@ impl Action for SelectUntilEndOfLine {
         "select_until_end_of_line"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+    fn run(&self, _editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
         // TODO:
         // editor.current_document_mut().select_until_end_of_line();
         Ok(())
@@ -483,7 +483,7 @@ impl Action for SoftWrap {
         "softwrap"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+    fn run(&self, _editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
         // TODO:
         // editor.current_document_mut().softwrap()
         Ok(())

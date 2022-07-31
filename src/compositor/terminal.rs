@@ -281,7 +281,7 @@ pub enum SynchronizedOutput {
 impl crossterm::Command for SynchronizedOutput {
     fn write_ansi(&self, f: &mut impl fmt::Write) -> fmt::Result {
         // FIXME:
-        return write!(f, "");
+        write!(f, "")
 
         // let (param_2026, iterm2_op) = match self {
         //     SynchronizedOutput::Begin => ('h', '1'),

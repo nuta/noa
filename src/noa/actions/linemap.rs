@@ -12,7 +12,7 @@ impl Action for MoveToNextDiff {
         "move_to_next_diff"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+    fn run(&self, _editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
         // TODO:
         // let doc = editor.documents.current_mut();
         // let linemap = doc.linemap().load();
@@ -35,7 +35,7 @@ impl Action for MoveToPrevDiff {
         "move_to_prev_diff"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+    fn run(&self, _editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
         // TODO:
         // let doc = editor.documents.current_mut();
         // let linemap = doc.linemap().load();

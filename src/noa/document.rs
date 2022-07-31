@@ -1,5 +1,5 @@
 use std::{
-    fs::{File, OpenOptions},
+    fs::{File},
     io::ErrorKind,
     ops::{Deref, DerefMut},
     path::{Path, PathBuf},
@@ -9,8 +9,7 @@ use std::{
 
 use anyhow::Result;
 use noa_buffer::{
-    buffer::Buffer, cursor::Position, paragraph_iter::ParagraphIndex, raw_buffer::RawBuffer,
-    reflow_iter::ScreenPosition, scroll::Scroll,
+    buffer::Buffer, cursor::Position, raw_buffer::RawBuffer, scroll::Scroll,
 };
 
 use crate::{notify_info, notify_warn};

@@ -13,7 +13,7 @@ impl Action for PageUp {
         "page_up"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+    fn run(&self, _editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
         // TODO:
         // editor.current_document_mut().scroll_up();
         Ok(())
@@ -27,7 +27,7 @@ impl Action for PageDown {
         "page_down"
     }
 
-    fn run(&self, editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
+    fn run(&self, _editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
         // TODO:
         // editor.current_document_mut().scroll_down();
         Ok(())

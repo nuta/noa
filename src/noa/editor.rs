@@ -1,4 +1,4 @@
-use std::{collections::HashMap, process::Command};
+use std::{collections::HashMap};
 
 use crate::{
     clipboard::{self, ClipboardProvider},
@@ -14,7 +14,7 @@ pub struct Editor {
 impl Editor {
     pub fn new() -> Self {
         let mut documents = HashMap::new();
-        let mut scratch_doc = Document::scratch();
+        let scratch_doc = Document::scratch();
         let scratch_id = scratch_doc.id;
         documents.insert(scratch_id, scratch_doc);
 

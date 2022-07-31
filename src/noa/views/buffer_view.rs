@@ -1,8 +1,4 @@
-use std::{
-    cmp::{max, min},
-    process::Stdio,
-    time::Duration,
-};
+use std::cmp::{max, min};
 
 use noa_buffer::{
     cursor::Position,
@@ -16,14 +12,13 @@ use noa_compositor::{
     surface::{HandledEvent, KeyEvent, Layout, RectSize, Surface},
     terminal::{KeyCode, KeyModifiers},
 };
-use tokio::{
-    sync::mpsc::{self, UnboundedSender},
-    time,
-};
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
-    actions::execute_action_or_notify, config::{get_keybinding_for, KeyBindingScope}, editor::Editor,
-    ui::MainloopCommand,
+    actions::execute_action_or_notify,
+    config::{get_keybinding_for, KeyBindingScope},
+    editor::Editor,
+    MainloopCommand,
 };
 
 pub struct BufferView {
@@ -63,13 +58,13 @@ impl Surface for BufferView {
         self
     }
 
-    fn is_active(&self, ctx: &mut Editor) -> bool {
+    fn is_active(&self, _ctx: &mut Editor) -> bool {
         true
     }
 
     fn layout(
         &mut self,
-        ctx: &mut Editor,
+        _ctx: &mut Editor,
         screen_size: noa_compositor::surface::RectSize,
     ) -> (
         noa_compositor::surface::Layout,
@@ -84,7 +79,7 @@ impl Surface for BufferView {
         )
     }
 
-    fn cursor_position(&self, editor: &mut Editor) -> Option<(usize, usize)> {
+    fn cursor_position(&self, _editor: &mut Editor) -> Option<(usize, usize)> {
         self.cursor_screen_pos
     }
 
@@ -101,7 +96,7 @@ impl Surface for BufferView {
 
         let doc = editor.current_document_mut();
 
-        let mut show_completion = false;
+        let _show_completion = false;
         let mut adjust_scroll = true;
         // TODO: Move into defaults.toml
         match (key.code, key.modifiers) {
@@ -243,10 +238,10 @@ impl Surface for BufferView {
         let mut screen_y_offset = 0;
         let mut linenos: Vec<usize> = Vec::new();
         trace_timing!("render_text", 3 /* ms */, {
-            for (Paragraph {
+            for Paragraph {
                 mut reflow_iter,
                 index: paragraph_index,
-            }) in doc.paragraph_iter_at_index(
+            } in doc.paragraph_iter_at_index(
                 doc.scroll.paragraph_index,
                 self.virtual_buffer_width,
                 doc.editorconfig().tab_width,

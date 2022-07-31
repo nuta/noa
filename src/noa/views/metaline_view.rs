@@ -1,136 +1,21 @@
-use std::{
-    cmp::{max, min},
-    process::Stdio,
-    time::Duration,
-};
+
 
 use noa_buffer::{
-    cursor::Position,
     display_width::DisplayWidth,
-    paragraph_iter::Paragraph,
-    reflow_iter::{PrintableGrapheme, ReflowItem},
 };
 use noa_compositor::{
-    canvas::{CanvasViewMut, Grapheme},
-    compositor::Compositor,
-    surface::{HandledEvent, KeyEvent, Layout, RectSize, Surface},
-    terminal::{KeyCode, KeyModifiers},
+    canvas::{CanvasViewMut},
+    surface::{Layout, RectSize, Surface},
 };
-use tokio::{
-    sync::mpsc::{self, UnboundedSender},
-    time,
-};
+
 
 use crate::{
-    actions::execute_action_or_notify,
-    config::{get_keybinding_for, theme_for, KeyBindingScope},
+    config::{theme_for},
     editor::Editor,
     notification::{notification_manager, Notification},
-    notify_error,
-    views::buffer_view::BufferView,
 };
 
-pub enum MainloopCommand {
-    Quit,
-    ExternalCommand(std::process::Command),
-}
-
-pub struct Ui {
-    compositor: Compositor<Editor>,
-    editor: Editor,
-}
-
-impl Ui {
-    pub fn new(editor: Editor) -> Self {
-        Ui {
-            compositor: Compositor::new(),
-            editor,
-        }
-    }
-
-    pub async fn run(mut self) {
-        info!("restarting compositor");
-        let (mainloop_tx, mut mainloop_rx) = mpsc::unbounded_channel();
-        self.compositor
-            .add_frontmost_layer(Box::new(BufferView::new(mainloop_tx.clone())));
-        self.compositor
-            .add_frontmost_layer(Box::new(MetaLine::new()));
-        'outer: loop {
-            trace_timing!("render", 5 /* ms */, {
-                self.compositor.render(&mut self.editor);
-            });
-
-            let timeout = time::sleep(Duration::from_millis(10));
-            tokio::pin!(timeout);
-
-            // Handle all pending events until the timeout is reached.
-            'inner: for i in 0.. {
-                tokio::select! {
-                    biased;
-
-                    Some(command) = mainloop_rx.recv() => {
-                        match command {
-                            MainloopCommand::Quit => break 'outer,
-                            MainloopCommand::ExternalCommand(mut cmd) => {
-                                cmd.stdin(Stdio::inherit())
-                                .stdout(Stdio::piped())
-                                .stderr(Stdio::inherit());
-
-                                let result = self.compositor.run_in_cooked_mode(&mut self.editor, || {
-                                    cmd.spawn().and_then(|child| child.wait_with_output())
-                                }).await;
-
-                                match result {
-                                    Ok(output) => {
-                                        info!("output: {:?}", output);
-                                    }
-                                    Err(err) => notify_error!("failed to spawn: {}", err),
-                                }
-                            }
-                        }
-                    }
-
-                    Some(ev) = self.compositor.receive_event() => {
-                        trace_timing!("handle_event", 5 /* ms */, {
-                            self.compositor.handle_event(&mut self.editor, ev);
-                        });
-                    }
-
-                    // No pending events.
-                    _ = futures::future::ready(()), if i > 0 => {
-                        // Since we've already handled at least one event, if there're no
-                        // pending events, we should break the loop to update the
-                        // terminal contents.
-                        break 'inner;
-                    }
-
-                    _ = &mut timeout, if i > 0 => {
-                        // Taking too long to handle events. Break the loop to update the
-                        // terminal contents.
-                        break 'inner;
-                    }
-                }
-            }
-        }
-    }
-}
-
-pub fn truncate_to_width_suffix(s: &str, width: usize) -> &str {
-    if s.display_width() <= width {
-        return s;
-    }
-
-    let mut prev_substr = None;
-    for (offset, _) in s.char_indices() {
-        let substr = &s[s.len() - offset..];
-        if substr.display_width() > width {
-            return prev_substr.unwrap_or("");
-        }
-        prev_substr = Some(substr);
-    }
-
-    prev_substr.unwrap_or(s)
-}
+use super::truncate_to_width_suffix;
 
 pub const META_LINE_HEIGHT: usize = 2;
 
@@ -204,7 +89,7 @@ impl Surface for MetaLine {
                         .cursors()
                         .iter()
                         .filter(|c| {
-                            let pos = c.moving_position();
+                            let _pos = c.moving_position();
 
                             // TODO:
                             // pos < view.first_visible_position()

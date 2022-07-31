@@ -1,7 +1,7 @@
-use std::path::Path;
+
 
 use anyhow::Result;
-use noa_buffer::cursor::Position;
+
 use noa_compositor::compositor::Compositor;
 
 use crate::editor::Editor;
@@ -15,7 +15,7 @@ impl Action for GoToLine {
         "goto_line"
     }
 
-    fn run(&self, _editor: &mut Editor, compositor: &mut Compositor<Editor>) -> Result<()> {
+    fn run(&self, _editor: &mut Editor, _compositor: &mut Compositor<Editor>) -> Result<()> {
         // TODO:
         Ok(())
     }
