@@ -47,7 +47,7 @@ impl Terminal {
             stdout,
             EnterAlternateScreen,
             // TODO: EnableMouseCapture,
-            SetCursorShape::BlinkingBeam,
+            // SetCursorShape::BlinkingBeam,
         )
         .ok();
         stdout.flush().ok();
@@ -75,6 +75,13 @@ impl Terminal {
             Clear(ClearType::All)
         )
         .ok();
+    }
+
+    pub fn run_in_cooked_mode<R, F: FnOnce() -> R>(&mut self, cb: F) -> R {
+        disable_raw_mode().expect("failed to disable the raw mode");
+        let output = cb();
+        enable_raw_mode().expect("failed to enable the raw mode");
+        output
     }
 
     pub fn drawer(&mut self) -> Drawer<'_> {

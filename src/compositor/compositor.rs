@@ -1,5 +1,6 @@
 use std::slice;
 
+use futures::{executor::block_on, Future};
 use noa_common::trace_timing;
 use tokio::sync::mpsc;
 
@@ -54,6 +55,13 @@ impl<C: 'static> Compositor<C> {
             layers: Vec::new(),
             past_layers: Vec::new(),
         }
+    }
+
+    pub fn run_in_cooked_mode<T, R>(&mut self, cb: T) -> R
+    where
+        T: FnOnce() -> R,
+    {
+        self.terminal.run_in_cooked_mode(cb)
     }
 
     pub fn screen_size(&self) -> RectSize {
@@ -128,6 +136,11 @@ impl<C: 'static> Compositor<C> {
         self.screen_size = RectSize { height, width };
         self.screens = [Canvas::new(height, width), Canvas::new(height, width)];
         self.terminal.clear();
+    }
+
+    pub fn force_render(&mut self, ctx: &mut C) {
+        self.screens[self.active_screen_index].invalidate();
+        self.render(ctx);
     }
 
     pub fn render(&mut self, ctx: &mut C) {

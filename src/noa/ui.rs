@@ -24,6 +24,7 @@ use crate::{
     actions::execute_action_or_notify,
     config::{get_keybinding_for, theme_for, KeyBindingScope},
     editor::Editor,
+    extcmd::run_external_command,
     notification::{notification_manager, Notification},
 };
 
@@ -369,6 +370,11 @@ impl Surface for Text {
             }
             (KeyCode::Delete, NONE) => {
                 doc.delete();
+            }
+            (KeyCode::Char('f'), CTRL) => {
+                use std::process::Command;
+                let cmd = Command::new("sk");
+                run_external_command(editor, compositor, cmd);
             }
             (KeyCode::Char('r'), CTRL) => {
                 self.softwrap = !self.softwrap;

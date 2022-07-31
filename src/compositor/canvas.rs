@@ -124,6 +124,12 @@ impl Canvas {
         self.height
     }
 
+    pub fn invalidate(&mut self) {
+        // "xx" forces diff to fill the screen with next screen buffer
+        // because "xx" is invalid (not a single grapheme).
+        self.graphs = vec![Grapheme::new("xx"); self.height * self.width];
+    }
+
     pub fn copy_from_other(&mut self, y: usize, x: usize, other: &Canvas) {
         let in_bounds = y < self.height
             && x < self.width

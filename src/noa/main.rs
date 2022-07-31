@@ -23,6 +23,7 @@ mod clipboard;
 mod config;
 mod document;
 mod editor;
+mod extcmd;
 mod finder;
 mod notification;
 mod ui;
