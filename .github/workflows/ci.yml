@@ -42,7 +42,8 @@ jobs:
       - name: Formatting check (cargo fmt)
         uses: actions-rs/cargo@v1
         with:
-          command: fmt --all -- --check
+          command: fmt
+          args: --all -- --check
 
       - name: Compiler checks (cargo check)
         uses: actions-rs/cargo@v1
