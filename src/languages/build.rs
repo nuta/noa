@@ -100,6 +100,7 @@ fn main() {
                     .cpp(true)
                     .cargo_metadata(true)
                     .warnings(false)
+                    .flag("-Wno-switch") // markdown/src/scanner.c
                     .files(cpp_files)
                     .compile(&format!("tree-sitter-{}-cpp", lang.name));
             }
