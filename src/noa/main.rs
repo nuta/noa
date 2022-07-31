@@ -16,15 +16,12 @@ use tokio::{
     sync::mpsc,
 };
 
-use crate::finder::warm_up_search_cache;
-
 mod actions;
 mod clipboard;
 mod config;
 mod document;
 mod editor;
 mod extcmd;
-mod finder;
 mod notification;
 mod ui;
 
