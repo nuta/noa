@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, process::Command};
 
 use crate::{
     clipboard::{self, ClipboardProvider},

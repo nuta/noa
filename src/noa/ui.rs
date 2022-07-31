@@ -1,5 +1,6 @@
 use std::{
     cmp::{max, min},
+    process::Stdio,
     time::Duration,
 };
 
@@ -24,12 +25,13 @@ use crate::{
     actions::execute_action_or_notify,
     config::{get_keybinding_for, theme_for, KeyBindingScope},
     editor::Editor,
-    extcmd::run_external_command,
     notification::{notification_manager, Notification},
+    notify_error,
 };
 
 enum MainloopCommand {
     Quit,
+    ExternalCommand(std::process::Command),
 }
 
 pub struct Ui {
@@ -46,6 +48,7 @@ impl Ui {
     }
 
     pub async fn run(mut self) {
+        info!("restarting compositor");
         let (mainloop_tx, mut mainloop_rx) = mpsc::unbounded_channel();
         self.compositor
             .add_frontmost_layer(Box::new(Text::new(mainloop_tx.clone())));
@@ -67,6 +70,22 @@ impl Ui {
                     Some(command) = mainloop_rx.recv() => {
                         match command {
                             MainloopCommand::Quit => break 'outer,
+                            MainloopCommand::ExternalCommand(mut cmd) => {
+                                cmd.stdin(Stdio::inherit())
+                                .stdout(Stdio::piped())
+                                .stderr(Stdio::inherit());
+
+                                self.compositor.terminal_mut().stop_stdin_listening().await;
+                                match cmd.spawn() {
+                                    Ok(child) => {
+                                        let output = child.wait_with_output();
+                                        info!("output: {:?}", output);
+                                    }
+                                    Err(err) => notify_error!("failed to spawn: {}", err),
+                                };
+                                self.compositor.terminal_mut().restart_stdin_listening();
+                                self.compositor.force_render(&mut self.editor);
+                            }
                         }
                     }
 
@@ -374,8 +393,9 @@ impl Surface for Text {
             }
             (KeyCode::Char('f'), CTRL) => {
                 use std::process::Command;
-                let cmd = Command::new("sk");
-                run_external_command(editor, compositor, cmd);
+                let mut cmd = Command::new("sk");
+                cmd.arg("-c").arg("echo hello");
+                self.mainloop_tx.send(MainloopCommand::ExternalCommand(cmd));
             }
             (KeyCode::Char('r'), CTRL) => {
                 self.softwrap = !self.softwrap;

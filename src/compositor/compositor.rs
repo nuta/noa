@@ -33,10 +33,7 @@ pub struct Compositor<C> {
 impl<C: 'static> Compositor<C> {
     pub fn new() -> Compositor<C> {
         let (term_tx, term_rx) = mpsc::unbounded_channel();
-        let terminal = Terminal::new(move |ev| {
-            term_tx.send(ev).ok();
-        });
-
+        let terminal = Terminal::new(term_tx);
         let screen_size = RectSize {
             height: terminal.height(),
             width: terminal.width(),
@@ -56,15 +53,12 @@ impl<C: 'static> Compositor<C> {
         }
     }
 
-    pub fn run_in_cooked_mode<T, R>(&mut self, cb: T) -> R
-    where
-        T: FnOnce() -> R,
-    {
-        self.terminal.run_in_cooked_mode(cb)
-    }
-
     pub fn screen_size(&self) -> RectSize {
         self.screen_size
+    }
+
+    pub fn terminal_mut(&mut self) -> &mut Terminal {
+        &mut self.terminal
     }
 
     pub async fn receive_event(&mut self) -> Option<terminal::Event> {

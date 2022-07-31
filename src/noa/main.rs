@@ -21,7 +21,6 @@ mod clipboard;
 mod config;
 mod document;
 mod editor;
-mod extcmd;
 mod notification;
 mod ui;
 

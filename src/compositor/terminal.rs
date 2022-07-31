@@ -11,9 +11,10 @@ use crossterm::{
     style::{Attribute, Print, SetAttribute, SetBackgroundColor, SetForegroundColor},
     terminal::*,
 };
-use futures::StreamExt;
+use futures::{channel::oneshot, StreamExt};
 
 pub use crossterm::event::{KeyCode, KeyModifiers, MouseButton, MouseEvent};
+use tokio::{sync::mpsc::UnboundedSender, task::JoinHandle};
 
 use crate::canvas::DrawOp;
 
@@ -33,24 +34,27 @@ pub enum Event {
 pub struct Terminal {
     height: usize,
     width: usize,
+    event_tx: UnboundedSender<Event>,
+    stdio_listener: Option<(JoinHandle<()>, oneshot::Sender<()>)>,
 }
 
 impl Terminal {
-    pub fn new<F>(event_handler: F) -> Terminal
-    where
-        F: Fn(Event) + Send + Sync + 'static,
-    {
+    pub fn new(event_tx: UnboundedSender<Event>) -> Terminal {
         enable_raw_mode().expect("failed to enable the raw mode");
 
         let mut stdout = stdout();
         queue!(stdout, EnterAlternateScreen, EnableMouseCapture).ok();
         stdout.flush().ok();
 
+        let (event_abort_tx, event_abort_rx) = oneshot::channel();
+        let stdio_listener = listen_events(event_tx.clone(), event_abort_rx);
+
         let (cols, rows) = size().expect("failed to get the terminal size");
-        listen_events(event_handler);
         Terminal {
             height: rows as usize,
             width: cols as usize,
+            stdio_listener: Some((stdio_listener, event_abort_tx)),
+            event_tx,
         }
     }
 
@@ -62,6 +66,25 @@ impl Terminal {
         self.width
     }
 
+    pub async fn stop_stdin_listening(&mut self) {
+        if let Some((join_handle, abort)) = self.stdio_listener.take() {
+            abort.send(()).unwrap();
+            join_handle.await.unwrap();
+            execute!(stdout(), DisableMouseCapture).ok();
+            disable_raw_mode().unwrap();
+        }
+    }
+
+    pub fn restart_stdin_listening(&mut self) {
+        debug_assert!(self.stdio_listener.is_none());
+
+        let (event_abort_tx, event_abort_rx) = oneshot::channel();
+        let stdio_listener = listen_events(self.event_tx.clone(), event_abort_rx);
+        self.stdio_listener = Some((stdio_listener, event_abort_tx));
+        enable_raw_mode().unwrap();
+        execute!(stdout(), DisableMouseCapture,).ok();
+    }
+
     pub fn clear(&mut self) {
         execute!(
             stdout(),
@@ -69,14 +92,6 @@ impl Terminal {
             Clear(ClearType::All)
         )
         .ok();
-    }
-
-    pub fn run_in_cooked_mode<R, F: FnOnce() -> R>(&mut self, cb: F) -> R {
-        // TODO: disable stdin
-        disable_raw_mode().expect("failed to disable the raw mode");
-        let output = cb();
-        enable_raw_mode().expect("failed to enable the raw mode");
-        output
     }
 
     pub fn drawer(&mut self) -> Drawer<'_> {
@@ -96,28 +111,19 @@ impl Drop for Terminal {
     }
 }
 
-fn listen_events<F>(event_handler: F)
-where
-    F: Fn(Event) + Send + Sync + 'static,
-{
+fn listen_events(
+    event_tx: UnboundedSender<Event>,
+    mut abort: oneshot::Receiver<()>,
+) -> JoinHandle<()> {
     tokio::spawn(async move {
-        fn handle_event<F>(event_handler: F, ev: TermEvent)
-        where
-            F: Fn(Event) + Send + Sync,
-        {
+        fn convert_event(ev: TermEvent) -> Event {
             match ev {
-                TermEvent::Key(key) => {
-                    event_handler(Event::Input(InputEvent::Key(key)));
-                }
-                TermEvent::Mouse(ev) => {
-                    event_handler(Event::Input(InputEvent::Mouse(ev)));
-                }
-                TermEvent::Resize(cols, rows) => {
-                    event_handler(Event::Resize {
-                        width: cols as usize,
-                        height: rows as usize,
-                    });
-                }
+                TermEvent::Key(key) => Event::Input(InputEvent::Key(key)),
+                TermEvent::Mouse(ev) => Event::Input(InputEvent::Mouse(ev)),
+                TermEvent::Resize(cols, rows) => Event::Resize {
+                    width: cols as usize,
+                    height: rows as usize,
+                },
             }
         }
 
@@ -127,59 +133,66 @@ where
 
         let mut stream = EventStream::new().fuse();
         loop {
-            if let Some(Ok(ev)) = stream.next().await {
-                match ev {
-                    TermEvent::Key(KeyEvent {
-                        code: KeyCode::Char(key),
-                        modifiers: KeyModifiers::NONE,
-                    }) if is_next_available() => {
-                        let mut next_event = None;
-                        let mut buf = key.to_string();
-                        while is_next_available() && next_event.is_none() {
-                            if let Some(Ok(ev)) = stream.next().await {
-                                match ev {
-                                    TermEvent::Key(KeyEvent {
-                                        code: KeyCode::Char(ch),
-                                        modifiers: KeyModifiers::SHIFT,
-                                    }) => {
-                                        buf.push(ch);
-                                    }
-                                    TermEvent::Key(KeyEvent {
-                                        code,
-                                        modifiers: KeyModifiers::NONE,
-                                    }) => match code {
-                                        KeyCode::Char(ch) => {
+            tokio::select! {
+                biased;
+                Ok(_) = &mut abort => {
+                    break;
+                }
+                    Some(Ok(ev)) = stream.next() => {
+                    info!("ev = {:?}", ev);
+                    match ev {
+                        TermEvent::Key(KeyEvent {
+                            code: KeyCode::Char(key),
+                            modifiers: KeyModifiers::NONE,
+                        }) if is_next_available() => {
+                            let mut next_event = None;
+                            let mut buf = key.to_string();
+                            while is_next_available() && next_event.is_none() {
+                                if let Some(Ok(ev)) = stream.next().await {
+                                    match ev {
+                                        TermEvent::Key(KeyEvent {
+                                            code: KeyCode::Char(ch),
+                                            modifiers: KeyModifiers::SHIFT,
+                                        }) => {
                                             buf.push(ch);
                                         }
-                                        KeyCode::Enter => {
-                                            buf.push('\n');
-                                        }
-                                        KeyCode::Tab => {
-                                            buf.push('\t');
-                                        }
-                                        _ => {
+                                        TermEvent::Key(KeyEvent {
+                                            code,
+                                            modifiers: KeyModifiers::NONE,
+                                        }) => match code {
+                                            KeyCode::Char(ch) => {
+                                                buf.push(ch);
+                                            }
+                                            KeyCode::Enter => {
+                                                buf.push('\n');
+                                            }
+                                            KeyCode::Tab => {
+                                                buf.push('\t');
+                                            }
+                                            _ => {
+                                                next_event = Some(ev);
+                                            }
+                                        },
+                                        ev => {
                                             next_event = Some(ev);
                                         }
-                                    },
-                                    ev => {
-                                        next_event = Some(ev);
                                     }
                                 }
                             }
-                        }
 
-                        event_handler(Event::Input(InputEvent::KeyBatch(buf)));
-                        if let Some(ev) = next_event {
-                            handle_event(&event_handler, ev);
+                            let _ = event_tx.send(Event::Input(InputEvent::KeyBatch(buf)));
+                            if let Some(ev) = next_event {
+                                let _ = event_tx.send(convert_event(ev));
+                            }
                         }
-                    }
-                    _ => {
-                        handle_event(&event_handler, ev);
+                        _ => {
+                            let _ = event_tx.send(convert_event(ev));
+                        }
                     }
                 }
             }
         }
-    });
+    })
 }
 
 pub struct Drawer<'a> {
