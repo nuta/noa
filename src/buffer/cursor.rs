@@ -603,8 +603,6 @@ impl Cursor {
             self.virtual_x
                 .unwrap_or_else(|| virtual_x.screen_x(buf, screen_width, tab_width)),
         );
-
-        info!("self.virtual_x: {:?}", self.virtual_x);
     }
 
     pub fn select(&mut self, start_y: usize, start_x: usize, end_y: usize, end_x: usize) {
