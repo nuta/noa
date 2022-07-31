@@ -6,8 +6,8 @@ A minimalistic terminal text editor. Aims to be a good alternative to GNU nano.
 
 - Grapheme-aware text editing with multiple cursors.
 
-## Building
+## Testing
 
 ```
-cargo install cargo-insta
+cargo test
 ```

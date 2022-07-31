@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 #[macro_use]
 extern crate log;
 
@@ -23,6 +21,7 @@ mod document;
 mod editor;
 mod notification;
 mod ui;
+mod views;
 
 #[derive(Parser, Debug)]
 struct Args {
