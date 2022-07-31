@@ -132,6 +132,7 @@ impl Position {
         direction: Direction,
         screen_width: usize,
         tab_width: usize,
+        virtual_x: usize,
     ) -> Position {
         debug_assert!(self.y < buf.num_lines());
         debug_assert!(self.x <= buf.line_len(self.y));
@@ -159,9 +160,12 @@ impl Position {
                             Some(Paragraph { reflow_iter, .. }) => {
                                 let range = reflow_iter.range();
                                 if range.front().y == buf.num_lines() - 1 {
+                                    // EOF
                                     Some(range.front())
                                 } else {
-                                    find_same_screen_x(buf, reflow_iter, screen_x)
+                                    dbg!(reflow_iter.range());
+                                    dbg!(max(screen_x, virtual_x));
+                                    find_same_screen_x(buf, reflow_iter, max(screen_x, virtual_x))
                                 }
                             }
                             None => None,
@@ -465,6 +469,7 @@ pub struct Cursor {
     /// The range selected by the cursor. If the cursor is not a selection,
     /// the range is empty.
     selection: Range,
+    virtual_x: usize,
 }
 
 impl Debug for Cursor {
@@ -493,6 +498,7 @@ impl Cursor {
         Cursor {
             id: MAIN_CURSOR_ID,
             selection: Range::new(y, x, y, x),
+            virtual_x: x,
         }
     }
 
@@ -500,6 +506,7 @@ impl Cursor {
         Cursor {
             id: CursorId(NEXT_CURSOR_ID.fetch_add(1, atomic::Ordering::SeqCst)),
             selection: Range::new(y, x, y, x),
+            virtual_x: x,
         }
     }
 
@@ -507,6 +514,7 @@ impl Cursor {
         Cursor {
             id: CursorId(NEXT_CURSOR_ID.fetch_add(1, atomic::Ordering::SeqCst)),
             selection: Range::new(start_y, start_x, end_y, end_x),
+            virtual_x: start_x,
         }
     }
 
@@ -514,6 +522,7 @@ impl Cursor {
         Cursor {
             id: CursorId(NEXT_CURSOR_ID.fetch_add(1, atomic::Ordering::SeqCst)),
             selection: Range::from_positions(pos, pos),
+            virtual_x: pos.x,
         }
     }
 
@@ -521,6 +530,7 @@ impl Cursor {
         Cursor {
             id: CursorId(NEXT_CURSOR_ID.fetch_add(1, atomic::Ordering::SeqCst)),
             selection,
+            virtual_x: selection.start.x,
         }
     }
 
@@ -615,21 +625,27 @@ impl Cursor {
     }
 
     pub fn move_up(&mut self, buf: &RawBuffer, screen_width: usize, tab_width: usize) {
+        let new_virtual_x = self.moving_position().x;
         self.move_to_pos(self.selection.front().move_vertically(
             buf,
             Direction::Prev,
             screen_width,
             tab_width,
+            self.virtual_x,
         ));
+        self.virtual_x = new_virtual_x;
     }
 
     pub fn move_down(&mut self, buf: &RawBuffer, screen_width: usize, tab_width: usize) {
+        let new_virtual_x = self.moving_position().x;
         self.move_to_pos(self.selection.back().move_vertically(
             buf,
             Direction::Next,
             screen_width,
             tab_width,
+            self.virtual_x,
         ));
+        self.virtual_x = new_virtual_x;
     }
 
     pub fn select_left(&mut self, buf: &RawBuffer) {
@@ -645,15 +661,23 @@ impl Cursor {
     }
 
     pub fn select_up(&mut self, buf: &RawBuffer, screen_width: usize, tab_width: usize) {
-        *self.moving_position_mut() =
-            self.moving_position()
-                .move_vertically(buf, Direction::Prev, screen_width, tab_width);
+        *self.moving_position_mut() = self.moving_position().move_vertically(
+            buf,
+            Direction::Prev,
+            screen_width,
+            tab_width,
+            self.virtual_x,
+        );
     }
 
     pub fn select_down(&mut self, buf: &RawBuffer, screen_width: usize, tab_width: usize) {
-        *self.moving_position_mut() =
-            self.moving_position()
-                .move_vertically(buf, Direction::Next, screen_width, tab_width);
+        *self.moving_position_mut() = self.moving_position().move_vertically(
+            buf,
+            Direction::Next,
+            screen_width,
+            tab_width,
+            self.virtual_x,
+        );
     }
 
     pub fn expand_left(&mut self, buf: &RawBuffer) {
@@ -1006,19 +1030,19 @@ mod tests {
         let screen_width = 5;
         let tab_width = 4;
         assert_eq!(
-            Position::new(0, 1).move_vertically(&buf, Direction::Next, screen_width, tab_width),
+            Position::new(0, 1).move_vertically(&buf, Direction::Next, screen_width, tab_width, 0),
             Position::new(1, 1)
         );
         assert_eq!(
-            Position::new(1, 2).move_vertically(&buf, Direction::Next, screen_width, tab_width),
+            Position::new(1, 2).move_vertically(&buf, Direction::Next, screen_width, tab_width, 0),
             Position::new(2, 1)
         );
         assert_eq!(
-            Position::new(2, 1).move_vertically(&buf, Direction::Next, screen_width, tab_width),
+            Position::new(2, 1).move_vertically(&buf, Direction::Next, screen_width, tab_width, 0),
             Position::new(3, 0)
         );
         assert_eq!(
-            Position::new(3, 0).move_vertically(&buf, Direction::Next, screen_width, tab_width),
+            Position::new(3, 0).move_vertically(&buf, Direction::Next, screen_width, tab_width, 0),
             Position::new(3, 0)
         );
     }
@@ -1031,19 +1055,19 @@ mod tests {
         let screen_width = 5;
         let tab_width = 4;
         assert_eq!(
-            Position::new(0, 0).move_vertically(&buf, Direction::Next, screen_width, tab_width),
+            Position::new(0, 0).move_vertically(&buf, Direction::Next, screen_width, tab_width, 0),
             Position::new(0, 5)
         );
         assert_eq!(
-            Position::new(0, 2).move_vertically(&buf, Direction::Next, screen_width, tab_width),
+            Position::new(0, 2).move_vertically(&buf, Direction::Next, screen_width, tab_width, 0),
             Position::new(0, 7)
         );
         assert_eq!(
-            Position::new(0, 4).move_vertically(&buf, Direction::Next, screen_width, tab_width),
+            Position::new(0, 4).move_vertically(&buf, Direction::Next, screen_width, tab_width, 0),
             Position::new(0, 8)
         );
         assert_eq!(
-            Position::new(0, 7).move_vertically(&buf, Direction::Next, screen_width, tab_width),
+            Position::new(0, 7).move_vertically(&buf, Direction::Next, screen_width, tab_width, 0),
             Position::new(0, 7)
         );
     }
@@ -1057,7 +1081,7 @@ mod tests {
         let screen_width = 5;
         let tab_width = 4;
         assert_eq!(
-            Position::new(0, 2).move_vertically(&buf, Direction::Next, screen_width, tab_width),
+            Position::new(0, 2).move_vertically(&buf, Direction::Next, screen_width, tab_width, 0),
             Position::new(1, 0)
         );
     }
@@ -1070,15 +1094,15 @@ mod tests {
         let screen_width = 5;
         let tab_width = 4;
         assert_eq!(
-            Position::new(1, 1).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+            Position::new(1, 1).move_vertically(&buf, Direction::Prev, screen_width, tab_width, 0),
             Position::new(0, 1)
         );
         assert_eq!(
-            Position::new(1, 4).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+            Position::new(1, 4).move_vertically(&buf, Direction::Prev, screen_width, tab_width, 0),
             Position::new(0, 3)
         );
         assert_eq!(
-            Position::new(0, 1).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+            Position::new(0, 1).move_vertically(&buf, Direction::Prev, screen_width, tab_width, 0),
             Position::new(0, 1)
         );
     }
@@ -1091,15 +1115,15 @@ mod tests {
         let screen_width = 5;
         let tab_width = 4;
         assert_eq!(
-            Position::new(0, 7).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+            Position::new(0, 7).move_vertically(&buf, Direction::Prev, screen_width, tab_width, 0),
             Position::new(0, 2)
         );
         assert_eq!(
-            Position::new(0, 8).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+            Position::new(0, 8).move_vertically(&buf, Direction::Prev, screen_width, tab_width, 0),
             Position::new(0, 3)
         );
         assert_eq!(
-            Position::new(0, 1).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+            Position::new(0, 1).move_vertically(&buf, Direction::Prev, screen_width, tab_width, 0),
             Position::new(0, 1)
         );
     }
@@ -1113,15 +1137,15 @@ mod tests {
         let screen_width = 5;
         let tab_width = 4;
         assert_eq!(
-            Position::new(1, 0).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+            Position::new(1, 0).move_vertically(&buf, Direction::Prev, screen_width, tab_width, 0),
             Position::new(0, 5)
         );
         assert_eq!(
-            Position::new(1, 1).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+            Position::new(1, 1).move_vertically(&buf, Direction::Prev, screen_width, tab_width, 0),
             Position::new(0, 6)
         );
         assert_eq!(
-            Position::new(1, 0).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+            Position::new(1, 0).move_vertically(&buf, Direction::Prev, screen_width, tab_width, 0),
             Position::new(0, 5)
         );
     }
@@ -1135,7 +1159,7 @@ mod tests {
         let screen_width = 5;
         let tab_width = 4;
         assert_eq!(
-            Position::new(1, 0).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+            Position::new(1, 0).move_vertically(&buf, Direction::Prev, screen_width, tab_width, 0),
             Position::new(0, 5)
         );
     }
@@ -1148,8 +1172,31 @@ mod tests {
         let screen_width = 5;
         let tab_width = 4;
         assert_eq!(
-            Position::new(1, 2).move_vertically(&buf, Direction::Prev, screen_width, tab_width),
+            Position::new(1, 2).move_vertically(&buf, Direction::Prev, screen_width, tab_width, 0),
             Position::new(0, 0)
+        );
+    }
+
+    #[test]
+    fn preverving_x() {
+        // abcde
+        // fg
+        // vwxyz
+        let buf = Buffer::from_text("abcdefg\nvwxyz");
+        let screen_width = 5;
+        let tab_width = 4;
+        let mut cursor = Cursor::new(0, 3);
+
+        cursor.move_down(&buf, screen_width,  tab_width);
+        assert_eq!(
+            cursor.position(),
+            Some(Position::new(0, 7))
+        );
+
+        cursor.move_down(&buf, screen_width,  tab_width);
+        assert_eq!(
+            cursor.position(),
+            Some(Position::new(1, 3))
         );
     }
 
