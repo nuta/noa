@@ -385,11 +385,11 @@ impl Surface for Text {
                 }
             }
             (KeyCode::PageUp, NONE) => {
-                doc.scroll_up(1, self.virtual_buffer_width);
+                doc.scroll_up(self.buffer_height, self.virtual_buffer_width);
                 adjust_scroll = false;
             }
             (KeyCode::PageDown, NONE) => {
-                doc.scroll_down(1, self.virtual_buffer_width);
+                doc.scroll_down(self.buffer_height, self.virtual_buffer_width);
                 adjust_scroll = false;
             }
             _ => {

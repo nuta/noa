@@ -78,6 +78,7 @@ impl Terminal {
     }
 
     pub fn run_in_cooked_mode<R, F: FnOnce() -> R>(&mut self, cb: F) -> R {
+        // TODO: disable stdin
         disable_raw_mode().expect("failed to disable the raw mode");
         let output = cb();
         enable_raw_mode().expect("failed to enable the raw mode");
@@ -275,6 +276,9 @@ impl crossterm::Command for SynchronizedOutput {
             SynchronizedOutput::Begin => ('h', '1'),
             SynchronizedOutput::End => ('l', '2'),
         };
+
+        // FIXME:
+        return write!(f, "");
 
         write!(
             f,
