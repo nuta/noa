@@ -35,6 +35,7 @@ struct Args {
 async fn main() {
     let args = Args::parse();
 
+    // TODO:
     // warm_up_search_cache();
 
     let mut editor = editor::Editor::new();
