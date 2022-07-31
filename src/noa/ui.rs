@@ -52,7 +52,7 @@ impl Ui {
         self.compositor
             .add_frontmost_layer(Box::new(MetaLine::new()));
         'outer: loop {
-            trace_timing!("render", 10 /* ms */, {
+            trace_timing!("render", 5 /* ms */, {
                 self.compositor.render(&mut self.editor);
             });
 
@@ -71,7 +71,9 @@ impl Ui {
                     }
 
                     Some(ev) = self.compositor.receive_event() => {
-                        self.compositor.handle_event(&mut self.editor, ev);
+                        trace_timing!("handle_event", 5 /* ms */, {
+                            self.compositor.handle_event(&mut self.editor, ev);
+                        });
                     }
 
                     // No pending events.
@@ -79,7 +81,6 @@ impl Ui {
                         // Since we've already handled at least one event, if there're no
                         // pending events, we should break the loop to update the
                         // terminal contents.
-                        info!("ev: {}", i);
                         break 'inner;
                     }
 
@@ -416,6 +417,24 @@ impl Surface for Text {
         HandledEvent::Consumed
     }
 
+    fn handle_key_batch_event(
+        &mut self,
+        editor: &mut Editor,
+        _compositor: &mut Compositor<Self::Context>,
+        input: &str,
+    ) -> HandledEvent {
+        let doc = editor.current_document_mut();
+        doc.insert(input);
+        doc.adjust_scroll(
+            self.virtual_buffer_width,
+            self.buffer_width,
+            self.buffer_height,
+            self.first_visible_pos,
+            self.last_visible_pos,
+        );
+        HandledEvent::Consumed
+    }
+
     fn render(&mut self, editor: &mut Editor, canvas: &mut CanvasViewMut<'_>) {
         canvas.clear();
         self.cursor_screen_pos = None;
@@ -444,88 +463,95 @@ impl Surface for Text {
         let main_cursor_pos = doc.main_cursor().moving_position();
         let mut screen_y_offset = 0;
         let mut linenos: Vec<usize> = Vec::new();
-        for (Paragraph {
-            mut reflow_iter,
-            index: paragraph_index,
-        }) in doc.paragraph_iter_at_index(
-            doc.scroll.paragraph_index,
-            self.virtual_buffer_width,
-            doc.editorconfig().tab_width,
-        ) {
-            reflow_iter.enable_eof(true);
+        trace_timing!("render_text", 3 /* ms */, {
+            for (Paragraph {
+                mut reflow_iter,
+                index: paragraph_index,
+            }) in doc.paragraph_iter_at_index(
+                doc.scroll.paragraph_index,
+                self.virtual_buffer_width,
+                doc.editorconfig().tab_width,
+            ) {
+                reflow_iter.enable_eof(true);
 
-            let mut paragraph_height = 0;
-            let skipped_y = if doc.scroll.paragraph_index == paragraph_index {
-                doc.scroll.y_in_paragraph
-            } else {
-                0
-            };
+                let mut paragraph_height = 0;
+                let skipped_y = if doc.scroll.paragraph_index == paragraph_index {
+                    doc.scroll.y_in_paragraph
+                } else {
+                    0
+                };
 
-            for ReflowItem {
-                grapheme,
-                grapheme_width,
-                pos_in_screen,
-                pos_in_buffer,
-            } in reflow_iter
-            {
-                if pos_in_screen.y < skipped_y {
-                    continue;
-                }
-
-                if pos_in_screen.x < doc.scroll.x_in_paragraph {
-                    continue;
-                }
-
-                let canvas_y = screen_y_offset + pos_in_screen.y - skipped_y;
-                let canvas_x = buffer_start_x + pos_in_screen.x - doc.scroll.x_in_paragraph;
-
-                if canvas_y >= canvas.height() {
-                    break;
-                }
-
-                if canvas_x >= canvas.width() {
-                    break;
-                }
-
-                self.first_visible_pos = min(self.first_visible_pos, pos_in_buffer);
-                self.last_visible_pos = max(self.last_visible_pos, pos_in_buffer);
-
-                if canvas_y >= linenos.len() {
-                    linenos.push(pos_in_buffer.y + 1);
-                }
-
-                match grapheme {
-                    PrintableGrapheme::Grapheme(grapheme) => {
-                        paragraph_height = pos_in_screen.y;
-                        canvas.write(
-                            canvas_y,
-                            canvas_x,
-                            Grapheme::new_with_width(grapheme, grapheme_width),
-                        );
+                for ReflowItem {
+                    grapheme,
+                    grapheme_width,
+                    pos_in_screen,
+                    pos_in_buffer,
+                } in reflow_iter
+                {
+                    if pos_in_screen.y < skipped_y {
+                        continue;
                     }
-                    PrintableGrapheme::Eof
-                    | PrintableGrapheme::Whitespaces
-                    | PrintableGrapheme::ZeroWidth
-                    | PrintableGrapheme::Newline(_) => {
-                        // Already filled with whitespaces by `canvas.clear()`.
+
+                    if pos_in_screen.x < doc.scroll.x_in_paragraph {
+                        continue;
+                    }
+
+                    let canvas_y = screen_y_offset + pos_in_screen.y - skipped_y;
+                    let canvas_x = buffer_start_x + pos_in_screen.x - doc.scroll.x_in_paragraph;
+
+                    if canvas_y >= canvas.height() {
+                        break;
+                    }
+
+                    if canvas_x >= canvas.width() {
+                        break;
+                    }
+
+                    self.first_visible_pos = min(self.first_visible_pos, pos_in_buffer);
+                    self.last_visible_pos = max(self.last_visible_pos, pos_in_buffer);
+
+                    if canvas_y >= linenos.len() {
+                        linenos.push(pos_in_buffer.y + 1);
+                    }
+
+                    match grapheme {
+                        PrintableGrapheme::Grapheme(grapheme) => {
+                            paragraph_height = pos_in_screen.y;
+                            canvas.write(
+                                canvas_y,
+                                canvas_x,
+                                Grapheme::new_with_width(grapheme, grapheme_width),
+                            );
+                        }
+                        PrintableGrapheme::Eof
+                        | PrintableGrapheme::Whitespaces
+                        | PrintableGrapheme::ZeroWidth
+                        | PrintableGrapheme::Newline(_) => {
+                            // Already filled with whitespaces by `canvas.clear()`.
+                        }
+                    }
+
+                    for c in doc.cursors() {
+                        if c.selection().contains(pos_in_buffer)
+                            || (!c.is_main_cursor() && c.position() == Some(pos_in_buffer))
+                        {
+                            canvas.set_inverted(
+                                canvas_y,
+                                canvas_x,
+                                canvas_x + grapheme_width,
+                                true,
+                            );
+                        }
+                    }
+
+                    if main_cursor_pos == pos_in_buffer {
+                        self.cursor_screen_pos = Some((canvas_y, canvas_x));
                     }
                 }
 
-                for c in doc.cursors() {
-                    if c.selection().contains(pos_in_buffer)
-                        || (!c.is_main_cursor() && c.position() == Some(pos_in_buffer))
-                    {
-                        canvas.set_inverted(canvas_y, canvas_x, canvas_x + grapheme_width, true);
-                    }
-                }
-
-                if main_cursor_pos == pos_in_buffer {
-                    self.cursor_screen_pos = Some((canvas_y, canvas_x));
-                }
+                screen_y_offset += 1 + paragraph_height - skipped_y;
             }
-
-            screen_y_offset += 1 + paragraph_height - skipped_y;
-        }
+        });
 
         // Line numbers.
         let mut prev = 0;
