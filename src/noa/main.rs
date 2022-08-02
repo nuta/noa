@@ -11,8 +11,14 @@ use std::{path::PathBuf, process::Stdio, time::Duration};
 use clap::Parser;
 use editor::Editor;
 use noa_common::logger::install_logger;
-use noa_compositor::compositor::Compositor;
-use tokio::{sync::mpsc, time};
+use noa_compositor::{
+    compositor::Compositor,
+    terminal::{Event, InputEvent, KeyCode, KeyModifiers},
+};
+use tokio::{
+    sync::mpsc,
+    time::{self, Instant},
+};
 use views::{buffer_view::BufferView, metaline_view::MetaLine};
 
 mod actions;
@@ -28,17 +34,23 @@ pub enum MainloopCommand {
     ExternalCommand(Box<std::process::Command>),
 }
 
+const FOREVER: Duration = Duration::from_secs(30 * 24 * 60 * 60 /* (almost) forever */);
+const UNDO_TIMEOUT: Duration = Duration::from_millis(500);
+
 async fn mainloop(mut editor: Editor) {
     let mut compositor = Compositor::new();
     let (mainloop_tx, mut mainloop_rx) = mpsc::unbounded_channel();
     compositor.add_frontmost_layer(Box::new(BufferView::new(mainloop_tx.clone())));
     compositor.add_frontmost_layer(Box::new(MetaLine::new()));
+
+    let undo_timeout = time::sleep(FOREVER);
+    tokio::pin!(undo_timeout);
     'outer: loop {
         trace_timing!("render", 5 /* ms */, {
             compositor.render(&mut editor);
         });
 
-        let timeout = time::sleep(Duration::from_millis(10));
+        let timeout = time::sleep(Duration::from_millis(5));
         tokio::pin!(timeout);
 
         // Handle all pending events until the timeout is reached.
@@ -70,8 +82,20 @@ async fn mainloop(mut editor: Editor) {
 
                 Some(ev) = compositor.receive_event() => {
                     trace_timing!("handle_event", 5 /* ms */, {
+                        let prev_buffer = editor.current_document().raw_buffer().clone();
+
                         compositor.handle_event(&mut editor, ev);
+
+                        let doc = editor.current_document();
+                        if *doc.raw_buffer() != prev_buffer {
+                            undo_timeout.as_mut().reset(Instant::now() + UNDO_TIMEOUT);
+                        }
                     });
+                }
+
+                _ = &mut undo_timeout => {
+                    editor.current_document_mut().save_undo();
+                    undo_timeout.as_mut().reset(Instant::now() + FOREVER);
                 }
 
                 // No pending events.
@@ -111,9 +135,7 @@ async fn main() {
         let doc = document::Document::open(&file)
             .await
             .expect("failed to open file");
-        let doc_id = doc.id;
-        editor.add_document(doc);
-        editor.switch_document(doc_id);
+        editor.add_and_switch_document(doc);
     }
 
     install_logger("main");

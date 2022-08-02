@@ -42,7 +42,8 @@ pub struct Document {
 
 impl Document {
     pub fn virtual_file(name: &str, initial_content: &str) -> Document {
-        let buffer = Buffer::from_text(initial_content);
+        let mut buffer = Buffer::from_text(initial_content);
+        buffer.save_undo();
         let saved_buffer = buffer.raw_buffer().clone();
         Document {
             name: name.to_string(),

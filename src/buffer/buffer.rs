@@ -461,15 +461,14 @@ impl Buffer {
 
     /// Returns `false` if the undo stack is empty.
     pub fn undo(&mut self) -> bool {
-        while let Some(state) = self.undo_stack.pop() {
-            if *self.raw_buffer() == state.buf {
-                continue;
-            }
-
-            self.set_raw_buffer(state.buf.clone());
-            self.cursors = state.cursors.clone();
+        if let Some(state) = self.undo_stack.pop() {
             self.redo_stack.push(state);
-            return true;
+            if let Some(state2) = self.undo_stack.last() {
+                let buf = state2.buf.clone();
+                self.cursors = state2.cursors.clone();
+                self.set_raw_buffer(buf);
+                return true;
+            }
         }
 
         false
@@ -477,15 +476,14 @@ impl Buffer {
 
     /// Returns `false` if the redo stack is empty.
     pub fn redo(&mut self) -> bool {
-        while let Some(state) = self.redo_stack.pop() {
-            if *self.raw_buffer() == state.buf {
-                continue;
+        if let Some(state) = self.redo_stack.pop() {
+            self.undo_stack.push(state);
+            if let Some(state2) = self.redo_stack.last() {
+                let buf = state2.buf.clone();
+                self.cursors = state2.cursors.clone();
+                self.set_raw_buffer(buf);
+                return true;
             }
-
-            self.set_raw_buffer(state.buf.clone());
-            self.cursors = state.cursors.clone();
-            self.redo_stack.push(state);
-            return true;
         }
 
         false
@@ -983,5 +981,33 @@ mod tests {
         b.set_raw_buffer(RawBuffer::from_text("XYZ"));
         assert_eq!(b.text(), "XYZ");
         assert_eq!(b.cursors(), &[Cursor::new(0, 3)]);
+    }
+
+    #[test]
+    fn test_undo() {
+        let mut b = Buffer::from_text("");
+        b.save_undo();
+        b.insert("A");
+        b.save_undo();
+        b.insert("B");
+        b.save_undo();
+        b.insert("C");
+        b.save_undo();
+
+        assert_eq!(b.text(), "ABC");
+        b.undo();
+        assert_eq!(b.text(), "AB");
+        b.undo();
+        assert_eq!(b.text(), "A");
+        b.undo();
+        assert_eq!(b.text(), "");
+        b.undo();
+        assert_eq!(b.text(), "");
+        b.redo();
+        assert_eq!(b.text(), "A");
+        b.redo();
+        assert_eq!(b.text(), "AB");
+        b.redo();
+        assert_eq!(b.text(), "ABC");
     }
 }

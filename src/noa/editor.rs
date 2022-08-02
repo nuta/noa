@@ -25,7 +25,8 @@ impl Editor {
         }
     }
 
-    pub fn add_document(&mut self, doc: Document) {
+    pub fn add_document(&mut self, mut doc: Document) {
+        doc.save_undo();
         self.documents.insert(doc.id, doc);
     }
 
@@ -38,6 +39,7 @@ impl Editor {
     }
 
     pub fn switch_document(&mut self, doc_id: DocumentId) {
+        self.current_document_mut().save_undo();
         self.current_doc = doc_id;
     }
 
