@@ -196,7 +196,7 @@ pub static LANGUAGES: &[Language] = &[
         tree_sitter: Some(TreeSitter {
             url: "https://github.com/MDeiml/tree-sitter-markdown",
             sources: &["src/parser.c", "src/scanner.cc"],
-            dir: Some("tree-sitter-markdown"),
+            dir: None,
         }),
     },
     Language {
