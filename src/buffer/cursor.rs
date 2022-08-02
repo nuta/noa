@@ -586,6 +586,7 @@ impl Cursor {
     pub fn move_to_pos(&mut self, pos: Position) {
         self.selection.start = pos;
         self.selection.end = pos;
+        info!("move_to_pos: reset!");
         self.virtual_x = None;
     }
 
@@ -595,14 +596,15 @@ impl Cursor {
         buf: &RawBuffer,
         screen_width: usize,
         tab_width: usize,
-        virtual_x: Position,
+        prev_pos: Position,
     ) {
         self.selection.start = pos;
         self.selection.end = pos;
-        self.virtual_x = Some(
-            self.virtual_x
-                .unwrap_or_else(|| virtual_x.screen_x(buf, screen_width, tab_width)),
-        );
+
+        self.virtual_x = Some(max(
+            self.virtual_x.unwrap_or(0),
+            prev_pos.screen_x(buf, screen_width, tab_width),
+        ));
     }
 
     pub fn select(&mut self, start_y: usize, start_x: usize, end_y: usize, end_x: usize) {
@@ -625,6 +627,7 @@ impl Cursor {
         } else {
             self.move_to_pos(self.selection.front());
         }
+        self.virtual_x = None;
     }
 
     pub fn move_right(&mut self, buf: &RawBuffer) {
@@ -635,6 +638,7 @@ impl Cursor {
         } else {
             self.move_to_pos(self.selection.back());
         }
+        self.virtual_x = None;
     }
 
     pub fn move_up(&mut self, buf: &RawBuffer, screen_width: usize, tab_width: usize) {
@@ -1199,12 +1203,13 @@ mod tests {
     }
 
     #[test]
-    fn preverving_x() {
+    fn preserving_x() {
         // abcde
         // fg
         // 12
+        //
         // vwxyz
-        let buf = Buffer::from_text("abcdefg\n12\nvwxyz");
+        let buf = Buffer::from_text("abcdefg\n12\n\nvwxyz");
         let screen_width = 5;
         let tab_width = 4;
         let mut cursor = Cursor::new(0, 4);
@@ -1216,7 +1221,10 @@ mod tests {
         assert_eq!(cursor.position(), Some(Position::new(1, 2)));
 
         cursor.move_down(&buf, screen_width, tab_width);
-        assert_eq!(cursor.position(), Some(Position::new(2, 4)));
+        assert_eq!(cursor.position(), Some(Position::new(2, 0)));
+
+        cursor.move_down(&buf, screen_width, tab_width);
+        assert_eq!(cursor.position(), Some(Position::new(3, 4)));
     }
 
     #[test]
