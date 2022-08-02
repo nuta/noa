@@ -86,6 +86,7 @@ impl Scroll {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn adjust_scroll(
         &mut self,
         buffer: &RawBuffer,
@@ -135,15 +136,14 @@ fn locate_row(
     tab_width: usize,
     pos: Position,
 ) -> Option<(ParagraphIndex, ScreenPosition)> {
-    let paragraph = buffer
+    let mut paragraph = buffer
         .paragraph_iter(pos, screen_width, tab_width)
         .next()
         .unwrap();
 
     paragraph
         .reflow_iter
-        .skip_while(|item| item.pos_in_buffer < pos)
-        .next()
+        .find(|item| item.pos_in_buffer >= pos)
         .map(|item| (paragraph.index, item.pos_in_screen))
 }
 

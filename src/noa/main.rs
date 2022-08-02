@@ -25,7 +25,7 @@ mod views;
 
 pub enum MainloopCommand {
     Quit,
-    ExternalCommand(std::process::Command),
+    ExternalCommand(Box<std::process::Command>),
 }
 
 async fn mainloop(mut editor: Editor) {

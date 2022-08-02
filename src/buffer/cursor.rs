@@ -161,7 +161,7 @@ impl Position {
                                 let range = reflow_iter.range();
                                 Some(
                                     find_same_screen_x(buf, reflow_iter, max(screen_x, virtual_x))
-                                        .unwrap_or(range.front()),
+                                        .unwrap_or_else(|| range.front()),
                                 )
                             }
                             None => None,

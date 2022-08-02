@@ -149,7 +149,8 @@ impl Surface for BufferView {
                 use std::process::Command;
                 let mut cmd = Command::new("sk");
                 cmd.arg("-c").arg("echo hello");
-                self.mainloop_tx.send(MainloopCommand::ExternalCommand(cmd));
+                self.mainloop_tx
+                    .send(MainloopCommand::ExternalCommand(Box::new(cmd)));
             }
             (KeyCode::Char('r'), CTRL) => {
                 self.softwrap = !self.softwrap;
@@ -168,7 +169,6 @@ impl Surface for BufferView {
                 adjust_scroll = false;
             }
             _ => {
-                drop(doc);
                 if let Some(binding) =
                     get_keybinding_for(KeyBindingScope::Buffer, key.code, key.modifiers)
                 {
