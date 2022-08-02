@@ -1,5 +1,3 @@
-
-
 use anyhow::Result;
 
 use noa_compositor::compositor::Compositor;

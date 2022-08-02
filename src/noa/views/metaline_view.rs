@@ -1,16 +1,11 @@
-
-
-use noa_buffer::{
-    display_width::DisplayWidth,
-};
+use noa_buffer::display_width::DisplayWidth;
 use noa_compositor::{
-    canvas::{CanvasViewMut},
+    canvas::CanvasViewMut,
     surface::{Layout, RectSize, Surface},
 };
 
-
 use crate::{
-    config::{theme_for},
+    config::theme_for,
     editor::Editor,
     notification::{notification_manager, Notification},
 };
