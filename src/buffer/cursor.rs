@@ -586,7 +586,6 @@ impl Cursor {
     pub fn move_to_pos(&mut self, pos: Position) {
         self.selection.start = pos;
         self.selection.end = pos;
-        info!("move_to_pos: reset!");
         self.virtual_x = None;
     }
 
