@@ -94,7 +94,7 @@ impl Editor {
                             (KeyModifiers::CONTROL, KeyCode::Char('q')) => {
                                 break 'outer;
                             }
-                            (KeyModifiers::NONE, KeyCode::Char(ch)) => {
+                            (KeyModifiers::SHIFT | KeyModifiers::NONE, KeyCode::Char(ch)) => {
                                 self.buffer.insert_char(ch);
                             }
                             _ => {
