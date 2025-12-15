@@ -50,6 +50,29 @@ impl Frame {
         }
     }
 
+    pub fn resize(&mut self, width: u16, height: u16) {
+        let mut new_cells = vec![Cell::default(); width as usize * height as usize];
+
+        // Copy the old cells to the new cells, preserving the position
+        // on the screen.
+        for y in 0..height {
+            if y < self.height {
+                for x in 0..width {
+                    if x < self.width {
+                        let y = y as usize;
+                        let x = x as usize;
+                        let new_w = width as usize;
+                        let old_w = self.width as usize;
+                        new_cells[y * new_w + x] = self.cells[y * old_w + x];
+                    }
+                }
+            }
+        }
+
+        self.width = width;
+        self.height = height;
+    }
+
    pub fn draw_str(&mut self, y: u16, x: u16, text: &str) {
         let width = self.width as usize;
         let y_base = y as usize;
@@ -70,8 +93,11 @@ pub struct Terminal {
 }
 
 impl Terminal {
-    pub fn new(width: u16, height: u16) -> Self {
+    pub fn new() -> Self {
+        let (width, height) = crossterm::terminal::size().expect("failed to get terminal size");
+
         initialize_terminal();
+
         let frames = (Frame::new(width, height), Frame::new(width, height));
         Self {
             active_index: 0,
@@ -98,6 +124,11 @@ impl Terminal {
 
         std::mem::swap(active_frame, standby_frame);
         std::io::stdout().flush().expect("failed to flush stdout");
+    }
+
+    pub fn resize(&mut self, width: u16, height: u16) {
+        self.frames.0.resize(width, height);
+        self.frames.1.resize(width, height);
     }
 }
 

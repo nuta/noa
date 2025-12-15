@@ -11,7 +11,7 @@ mod status_line;
 fn main() {
     logger::init().expect("failed to initialize logger");
 
-    let mut terminal = Terminal::new(80, 24);
+    let mut terminal = Terminal::new();
     let mut status_line = StatusLine::new();
 
     loop {
@@ -23,10 +23,14 @@ fn main() {
         let ev = terminal.wait_for_event().expect("failed to wait for event");
         match ev {
             Event::Key(key) => {
-                trace!("key: {key:?}");
+                trace!("key: {}", key.code);
                 if key.code == KeyCode::Char('q') {
                     break;
                 }
+            }
+            Event::Resize(width, height) => {
+                trace!("resize: {width}x{height}");
+                terminal.resize(width, height);
             }
             _ => {
                 warn!("unhandled event: {ev:?}");
