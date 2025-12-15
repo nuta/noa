@@ -1,7 +1,7 @@
 use std::{
-    fs::{File, OpenOptions},
+    fs::File,
     io::ErrorKind,
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use crate::{buffer::Buffer, status_line::StatusLine, terminal::Terminal, utils::NOA_DIR};
@@ -16,6 +16,7 @@ mod terminal;
 mod utils;
 
 struct Editor {
+    path: PathBuf,
     buffer: Buffer,
     status_line: StatusLine,
     terminal: Terminal,
@@ -24,13 +25,14 @@ struct Editor {
 impl Editor {
     fn new() -> Self {
         Self {
+            path: PathBuf::new(),
             buffer: Buffer::new(),
             status_line: StatusLine::new(),
             terminal: Terminal::new(),
         }
     }
 
-    fn open_file(&mut self, path: &PathBuf) {
+    fn open_file(&mut self, path: &Path) {
         self.buffer = match File::open(&path).and_then(Buffer::from_reader) {
             Ok(buffer) => buffer,
             Err(e) if e.kind() == ErrorKind::NotFound => {
@@ -49,7 +51,7 @@ impl Editor {
             use crate::terminal::{Event, KeyCode};
 
             let frame = self.terminal.frame();
-            self.status_line.render(frame, &self.buffer);
+            self.status_line.render(frame, &self.buffer, &self.path);
             self.terminal.flush();
 
             let ev = self
@@ -78,15 +80,12 @@ impl Editor {
 fn main() {
     logger::init().expect("failed to initialize logger");
 
-    let mut terminal = Terminal::new();
-    let status_line = StatusLine::new();
-
     let path = match std::env::args().nth(1) {
         None => NOA_DIR.join("scratch.txt"),
         Some(path) => PathBuf::from(path),
     };
 
     let mut editor = Editor::new();
-    editor.open_file(&path).expect("failed to open file");
+    editor.open_file(&path);
     editor.run();
 }
