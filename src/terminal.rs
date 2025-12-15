@@ -54,8 +54,20 @@ impl Frame {
         }
     }
 
+    fn get_mut(&mut self, y: u16, x: u16) -> Option<&mut Cell> {
+        if y >= self.height || x >= self.width {
+            debug!("out of bounds: {y}, {x}");
+            None
+        } else {
+            let y_usize = y as usize;
+            let x_usize = x as usize;
+            let width_usize = self.width as usize;
+            Some(&mut self.cells[y_usize * width_usize + x_usize])
+        }
+    }
+
     pub fn resize(&mut self, width: u16, height: u16) {
-        let mut new_cells = vec![Cell::default(); width as usize * height as usize];
+        let mut new_frame = Frame::new(width, height);
 
         // Copy the old cells to the new cells, preserving the position
         // on the screen.
@@ -63,38 +75,32 @@ impl Frame {
             if y < self.height {
                 for x in 0..width {
                     if x < self.width {
-                        let y = y as usize;
-                        let x = x as usize;
-                        let new_w = width as usize;
-                        let old_w = self.width as usize;
-                        new_cells[y * new_w + x] = self.cells[y * old_w + x];
+                        if let (Some(dst), Some(src)) =
+                            (new_frame.get_mut(y, x), self.get_mut(y, x))
+                        {
+                            *dst = *src;
+                        }
                     }
                 }
             }
         }
 
-        self.width = width;
-        self.height = height;
+        *self = new_frame;
     }
 
     pub fn draw_str(&mut self, y: u16, x: u16, text: &str) {
-        let width = self.width as usize;
-        let y_base = y as usize;
-        let x_base = x as usize;
-        for (i, ch) in text.chars().enumerate() {
-            self.cells[y_base * width + x_base + i].ch = ch;
+        for ch in text.chars() {
+            if let Some(cell) = self.get_mut(y, x) {
+                cell.ch = ch;
+            }
         }
     }
 
-    pub fn fill_reversed(&mut self, y: u16, x: u16, width: u16) {
-        let width = width as usize;
-        let y_base = y as usize;
-        let x_base = x as usize;
-        for i in 0..width {
-            self.cells[y_base * width + x_base + i]
-                .style
-                .attrs
-                .set(Attribute::Reverse);
+    pub fn fill_reversed(&mut self, y: u16, x: u16, n: u16) {
+        for i in 0..n {
+            if let Some(cell) = self.get_mut(y, x + i) {
+                cell.style.attrs.set(Attribute::Reverse);
+            }
         }
     }
 }
