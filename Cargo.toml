@@ -8,3 +8,4 @@ authors = ["Seiya Nuta <nuta@seiya.me>"]
 crossterm = { version = "0.29", default-features = false, features = ["events", "bracketed-paste"] }
 log = { version = "0", features = ["std"] }
 ropey = "1.6"
+unicode-width = "0.2.2"

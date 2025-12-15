@@ -89,8 +89,8 @@ impl Frame {
     }
 
     pub fn draw_str(&mut self, y: u16, x: u16, text: &str) {
-        for ch in text.chars() {
-            if let Some(cell) = self.get_mut(y, x) {
+        for (i, ch) in text.chars().enumerate() {
+            if let Some(cell) = self.get_mut(y, x + i as u16) {
                 cell.ch = ch;
             }
         }
@@ -103,10 +103,6 @@ impl Frame {
             }
         }
     }
-}
-
-pub trait Widget {
-    fn render(&self, frame: &mut Frame);
 }
 
 pub struct Terminal {

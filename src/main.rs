@@ -10,12 +10,14 @@ use crate::{buffer::Buffer, status_line::StatusLine, terminal::Terminal, utils::
 extern crate log;
 
 mod buffer;
+mod display_width;
 mod logger;
 mod status_line;
 mod terminal;
 mod utils;
 
 struct Editor {
+    cwd: PathBuf,
     path: PathBuf,
     buffer: Buffer,
     status_line: StatusLine,
@@ -25,6 +27,7 @@ struct Editor {
 impl Editor {
     fn new() -> Self {
         Self {
+            cwd: std::env::current_dir().unwrap(),
             path: PathBuf::new(),
             buffer: Buffer::new(),
             status_line: StatusLine::new(),
@@ -32,8 +35,9 @@ impl Editor {
         }
     }
 
-    fn open_file(&mut self, path: &Path) {
-        self.buffer = match File::open(&path).and_then(Buffer::from_reader) {
+    fn open_file(&mut self, path: PathBuf) {
+        self.path = path;
+        self.buffer = match File::open(&self.path).and_then(Buffer::from_reader) {
             Ok(buffer) => buffer,
             Err(e) if e.kind() == ErrorKind::NotFound => {
                 // Create a new file.
@@ -51,7 +55,8 @@ impl Editor {
             use crate::terminal::{Event, KeyCode};
 
             let frame = self.terminal.frame();
-            self.status_line.render(frame, &self.buffer, &self.path);
+            self.status_line
+                .render(frame, &self.buffer, &self.cwd, &self.path);
             self.terminal.flush();
 
             let ev = self
@@ -86,6 +91,6 @@ fn main() {
     };
 
     let mut editor = Editor::new();
-    editor.open_file(&path);
+    editor.open_file(path);
     editor.run();
 }
