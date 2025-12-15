@@ -1,6 +1,10 @@
 use std::{borrow::Cow, path::Path};
 
-use crate::{buffer::Buffer, terminal::Frame, utils::HOME_DIR};
+use crate::{
+    buffer::Buffer,
+    terminal::{Attribute, Attributes, Color, Frame, Style},
+    utils::HOME_DIR,
+};
 
 fn format_path(cwd: &Path, path: &Path) -> String {
     if let Ok(rel_path) = path.strip_prefix(cwd) {
@@ -23,6 +27,12 @@ pub struct Message {
     message: Cow<'static, str>,
 }
 
+const REVERSED: Style = Style {
+    fg: Color::Reset,
+    bg: Color::Reset,
+    attrs: Attributes::none().with(Attribute::Reverse),
+};
+
 pub struct StatusLine {
     message: Option<Message>,
 }
@@ -40,7 +50,7 @@ impl StatusLine {
     }
 
     pub fn render(&self, frame: &mut Frame, y: u16, buffer: &Buffer, cwd: &Path, path: &Path) {
-        frame.fill_reversed(y, 0, frame.width);
+        frame.fill(y, 0, ' ', frame.width, REVERSED);
         frame.draw_str(y, 1, &format_path(cwd, path));
 
         if let Some(Message { level, message }) = &self.message {

@@ -4,7 +4,7 @@ use std::time::Duration;
 pub use crossterm::event::Event;
 pub use crossterm::event::KeyCode;
 pub use crossterm::style::Attribute;
-use crossterm::style::Attributes;
+pub use crossterm::style::Attributes;
 pub use crossterm::style::Color;
 
 use crate::display_width::DisplayWidth;
@@ -18,14 +18,14 @@ struct Cell {
 impl Default for Cell {
     fn default() -> Self {
         Self {
-            ch: ' ',
+            ch: '\u{0000}',
             style: Style::default(),
         }
     }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-struct Style {
+pub struct Style {
     pub fg: Color,
     pub bg: Color,
     pub attrs: Attributes,
@@ -104,10 +104,11 @@ impl Frame {
         }
     }
 
-    pub fn fill_reversed(&mut self, y: u16, x: u16, n: u16) {
+    pub fn fill(&mut self, y: u16, x: u16, ch: char, n: u16, style: Style) {
         for i in 0..n {
             if let Some(cell) = self.get_mut(y, x + i, 1) {
-                cell.style.attrs.set(Attribute::Reverse);
+                cell.ch = ch;
+                cell.style = style;
             }
         }
     }
@@ -181,6 +182,7 @@ fn render_diff(active_frame: &mut Frame, standby_frame: &mut Frame) {
     use crossterm::cursor::MoveTo;
     use crossterm::queue;
     use crossterm::style::Print;
+    use crossterm::style::SetAttribute;
     use crossterm::style::SetAttributes;
     use crossterm::style::SetBackgroundColor;
     use crossterm::style::SetForegroundColor;
@@ -202,6 +204,7 @@ fn render_diff(active_frame: &mut Frame, standby_frame: &mut Frame) {
                 if style_changed {
                     queue!(
                         std::io::stdout(),
+                        SetAttribute(Attribute::Reset),
                         SetBackgroundColor(new_cell.style.bg),
                         SetForegroundColor(new_cell.style.fg),
                         SetAttributes(new_cell.style.attrs),
