@@ -187,6 +187,7 @@ fn render_diff(active_frame: &mut Frame, standby_frame: &mut Frame) {
 
     let width = active_frame.width as usize;
     let height = active_frame.height as usize;
+    let mut current_style: Option<Style> = None;
     for y in 0..height {
         for x in 0..width {
             let old_cell = active_frame.cells[y * width + x];
@@ -197,7 +198,7 @@ fn render_diff(active_frame: &mut Frame, standby_frame: &mut Frame) {
 
                 queue!(std::io::stdout(), MoveTo(x_u16, y_u16)).expect("failed to move cursor");
 
-                if old_cell.style != new_cell.style {
+                if old_cell.style != new_cell.style && current_style != Some(new_cell.style) {
                     queue!(
                         std::io::stdout(),
                         SetBackgroundColor(new_cell.style.bg),
@@ -205,6 +206,7 @@ fn render_diff(active_frame: &mut Frame, standby_frame: &mut Frame) {
                         SetAttributes(new_cell.style.attrs),
                     )
                     .expect("failed to move cursor");
+                    current_style = Some(new_cell.style);
                 }
 
                 queue!(std::io::stdout(), Print(new_cell.ch)).expect("failed to print cell");
