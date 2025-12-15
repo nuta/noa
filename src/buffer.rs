@@ -127,6 +127,10 @@ impl Buffer {
         self.rope.len_lines()
     }
 
+    pub fn main_cursor(&self) -> &Cursor {
+        &self.cursors[0]
+    }
+
     pub fn line(&self, y: usize) -> RopeSlice<'_> {
         self.rope.line(y)
     }

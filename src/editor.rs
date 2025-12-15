@@ -1,10 +1,10 @@
-use std::{fs::File, io::ErrorKind, path::PathBuf};
+use std::{fs::File, io::ErrorKind, ops::ControlFlow, path::PathBuf, time::Instant};
 
 use crate::{
     buffer::Buffer,
     display_width::DisplayWidth,
     status_line::{Level, StatusLine},
-    terminal::Terminal,
+    terminal::{self, Terminal},
 };
 
 pub struct Editor {
@@ -74,43 +74,68 @@ impl Editor {
         self.terminal.flush();
     }
 
-    pub fn run(&mut self) {
+    pub fn handle_event(&mut self, ev: terminal::Event) -> ControlFlow<()> {
         use crate::terminal::{Event, KeyCode};
         use crossterm::event::KeyModifiers;
 
-        'outer: loop {
-            self.render();
+        match ev {
+            Event::Key(key) => {
+                trace!("key: {} ({:?})", key.code, key.modifiers);
+                match (key.modifiers, key.code) {
+                    (KeyModifiers::CONTROL, KeyCode::Char('q')) => {
+                        return ControlFlow::Break(());
+                    }
+                    (KeyModifiers::SHIFT | KeyModifiers::NONE, KeyCode::Char(ch)) => {
+                        self.buffer.insert_char(ch);
+                    }
+                    _ => {
+                        warn!("unhandled key: {key:?}");
+                    }
+                }
+            }
+            Event::Resize(width, height) => {
+                trace!("resize: {width}x{height}");
+                self.terminal.resize(width, height);
+            }
+            _ => {
+                warn!("unhandled event: {ev:?}");
+            }
+        }
+
+        ControlFlow::Continue(())
+    }
+
+    pub fn run(&mut self) {
+        loop {
+            let render_dur = {
+                let started_at = Instant::now();
+                self.render();
+                started_at.elapsed()
+            };
 
             let events = self
                 .terminal
                 .wait_for_events()
                 .expect("failed to wait for event");
 
-            for ev in events {
-                match ev {
-                    Event::Key(key) => {
-                        trace!("key: {} ({:?})", key.code, key.modifiers);
-                        match (key.modifiers, key.code) {
-                            (KeyModifiers::CONTROL, KeyCode::Char('q')) => {
-                                break 'outer;
-                            }
-                            (KeyModifiers::SHIFT | KeyModifiers::NONE, KeyCode::Char(ch)) => {
-                                self.buffer.insert_char(ch);
-                            }
-                            _ => {
-                                warn!("unhandled key: {key:?}");
-                            }
-                        }
-                    }
-                    Event::Resize(width, height) => {
-                        trace!("resize: {width}x{height}");
-                        self.terminal.resize(width, height);
-                    }
-                    _ => {
-                        warn!("unhandled event: {ev:?}");
+            let num_events = events.len();
+            let events_dur = {
+                let started_at = Instant::now();
+                for ev in events {
+                    if let ControlFlow::Break(_) = self.handle_event(ev) {
+                        break;
                     }
                 }
-            }
+                started_at.elapsed()
+            };
+
+            trace!(
+                "iteration: took {:?} (render: {:?}, handle: {:?}, events: {})",
+                render_dur + events_dur,
+                render_dur,
+                events_dur,
+                num_events,
+            );
         }
     }
 }
