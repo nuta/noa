@@ -2,6 +2,8 @@ use std::io::Write;
 
 pub use crossterm::event::Event;
 pub use crossterm::event::KeyCode;
+pub use crossterm::style::Attribute;
+use crossterm::style::Attributes;
 pub use crossterm::style::Color;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -23,6 +25,7 @@ impl Default for Cell {
 struct Style {
     pub fg: Color,
     pub bg: Color,
+    pub attrs: Attributes,
 }
 
 impl Default for Style {
@@ -30,6 +33,7 @@ impl Default for Style {
         Self {
             fg: Color::Reset,
             bg: Color::Reset,
+            attrs: Attributes::none(),
         }
     }
 }
@@ -79,6 +83,15 @@ impl Frame {
         let x_base = x as usize;
         for (i, ch) in text.chars().enumerate() {
             self.cells[y_base * width + x_base + i].ch = ch;
+        }
+    }
+
+    pub fn fill_reversed(&mut self, y: u16, x: u16, width: u16) {
+        let width = width as usize;
+        let y_base = y as usize;
+        let x_base = x as usize;
+        for i in 0..width {
+            self.cells[y_base * width + x_base + i].style.attrs.set(Attribute::Reverse);
         }
     }
 }
@@ -138,6 +151,7 @@ fn render_diff(active_frame: &mut Frame, standby_frame: &mut Frame) {
     use crossterm::style::Print;
     use crossterm::style::SetBackgroundColor;
     use crossterm::style::SetForegroundColor;
+    use crossterm::style::SetAttributes;
 
     let width = active_frame.width as usize;
     let height = active_frame.height as usize;
@@ -156,6 +170,7 @@ fn render_diff(active_frame: &mut Frame, standby_frame: &mut Frame) {
                         std::io::stdout(),
                         SetBackgroundColor(new_cell.style.bg),
                         SetForegroundColor(new_cell.style.fg),
+                        SetAttributes(new_cell.style.attrs),
                     )
                     .expect("failed to move cursor");
                 }
