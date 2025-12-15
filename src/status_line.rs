@@ -54,7 +54,7 @@ impl StatusLine {
         frame.draw_str(y, 1, &format_path(cwd, path));
 
         if let Some(Message { level, message }) = &self.message {
-            frame.draw_str(y + 1, 1, &message);
+            frame.draw_str(y + 1, 1, message);
         }
     }
 }
