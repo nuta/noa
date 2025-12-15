@@ -127,7 +127,7 @@ impl Buffer {
         self.rope.len_lines()
     }
 
-    pub fn line(&self, y: usize) -> RopeSlice {
+    pub fn line(&self, y: usize) -> RopeSlice<'_> {
         self.rope.line(y)
     }
 
