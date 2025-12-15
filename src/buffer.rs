@@ -13,6 +13,10 @@ impl Position {
     fn new(line: usize, column: usize) -> Self {
         Self { line, column }
     }
+
+    fn rope_index(&self, rope: &Rope) -> usize {
+        rope.line_to_char(self.line) + self.column
+    }
 }
 
 impl PartialOrd for Position {
@@ -27,27 +31,52 @@ impl PartialOrd for Position {
     }
 }
 
-pub struct Range(Position, Position);
+pub struct Range {
+    anchor: Position,
+    head: Position,
+}
 
 impl Range {
-    fn new(start: Position, end: Position) -> Self {
-        Self(start, end)
+    fn new(anchor: Position, head: Position) -> Self {
+        Self { anchor, head }
+    }
+
+    fn new_at(pos: Position) -> Self {
+        Self {
+            anchor: pos,
+            head: pos,
+        }
     }
 
     fn front(&self) -> Position {
-        min(self.0, self.1)
+        min(self.anchor, self.head)
     }
 
     fn back(&self) -> Position {
-        max(self.0, self.1)
+        max(self.anchor, self.head)
     }
 
-    /// The position of the cursor after replacing this range of
-    /// text with `new_text`.
-    fn cursor_after_edit(&self, new_text: &str) -> Position {
-        let pos = self.front();
+    fn rope_range(&self, rope: &Rope) -> std::ops::Range<usize> {
+        let front = self.front().rope_index(rope);
+        let back = self.back().rope_index(rope);
+        front..back
+    }
+}
+
+pub struct Cursor {
+    range: Range,
+}
+
+impl Cursor {
+    fn new(range: Range) -> Self {
+        Self { range }
+    }
+
+    /// Move the cursor after replacing this range of text with `new_text`.
+    fn move_after_edit(&mut self, new_text: &str) {
+        let front = self.range.front();
         let num_newlines_added = new_text.matches('\n').count();
-        let num_newlines_deleted = self.back().line - self.front().line;
+        let num_newlines_deleted = self.range.back().line - front.line;
 
         let y_diff = num_newlines_added.saturating_sub(num_newlines_deleted);
 
@@ -60,20 +89,16 @@ impl Range {
             }
         }
 
-        let new_y = pos.line + y_diff;
+        let new_y = front.line + y_diff;
         let new_x = if new_text.contains('\n') {
             x_diff
         } else {
-            pos.column + x_diff
+            front.column + x_diff
         };
 
-        Position::new(new_y, new_x)
+        let new_pos = Position::new(new_y, new_x);
+        self.range = Range::new_at(new_pos);
     }
-}
-
-pub enum Cursor {
-    Normal(Position),
-    Selection(Range),
 }
 
 pub struct Buffer {
@@ -85,12 +110,17 @@ impl Buffer {
     pub fn new() -> Self {
         Self {
             rope: Rope::new(),
-            cursors: vec![Cursor::Normal(Position::new(0, 0))],
+            cursors: vec![Cursor::new(Range::new_at(Position::new(0, 0)))],
         }
     }
 
     pub fn insert_str(&mut self, text: &str) {
-        for i in (0..self.cursors.len()).rev() {}
+        for c in self.cursors.iter_mut().rev() {
+            let rope_range = c.range.rope_range(&self.rope);
+            self.rope.remove(rope_range.clone());
+            self.rope.insert(rope_range.start, text);
+            c.move_after_edit(text);
+        }
     }
 }
 
