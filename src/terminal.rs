@@ -10,18 +10,41 @@ pub struct Rect {
     pub bottom_right: Position,
 }
 
+#[derive(Clone, Copy)]
 struct Cell {
     ch: char,
     style: Style,
 }
 
+impl Default for Cell {
+    fn default() -> Self {
+        Self { ch: ' ', style: Style::default() }
+    }
+}
+
+#[derive(Clone, Copy)]
 struct Style {
     pub fg: Color,
     pub bg: Color,
 }
 
+impl Default for Style {
+    fn default() -> Self {
+        Self { fg: Color::White, bg: Color::Black }
+    }
+}
+
 struct Frame {
-    cells: Vec<Vec<Cell>>,
+    cells: Vec<Cell>,
+    width: usize,
+    height: usize,
+}
+
+impl Frame {
+    pub fn new(width: usize, height: usize) -> Self {
+        let cells = vec![Cell::default(); width * height];
+        Self { cells, width, height }
+    }
 }
 
 pub struct FrameView<'a> {
@@ -40,11 +63,14 @@ struct ActiveWidget {
 
 pub struct Terminal {
     widgets: Vec<ActiveWidget>,
+    active_frame: usize,
+    frames: [Frame; 2],
 }
 
 impl Terminal {
-    pub fn new() -> Self {
-        Self { widgets: Vec::new() }
+    pub fn new(width: usize, height: usize) -> Self {
+        let frames = [Frame::new(width, height), Frame::new(width, height)];
+        Self { widgets: Vec::new(), active_frame: 0, frames }
     }
 
     pub fn add_widget(&mut self, rect: Rect, widget: impl Widget + 'static) {
