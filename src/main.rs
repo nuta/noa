@@ -1,5 +1,6 @@
 use std::{
-    fs::OpenOptions,
+    fs::{File, OpenOptions},
+    io::ErrorKind,
     path::PathBuf,
 };
 
@@ -14,6 +15,72 @@ mod status_line;
 mod terminal;
 mod utils;
 
+struct Editor {
+    buffer: Buffer,
+    status_line: StatusLine,
+    terminal: Terminal,
+}
+
+impl Editor {
+    fn new() -> Self {
+        Self {
+            buffer: Buffer::new(),
+            status_line: StatusLine::new(),
+            terminal: Terminal::new(),
+        }
+    }
+
+    fn open_file(&mut self, path: &PathBuf) {
+        self.buffer = match File::open(&path) {
+            Ok(file) => match Buffer::from_reader(file) {
+                Ok(buffer) => buffer,
+                Err(e) => {
+                    error!("failed to read file: {e}");
+                    Buffer::new()
+                }
+            },
+            Err(e) if e.kind() == ErrorKind::NotFound => {
+                // Create a new file.
+                Buffer::new()
+            }
+            Err(e) => {
+                error!("failed to open file: {e}");
+                return;
+            }
+        };
+    }
+
+    fn run(&mut self) {
+        loop {
+            use crate::terminal::{Event, KeyCode};
+
+            let frame = self.terminal.frame();
+            self.status_line.render(frame);
+            self.terminal.flush();
+
+            let ev = self
+                .terminal
+                .wait_for_event()
+                .expect("failed to wait for event");
+            match ev {
+                Event::Key(key) => {
+                    trace!("key: {}", key.code);
+                    if key.code == KeyCode::Char('q') {
+                        break;
+                    }
+                }
+                Event::Resize(width, height) => {
+                    trace!("resize: {width}x{height}");
+                    self.terminal.resize(width, height);
+                }
+                _ => {
+                    warn!("unhandled event: {ev:?}");
+                }
+            }
+        }
+    }
+}
+
 fn main() {
     logger::init().expect("failed to initialize logger");
 
@@ -21,40 +88,11 @@ fn main() {
     let status_line = StatusLine::new();
 
     let path = match std::env::args().nth(1) {
-        None => NOA_DIR.join("noa/noa.txt"),
+        None => NOA_DIR.join("scratch.txt"),
         Some(path) => PathBuf::from(path),
     };
 
-    let file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .open(&path)
-        .expect("failed to open file");
-
-    let buffer = Buffer::from_reader(file).expect("failed to read buffer");
-
-    loop {
-        use terminal::Event;
-        use terminal::KeyCode;
-
-        terminal.render(&[&status_line]);
-
-        let ev = terminal.wait_for_event().expect("failed to wait for event");
-        match ev {
-            Event::Key(key) => {
-                trace!("key: {}", key.code);
-                if key.code == KeyCode::Char('q') {
-                    break;
-                }
-            }
-            Event::Resize(width, height) => {
-                trace!("resize: {width}x{height}");
-                terminal.resize(width, height);
-            }
-            _ => {
-                warn!("unhandled event: {ev:?}");
-            }
-        }
-    }
+    let mut editor = Editor::new();
+    editor.open_file(&path).expect("failed to open file");
+    editor.run();
 }

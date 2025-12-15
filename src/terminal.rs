@@ -125,16 +125,20 @@ impl Terminal {
         crossterm::event::read()
     }
 
-    pub fn render(&mut self, widgets: &[&dyn Widget]) {
+    pub fn frame(&mut self) -> &mut Frame {
+        if self.active_index == 0 {
+            &mut self.frames.1
+        } else {
+            &mut self.frames.0
+        }
+    }
+
+    pub fn flush(&mut self) {
         let (active_frame, standby_frame) = if self.active_index == 0 {
             (&mut self.frames.0, &mut self.frames.1)
         } else {
             (&mut self.frames.1, &mut self.frames.0)
         };
-
-        for widget in widgets {
-            widget.render(standby_frame);
-        }
 
         render_diff(active_frame, standby_frame);
 
