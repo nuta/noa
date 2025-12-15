@@ -76,7 +76,6 @@ struct ActiveWidget {
 }
 
 pub struct Terminal {
-    widgets: Vec<ActiveWidget>,
     active_frame: usize,
     frames: (Frame, Frame),
 }
@@ -86,31 +85,23 @@ impl Terminal {
         initialize_terminal();
         let frames = (Frame::new(width, height), Frame::new(width, height));
         Self {
-            widgets: Vec::new(),
             active_frame: 0,
             frames,
         }
-    }
-
-    pub fn add_widget(&mut self, rect: Rect, widget: impl Widget + 'static) {
-        self.widgets.push(ActiveWidget {
-            widget: Box::new(widget),
-            rect,
-        });
     }
 
     pub fn wait_for_event(&self) -> Result<Event, std::io::Error> {
         crossterm::event::read()
     }
 
-    pub fn render(&mut self) {
+    pub fn render(&mut self, widgets: &[(Rect, &impl Widget)]) {
         let (active_frame, standby_frame) = if self.active_frame == 0 {
             (&mut self.frames.0, &mut self.frames.1)
         } else {
             (&mut self.frames.1, &mut self.frames.0)
         };
 
-        for ActiveWidget { widget, rect } in &self.widgets {
+        for (rect, widget) in widgets {
             widget.render(&mut FrameView {
                 frame: standby_frame,
                 rect,
@@ -135,7 +126,8 @@ fn render_diff(active_frame: &mut Frame, standby_frame: &mut Frame) {
             if old_cell != new_cell {
                 let x_u16: u16 = x.try_into().unwrap();
                 let y_u16: u16 = y.try_into().unwrap();
-                queue!(std::io::stdout(), MoveTo(x_u16, y_u16),).expect("failed to move cursor");
+
+                queue!(std::io::stdout(), MoveTo(x_u16, y_u16)).expect("failed to move cursor");
 
                 if old_cell.style != new_cell.style {
                     queue!(
@@ -146,7 +138,7 @@ fn render_diff(active_frame: &mut Frame, standby_frame: &mut Frame) {
                     .expect("failed to move cursor");
                 }
 
-                queue!(std::io::stdout(), Print(new_cell.ch),).expect("failed to print cell");
+                queue!(std::io::stdout(), Print(new_cell.ch)).expect("failed to print cell");
             }
         }
     }
