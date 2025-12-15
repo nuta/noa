@@ -106,13 +106,15 @@ impl Editor {
     }
 
     pub fn run(&mut self) {
-        loop {
-            let render_dur = {
-                let started_at = Instant::now();
-                self.render();
-                started_at.elapsed()
-            };
+        let render_dur = {
+            let started_at = Instant::now();
+            self.render();
+            started_at.elapsed()
+        };
 
+        trace!("first render took {:?}", render_dur);
+
+        'outer: loop {
             let events = self
                 .terminal
                 .wait_for_events()
@@ -123,9 +125,15 @@ impl Editor {
                 let started_at = Instant::now();
                 for ev in events {
                     if let ControlFlow::Break(_) = self.handle_event(ev) {
-                        break;
+                        break 'outer;
                     }
                 }
+                started_at.elapsed()
+            };
+
+            let render_dur = {
+                let started_at = Instant::now();
+                self.render();
                 started_at.elapsed()
             };
 
