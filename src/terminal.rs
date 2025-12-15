@@ -1,8 +1,10 @@
 use std::io::Write;
+use std::io::stdout;
 use std::time::Duration;
 
 pub use crossterm::event::Event;
 pub use crossterm::event::KeyCode;
+use crossterm::queue;
 pub use crossterm::style::Attribute;
 pub use crossterm::style::Attributes;
 pub use crossterm::style::Color;
@@ -166,7 +168,9 @@ impl Terminal {
         }
     }
 
-    pub fn flush(&mut self) {
+    pub fn flush(&mut self, cursor_yx: (u16, u16)) {
+        use crossterm::cursor;
+
         let (active_frame, standby_frame) = if self.active_index == 0 {
             (&mut self.frames.0, &mut self.frames.1)
         } else {
@@ -174,9 +178,16 @@ impl Terminal {
         };
 
         render_diff(active_frame, standby_frame);
-
         std::mem::swap(active_frame, standby_frame);
-        std::io::stdout().flush().expect("failed to flush stdout");
+
+        let mut stdout_lock = stdout().lock();
+        queue!(
+            stdout_lock,
+            cursor::MoveTo(cursor_yx.1, cursor_yx.0),
+            cursor::Show
+        )
+        .unwrap();
+        stdout_lock.flush().unwrap();
     }
 
     pub fn resize(&mut self, width: u16, height: u16) {
@@ -197,6 +208,7 @@ fn render_diff(active_frame: &mut Frame, standby_frame: &mut Frame) {
     let width = active_frame.width as usize;
     let height = active_frame.height as usize;
     let mut current_style: Option<Style> = None;
+    let mut stdout_lock = stdout().lock();
     for y in 0..height {
         for x in 0..width {
             let old_cell = active_frame.cells[y * width + x];
@@ -206,11 +218,11 @@ fn render_diff(active_frame: &mut Frame, standby_frame: &mut Frame) {
                 let x_u16: u16 = x.try_into().unwrap();
                 let y_u16: u16 = y.try_into().unwrap();
 
-                queue!(std::io::stdout(), MoveTo(x_u16, y_u16)).expect("failed to move cursor");
+                queue!(stdout_lock, MoveTo(x_u16, y_u16)).expect("failed to move cursor");
 
                 if style_changed {
                     queue!(
-                        std::io::stdout(),
+                        stdout_lock,
                         SetAttribute(Attribute::Reset),
                         SetBackgroundColor(new_cell.style.bg),
                         SetForegroundColor(new_cell.style.fg),
@@ -220,7 +232,7 @@ fn render_diff(active_frame: &mut Frame, standby_frame: &mut Frame) {
                     current_style = Some(new_cell.style);
                 }
 
-                queue!(std::io::stdout(), Print(new_cell.ch)).expect("failed to print cell");
+                queue!(stdout_lock, Print(new_cell.ch)).expect("failed to print cell");
             }
         }
     }
@@ -237,7 +249,7 @@ fn initialize_terminal() {
 
     enable_raw_mode().expect("failed to enable raw mode");
     execute!(
-        std::io::stdout(),
+        stdout(),
         EnterAlternateScreen,
         EnableBracketedPaste,
         SetCursorStyle::BlinkingBlock,
@@ -259,12 +271,8 @@ fn restore_terminal() {
     use crossterm::terminal::LeaveAlternateScreen;
     use crossterm::terminal::disable_raw_mode;
 
-    execute!(
-        std::io::stdout(),
-        DisableBracketedPaste,
-        LeaveAlternateScreen
-    )
-    .expect("failed to disable events");
+    execute!(stdout(), DisableBracketedPaste, LeaveAlternateScreen)
+        .expect("failed to disable events");
     disable_raw_mode().expect("failed to disable raw mode");
 }
 

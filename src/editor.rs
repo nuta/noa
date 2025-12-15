@@ -1,4 +1,11 @@
-use std::{cmp::min, fs::File, io::ErrorKind, ops::ControlFlow, path::PathBuf, time::Instant};
+use std::{
+    cmp::min,
+    fs::File,
+    io::{ErrorKind, stdout},
+    ops::ControlFlow,
+    path::PathBuf,
+    time::Instant,
+};
 
 use crate::{
     buffer::{Buffer, Position},
@@ -52,7 +59,7 @@ impl Editor {
         use crossterm::cursor;
         use crossterm::queue;
 
-        queue!(std::io::stdout(), cursor::Hide).unwrap();
+        queue!(stdout(), cursor::Hide).unwrap();
 
         let frame = &mut self.terminal.frame();
 
@@ -110,15 +117,7 @@ impl Editor {
         self.status
             .render(frame, status_y, &self.buffer, &self.cwd, &self.path);
 
-        // Move the cursor.
-        let (main_cursor_y, main_cursor_x) = main_cursor_yx.unwrap();
-        queue!(
-            std::io::stdout(),
-            cursor::MoveTo(main_cursor_x, main_cursor_y),
-        )
-        .unwrap();
-
-        self.terminal.flush();
+        self.terminal.flush(main_cursor_yx.unwrap());
     }
 
     pub fn handle_event(&mut self, ev: terminal::Event) -> ControlFlow<()> {
