@@ -49,6 +49,11 @@ impl Editor {
     }
 
     pub fn render(&mut self) {
+        use crossterm::cursor;
+        use crossterm::queue;
+
+        queue!(std::io::stdout(), cursor::Hide).unwrap();
+
         let frame = &mut self.terminal.frame();
 
         let status_y = frame.height.saturating_sub(2);
@@ -65,21 +70,32 @@ impl Editor {
         );
 
         // Draw the buffer.
+        let main_cursor = self.buffer.main_cursor();
+        let mut main_cursor_yx = None;
         for y in 0..buffer_height {
-            let line = self.buffer.line(self.top_left.line + y as usize);
+            let line = self.top_left.line + y as usize;
+            let line_text = self.buffer.line(line);
             let mut x = 0;
-            for chunk in line.chunks() {
-                let ch_width = chunk.display_width();
-                if ch_width == 0 {
-                    continue;
-                }
+            let mut column = 0;
+            for chunk in line_text.chunks() {
+                for ch in chunk.chars() {
+                    let ch_width = ch.display_width();
+                    if ch_width == 0 {
+                        continue;
+                    }
 
-                if x + ch_width > frame.width {
-                    break;
-                }
+                    if x + ch_width > frame.width {
+                        break;
+                    }
 
-                frame.draw_str(y, x, chunk);
-                x += ch_width;
+                    if main_cursor.anchor() == Position::new(line, column) {
+                        main_cursor_yx = Some((y, x));
+                    }
+
+                    frame.draw_char(y, x, ch, Style::default());
+                    x += ch_width;
+                    column += 1;
+                }
             }
         }
 
@@ -89,6 +105,14 @@ impl Editor {
 
         self.status
             .render(frame, status_y, &self.buffer, &self.cwd, &self.path);
+
+        // Move the cursor.
+        let (main_cursor_y, main_cursor_x) = main_cursor_yx.unwrap();
+        queue!(
+            std::io::stdout(),
+            cursor::MoveTo(main_cursor_y, main_cursor_x),
+        )
+        .unwrap();
 
         self.terminal.flush();
     }

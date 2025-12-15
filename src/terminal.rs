@@ -93,6 +93,13 @@ impl Frame {
         *self = new_frame;
     }
 
+    pub fn draw_char(&mut self, y: u16, x: u16, ch: char, style: Style) {
+        if let Some(cell) = self.get_mut(y, x, 1) {
+            cell.ch = ch;
+            cell.style = style;
+        }
+    }
+
     pub fn draw_str(&mut self, y: u16, mut x: u16, text: &str) {
         for ch in text.chars() {
             let width = ch.display_width();
@@ -220,6 +227,7 @@ fn render_diff(active_frame: &mut Frame, standby_frame: &mut Frame) {
 }
 
 fn initialize_terminal() {
+    use crossterm::cursor::SetCursorStyle;
     use crossterm::event::EnableBracketedPaste;
     use crossterm::execute;
     use crossterm::terminal::Clear;
@@ -232,6 +240,7 @@ fn initialize_terminal() {
         std::io::stdout(),
         EnterAlternateScreen,
         EnableBracketedPaste,
+        SetCursorStyle::BlinkingBlock,
         Clear(ClearType::All)
     )
     .expect("failed to enable events");

@@ -72,6 +72,10 @@ impl Cursor {
         Self { range }
     }
 
+    pub fn anchor(&self) -> Position {
+        self.range.anchor
+    }
+
     /// Move the cursor after replacing this range of text with `new_text`.
     fn move_after_edit(&mut self, new_text: &str) {
         let front = self.range.front();
