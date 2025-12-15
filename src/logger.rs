@@ -1,6 +1,6 @@
-use std::fs::OpenOptions;
 use std::fs::File;
-use std::io::{ Write};
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::sync::Mutex;
 
 use log::{LevelFilter, Log, Metadata, Record};
@@ -13,7 +13,9 @@ pub struct Logger {
 
 impl Logger {
     pub fn new(file: File) -> Self {
-        Self { file: Mutex::new(file) }
+        Self {
+            file: Mutex::new(file),
+        }
     }
 }
 
@@ -38,7 +40,11 @@ impl Log for Logger {
 pub fn init() -> Result<(), Box<dyn std::error::Error>> {
     let home_dir = std::env::home_dir().expect("failed to get home directory");
     let log_path = home_dir.join(".noa.log");
-    let file = OpenOptions::new().create(true).append(true).open(log_path).expect("failed to open log file");
+    let file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_path)
+        .expect("failed to open log file");
 
     // If the log file istoo big, truncate it.
     if file.metadata().unwrap().len() > MAX_LOG_FILE_SIZE {

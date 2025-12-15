@@ -2,8 +2,8 @@
 extern crate log;
 
 mod buffer;
-mod terminal;
 mod logger;
+mod terminal;
 
 fn main() {
     logger::init().expect("failed to initialize logger");
