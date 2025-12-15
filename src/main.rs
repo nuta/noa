@@ -1,18 +1,38 @@
-use crate::{status_line::StatusLine, terminal::Terminal};
+use std::{
+    fs::OpenOptions,
+    path::PathBuf,
+};
+
+use crate::{buffer::Buffer, status_line::StatusLine, terminal::Terminal, utils::NOA_DIR};
 
 #[macro_use]
 extern crate log;
 
 mod buffer;
 mod logger;
-mod terminal;
 mod status_line;
+mod terminal;
+mod utils;
 
 fn main() {
     logger::init().expect("failed to initialize logger");
 
     let mut terminal = Terminal::new();
-    let mut status_line = StatusLine::new();
+    let status_line = StatusLine::new();
+
+    let path = match std::env::args().nth(1) {
+        None => NOA_DIR.join("noa/noa.txt"),
+        Some(path) => PathBuf::from(path),
+    };
+
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(&path)
+        .expect("failed to open file");
+
+    let buffer = Buffer::from_reader(file).expect("failed to read buffer");
 
     loop {
         use terminal::Event;

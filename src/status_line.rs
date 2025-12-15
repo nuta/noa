@@ -1,4 +1,4 @@
-use crate::terminal::{Color, Frame, Widget};
+use crate::terminal::{Frame, Widget};
 
 pub struct StatusLine {}
 

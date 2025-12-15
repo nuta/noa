@@ -5,8 +5,8 @@ use ropey::Rope;
 /// The zero-based position in the buffer.
 #[derive(PartialEq, Eq, Ord, Copy, Clone)]
 pub struct Position {
-    line: usize,
-    column: usize,
+    pub line: usize,
+    pub column: usize,
 }
 
 impl Position {
@@ -48,11 +48,11 @@ impl Range {
         }
     }
 
-    fn front(&self) -> Position {
+    pub fn front(&self) -> Position {
         min(self.anchor, self.head)
     }
 
-    fn back(&self) -> Position {
+    pub fn back(&self) -> Position {
         max(self.anchor, self.head)
     }
 
@@ -64,7 +64,7 @@ impl Range {
 }
 
 pub struct Cursor {
-    range: Range,
+    pub range: Range,
 }
 
 impl Cursor {
@@ -108,10 +108,19 @@ pub struct Buffer {
 
 impl Buffer {
     pub fn new() -> Self {
+        Self::from_rope(Rope::new())
+    }
+
+    pub fn from_rope(rope: Rope) -> Self {
         Self {
-            rope: Rope::new(),
+            rope,
             cursors: vec![Cursor::new(Range::new_at(Position::new(0, 0)))],
         }
+    }
+
+    pub fn from_reader(reader: impl std::io::Read) -> Result<Self, std::io::Error> {
+        let rope = Rope::from_reader(reader)?;
+        Ok(Self::from_rope(rope))
     }
 
     pub fn insert_str(&mut self, text: &str) {

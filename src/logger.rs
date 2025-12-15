@@ -5,6 +5,8 @@ use std::sync::Mutex;
 
 use log::{LevelFilter, Log, Metadata, Record};
 
+use crate::utils::NOA_DIR;
+
 const MAX_LOG_FILE_SIZE: u64 = 1024 * 1024 * 10;
 
 pub struct Logger {
@@ -38,8 +40,7 @@ impl Log for Logger {
 }
 
 pub fn init() -> Result<(), Box<dyn std::error::Error>> {
-    let home_dir = std::env::home_dir().expect("failed to get home directory");
-    let log_path = home_dir.join(".noa.log");
+    let log_path = NOA_DIR.join("noa.log");
     let file = OpenOptions::new()
         .create(true)
         .append(true)
