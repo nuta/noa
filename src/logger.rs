@@ -7,7 +7,6 @@ use log::{LevelFilter, Log, Metadata, Record};
 
 const MAX_LOG_FILE_SIZE: u64 = 1024 * 1024 * 10;
 
-/// A file-based logger.
 pub struct Logger {
     file: Mutex<File>,
 }

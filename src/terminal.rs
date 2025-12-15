@@ -107,21 +107,25 @@ impl Terminal {
 
 fn initialize_terminal() {
     use crossterm::event::EnableBracketedPaste;
+    use crossterm::terminal::EnterAlternateScreen;
     use crossterm::execute;
     use crossterm::terminal::enable_raw_mode;
     use crossterm::terminal::Clear;
     use crossterm::terminal::ClearType;
 
     enable_raw_mode().expect("failed to enable raw mode");
-    execute!(std::io::stdout(), EnableBracketedPaste, Clear(ClearType::All)).expect("failed to enable events");
+    execute!(std::io::stdout(), EnterAlternateScreen, EnableBracketedPaste,
+
+     Clear(ClearType::All)).expect("failed to enable events");
 }
 
 fn restore_terminal() {
     use crossterm::event::DisableBracketedPaste;
     use crossterm::execute;
     use crossterm::terminal::disable_raw_mode;
+    use crossterm::terminal::LeaveAlternateScreen;
 
-    execute!(std::io::stdout(), DisableBracketedPaste).expect("failed to disable events");
+    execute!(std::io::stdout(), DisableBracketedPaste, LeaveAlternateScreen).expect("failed to disable events");
     disable_raw_mode().expect("failed to disable raw mode");
 }
 
