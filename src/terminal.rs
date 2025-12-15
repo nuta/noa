@@ -56,9 +56,9 @@ impl Frame {
         }
     }
 
-    fn get_mut(&mut self, y: u16, x: u16) -> Option<&mut Cell> {
-        if y >= self.height || x >= self.width {
-            debug!("out of bounds: {y}, {x}");
+    fn get_mut(&mut self, y: u16, x: u16, char_width: u16) -> Option<&mut Cell> {
+        if y >= self.height || x + char_width > self.width {
+            debug!("out of bounds: ({y}, {x} + {char_width})");
             None
         } else {
             let y_usize = y as usize;
@@ -77,11 +77,13 @@ impl Frame {
             if y < self.height {
                 for x in 0..width {
                     if x < self.width {
-                        if let (Some(dst), Some(src)) =
-                            (new_frame.get_mut(y, x), self.get_mut(y, x))
-                        {
-                            *dst = *src;
-                        }
+                        let y_usize = y as usize;
+                        let x_usize = x as usize;
+                        let new_w = width as usize;
+                        let old_w = self.width as usize;
+                        let new_index = y_usize * new_w + x_usize;
+                        let old_index = y_usize * old_w + x_usize;
+                        new_frame.cells[new_index] = self.cells[old_index];
                     }
                 }
             }
@@ -92,9 +94,8 @@ impl Frame {
 
     pub fn draw_str(&mut self, y: u16, mut x: u16, text: &str) {
         for ch in text.chars() {
-            let width: u16 = ch.display_width().try_into().unwrap();
-
-            if let Some(cell) = self.get_mut(y, x) {
+            let width = ch.display_width();
+            if let Some(cell) = self.get_mut(y, x, width) {
                 cell.ch = ch;
             }
 
@@ -104,7 +105,7 @@ impl Frame {
 
     pub fn fill_reversed(&mut self, y: u16, x: u16, n: u16) {
         for i in 0..n {
-            if let Some(cell) = self.get_mut(y, x + i) {
+            if let Some(cell) = self.get_mut(y, x + i, 1) {
                 cell.style.attrs.set(Attribute::Reverse);
             }
         }
