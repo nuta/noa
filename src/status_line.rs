@@ -39,13 +39,7 @@ impl StatusLine {
         });
     }
 
-    pub fn render(&self, frame: &mut Frame, buffer: &Buffer, cwd: &Path, path: &Path) {
-        let y = frame.height.saturating_sub(2);
-        if y < 3 {
-            frame.draw_str(y, 0, "too small view");
-            return;
-        }
-
+    pub fn render(&self, frame: &mut Frame, y: u16, buffer: &Buffer, cwd: &Path, path: &Path) {
         frame.fill_reversed(y, 0, frame.width);
         frame.draw_str(y, 1, &format_path(cwd, path));
 

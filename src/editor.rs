@@ -2,6 +2,7 @@ use std::{fs::File, io::ErrorKind, path::PathBuf};
 
 use crate::{
     buffer::Buffer,
+    display_width::DisplayWidth,
     status_line::{Level, StatusLine},
     terminal::Terminal,
 };
@@ -45,14 +46,40 @@ impl Editor {
         };
     }
 
+    pub fn render(&mut self) {
+        let frame = &mut self.terminal.frame();
+
+        let y = frame.height.saturating_sub(2);
+        if y < 3 {
+            frame.draw_str(y, 0, "too small view");
+            return;
+        }
+
+        for y in 0..frame.height {
+            let line = y as usize;
+            if line >= self.buffer.num_lines() {
+                break;
+            }
+
+            let line = self.buffer.line(line);
+            let mut x = 0;
+            for chunk in line.chunks() {
+                frame.draw_str(y, x, chunk);
+                x += chunk.display_width(); // TODO: cache
+            }
+        }
+
+        self.status
+            .render(frame, y, &self.buffer, &self.cwd, &self.path);
+        self.terminal.flush();
+    }
+
     pub fn run(&mut self) {
         use crate::terminal::{Event, KeyCode};
+        use crossterm::event::KeyModifiers;
 
         'outer: loop {
-            let frame = self.terminal.frame();
-            self.status
-                .render(frame, &self.buffer, &self.cwd, &self.path);
-            self.terminal.flush();
+            self.render();
 
             let events = self
                 .terminal
@@ -62,9 +89,17 @@ impl Editor {
             for ev in events {
                 match ev {
                     Event::Key(key) => {
-                        trace!("key: {}", key.code);
-                        if key.code == KeyCode::Char('q') {
-                            break 'outer;
+                        trace!("key: {} ({:?})", key.code, key.modifiers);
+                        match (key.modifiers, key.code) {
+                            (KeyModifiers::CONTROL, KeyCode::Char('q')) => {
+                                break 'outer;
+                            }
+                            (KeyModifiers::NONE, KeyCode::Char(ch)) => {
+                                self.buffer.insert_char(ch);
+                            }
+                            _ => {
+                                warn!("unhandled key: {key:?}");
+                            }
                         }
                     }
                     Event::Resize(width, height) => {

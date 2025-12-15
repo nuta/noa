@@ -1,6 +1,6 @@
 use std::cmp::{Ordering, max, min};
 
-use ropey::Rope;
+use ropey::{Rope, RopeSlice};
 
 /// The zero-based position in the buffer.
 #[derive(PartialEq, Eq, Ord, Copy, Clone)]
@@ -125,6 +125,16 @@ impl Buffer {
 
     pub fn num_lines(&self) -> usize {
         self.rope.len_lines()
+    }
+
+    pub fn line(&self, y: usize) -> RopeSlice {
+        self.rope.line(y)
+    }
+
+    pub fn insert_char(&mut self, ch: char) {
+        let mut buf = [0; 4];
+        let s = ch.encode_utf8(&mut buf);
+        self.insert_str(s);
     }
 
     pub fn insert_str(&mut self, text: &str) {

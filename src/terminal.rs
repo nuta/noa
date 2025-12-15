@@ -229,6 +229,13 @@ fn initialize_terminal() {
         Clear(ClearType::All)
     )
     .expect("failed to enable events");
+
+    std::panic::set_hook(Box::new(|info| {
+        restore_terminal();
+        eprintln!("panic: {info}");
+        error!("panic: {info}");
+        std::process::exit(1);
+    }));
 }
 
 fn restore_terminal() {
