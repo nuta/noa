@@ -192,13 +192,14 @@ fn render_diff(active_frame: &mut Frame, standby_frame: &mut Frame) {
         for x in 0..width {
             let old_cell = active_frame.cells[y * width + x];
             let new_cell = standby_frame.cells[y * width + x];
-            if old_cell != new_cell {
+            let style_changed = current_style != Some(new_cell.style);
+            if old_cell.ch != new_cell.ch || style_changed {
                 let x_u16: u16 = x.try_into().unwrap();
                 let y_u16: u16 = y.try_into().unwrap();
 
                 queue!(std::io::stdout(), MoveTo(x_u16, y_u16)).expect("failed to move cursor");
 
-                if old_cell.style != new_cell.style && current_style != Some(new_cell.style) {
+                if style_changed {
                     queue!(
                         std::io::stdout(),
                         SetBackgroundColor(new_cell.style.bg),
