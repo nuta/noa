@@ -8,12 +8,6 @@ pub struct Position {
     pub y: u16,
 }
 
-#[derive(Clone, Copy)]
-pub struct Rect {
-    pub top_left: Position,
-    pub bottom_right: Position,
-}
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct Cell {
     ch: char,
@@ -38,20 +32,20 @@ struct Style {
 impl Default for Style {
     fn default() -> Self {
         Self {
-            fg: Color::White,
-            bg: Color::Black,
+            fg: Color::Reset,
+            bg: Color::Reset,
         }
     }
 }
 
-struct Frame {
+pub struct Frame {
     cells: Vec<Cell>,
     width: usize,
     height: usize,
 }
 
 impl Frame {
-    pub fn new(width: usize, height: usize) -> Self {
+    fn new(width: usize, height: usize) -> Self {
         let cells = vec![Cell::default(); width * height];
         Self {
             cells,
@@ -61,18 +55,8 @@ impl Frame {
     }
 }
 
-pub struct FrameView<'a> {
-    pub rect: &'a Rect,
-    frame: &'a mut Frame,
-}
-
 pub trait Widget {
-    fn render(&self, view: &mut FrameView<'_>);
-}
-
-struct ActiveWidget {
-    widget: Box<dyn Widget>,
-    rect: Rect,
+    fn render(&self, frame: &mut Frame);
 }
 
 pub struct Terminal {
@@ -94,18 +78,15 @@ impl Terminal {
         crossterm::event::read()
     }
 
-    pub fn render(&mut self, widgets: &[(Rect, &impl Widget)]) {
+    pub fn render(&mut self, widgets: &[&dyn Widget]) {
         let (active_frame, standby_frame) = if self.active_frame == 0 {
             (&mut self.frames.0, &mut self.frames.1)
         } else {
             (&mut self.frames.1, &mut self.frames.0)
         };
 
-        for (rect, widget) in widgets {
-            widget.render(&mut FrameView {
-                frame: standby_frame,
-                rect,
-            });
+        for  widget in widgets {
+            widget.render(standby_frame);
         }
 
         render_diff(active_frame, standby_frame);
