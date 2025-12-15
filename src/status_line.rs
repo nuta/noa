@@ -1,4 +1,7 @@
-use crate::terminal::{Frame, Widget};
+use crate::{
+    buffer::Buffer,
+    terminal::{Frame, Widget},
+};
 
 pub struct StatusLine {}
 
@@ -7,7 +10,7 @@ impl StatusLine {
         Self {}
     }
 
-    pub fn render(&self, frame: &mut Frame) {
+    pub fn render(&self, frame: &mut Frame, buffer: &Buffer) {
         let y = frame.height.saturating_sub(2);
         if y < 3 {
             frame.draw_str(y, 0, "too small view");

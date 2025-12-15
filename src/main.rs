@@ -31,14 +31,8 @@ impl Editor {
     }
 
     fn open_file(&mut self, path: &PathBuf) {
-        self.buffer = match File::open(&path) {
-            Ok(file) => match Buffer::from_reader(file) {
-                Ok(buffer) => buffer,
-                Err(e) => {
-                    error!("failed to read file: {e}");
-                    Buffer::new()
-                }
-            },
+        self.buffer = match File::open(&path).and_then(Buffer::from_reader) {
+            Ok(buffer) => buffer,
             Err(e) if e.kind() == ErrorKind::NotFound => {
                 // Create a new file.
                 Buffer::new()
@@ -55,7 +49,7 @@ impl Editor {
             use crate::terminal::{Event, KeyCode};
 
             let frame = self.terminal.frame();
-            self.status_line.render(frame);
+            self.status_line.render(frame, &self.buffer);
             self.terminal.flush();
 
             let ev = self
