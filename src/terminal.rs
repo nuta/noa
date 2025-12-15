@@ -72,7 +72,6 @@ struct ActiveWidget {
 }
 
 pub struct Terminal {
-    initialized: bool,
     widgets: Vec<ActiveWidget>,
     active_frame: usize,
     frames: [Frame; 2],
@@ -80,9 +79,9 @@ pub struct Terminal {
 
 impl Terminal {
     pub fn new(width: usize, height: usize) -> Self {
+        initialize_terminal();
         let frames = [Frame::new(width, height), Frame::new(width, height)];
         Self {
-            initialized: false,
             widgets: Vec::new(),
             active_frame: 0,
             frames,
@@ -101,29 +100,31 @@ impl Terminal {
     }
 
     pub fn render(&mut self) {
-        if !self.initialized {
-            self.initialize();
-        }
     }
+}
 
-    pub fn initialize(&mut self) {
-        use crossterm::event::EnableBracketedPaste;
-        use crossterm::execute;
-        use crossterm::terminal::enable_raw_mode;
+fn initialize_terminal() {
+    use crossterm::event::EnableBracketedPaste;
+    use crossterm::execute;
+    use crossterm::terminal::enable_raw_mode;
+    use crossterm::terminal::Clear;
+    use crossterm::terminal::ClearType;
 
-        self.initialized = true;
+    enable_raw_mode().expect("failed to enable raw mode");
+    execute!(std::io::stdout(), EnableBracketedPaste, Clear(ClearType::All)).expect("failed to enable events");
+}
 
-        enable_raw_mode().expect("failed to enable raw mode");
-        execute!(std::io::stdout(), EnableBracketedPaste).expect("failed to enable events");
-    }
+fn restore_terminal() {
+    use crossterm::event::DisableBracketedPaste;
+    use crossterm::execute;
+    use crossterm::terminal::disable_raw_mode;
+
+    execute!(std::io::stdout(), DisableBracketedPaste).expect("failed to disable events");
+    disable_raw_mode().expect("failed to disable raw mode");
 }
 
 impl Drop for Terminal {
     fn drop(&mut self) {
-        use crossterm::event::DisableBracketedPaste;
-        use crossterm::execute;
-
-        execute!(std::io::stdout(), DisableBracketedPaste).expect("failed to disable events");
-        disable_raw_mode().expect("failed to disable raw mode");
+        restore_terminal();
     }
 }
