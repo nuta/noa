@@ -64,8 +64,17 @@ impl Editor {
             let line = self.buffer.line(line);
             let mut x = 0;
             for chunk in line.chunks() {
+                let ch_width = chunk.display_width();
+                if ch_width == 0 {
+                    continue;
+                }
+
+                if x + ch_width > frame.width {
+                    break;
+                }
+
                 frame.draw_str(y, x, chunk);
-                x += chunk.display_width(); // TODO: cache
+                x += ch_width;
             }
         }
 
