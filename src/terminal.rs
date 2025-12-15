@@ -6,6 +6,8 @@ pub use crossterm::style::Attribute;
 use crossterm::style::Attributes;
 pub use crossterm::style::Color;
 
+use crate::display_width::DisplayWidth;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct Cell {
     ch: char,
@@ -88,11 +90,15 @@ impl Frame {
         *self = new_frame;
     }
 
-    pub fn draw_str(&mut self, y: u16, x: u16, text: &str) {
-        for (i, ch) in text.chars().enumerate() {
-            if let Some(cell) = self.get_mut(y, x + i as u16) {
+    pub fn draw_str(&mut self, y: u16, mut x: u16, text: &str) {
+        for ch in text.chars() {
+            let width: u16 = ch.display_width().try_into().unwrap();
+
+            if let Some(cell) = self.get_mut(y, x) {
                 cell.ch = ch;
             }
+
+            x += width;
         }
     }
 
