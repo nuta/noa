@@ -1,4 +1,4 @@
-use crossterm::{event::Event, style::Color, terminal::enable_raw_mode};
+use crossterm::{event::Event, style::Color, };
 
 pub struct Position {
     pub x: u16,
