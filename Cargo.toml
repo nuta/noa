@@ -1,10 +1,8 @@
-[workspace.package]
-version = "0.0.0"
-authors = ["Seiya Nuta <nuta@seiya.me>"]
+[package]
+name = "noa"
+version = "0.1.0"
 edition = "2024"
+authors = ["Seiya Nuta <nuta@seiya.me>"]
 
-[workspace]
-resolver = "2"
-members = [
-    "buffer",
-]
+[dependencies]
+crossterm = { version = "0.29.0", default-features = false, features = ["events", "bracketed-paste"] }
