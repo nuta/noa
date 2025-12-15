@@ -98,6 +98,7 @@ name = "noa"
 version = "0.1.0"
 dependencies = [
  "crossterm",
+ "log",
 ]
 
 [[package]]

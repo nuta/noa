@@ -1,4 +1,6 @@
-use crossterm::{event::Event, style::Color, };
+pub use crossterm::style::Color;
+pub use crossterm::event::Event;
+pub use crossterm::event::KeyCode;
 
 pub struct Position {
     pub x: u16,
