@@ -97,6 +97,10 @@ impl Editor {
                     column += 1;
                 }
             }
+
+            if main_cursor.anchor() == Position::new(line, column) {
+                main_cursor_yx = Some((y, x));
+            }
         }
 
         for y in buffer_height..status_y {
@@ -110,7 +114,7 @@ impl Editor {
         let (main_cursor_y, main_cursor_x) = main_cursor_yx.unwrap();
         queue!(
             std::io::stdout(),
-            cursor::MoveTo(main_cursor_y, main_cursor_x),
+            cursor::MoveTo(main_cursor_x, main_cursor_y),
         )
         .unwrap();
 
