@@ -50,7 +50,7 @@ impl Frame {
         }
     }
 
-    fn draw_str(&mut self, y: u16, x: u16, text: &str) {
+   pub fn draw_str(&mut self, y: u16, x: u16, text: &str) {
         let width = self.width as usize;
         let y_base = y as usize;
         let x_base = x as usize;

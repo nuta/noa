@@ -1,19 +1,24 @@
+use crate::{status_line::StatusLine, terminal::Terminal};
+
 #[macro_use]
 extern crate log;
 
 mod buffer;
 mod logger;
 mod terminal;
+mod status_line;
 
 fn main() {
     logger::init().expect("failed to initialize logger");
 
-    let mut terminal = terminal::Terminal::new(80, 24);
+    let mut terminal = Terminal::new(80, 24);
+    let mut status_line = StatusLine::new();
+
     loop {
         use terminal::Event;
         use terminal::KeyCode;
 
-        terminal.render(&[]);
+        terminal.render(&[&status_line]);
 
         let ev = terminal.wait_for_event().expect("failed to wait for event");
         match ev {

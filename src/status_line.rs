@@ -1,15 +1,16 @@
+use crate::terminal::{Frame, Widget};
+
 pub struct StatusLine {
-    text: String,
 }
 
 impl StatusLine {
-    pub fn new(text: String) -> Self {
-        Self { text }
+    pub fn new() -> Self {
+        Self {}
     }
 }
 
 impl Widget for StatusLine {
     fn render(&self, frame: &mut Frame) {
-        frame.draw_text(self.text, 0, 0);
+        frame.draw_str(0, 0, "noa");
     }
 }
