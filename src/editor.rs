@@ -1,16 +1,17 @@
-use std::{fs::File, io::ErrorKind, ops::ControlFlow, path::PathBuf, time::Instant};
+use std::{cmp::min, fs::File, io::ErrorKind, ops::ControlFlow, path::PathBuf, time::Instant};
 
 use crate::{
-    buffer::Buffer,
+    buffer::{Buffer, Position},
     display_width::DisplayWidth,
     status_line::{Level, StatusLine},
-    terminal::{self, Terminal},
+    terminal::{self, Style, Terminal},
 };
 
 pub struct Editor {
     cwd: PathBuf,
     path: PathBuf,
     buffer: Buffer,
+    top_left: Position,
     status: StatusLine,
     terminal: Terminal,
 }
@@ -21,6 +22,7 @@ impl Editor {
             cwd: std::env::current_dir().unwrap(),
             path: PathBuf::new(),
             buffer: Buffer::new(),
+            top_left: Position::new(0, 0),
             status: StatusLine::new(),
             terminal: Terminal::new(),
         }
@@ -49,19 +51,22 @@ impl Editor {
     pub fn render(&mut self) {
         let frame = &mut self.terminal.frame();
 
-        let y = frame.height.saturating_sub(2);
-        if y < 3 {
-            frame.draw_str(y, 0, "too small view");
+        let status_y = frame.height.saturating_sub(2);
+        if status_y < 3 {
+            frame.draw_str(status_y, 0, "too small view");
             return;
         }
 
-        for y in 0..frame.height {
-            let line = y as usize;
-            if line >= self.buffer.num_lines() {
-                break;
-            }
+        let buffer_height = min(
+            status_y,
+            (self.buffer.num_lines() - self.top_left.line)
+                .try_into()
+                .unwrap(),
+        );
 
-            let line = self.buffer.line(line);
+        // Draw the buffer.
+        for y in 0..buffer_height {
+            let line = self.buffer.line(self.top_left.line + y as usize);
             let mut x = 0;
             for chunk in line.chunks() {
                 let ch_width = chunk.display_width();
@@ -78,8 +83,13 @@ impl Editor {
             }
         }
 
+        for y in buffer_height..status_y {
+            frame.fill(y, 0, ' ', frame.width, Style::default());
+        }
+
         self.status
-            .render(frame, y, &self.buffer, &self.cwd, &self.path);
+            .render(frame, status_y, &self.buffer, &self.cwd, &self.path);
+
         self.terminal.flush();
     }
 
