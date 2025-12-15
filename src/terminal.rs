@@ -1,12 +1,8 @@
+use std::io::Write;
+
 pub use crossterm::event::Event;
 pub use crossterm::event::KeyCode;
 pub use crossterm::style::Color;
-
-#[derive(Clone, Copy)]
-pub struct Position {
-    pub x: u16,
-    pub y: u16,
-}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct Cell {
@@ -40,17 +36,26 @@ impl Default for Style {
 
 pub struct Frame {
     cells: Vec<Cell>,
-    width: usize,
-    height: usize,
+    width: u16,
+    height: u16,
 }
 
 impl Frame {
-    fn new(width: usize, height: usize) -> Self {
-        let cells = vec![Cell::default(); width * height];
+    fn new(width: u16, height: u16) -> Self {
+        let cells = vec![Cell::default(); width as usize * height as usize];
         Self {
             cells,
             width,
             height,
+        }
+    }
+
+    fn draw_str(&mut self, y: u16, x: u16, text: &str) {
+        let width = self.width as usize;
+        let y_base = y as usize;
+        let x_base = x as usize;
+        for (i, ch) in text.chars().enumerate() {
+            self.cells[y_base * width + x_base + i].ch = ch;
         }
     }
 }
@@ -60,16 +65,16 @@ pub trait Widget {
 }
 
 pub struct Terminal {
-    active_frame: usize,
+    active_index: u8,
     frames: (Frame, Frame),
 }
 
 impl Terminal {
-    pub fn new(width: usize, height: usize) -> Self {
+    pub fn new(width: u16, height: u16) -> Self {
         initialize_terminal();
         let frames = (Frame::new(width, height), Frame::new(width, height));
         Self {
-            active_frame: 0,
+            active_index: 0,
             frames,
         }
     }
@@ -79,17 +84,20 @@ impl Terminal {
     }
 
     pub fn render(&mut self, widgets: &[&dyn Widget]) {
-        let (active_frame, standby_frame) = if self.active_frame == 0 {
+        let (active_frame, standby_frame) = if self.active_index == 0 {
             (&mut self.frames.0, &mut self.frames.1)
         } else {
             (&mut self.frames.1, &mut self.frames.0)
         };
 
-        for  widget in widgets {
+        for widget in widgets {
             widget.render(standby_frame);
         }
 
         render_diff(active_frame, standby_frame);
+
+        std::mem::swap(active_frame, standby_frame);
+        std::io::stdout().flush().expect("failed to flush stdout");
     }
 }
 
@@ -100,10 +108,12 @@ fn render_diff(active_frame: &mut Frame, standby_frame: &mut Frame) {
     use crossterm::style::SetBackgroundColor;
     use crossterm::style::SetForegroundColor;
 
-    for y in 0..active_frame.height {
-        for x in 0..active_frame.width {
-            let old_cell = active_frame.cells[y * active_frame.width + x];
-            let new_cell = standby_frame.cells[y * standby_frame.width + x];
+    let width = active_frame.width as usize;
+    let height = active_frame.height as usize;
+    for y in 0..height {
+        for x in 0..width {
+            let old_cell = active_frame.cells[y * width + x];
+            let new_cell = standby_frame.cells[y * width + x];
             if old_cell != new_cell {
                 let x_u16: u16 = x.try_into().unwrap();
                 let y_u16: u16 = y.try_into().unwrap();
