@@ -1,8 +1,10 @@
-[workspace]
-members = [
-  "src/*",
-]
+[workspace.package]
+version = "0.0.0"
+authors = ["Seiya Nuta <nuta@seiya.me>"]
+edition = "2024"
 
-[profile.release]
-debug = true
-opt-level = 3
+[workspace]
+resolver = "2"
+members = [
+    "buffer",
+]
