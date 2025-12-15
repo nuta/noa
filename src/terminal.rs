@@ -1,4 +1,4 @@
-use crossterm::style::Color;
+use crossterm::{event::Event, style::Color, terminal::enable_raw_mode};
 
 pub struct Position {
     pub x: u16,
@@ -18,7 +18,10 @@ struct Cell {
 
 impl Default for Cell {
     fn default() -> Self {
-        Self { ch: ' ', style: Style::default() }
+        Self {
+            ch: ' ',
+            style: Style::default(),
+        }
     }
 }
 
@@ -30,7 +33,10 @@ struct Style {
 
 impl Default for Style {
     fn default() -> Self {
-        Self { fg: Color::White, bg: Color::Black }
+        Self {
+            fg: Color::White,
+            bg: Color::Black,
+        }
     }
 }
 
@@ -43,7 +49,11 @@ struct Frame {
 impl Frame {
     pub fn new(width: usize, height: usize) -> Self {
         let cells = vec![Cell::default(); width * height];
-        Self { cells, width, height }
+        Self {
+            cells,
+            width,
+            height,
+        }
     }
 }
 
@@ -62,6 +72,7 @@ struct ActiveWidget {
 }
 
 pub struct Terminal {
+    initialized: bool,
     widgets: Vec<ActiveWidget>,
     active_frame: usize,
     frames: [Frame; 2],
@@ -70,7 +81,12 @@ pub struct Terminal {
 impl Terminal {
     pub fn new(width: usize, height: usize) -> Self {
         let frames = [Frame::new(width, height), Frame::new(width, height)];
-        Self { widgets: Vec::new(), active_frame: 0, frames }
+        Self {
+            initialized: false,
+            widgets: Vec::new(),
+            active_frame: 0,
+            frames,
+        }
     }
 
     pub fn add_widget(&mut self, rect: Rect, widget: impl Widget + 'static) {
@@ -80,7 +96,34 @@ impl Terminal {
         });
     }
 
-    pub fn render(&self) {
-        //
+    pub fn wait_for_event(&self) -> Result<Event, std::io::Error> {
+        crossterm::event::read()
+    }
+
+    pub fn render(&mut self) {
+        if !self.initialized {
+            self.initialize();
+        }
+    }
+
+    pub fn initialize(&mut self) {
+        use crossterm::event::EnableBracketedPaste;
+        use crossterm::execute;
+        use crossterm::terminal::enable_raw_mode;
+
+        self.initialized = true;
+
+        enable_raw_mode().expect("failed to enable raw mode");
+        execute!(std::io::stdout(), EnableBracketedPaste).expect("failed to enable events");
+    }
+}
+
+impl Drop for Terminal {
+    fn drop(&mut self) {
+        use crossterm::event::DisableBracketedPaste;
+        use crossterm::execute;
+
+        execute!(std::io::stdout(), DisableBracketedPaste).expect("failed to disable events");
+        disable_raw_mode().expect("failed to disable raw mode");
     }
 }
