@@ -36,8 +36,8 @@ impl Default for Style {
 
 pub struct Frame {
     cells: Vec<Cell>,
-    width: u16,
-    height: u16,
+    pub width: u16,
+    pub height: u16,
 }
 
 impl Frame {

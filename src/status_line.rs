@@ -11,6 +11,7 @@ impl StatusLine {
 
 impl Widget for StatusLine {
     fn render(&self, frame: &mut Frame) {
-        frame.draw_str(0, 0, "noa");
+        let y = frame.height.saturating_sub(1);
+        frame.draw_str(y, 0, "noa");
     }
 }
