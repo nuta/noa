@@ -1,21 +1,26 @@
 pub trait DisplayWidth {
-    fn display_width(&self) -> usize;
+    fn display_width(&self) -> u16;
 }
 
 impl DisplayWidth for str {
-    fn display_width(&self) -> usize {
+    fn display_width(&self) -> u16 {
         unicode_width::UnicodeWidthStr::width_cjk(self)
+            .try_into()
+            .unwrap()
     }
 }
 
 impl DisplayWidth for char {
-    fn display_width(&self) -> usize {
-        unicode_width::UnicodeWidthChar::width_cjk(*self).unwrap_or(1)
+    fn display_width(&self) -> u16 {
+        unicode_width::UnicodeWidthChar::width_cjk(*self)
+            .unwrap_or(1)
+            .try_into()
+            .unwrap()
     }
 }
 
 impl DisplayWidth for usize {
-    fn display_width(&self) -> usize {
+    fn display_width(&self) -> u16 {
         let mut n = *self;
         match n {
             0..=9 => 1,
