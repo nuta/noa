@@ -1,86 +1,17 @@
-use std::{
-    fs::File,
-    io::ErrorKind,
-    path::{Path, PathBuf},
-};
+use std::path::PathBuf;
 
-use crate::{buffer::Buffer, status_line::StatusLine, terminal::Terminal, utils::NOA_DIR};
+use crate::{editor::Editor, utils::NOA_DIR};
 
 #[macro_use]
 extern crate log;
 
 mod buffer;
 mod display_width;
+mod editor;
 mod logger;
 mod status_line;
 mod terminal;
 mod utils;
-
-struct Editor {
-    cwd: PathBuf,
-    path: PathBuf,
-    buffer: Buffer,
-    status_line: StatusLine,
-    terminal: Terminal,
-}
-
-impl Editor {
-    fn new() -> Self {
-        Self {
-            cwd: std::env::current_dir().unwrap(),
-            path: PathBuf::new(),
-            buffer: Buffer::new(),
-            status_line: StatusLine::new(),
-            terminal: Terminal::new(),
-        }
-    }
-
-    fn open_file(&mut self, path: PathBuf) {
-        self.path = path;
-        self.buffer = match File::open(&self.path).and_then(Buffer::from_reader) {
-            Ok(buffer) => buffer,
-            Err(e) if e.kind() == ErrorKind::NotFound => {
-                // Create a new file.
-                Buffer::new()
-            }
-            Err(e) => {
-                error!("failed to open file: {e}");
-                return;
-            }
-        };
-    }
-
-    fn run(&mut self) {
-        loop {
-            use crate::terminal::{Event, KeyCode};
-
-            let frame = self.terminal.frame();
-            self.status_line
-                .render(frame, &self.buffer, &self.cwd, &self.path);
-            self.terminal.flush();
-
-            let ev = self
-                .terminal
-                .wait_for_event()
-                .expect("failed to wait for event");
-            match ev {
-                Event::Key(key) => {
-                    trace!("key: {}", key.code);
-                    if key.code == KeyCode::Char('q') {
-                        break;
-                    }
-                }
-                Event::Resize(width, height) => {
-                    trace!("resize: {width}x{height}");
-                    self.terminal.resize(width, height);
-                }
-                _ => {
-                    warn!("unhandled event: {ev:?}");
-                }
-            }
-        }
-    }
-}
 
 fn main() {
     logger::init().expect("failed to initialize logger");
