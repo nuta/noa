@@ -1,4 +1,5 @@
 use std::io::Write;
+use std::time::Duration;
 
 pub use crossterm::event::Event;
 pub use crossterm::event::KeyCode;
@@ -130,8 +131,23 @@ impl Terminal {
         }
     }
 
-    pub fn wait_for_event(&self) -> Result<Event, std::io::Error> {
-        crossterm::event::read()
+    pub fn wait_for_events(&self) -> Result<Vec<Event>, std::io::Error> {
+        let mut events = Vec::with_capacity(8);
+
+        // Blocking read the first event.
+        events.push(crossterm::event::read()?);
+
+        // Non-blocking read all pending events.
+        for _ in 0..32 {
+            let readable = crossterm::event::poll(Duration::from_millis(0))?;
+            if !readable {
+                break;
+            }
+
+            events.push(crossterm::event::read()?);
+        }
+
+        Ok(events)
     }
 
     pub fn frame(&mut self) -> &mut Frame {

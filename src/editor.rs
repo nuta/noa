@@ -37,7 +37,7 @@ impl Editor {
     }
 
     pub fn run(&mut self) {
-        loop {
+        'outer: loop {
             use crate::terminal::{Event, KeyCode};
 
             let frame = self.terminal.frame();
@@ -45,23 +45,26 @@ impl Editor {
                 .render(frame, &self.buffer, &self.cwd, &self.path);
             self.terminal.flush();
 
-            let ev = self
+            let events = self
                 .terminal
-                .wait_for_event()
+                .wait_for_events()
                 .expect("failed to wait for event");
-            match ev {
-                Event::Key(key) => {
-                    trace!("key: {}", key.code);
-                    if key.code == KeyCode::Char('q') {
-                        break;
+
+            for ev in events {
+                match ev {
+                    Event::Key(key) => {
+                        trace!("key: {}", key.code);
+                        if key.code == KeyCode::Char('q') {
+                            break 'outer;
+                        }
                     }
-                }
-                Event::Resize(width, height) => {
-                    trace!("resize: {width}x{height}");
-                    self.terminal.resize(width, height);
-                }
-                _ => {
-                    warn!("unhandled event: {ev:?}");
+                    Event::Resize(width, height) => {
+                        trace!("resize: {width}x{height}");
+                        self.terminal.resize(width, height);
+                    }
+                    _ => {
+                        warn!("unhandled event: {ev:?}");
+                    }
                 }
             }
         }
