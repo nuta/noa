@@ -1,12 +1,16 @@
 use std::{fs::File, io::ErrorKind, path::PathBuf};
 
-use crate::{buffer::Buffer, status_line::StatusLine, terminal::Terminal};
+use crate::{
+    buffer::Buffer,
+    status_line::{Level, StatusLine},
+    terminal::Terminal,
+};
 
 pub struct Editor {
     cwd: PathBuf,
     path: PathBuf,
     buffer: Buffer,
-    status_line: StatusLine,
+    status: StatusLine,
     terminal: Terminal,
 }
 
@@ -16,7 +20,7 @@ impl Editor {
             cwd: std::env::current_dir().unwrap(),
             path: PathBuf::new(),
             buffer: Buffer::new(),
-            status_line: StatusLine::new(),
+            status: StatusLine::new(),
             terminal: Terminal::new(),
         }
     }
@@ -24,9 +28,14 @@ impl Editor {
     pub fn open_file(&mut self, path: PathBuf) {
         self.path = path;
         self.buffer = match File::open(&self.path).and_then(Buffer::from_reader) {
-            Ok(buffer) => buffer,
+            Ok(buffer) => {
+                self.status
+                    .message(Level::Info, format!("{} lines", buffer.num_lines()));
+                buffer
+            }
             Err(e) if e.kind() == ErrorKind::NotFound => {
                 // Create a new file.
+                self.status.message(Level::Info, "new file");
                 Buffer::new()
             }
             Err(e) => {
@@ -37,11 +46,11 @@ impl Editor {
     }
 
     pub fn run(&mut self) {
-        'outer: loop {
-            use crate::terminal::{Event, KeyCode};
+        use crate::terminal::{Event, KeyCode};
 
+        'outer: loop {
             let frame = self.terminal.frame();
-            self.status_line
+            self.status
                 .render(frame, &self.buffer, &self.cwd, &self.path);
             self.terminal.flush();
 

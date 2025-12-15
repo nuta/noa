@@ -123,6 +123,10 @@ impl Buffer {
         Ok(Self::from_rope(rope))
     }
 
+    pub fn num_lines(&self) -> usize {
+        self.rope.len_lines()
+    }
+
     pub fn insert_str(&mut self, text: &str) {
         for c in self.cursors.iter_mut().rev() {
             let rope_range = c.range.rope_range(&self.rope);
