@@ -5,8 +5,17 @@ pub struct Position {
     pub y: u16,
 }
 
+pub struct Rect {
+    pub top_left: Position,
+    pub bottom_right: Position,
+}
+
 struct Cell {
-    pub ch: char,
+    ch: char,
+    style: Style,
+}
+
+struct Style {
     pub fg: Color,
     pub bg: Color,
 }
@@ -24,8 +33,13 @@ pub trait Widget {
     fn render(&self, view: &mut FrameView<'_>);
 }
 
+struct ActiveWidget {
+    widget: Box<dyn Widget>,
+    rect: Rect,
+}
+
 pub struct Terminal {
-    widgets: Vec<Box<dyn Widget>>,
+    widgets: Vec<ActiveWidget>,
 }
 
 impl Terminal {
@@ -33,8 +47,11 @@ impl Terminal {
         Self { widgets: Vec::new() }
     }
 
-    pub fn add_widget(&mut self, widget: impl Widget + 'static) {
-        self.widgets.push(Box::new(widget));
+    pub fn add_widget(&mut self, rect: Rect, widget: impl Widget + 'static) {
+        self.widgets.push(ActiveWidget {
+            widget: Box::new(widget),
+            rect,
+        });
     }
 
     pub fn render(&self) {
