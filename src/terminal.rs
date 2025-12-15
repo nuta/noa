@@ -77,7 +77,7 @@ impl Frame {
         self.height = height;
     }
 
-   pub fn draw_str(&mut self, y: u16, x: u16, text: &str) {
+    pub fn draw_str(&mut self, y: u16, x: u16, text: &str) {
         let width = self.width as usize;
         let y_base = y as usize;
         let x_base = x as usize;
@@ -91,7 +91,10 @@ impl Frame {
         let y_base = y as usize;
         let x_base = x as usize;
         for i in 0..width {
-            self.cells[y_base * width + x_base + i].style.attrs.set(Attribute::Reverse);
+            self.cells[y_base * width + x_base + i]
+                .style
+                .attrs
+                .set(Attribute::Reverse);
         }
     }
 }
@@ -149,9 +152,9 @@ fn render_diff(active_frame: &mut Frame, standby_frame: &mut Frame) {
     use crossterm::cursor::MoveTo;
     use crossterm::queue;
     use crossterm::style::Print;
+    use crossterm::style::SetAttributes;
     use crossterm::style::SetBackgroundColor;
     use crossterm::style::SetForegroundColor;
-    use crossterm::style::SetAttributes;
 
     let width = active_frame.width as usize;
     let height = active_frame.height as usize;

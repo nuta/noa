@@ -7,3 +7,4 @@ authors = ["Seiya Nuta <nuta@seiya.me>"]
 [dependencies]
 crossterm = { version = "0.29", default-features = false, features = ["events", "bracketed-paste"] }
 log = { version = "0", features = ["std"] }
+ropey = "1.6"
