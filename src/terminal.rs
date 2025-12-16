@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::io::Write;
 use std::io::stdout;
 use std::time::Duration;
@@ -72,27 +73,25 @@ impl Frame {
     }
 
     pub fn resize(&mut self, width: u16, height: u16) {
-        let mut new_frame = Frame::new(width, height);
+        let old = std::mem::replace(self, Frame::new(width, height));
+
+        let new_w = width as usize;
+        let old_w = self.width as usize;
 
         // Copy the old cells to the new cells, preserving the position
         // on the screen.
-        for y in 0..height {
-            if y < self.height {
-                for x in 0..width {
-                    if x < self.width {
-                        let y_usize = y as usize;
-                        let x_usize = x as usize;
-                        let new_w = width as usize;
-                        let old_w = self.width as usize;
-                        let new_index = y_usize * new_w + x_usize;
-                        let old_index = y_usize * old_w + x_usize;
-                        new_frame.cells[new_index] = self.cells[old_index];
-                    }
-                }
+        for y in 0..min(height, self.height) {
+            for x in 0..min(width, self.width) {
+                let y_usize = y as usize;
+                let x_usize = x as usize;
+                let new_index = y_usize * new_w + x_usize;
+                let old_index = y_usize * old_w + x_usize;
+                self.cells[new_index] = old.cells[old_index];
             }
         }
 
-        *self = new_frame;
+        self.width = width;
+        self.height = height;
     }
 
     pub fn draw_char(&mut self, y: u16, x: u16, ch: char, style: Style) {
