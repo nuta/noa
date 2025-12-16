@@ -12,9 +12,10 @@ use crate::{
     display_width::DisplayWidth,
     status_line::{Level, StatusLine},
     terminal::{self, Style, Terminal},
+    utils::measure,
 };
 
-pub struct Editor {
+pub struct EventLoop {
     cwd: PathBuf,
     path: PathBuf,
     buffer: Buffer,
@@ -23,7 +24,7 @@ pub struct Editor {
     terminal: Terminal,
 }
 
-impl Editor {
+impl EventLoop {
     pub fn new() -> Self {
         Self {
             cwd: std::env::current_dir().unwrap(),
@@ -152,13 +153,7 @@ impl Editor {
     }
 
     pub fn run(&mut self) {
-        let render_dur = {
-            let started_at = Instant::now();
-            self.render();
-            started_at.elapsed()
-        };
-
-        trace!("first render took {:?}", render_dur);
+        measure("first-render", || self.render());
 
         'outer: loop {
             let events = self
@@ -166,30 +161,13 @@ impl Editor {
                 .wait_for_events()
                 .expect("failed to wait for event");
 
-            let num_events = events.len();
-            let events_dur = {
-                let started_at = Instant::now();
-                for ev in events {
-                    if let ControlFlow::Break(_) = self.handle_event(ev) {
-                        break 'outer;
-                    }
+            for ev in events {
+                if let ControlFlow::Break(_) = measure("event", || self.handle_event(ev)) {
+                    break 'outer;
                 }
-                started_at.elapsed()
-            };
+            }
 
-            let render_dur = {
-                let started_at = Instant::now();
-                self.render();
-                started_at.elapsed()
-            };
-
-            trace!(
-                "iteration: took {:?} (render: {:?}, handle: {:?}, events: {})",
-                render_dur + events_dur,
-                render_dur,
-                events_dur,
-                num_events,
-            );
+            measure("render", || self.render());
         }
     }
 }

@@ -1,13 +1,13 @@
 use std::path::PathBuf;
 
-use crate::{editor::Editor, utils::NOA_DIR};
+use crate::{eventloop::EventLoop, utils::NOA_DIR};
 
 #[macro_use]
 extern crate log;
 
 mod buffer;
 mod display_width;
-mod editor;
+mod eventloop;
 mod logger;
 mod status_line;
 mod terminal;
@@ -21,7 +21,7 @@ fn main() {
         Some(path) => PathBuf::from(path),
     };
 
-    let mut editor = Editor::new();
+    let mut editor = EventLoop::new();
     editor.open_file(path);
     editor.run();
 }
